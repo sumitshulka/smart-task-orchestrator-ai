@@ -7,6 +7,7 @@ import { Filter } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/components/ui/use-toast";
 import TeamManagerDialog from "@/components/TeamManagerDialog";
+import { useUserList } from "@/hooks/useUserList"; // new import
 
 interface Team {
   id: string;
@@ -25,6 +26,9 @@ const AdminTeams: React.FC = () => {
   const [editTeam, setEditTeam] = React.useState<Team | null>(null);
   const [membersMap, setMembersMap] = React.useState<Record<string, string[]>>({});
   const [managersMap, setManagersMap] = React.useState<Record<string, string>>({});
+
+  // Fetch users for Created By lookup
+  const { users: allUsers, loading: usersLoading } = useUserList();
 
   // Fetch teams
   React.useEffect(() => {
@@ -120,6 +124,13 @@ const AdminTeams: React.FC = () => {
     setEditDialogOpen(true);
   }
 
+  // Helper: get display name/email for a user id (used for created_by)
+  function getUserDisplay(userId: string) {
+    const u = allUsers.find(user => user.id === userId);
+    if (!u) return userId.slice(0, 8); // fallback
+    return u.user_name ? `${u.user_name} (${u.email})` : u.email;
+  }
+
   return (
     <div className="p-6 max-w-6xl w-full">
       {/* Create/Edit Team Dialogs */}
@@ -187,7 +198,9 @@ const AdminTeams: React.FC = () => {
                   <TableCell>
                     {managersMap[team.id] || "--"}
                   </TableCell>
-                  <TableCell>{team.created_by.slice(0, 8)}</TableCell>
+                  <TableCell>
+                    {getUserDisplay(team.created_by)}
+                  </TableCell>
                   <TableCell className="text-right">
                     <Button variant="ghost" size="sm" onClick={() => handleEditTeam(team)}>Edit</Button>
                   </TableCell>
@@ -202,3 +215,4 @@ const AdminTeams: React.FC = () => {
 };
 
 export default AdminTeams;
+
