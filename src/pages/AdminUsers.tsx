@@ -10,6 +10,7 @@ import UserTableActions from "@/components/UserTableActions";
 import CreateUserDialog from "@/components/CreateUserDialog";
 import EditUserDialog from "@/components/EditUserDialog";
 import useSupabaseSession from "@/hooks/useSupabaseSession";
+import DownloadSampleExcel from "@/components/DownloadSampleExcel";
 
 interface User {
   id: string;
@@ -188,7 +189,10 @@ const AdminUsers: React.FC = () => {
       />
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
         <h1 className="text-2xl font-bold">User Management</h1>
-        <CreateUserDialog onUserCreated={handleUserCreated} organization={organization || undefined} />
+        <div className="flex gap-3">
+          <DownloadSampleExcel />
+          <CreateUserDialog onUserCreated={handleUserCreated} organization={organization || undefined} />
+        </div>
       </div>
       {/* Filters */}
       <div className="flex flex-col sm:flex-row flex-wrap gap-3 mb-5 bg-muted/30 border rounded-md px-4 py-3">
