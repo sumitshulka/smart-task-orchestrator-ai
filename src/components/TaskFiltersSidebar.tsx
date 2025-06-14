@@ -1,11 +1,15 @@
 
+// No custom types for User/Team to resolve build error.
 import React from "react";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { format } from "date-fns";
-import { User, Team } from "@/integrations/supabase/types"; // adjust if needed
+
+// Remove the faulty imports and use plain shape as per current useUsersAndTeams
+// type User = { id: string; email: string; user_name?: string };
+// type Team = { id: string; name: string };
 
 type TaskFiltersSidebarProps = {
   priorityFilter: string;
@@ -18,8 +22,8 @@ type TaskFiltersSidebarProps = {
   onUserChange: (value: string) => void;
   onTeamChange: (value: string) => void;
   onDateRangeChange: (range: { from: Date | null; to: Date | null }) => void;
-  users: User[];
-  teams: Team[];
+  users: { id: string; email: string; user_name?: string }[];
+  teams: { id: string; name: string }[];
 };
 
 const priorities = [
@@ -125,3 +129,4 @@ export default function TaskFiltersSidebar({
     </aside>
   );
 }
+
