@@ -1,36 +1,50 @@
 
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
-// CORS headers for browser use
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Read the service role key from env
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 
 if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
+  console.error("Missing SUPABASE_URL or SERVICE_ROLE_KEY env vars!");
   throw new Error("Missing SUPABASE_URL or SERVICE_ROLE_KEY env vars!");
 }
 
 serve(async (req) => {
-  // CORS preflight
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { email, user_name, password, department, phone, manager, roles } = await req.json();
+    const rawBody = await req.text();
+    let payload: any;
+    try {
+      payload = JSON.parse(rawBody);
+    } catch (err) {
+      console.error("[LOG] Failed to parse body:", rawBody, err);
+      return new Response(JSON.stringify({ error: "Invalid JSON body" }), {
+        status: 400,
+        headers: corsHeaders,
+      });
+    }
+
+    console.log("[LOG] Incoming payload:", JSON.stringify(payload));
+
+    const { email, user_name, password, department, phone, manager, roles } = payload;
 
     if (!email || !password || !user_name || !department) {
+      console.warn("[LOG] Missing required fields:", { email, password, user_name, department });
       return new Response(JSON.stringify({ error: "Missing required fields" }), {
         status: 400, headers: corsHeaders
       });
     }
 
     // 1. CREATE THE USER IN AUTH
+    console.log("[LOG] Creating user in Auth service for email:", email);
     const createUserRes = await fetch(`${SUPABASE_URL}/auth/v1/admin/users`, {
       method: "POST",
       headers: {
@@ -47,19 +61,24 @@ serve(async (req) => {
           phone,
           manager,
         },
-        email_confirm: false // Change to true if you want a confirm email to go out
+        email_confirm: false
       }),
     });
+
     const createUserData = await createUserRes.json();
+    console.log("[LOG] createUserRes:", createUserRes.status, createUserRes.statusText, JSON.stringify(createUserData));
 
     if (!createUserRes.ok || !createUserData.user?.id) {
+      console.error("[LOG] Auth user creation failed:", createUserData);
       return new Response(JSON.stringify({ error: createUserData.error?.message || createUserData.message || "Auth user creation failed." }), {
         status: 400, headers: corsHeaders
       });
     }
     const userId = createUserData.user.id;
+    console.log("[LOG] Auth user created with id:", userId);
 
     // 2. ADD TO PUBLIC.USERS
+    console.log("[LOG] Inserting user profile row into users table.");
     const usersRes = await fetch(`${SUPABASE_URL}/rest/v1/users`, {
       method: "POST",
       headers: {
@@ -75,11 +94,13 @@ serve(async (req) => {
         department,
         phone,
         manager,
-        created_by: null, // Optionally, pass through the admin's user_id
+        created_by: null,
       }]),
     });
     const usersData = await usersRes.json();
+    console.log("[LOG] usersRes:", usersRes.status, usersRes.statusText, JSON.stringify(usersData));
     if (!usersRes.ok) {
+      console.error("[LOG] User profile insertion failed.", usersData);
       return new Response(JSON.stringify({ error: usersData.message || "User profile insertion failed" }), {
         status: 400, headers: corsHeaders
       });
@@ -89,6 +110,7 @@ serve(async (req) => {
     let assignedRoles = [];
     if (roles && Array.isArray(roles) && roles.length > 0) {
       // Get all available roles just once to map name -> id
+      console.log("[LOG] Assigning roles:", JSON.stringify(roles));
       const rolesRes = await fetch(`${SUPABASE_URL}/rest/v1/roles`, {
         headers: {
           "apikey": SERVICE_ROLE_KEY,
@@ -96,14 +118,14 @@ serve(async (req) => {
         }
       });
       const availableRoles = await rolesRes.json();
-      const roleMap = {};
+      const roleMap: Record<string, any> = {};
       for (const r of availableRoles) {
         roleMap[r.name] = r.id;
       }
       for (const role of roles) {
         const role_id = roleMap[role];
         if (role_id) {
-          await fetch(`${SUPABASE_URL}/rest/v1/user_roles`, {
+          const urRes = await fetch(`${SUPABASE_URL}/rest/v1/user_roles`, {
             method: "POST",
             headers: {
               "apikey": SERVICE_ROLE_KEY,
@@ -116,15 +138,23 @@ serve(async (req) => {
               assigned_by: null,
             }])
           });
+          const urData = await urRes.json();
+          console.log(`[LOG] user_roles insert for ${role}:`, urRes.status, urRes.statusText, JSON.stringify(urData));
           assignedRoles.push(role);
+        } else {
+          console.warn(`[LOG] Role ${role} not found in roleMap.`);
         }
       }
+    } else {
+      console.log("[LOG] No roles to assign.");
     }
 
+    console.log("[LOG] Success. Responding to client with user_id:", userId, "assignedRoles:", assignedRoles);
     return new Response(JSON.stringify({ success: true, user_id: userId, assignedRoles }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" }
     });
-  } catch (err) {
+  } catch (err: any) {
+    console.error("[LOG] Unhandled error:", err && (err.message || JSON.stringify(err)));
     return new Response(JSON.stringify({ error: err.message || "Server error" }), {
       status: 500, headers: corsHeaders
     });
