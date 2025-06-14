@@ -5,6 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/components/ui/use-toast";
 
+// TODO: Replace this with actual auth session user id
+const CURRENT_USER_ID = "00000000-0000-0000-0000-000000000001";
+
 const emptyTaskState = {
   title: "",
   description: "",
@@ -45,7 +48,12 @@ const TasksPage: React.FC = () => {
   async function handleCreateTask() {
     setCreating(true);
     try {
-      await createTask(newTask);
+      // Ensure required fields for the DB insert
+      const requiredTask = {
+        ...newTask,
+        created_by: CURRENT_USER_ID,  // Set creator
+      };
+      await createTask(requiredTask);
       setNewTask(emptyTaskState);
       load();
       toast({ title: "Task created" });

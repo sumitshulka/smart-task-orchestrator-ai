@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 
 // -------- Type Definitions --------
@@ -30,8 +29,8 @@ export async function fetchTasks(): Promise<Task[]> {
   return data as Task[];
 }
 
-// Create a new task
-export async function createTask(task: Partial<Omit<Task, "id" | "created_at" | "updated_at">>) {
+// Update: require created_by in new task input
+export async function createTask(task: Omit<Task, "id" | "created_at" | "updated_at">) {
   const { data, error } = await supabase
     .from("tasks")
     .insert([task])
