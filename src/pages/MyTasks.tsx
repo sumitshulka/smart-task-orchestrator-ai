@@ -3,7 +3,7 @@ import useSupabaseSession from "@/hooks/useSupabaseSession";
 import { fetchTasks, Task, updateTask } from "@/integrations/supabase/tasks";
 import { useUsersAndTeams } from "@/hooks/useUsersAndTeams";
 import { Button } from "@/components/ui/button";
-import { Image, Kanban, List } from "lucide-react";
+import { Image, Kanban, List, Plus } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useTaskStatuses } from "@/hooks/useTaskStatuses";
 import { useDrop, useDrag, DndProvider } from "react-dnd";
@@ -205,8 +205,8 @@ export default function MyTasksPage() {
     <div className="flex flex-col w-full max-w-7xl mx-auto px-4 py-8">
       <div className="flex w-full items-center gap-4 mb-6">
         <h1 className="text-2xl font-bold flex-shrink-0">My Tasks</h1>
-        {/* List/Kanban toggle always visible */}
-        <div className="ml-auto flex gap-2">
+        {/* List/Kanban toggle and Add Task button always visible together */}
+        <div className="ml-auto flex gap-2 items-center">
           <Button
             variant={view === "list" ? "default" : "outline"}
             className="px-3"
@@ -223,13 +223,18 @@ export default function MyTasksPage() {
             <Kanban className="w-4 h-4 mr-1" />
             Kanban
           </Button>
+          {user?.id && (
+            <CreateTaskSheet
+              onTaskCreated={load}
+              defaultAssignedTo={user.id}
+            >
+              <Button variant="outline" className="flex items-center px-3">
+                <Plus className="w-4 h-4 mr-1" />
+                Add Task
+              </Button>
+            </CreateTaskSheet>
+          )}
         </div>
-        {/* Add Task Button visible only when user is present */}
-        {user?.id && (
-          <div className="ml-4">
-            <CreateTaskSheet onTaskCreated={load} defaultAssignedTo={user.id} />
-          </div>
-        )}
       </div>
       {(loading || statusesLoading) && (
         <div className="text-muted-foreground mb-4 text-center">Loading...</div>
