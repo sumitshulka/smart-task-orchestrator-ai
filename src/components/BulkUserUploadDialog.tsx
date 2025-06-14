@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { utils, read } from "xlsx";
 import { Table, TableHeader, TableRow, TableCell, TableHead, TableBody } from "@/components/ui/table";
 import { Upload } from "lucide-react";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 type RowData = {
   "Employee ID": string;
@@ -14,7 +15,6 @@ type RowData = {
   "Manager": string;
   "Email": string;
   "Phone": string;
-  // Validation helpers:
   _rowIndex: number;
   _errors: Record<string, string>;
   _action: "create" | "update" | "ignore";
@@ -48,9 +48,6 @@ function validateRows(rows: RowData[], existingEmployeeIds: Set<string>, existin
       if (existingEmails.has(row["Email"].toLowerCase())) errors["Email"] = "Exists in system";
       seenEmails.add(row["Email"].toLowerCase());
     }
-    // More column checks as needed
-
-    // Explicit assignment using union type
     let action: "create" | "update" | "ignore" = "create";
     if (errors["Employee ID"] === "Exists in system" || errors["Email"] === "Exists in system") {
       action = "ignore";
@@ -66,7 +63,6 @@ function validateRows(rows: RowData[], existingEmployeeIds: Set<string>, existin
 const excelCellClass = "border px-2 py-1 text-sm min-w-[120px] text-left " +
   "focus:outline-none focus:ring focus:ring-accent bg-background";
 
-// Excel-like table for preview/edit
 function EditableTable({ rows, setRows }: { rows: RowData[], setRows: (rows: RowData[]) => void }) {
   function handleCellChange(rowIdx: number, field: keyof RowData, value: string) {
     const newRows = [...rows];
@@ -109,7 +105,6 @@ function EditableTable({ rows, setRows }: { rows: RowData[], setRows: (rows: Row
                 {row._errors["Employee ID"] === "Exists in system" || row._errors["Email"] === "Exists in system" ? (
                   <select
                     value={row._action}
-                    // ensure type safety when selecting action
                     onChange={e => handleActionChange(i, e.target.value as "update" | "ignore")}
                     className="border px-1 py-1 rounded text-sm"
                   >
@@ -140,11 +135,9 @@ const BulkUserUploadDialog: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Mock values for now - TODO: Replace with real lookup from database
-  // These are available Employee IDs and Emails in system to validate duplicates
   const existingEmployeeIds = new Set<string>();
   const existingEmails = new Set<string>();
 
-  // Reset state on close
   function closeDialog() {
     setOpen(false);
     setParsedRows([]);
@@ -163,14 +156,12 @@ const BulkUserUploadDialog: React.FC = () => {
         const wb = read(data, { type: "binary" });
         const ws = wb.Sheets[wb.SheetNames[0]];
         const json: any[] = utils.sheet_to_json(ws, { header: 0 });
-        // Check if all required columns present:
         const headers = Object.keys(json[0] || {});
         if (!REQUIRED_COLUMNS.every(c => headers.includes(c))) {
           toast({ title: "Invalid file structure", description: `File must have columns: ${REQUIRED_COLUMNS.join(", ")}` });
           setLoading(false);
           return;
         }
-        // Attach row index for stable re-order/editing
         let rows: RowData[] = json.map((r, idx) => ({
           ...r,
           _rowIndex: idx + 2, // Excel index for error
@@ -194,9 +185,7 @@ const BulkUserUploadDialog: React.FC = () => {
 
   const hasErrors = parsedRows.some(row => Object.values(row._errors).length > 0);
 
-  // Placeholder: On Confirm, simply toast the results for now
   function handleConfirm() {
-    // Later: call backend/edge function with rows!
     const creating = parsedRows.filter(r => r._action === "create");
     const updating = parsedRows.filter(r => r._action === "update");
     const ignoring = parsedRows.filter(r => r._action === "ignore");
@@ -223,9 +212,10 @@ const BulkUserUploadDialog: React.FC = () => {
         </div>
         {parsedRows.length > 0 && (
           <>
-            <div className="mb-2">
+            {/* Add scroll area with max height for the editable table */}
+            <ScrollArea className="border rounded max-h-[400px] w-full mb-2">
               <EditableTable rows={parsedRows} setRows={handleUpdateRows} />
-            </div>
+            </ScrollArea>
             <div className="text-xs text-muted-foreground mb-1">
               <span className="text-green-600">Green</span>: Valid rows, <span className="text-red-600">Red</span>: Errors. Select "Update" to overwrite existing users, or "Ignore" to skip.
             </div>
