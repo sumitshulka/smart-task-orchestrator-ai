@@ -10,6 +10,7 @@ import UserTableActions from "@/components/UserTableActions";
 import CreateUserDialog from "@/components/CreateUserDialog";
 import EditUserDialog from "@/components/EditUserDialog";
 import useSupabaseSession from "@/hooks/useSupabaseSession";
+import UsersDebugBlock from "@/components/admin/UsersDebugBlock";
 
 interface User {
   id: string;
@@ -176,59 +177,6 @@ const AdminUsers: React.FC = () => {
       });
   };
 
-  // Debug block (unchanged)
-  function DebugBlock() {
-    return (
-      <div className="mb-4 border border-yellow-300 bg-yellow-50 text-yellow-800 rounded px-4 py-3 text-xs max-w-2xl">
-        <div className="mb-1 font-semibold">[DEBUG INFO]</div>
-        <div>
-          <b>Logged-in User:</b>{" "}
-          {me ? `${me.email} (${me.id.slice(0, 8)})` : "(none)"}
-        </div>
-        <div>
-          <b>Organization (for filter):</b> {organization || "(none)"}
-        </div>
-        <div>
-          <b>Is Admin:</b>{" "}
-          {isAdmin === null
-            ? "checking..."
-            : isAdmin
-            ? "YES"
-            : "NO"}
-        </div>
-        <div>
-          <b>Number of users in filtered org:</b>{" "}
-          {users ? users.length : 0}
-        </div>
-        <div>
-          <b>Notes:</b>
-          <ul className="list-disc list-inside">
-            <li>
-              If you do <b>not</b> see users here and "Is Admin" says NO, you don't
-              have the admin role (check your{" "}
-              <span className="font-mono">public.user_roles</span> table in
-              Supabase).
-            </li>
-            <li>
-              If super admin's organization is different than your org, you will
-              only see yourself here (organization filter is strict).
-            </li>
-            <li>
-              If "Organization" is blank, your user is not mapped in{" "}
-              <span className="font-mono">public.users</span> or has no org set.
-            </li>
-            <li>
-              If issue persists, check{" "}
-              <span className="font-mono">public.users</span> and{" "}
-              <span className="font-mono">public.user_roles</span> directly in
-              Supabase dashboard.
-            </li>
-          </ul>
-        </div>
-      </div>
-    );
-  }
-
   // Show loading state while checking authentication
   if (authLoading) {
     return (
@@ -249,7 +197,7 @@ const AdminUsers: React.FC = () => {
         user={editUser}
         onUserUpdated={handleUserUpdated}
       />
-      <DebugBlock />
+      <UsersDebugBlock me={me} organization={organization} isAdmin={isAdmin} users={users} />
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
         <h1 className="text-2xl font-bold">User Management</h1>
         <CreateUserDialog onUserCreated={handleUserCreated} organization={organization || undefined} />
@@ -329,4 +277,4 @@ const AdminUsers: React.FC = () => {
 };
 
 export default AdminUsers;
-// NOTE: This file is now too long! Consider refactoring after confirming fix!
+// NOTE: This file is now much cleaner!

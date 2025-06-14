@@ -1,18 +1,14 @@
+
 import React, { useState } from "react";
 import {
-  Dialog,
-  DialogTrigger,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-  DialogClose,
+  Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { useDepartments } from "@/hooks/useDepartments";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 
 interface CreateUserDialogProps {
   onUserCreated?: () => void;
@@ -36,51 +32,10 @@ const CreateUserDialog: React.FC<CreateUserDialogProps> = ({
   const [values, setValues] = useState(initialValues);
   const [loading, setLoading] = useState(false);
 
-  // NEW: Departments from DB
-  const [departments, setDepartments] = useState<string[]>([]);
-  const [departmentsLoading, setDepartmentsLoading] = useState(false);
-
-  // For tracking who is the current admin
-  const [currentUser, setCurrentUser] = useState<null | { id: string; organization?: string }>(null);
-
-  // Fetch Departments from Supabase
-  React.useEffect(() => {
-    const fetchDepartments = async () => {
-      setDepartmentsLoading(true);
-      const { data, error } = await supabase
-        .from("departments")
-        .select("name")
-        .order("name");
-      if (error) {
-        toast({
-          title: "Failed to load departments",
-          description: error.message,
-        });
-      } else {
-        setDepartments(data?.map((d: { name: string }) => d.name) || []);
-      }
-      setDepartmentsLoading(false);
-    };
-    fetchDepartments();
-  }, []);
-
-  // Fetch current admin user id and org if not already loaded
-  React.useEffect(() => {
-    const fetch = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        let org = organization;
-        const { data } = await supabase
-          .from("users")
-          .select("organization")
-          .eq("id", session.user.id)
-          .maybeSingle();
-        if (data?.organization) org = data.organization;
-        setCurrentUser({ id: session.user.id, organization: org });
-      }
-    };
-    fetch();
-  }, [organization]);
+  // Departments logic refactored into useDepartments
+  const { departments, loading: departmentsLoading } = useDepartments();
+  // Current admin logic refactored into useCurrentUser
+  const currentUser = useCurrentUser(organization);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setValues((v) => ({ ...v, [e.target.name]: e.target.value }));
@@ -92,7 +47,6 @@ const CreateUserDialog: React.FC<CreateUserDialogProps> = ({
 
     try {
       const { email, password, user_name, department, phone, manager } = values;
-      // 1. Create user via Supabase Auth
       const { data: created, error: authError } = await supabase.auth.admin.createUser({
         email,
         password,
@@ -113,7 +67,6 @@ const CreateUserDialog: React.FC<CreateUserDialogProps> = ({
         return;
       }
 
-      // 2. Insert metadata into public.users table
       const publicUser = {
         id: created.user.id,
         email,
