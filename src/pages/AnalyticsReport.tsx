@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchTasksPaginated } from "@/integrations/supabase/tasks";
 import { startOfMonth, format } from "date-fns";
 import { PieChart, Pie, Cell, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, ResponsiveContainer } from "recharts";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 function getDefaultMonthRange() {
   const now = new Date();
@@ -32,7 +33,7 @@ export default function AnalyticsReport() {
     }
   });
 
-  // Prepare analytic data
+  // Pie: Status Distribution
   const statusData = React.useMemo(() => {
     if (!taskData) return [];
     const map: Record<string, number> = {};
@@ -44,7 +45,7 @@ export default function AnalyticsReport() {
     return Object.entries(map).map(([status, count]) => ({ status, count }));
   }, [taskData]);
 
-  // Count tasks over time (created_at by date)
+  // Bar: Tasks created over time
   const trendData = React.useMemo(() => {
     if (!taskData) return [];
     const map: Record<string, number> = {};
@@ -52,13 +53,12 @@ export default function AnalyticsReport() {
       const date = t.created_at ? t.created_at.slice(0, 10) : "unknown";
       map[date] = (map[date] || 0) + 1;
     });
-    // sort by date
     return Object.entries(map)
       .sort(([d1], [d2]) => d1.localeCompare(d2))
       .map(([date, count]) => ({ date, count }));
   }, [taskData]);
 
-  // Overdue tasks
+  // Overdue tasks summary
   const overdueCount = React.useMemo(() => {
     if (!taskData) return 0;
     const now = new Date();
@@ -67,7 +67,7 @@ export default function AnalyticsReport() {
     ).length;
   }, [taskData]);
 
-  // Top performers
+  // Top performers table
   const performerData = React.useMemo(() => {
     if (!taskData) return [];
     const map: Record<string, { name: string; completed: number }> = {};
@@ -98,60 +98,74 @@ export default function AnalyticsReport() {
       {isLoading ? (
         <div>Loading...</div>
       ) : (
-        <div className="flex flex-col gap-8">
-          {/* Status Breakdown */}
-          <section>
-            <h2 className="text-lg font-semibold mb-2">Task Status Distribution</h2>
-            <div className="flex justify-center">
-              <PieChart width={340} height={260}>
-                <Pie
-                  dataKey="count"
-                  data={statusData}
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={80}
-                  innerRadius={40}
-                  label={({ status, count }) => `${status}: ${count}`}
-                >
-                  {statusData.map((entry, i) => (
-                    <Cell key={entry.status} fill={COLORS[i % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip />
-                <Legend layout="horizontal" align="center" verticalAlign="bottom" />
-              </PieChart>
-            </div>
-          </section>
-          {/* Trend */}
-          <section>
-            <h2 className="text-lg font-semibold mb-2">Task Creation Trend</h2>
-            <ResponsiveContainer width="100%" height={240}>
-              <BarChart data={trendData}>
-                <XAxis dataKey="date" />
-                <YAxis allowDecimals={false} />
-                <Tooltip />
-                <Bar dataKey="count" fill="#8884d8" />
-              </BarChart>
-            </ResponsiveContainer>
-          </section>
-          {/* Overdue tasks */}
-          <section>
-            <h2 className="text-lg font-semibold mb-2">Overdue Tasks</h2>
-            <div className="text-3xl font-bold text-red-600">{overdueCount}</div>
-            <span className="text-muted-foreground">Tasks past due date and not completed</span>
-          </section>
-          {/* Top Performers */}
-          <section>
-            <h2 className="text-lg font-semibold mb-2">Top Performers (Most Completed)</h2>
-            <ul className="list-disc list-inside">
-              {performerData.map((p, idx) => (
-                <li key={p.employee || idx}>
-                  <span className="font-medium">{p.employee}:</span> {p.completed} completed
-                </li>
-              ))}
-            </ul>
-          </section>
-        </div>
+        <Tabs defaultValue="status" className="w-full">
+          <TabsList className="mb-6">
+            <TabsTrigger value="status">Status Breakdown</TabsTrigger>
+            <TabsTrigger value="trend">Task Creation Trend</TabsTrigger>
+            <TabsTrigger value="overdue">Overdue Tasks</TabsTrigger>
+            <TabsTrigger value="performers">Top Performers</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="status" className="w-full">
+            <section>
+              <h2 className="text-lg font-semibold mb-2">Task Status Distribution</h2>
+              <div className="flex justify-center">
+                <PieChart width={340} height={260}>
+                  <Pie
+                    dataKey="count"
+                    data={statusData}
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={80}
+                    innerRadius={40}
+                    label={({ status, count }) => `${status}: ${count}`}
+                  >
+                    {statusData.map((entry, i) => (
+                      <Cell key={entry.status} fill={COLORS[i % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                  <Legend layout="horizontal" align="center" verticalAlign="bottom" />
+                </PieChart>
+              </div>
+            </section>
+          </TabsContent>
+
+          <TabsContent value="trend" className="w-full">
+            <section>
+              <h2 className="text-lg font-semibold mb-2">Task Creation Trend</h2>
+              <ResponsiveContainer width="100%" height={240}>
+                <BarChart data={trendData}>
+                  <XAxis dataKey="date" />
+                  <YAxis allowDecimals={false} />
+                  <Tooltip />
+                  <Bar dataKey="count" fill="#8884d8" />
+                </BarChart>
+              </ResponsiveContainer>
+            </section>
+          </TabsContent>
+
+          <TabsContent value="overdue" className="w-full">
+            <section>
+              <h2 className="text-lg font-semibold mb-2">Overdue Tasks</h2>
+              <div className="text-3xl font-bold text-red-600">{overdueCount}</div>
+              <span className="text-muted-foreground">Tasks past due date and not completed</span>
+            </section>
+          </TabsContent>
+
+          <TabsContent value="performers" className="w-full">
+            <section>
+              <h2 className="text-lg font-semibold mb-2">Top Performers (Most Completed)</h2>
+              <ul className="list-disc list-inside">
+                {performerData.map((p, idx) => (
+                  <li key={p.employee || idx}>
+                    <span className="font-medium">{p.employee}:</span> {p.completed} completed
+                  </li>
+                ))}
+              </ul>
+            </section>
+          </TabsContent>
+        </Tabs>
       )}
     </div>
   );
