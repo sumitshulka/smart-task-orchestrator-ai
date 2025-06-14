@@ -12,10 +12,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/use-toast";
 import { format } from "date-fns";
+import { Input } from "@/components/ui/input";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 
+// User type now includes optional department
 type User = {
   id: string;
   email: string;
+  department?: string;
 };
 
 type EditState = {
@@ -31,6 +35,11 @@ const UserRoleManager: React.FC = () => {
   const [sessionUserId, setSessionUserId] = useState<string | null>(null);
   const [sessionUserEmail, setSessionUserEmail] = useState<string | null>(null);
 
+  // Filtering state
+  const [filterEmail, setFilterEmail] = useState("");
+  const [filterDepartment, setFilterDepartment] = useState("");
+  const [filterRoleId, setFilterRoleId] = useState("");
+
   // State for editing roles
   const [editState, setEditState] = useState<EditState>(null);
   const [editNewRole, setEditNewRole] = useState<string>("");
@@ -43,40 +52,28 @@ const UserRoleManager: React.FC = () => {
       if (userSessionData?.user) {
         setSessionUserId(userSessionData.user.id);
         setSessionUserEmail(userSessionData.user.email);
-        console.log(`[LOVABLE DEBUG][UserRoleManager] Session user:`, userSessionData.user.id, userSessionData.user.email);
       } else {
         setSessionUserId(null);
         setSessionUserEmail(null);
-        console.log(`[LOVABLE DEBUG][UserRoleManager] No session user!`, sessionError);
       }
 
-      // Fetch users from the public.users table
+      // Fetch users from the public.users table, with department if available
       const { data: usersData, error: userError } = await supabase
         .from("users")
-        .select("id, email");
+        .select("id, email, department");
       if (userError) {
         toast({ title: "Error loading users", description: userError.message });
-        console.log(`[LOVABLE DEBUG][UserRoleManager] Error loading users:`, userError);
       } else {
         setUsers(usersData ?? []);
-        console.log(`[LOVABLE DEBUG][UserRoleManager] Users loaded:`, usersData);
       }
       try {
         const _roles = await fetchRoles();
         setRoles(_roles);
-        console.log(`[LOVABLE DEBUG][UserRoleManager] Roles:`, _roles);
 
         const _userRoles = await fetchUserRoles();
         setUserRoles(_userRoles);
-        console.log(`[LOVABLE DEBUG][UserRoleManager] UserRoles:`, _userRoles);
-
-        // Check if current session user is admin
-        const adminRole = _roles.find(r => r.name === "admin");
-        const hasAdmin = _userRoles.some(ur => ur.user_id === userSessionData?.user?.id && ur.role_id === adminRole?.id);
-        console.log(`[LOVABLE DEBUG][UserRoleManager] Is current user admin?`, hasAdmin, "adminRole.id:", adminRole?.id, "user id:", userSessionData?.user?.id);
       } catch (err: any) {
         toast({ title: "Error", description: err.message });
-        console.log(`[LOVABLE DEBUG][UserRoleManager] Error when fetching roles/userRoles:`, err);
       }
       setLoading(false);
     }
@@ -97,7 +94,6 @@ const UserRoleManager: React.FC = () => {
       setUserRoles(await fetchUserRoles());
     } catch (err: any) {
       toast({ title: "Error assigning role", description: err.message });
-      console.log(`[LOVABLE DEBUG][UserRoleManager] Error assigning role:`, err);
     }
     setLoading(false);
   };
@@ -110,7 +106,6 @@ const UserRoleManager: React.FC = () => {
       setUserRoles(await fetchUserRoles());
     } catch (err: any) {
       toast({ title: "Error removing role", description: err.message });
-      console.log(`[LOVABLE DEBUG][UserRoleManager] Error removing role:`, err);
     }
     setLoading(false);
   };
@@ -144,12 +139,39 @@ const UserRoleManager: React.FC = () => {
       cancelEdit();
     } catch (err: any) {
       toast({ title: "Error updating role", description: err.message });
-      console.log(`[LOVABLE DEBUG][UserRoleManager] Error editing role:`, err);
       setLoading(false);
     }
     setLoading(false);
   };
 
+  // FILTERING - compute filtered users
+  const filteredUsers = users.filter(user => {
+    // Email filter (simple substring)
+    if (filterEmail && !user.email.toLowerCase().includes(filterEmail.toLowerCase())) {
+      return false;
+    }
+    // Department filter
+    if (filterDepartment && user.department !== filterDepartment) {
+      return false;
+    }
+    // Role filter (user must have at least one assigned role which matches filterRoleId)
+    if (filterRoleId) {
+      const assigned = getUserRolesFull(user.id);
+      if (!assigned.some(ur => ur.role?.id === filterRoleId)) {
+        return false;
+      }
+    }
+    return true;
+  });
+
+  // Used for department filter dropdown
+  const allDepartments = Array.from(
+    new Set(users.map((user) => user.department).filter(Boolean))
+  );
+  // Used for showing all options for roles filter
+  const roleOptions = roles;
+
+  // Get role name by id utility
   const getRoleNameById = (roleId: string) => {
     return roles.find((r) => r.id === roleId)?.name ?? "Unknown";
   };
@@ -157,11 +179,60 @@ const UserRoleManager: React.FC = () => {
   return (
     <div className="p-6 max-w-3xl ml-0">
       <h1 className="text-2xl font-bold mb-6">User Role Management</h1>
-      {sessionUserId && (
-        <div className="mb-4 p-2 bg-muted rounded text-xs text-muted-foreground">
-          Debug: Session user = {sessionUserId} ({sessionUserEmail})
+      {/* FILTERS */}
+      <div className="mb-4 flex flex-wrap gap-3 items-end">
+        <div>
+          <div className="text-xs mb-1 font-medium text-muted-foreground">Email</div>
+          <Input
+            value={filterEmail}
+            onChange={e => setFilterEmail(e.target.value)}
+            placeholder="Search by email"
+            className="w-48"
+          />
         </div>
-      )}
+        {allDepartments.length > 0 && (
+          <div>
+            <div className="text-xs mb-1 font-medium text-muted-foreground">Department</div>
+            <select
+              className="border rounded p-2 w-40 text-sm"
+              value={filterDepartment}
+              onChange={e => setFilterDepartment(e.target.value)}
+            >
+              <option value="">All Departments</option>
+              {allDepartments.map(dep =>
+                <option key={dep} value={dep}>{dep}</option>
+              )}
+            </select>
+          </div>
+        )}
+        {roleOptions.length > 0 && (
+          <div>
+            <div className="text-xs mb-1 font-medium text-muted-foreground">Role</div>
+            <select
+              className="border rounded p-2 w-40 text-sm"
+              value={filterRoleId}
+              onChange={e => setFilterRoleId(e.target.value)}
+            >
+              <option value="">All Roles</option>
+              {roleOptions.map(r =>
+                <option key={r.id} value={r.id}>{r.name}</option>
+              )}
+            </select>
+          </div>
+        )}
+        <Button
+          variant="ghost"
+          className="mt-5"
+          size="sm"
+          onClick={() => {
+            setFilterEmail("");
+            setFilterDepartment("");
+            setFilterRoleId("");
+          }}
+        >
+          Clear Filters
+        </Button>
+      </div>
       {loading && <div className="text-muted-foreground mb-4">Loading...</div>}
       <table className="w-full border text-sm rounded-md shadow bg-background">
         <thead>
@@ -173,13 +244,20 @@ const UserRoleManager: React.FC = () => {
           </tr>
         </thead>
         <tbody>
-          {users.map((user) => {
+          {filteredUsers.map((user) => {
             // This returns an array of UserRole {id, user_id, role_id, assigned_by, assigned_at, role}
             const assignedUserRoles = getUserRolesFull(user.id);
 
             return (
               <tr key={user.id} className="border-b last:border-b-0">
-                <td className="p-2">{user.email}</td>
+                <td className="p-2">
+                  <div className="font-medium">{user.email}</div>
+                  {user.department && (
+                    <div className="text-xs text-muted-foreground">
+                      Dept: {user.department}
+                    </div>
+                  )}
+                </td>
                 {/* Roles col */}
                 <td className="p-2">
                   {assignedUserRoles.length > 0 ? (
@@ -233,7 +311,7 @@ const UserRoleManager: React.FC = () => {
                               disabled={loading}
                               title="Edit role"
                             >
-                              &#9998; {/* Pencil/Edit icon - use unicode or install Lucide icon as needed */}
+                              &#9998;
                             </Button>
                             <Button
                               variant="ghost"
@@ -305,4 +383,3 @@ const UserRoleManager: React.FC = () => {
 };
 
 export default UserRoleManager;
-
