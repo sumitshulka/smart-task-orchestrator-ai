@@ -15,6 +15,8 @@ import TasksPage from "./pages/Tasks";
 import MyTasksPage from "./pages/MyTasks";
 import HistoricalTasks from "./pages/HistoricalTasks";
 import AdminDashboard from "./pages/AdminDashboard";
+import TaskReport from "@/pages/TaskReport";
+import AnalyticsReport from "@/pages/AnalyticsReport";
 
 const queryClient = new QueryClient();
 
@@ -95,6 +97,22 @@ const App = () => (
             element={
               <AdminLayout>
                 <AdminDashboard />
+              </AdminLayout>
+            }
+          />
+          <Route
+            path="/admin/reports/task"
+            element={
+              <AdminLayout>
+                <TaskReport />
+              </AdminLayout>
+            }
+          />
+          <Route
+            path="/admin/reports/analytics"
+            element={
+              <AdminLayout>
+                <AnalyticsReport />
               </AdminLayout>
             }
           />

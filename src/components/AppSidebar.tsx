@@ -1,4 +1,3 @@
-
 import React from "react";
 import { useLocation, NavLink } from "react-router-dom";
 import {
@@ -16,11 +15,13 @@ import {
 import { 
   LayoutDashboard, 
   Users2, 
-  Users,         // New icon: 'Users' (for Team Management)
+  Users,         
   ShieldCheck, 
   ClipboardList, 
   ListTodo, 
-  History 
+  History,
+  FileText,
+  ChartBar
 } from "lucide-react";
 import Logo from "./Logo";
 
@@ -34,7 +35,6 @@ export default function AppSidebar() {
         <div className="border-b pb-2 mb-2">
           <Logo />
         </div>
-
         {/* Dashboard - ungrouped */}
         <SidebarGroup>
           <SidebarGroupContent>
@@ -159,6 +159,45 @@ export default function AppSidebar() {
                   >
                     <ShieldCheck className="w-5 h-5" />
                     <span className="hidden md:inline">Roles and Privileges</span>
+                  </NavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        {/* Reports Section */}
+        <SidebarGroup>
+          <SidebarGroupLabel>Reports</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={location.pathname.startsWith("/admin/reports/task")}>
+                  <NavLink
+                    to="/admin/reports/task"
+                    end
+                    className={({ isActive }) =>
+                      "flex items-center gap-2 py-1.5 px-2 rounded transition " +
+                      (isActive ? "bg-muted text-primary font-semibold" : "hover:bg-muted/50")
+                    }
+                  >
+                    <FileText className="w-5 h-5" />
+                    <span className="hidden md:inline">Task Report</span>
+                  </NavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={location.pathname.startsWith("/admin/reports/analytics")}>
+                  <NavLink
+                    to="/admin/reports/analytics"
+                    end
+                    className={({ isActive }) =>
+                      "flex items-center gap-2 py-1.5 px-2 rounded transition " +
+                      (isActive ? "bg-muted text-primary font-semibold" : "hover:bg-muted/50")
+                    }
+                  >
+                    <ChartBar className="w-5 h-5" />
+                    <span className="hidden md:inline">Analytics Report</span>
                   </NavLink>
                 </SidebarMenuButton>
               </SidebarMenuItem>
