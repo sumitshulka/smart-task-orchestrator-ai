@@ -90,10 +90,25 @@ const TeamManagerDialog: React.FC<TeamManagerDialogProps> = ({
         setMembers([]);
         return;
       }
-      setMembers(data || []);
-      setSelectedUserIds(data ? data.map((m: any) => m.user_id) : []);
+
+      // --- Add this filter to ignore any rows where `user` is null or malformed ---
+      const validMembers = (data || []).filter((m: any) =>
+        m.user && typeof m.user === "object" && "id" in m.user && "email" in m.user
+      );
+
+      if ((data || []).length !== validMembers.length) {
+        console.warn(
+          "[TeamManagerDialog] Some membership rows were skipped because user join failed.",
+          {
+            allRows: data,
+            validRows: validMembers,
+          }
+        );
+      }
+      setMembers(validMembers);
+      setSelectedUserIds(validMembers.map((m: any) => m.user_id));
       // Find manager (if any)
-      const managerEntry = (data ?? []).find((m: any) => m.role_within_team === "manager");
+      const managerEntry = validMembers.find((m: any) => m.role_within_team === "manager");
       setManagerId(managerEntry?.user_id || "");
     }
     fetchMembers();
