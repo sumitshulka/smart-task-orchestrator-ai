@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from "react";
 import { fetchTasks, deleteTask, Task } from "@/integrations/supabase/tasks";
 import { Button } from "@/components/ui/button";
@@ -17,14 +16,14 @@ import {
 import { Image } from "lucide-react";
 
 const priorities = [
-  { label: "All", value: "" },
+  { label: "All", value: "all" },
   { label: "High", value: "1" },
   { label: "Medium", value: "2" },
   { label: "Low", value: "3" },
 ];
 
 const statuses = [
-  { label: "All", value: "" },
+  { label: "All", value: "all" },
   { label: "Pending", value: "pending" },
   { label: "In Progress", value: "in_progress" },
   { label: "Completed", value: "completed" },
@@ -38,8 +37,8 @@ const TasksPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const { user, loading: sessionLoading } = useSupabaseSession();
   // filters
-  const [priorityFilter, setPriorityFilter] = useState<string>("");
-  const [statusFilter, setStatusFilter] = useState<string>("");
+  const [priorityFilter, setPriorityFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
 
   async function load() {
     setLoading(true);
@@ -73,8 +72,8 @@ const TasksPage: React.FC = () => {
   const filteredTasks = useMemo(() => {
     return tasks.filter((task) => {
       const priorityPass =
-        !priorityFilter || String(task.priority) === priorityFilter;
-      const statusPass = !statusFilter || task.status === statusFilter;
+        !priorityFilter || priorityFilter === "all" || String(task.priority) === priorityFilter;
+      const statusPass = !statusFilter || statusFilter === "all" || task.status === statusFilter;
       return priorityPass && statusPass;
     });
   }, [tasks, priorityFilter, statusFilter]);
