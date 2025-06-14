@@ -1,9 +1,11 @@
-import React from "react";
+
+import React, { useState } from "react";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { format } from "date-fns";
+import DateRangePresetSelector from "./DateRangePresetSelector";
 
 type TaskFiltersSidebarProps = {
   priorityFilter: string;
@@ -40,6 +42,19 @@ export default function TaskFiltersSidebar({
   onUserChange, onTeamChange, onDateRangeChange,
   users, teams,
 }: TaskFiltersSidebarProps) {
+  const [preset, setPreset] = useState<string>("custom");
+
+  function handlePresetChange(range: { from: Date | null; to: Date | null }, p: string) {
+    setPreset(p);
+    if (p === "custom") return; // allow picker
+    onDateRangeChange(range);
+  }
+
+  function handleCustomRange(range: { from: Date | null; to: Date | null }) {
+    setPreset("custom");
+    onDateRangeChange(range);
+  }
+
   return (
     <aside className="w-full sm:w-64 bg-background border-r border-muted px-4 py-6 flex-shrink-0">
       <h3 className="text-xl font-bold mb-6">Filters</h3>
@@ -101,25 +116,34 @@ export default function TaskFiltersSidebar({
       </div>
       <div>
         <div className="text-sm font-semibold mb-1">Creation Date Range</div>
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button variant="outline" className="w-full justify-start text-left">
-              {dateRange.from && dateRange.to
-                ? `${format(dateRange.from, "yyyy-MM-dd")} - ${format(dateRange.to, "yyyy-MM-dd")}`
-                : "Select range"}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-0" align="start">
-            <Calendar
-              mode="range"
-              selected={dateRange}
-              onSelect={(range: any) => onDateRangeChange(range)}
-              initialFocus
-              className="p-3 pointer-events-auto"
-            />
-          </PopoverContent>
-        </Popover>
+        <DateRangePresetSelector
+          dateRange={dateRange}
+          preset={preset}
+          onChange={handlePresetChange}
+        />
+        {/* Only show calendar if custom selected */}
+        {preset === "custom" && (
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className="w-full justify-start text-left">
+                {dateRange.from && dateRange.to
+                  ? `${format(dateRange.from, "yyyy-MM-dd")} - ${format(dateRange.to, "yyyy-MM-dd")}`
+                  : "Select range"}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar
+                mode="range"
+                selected={dateRange}
+                onSelect={handleCustomRange}
+                initialFocus
+                className="p-3 pointer-events-auto"
+              />
+            </PopoverContent>
+          </Popover>
+        )}
       </div>
     </aside>
   );
 }
+
