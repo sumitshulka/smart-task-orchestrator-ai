@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import {
   fetchRoles,
@@ -105,8 +104,7 @@ const UserRoleManager: React.FC = () => {
   };
 
   return (
--    <div className="p-6 max-w-3xl mx-auto">
-+    <div className="p-6 max-w-3xl ml-0">
+    <div className="p-6 max-w-3xl ml-0">
       <h1 className="text-2xl font-bold mb-6">User Role Management</h1>
       {sessionUserId && (
         <div className="mb-4 p-2 bg-muted rounded text-xs text-muted-foreground">
