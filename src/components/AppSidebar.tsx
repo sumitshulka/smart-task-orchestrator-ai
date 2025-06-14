@@ -44,7 +44,7 @@ export default function AppSidebar() {
         <div className="border-b pb-2 mb-2">
           <Logo />
         </div>
-        <SidebarGroup defaultOpen>
+        <SidebarGroup>
           <SidebarGroupLabel>Menu</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
