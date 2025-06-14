@@ -7,6 +7,7 @@ import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@
 import { Filter } from "lucide-react";
 import UserTableActions from "@/components/UserTableActions";
 import CreateUserDialog from "@/components/CreateUserDialog";
+import useSupabaseSession from "@/hooks/useSupabaseSession";
 
 interface User {
   id: string;
@@ -29,93 +30,74 @@ const departments = [
 ];
 
 const AdminUsers: React.FC = () => {
+  const { session, user, loading: authLoading } = useSupabaseSession();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [selectedDept, setSelectedDept] = useState("");
   const [status, setStatus] = useState("");
-  const [organization, setOrganization] = useState<string | null>(null); // Filtering by org
-  const [me, setMe] = useState<{id: string, email: string, organization: string | null } | null>(null);
+  const [organization, setOrganization] = useState<string | null>(null);
+  const [me, setMe] = useState<{ id: string, email: string, organization: string | null } | null>(null);
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
 
-  // On component mount, immediately log the session
+  // Debug logs for session and user
   useEffect(() => {
-    (async () => {
-      const { data: { session }, error } = await supabase.auth.getSession();
-      console.log("[LOVABLE DEBUG] getSession() called on mount:", session, error);
+    console.log("[LOVABLE DEBUG][AdminUsers] useSupabaseSession: session:", session, " user:", user, " loading:", authLoading);
+    if (!authLoading && !user) {
+      console.warn("[LOVABLE DEBUG][AdminUsers] No user/session detected - you are NOT logged in. Redirect may be required.");
+    }
+  }, [session, user, authLoading]);
 
-      // Log localStorage tokens as well
-      try {
-        const tokenData = window.localStorage.getItem("supabase.auth.token");
-        console.log("[LOVABLE DEBUG] window.localStorage.supabase.auth.token:", tokenData);
-      } catch (e) {
-        console.log("[LOVABLE DEBUG] localStorage access failed:", e);
-      }
-    })();
-  }, []);
-
-  // Fetch the current admin's org for scoping
+  // Fetch current user's org & admin status
   useEffect(() => {
+    if (!user) {
+      setMe(null);
+      setIsAdmin(false);
+      setOrganization(null);
+      return;
+    }
     async function fetchOrgAndMe() {
-      const { data: { session }, error } = await supabase.auth.getSession();
-      console.log("[DEBUG] Supabase auth.getSession() (in fetchOrgAndMe):", session, error);
+      const uid = user.id;
+      const email = user.email || "";
+      console.log("[LOVABLE DEBUG][AdminUsers] Session user:", uid, email);
 
-      if (error) {
-        setMe(null);
-        setIsAdmin(false);
-        setOrganization(null);
-        return;
-      }
-      if (session?.user) {
-        const uid = session.user.id;
-        const email = session.user.email || "";
-        console.log("[LOVABLE DEBUG] Session user:", uid, email);
+      // Fetch user's org from public.users
+      const { data, error } = await supabase
+        .from("users")
+        .select("organization")
+        .eq("id", uid)
+        .maybeSingle();
 
-        // look up their org from public.users, fallback to null (see table RLS)
-        const { data } = await supabase
-          .from("users")
-          .select("organization")
-          .eq("id", uid)
-          .maybeSingle();
+      console.log("[DEBUG][AdminUsers] public.users org lookup:", data, error);
 
-        console.log("[DEBUG] public.users org lookup:", data);
+      setMe({ id: uid, email, organization: data?.organization ?? null });
+      setOrganization(data?.organization ?? null);
 
-        setMe({ id: uid, email, organization: data?.organization ?? null });
-        setOrganization(data?.organization ?? null);
+      // Check admin role
+      const { data: adminData, error: adminErr } = await supabase
+        .from("user_roles")
+        .select(`
+          id,
+          user_id,
+          role_id,
+          roles:role_id (
+            name
+          )
+        `)
+        .eq("user_id", uid);
 
-        // Check if current user is admin (via public.user_roles + public.roles)
-        const { data: adminData, error: adminErr } = await supabase
-          .from("user_roles")
-          .select(`
-            id,
-            user_id,
-            role_id,
-            roles:role_id (
-              name
-            )
-          `)
-          .eq("user_id", uid);
+      console.log("[DEBUG][AdminUsers] user_roles lookup:", adminData, adminErr);
 
-        console.log("[DEBUG] public.user_roles for user:", adminData, adminErr);
-
-        // adminData is an array, each having roles
-        const hasAdminRole = !!(adminData && adminData.some((row: any) => {
-          // row.roles is an object with name
-          return row?.roles?.name === "admin";
-        }));
-        setIsAdmin(hasAdminRole);
-        console.log("[DEBUG] Is admin? ", hasAdminRole);
-      } else {
-        setMe(null);
-        setIsAdmin(false);
-        setOrganization(null);
-        console.log("[LOVABLE DEBUG] No user in session!");
-      }
+      const hasAdminRole = !!(adminData && adminData.some((row: any) =>
+        row?.roles?.name === "admin"
+      ));
+      setIsAdmin(hasAdminRole);
+      console.log("[DEBUG][AdminUsers] Is admin? ", hasAdminRole);
     }
     fetchOrgAndMe();
-  }, []);
+  }, [user]);
 
-  // Fetch users from public.users
+  // Fetch users list
   useEffect(() => {
     async function fetchUsers() {
       setLoading(true);
@@ -128,22 +110,22 @@ const AdminUsers: React.FC = () => {
         toast({ title: "Error loading users", description: error.message });
         setUsers([]);
         setLoading(false);
-        console.log("[DEBUG] Error loading users:", error);
+        console.log("[DEBUG][AdminUsers] Error loading users:", error);
         return;
       }
       setUsers(data || []);
       setLoading(false);
-      console.log("[DEBUG] Users fetched:", data);
+      console.log("[DEBUG][AdminUsers] Users fetched:", data);
     }
     if (organization) {
       fetchUsers();
     } else {
       setUsers([]);
-      console.log("[DEBUG] Organization not set, skipping fetchUsers");
+      console.log("[DEBUG][AdminUsers] Organization not set, skipping fetchUsers");
     }
   }, [organization]);
 
-  // Filtering logic
+  // Filtering logic (unchanged)
   const filtered = useMemo(() => {
     return users.filter((user) => {
       const matchesSearch =
@@ -151,14 +133,11 @@ const AdminUsers: React.FC = () => {
         user.user_name?.toLowerCase().includes(search.toLowerCase()) ||
         user.email?.toLowerCase().includes(search.toLowerCase());
       const matchesDept = selectedDept === "" || user.department === selectedDept;
-      // Status (active/inactive) is not tracked in public.users, so disabled for now
       return matchesSearch && matchesDept;
     });
   }, [users, search, selectedDept]);
 
-  // Enhance: Allow parent to refresh user list after create
   const handleUserCreated = () => {
-    // just re-fetch from DB
     setLoading(true);
     if (!organization) return;
     supabase.from("users").select("*").eq("organization", organization).order("created_at", { ascending: false })
@@ -173,30 +152,67 @@ const AdminUsers: React.FC = () => {
       });
   };
 
-  // DEBUGGING OUTPUT
+  // Debug block (unchanged)
   function DebugBlock() {
     return (
       <div className="mb-4 border border-yellow-300 bg-yellow-50 text-yellow-800 rounded px-4 py-3 text-xs max-w-2xl">
         <div className="mb-1 font-semibold">[DEBUG INFO]</div>
-        <div><b>Logged-in User:</b> {me ? `${me.email} (${me.id.slice(0, 8)})` : "(none)"}</div>
-        <div><b>Organization (for filter):</b> {organization || "(none)"}</div>
-        <div><b>Is Admin:</b> {isAdmin === null ? "checking..." : isAdmin ? "YES" : "NO"}</div>
-        <div><b>Number of users in filtered org:</b> {users ? users.length : 0}</div>
+        <div>
+          <b>Logged-in User:</b>{" "}
+          {me ? `${me.email} (${me.id.slice(0, 8)})` : "(none)"}
+        </div>
+        <div>
+          <b>Organization (for filter):</b> {organization || "(none)"}
+        </div>
+        <div>
+          <b>Is Admin:</b>{" "}
+          {isAdmin === null
+            ? "checking..."
+            : isAdmin
+            ? "YES"
+            : "NO"}
+        </div>
+        <div>
+          <b>Number of users in filtered org:</b>{" "}
+          {users ? users.length : 0}
+        </div>
         <div>
           <b>Notes:</b>
           <ul className="list-disc list-inside">
-            <li>If you do <b>not</b> see users here and "Is Admin" says NO, you don't have the admin role (check your <span className="font-mono">public.user_roles</span> table in Supabase).</li>
-            <li>If super admin's organization is different than your org, you will only see yourself here (organization filter is strict).</li>
-            <li>If "Organization" is blank, your user is not mapped in <span className="font-mono">public.users</span> or has no org set.</li>
-            <li>If issue persists, check <span className="font-mono">public.users</span> and <span className="font-mono">public.user_roles</span> directly in Supabase dashboard.</li>
+            <li>
+              If you do <b>not</b> see users here and "Is Admin" says NO, you don't
+              have the admin role (check your{" "}
+              <span className="font-mono">public.user_roles</span> table in
+              Supabase).
+            </li>
+            <li>
+              If super admin's organization is different than your org, you will
+              only see yourself here (organization filter is strict).
+            </li>
+            <li>
+              If "Organization" is blank, your user is not mapped in{" "}
+              <span className="font-mono">public.users</span> or has no org set.
+            </li>
+            <li>
+              If issue persists, check{" "}
+              <span className="font-mono">public.users</span> and{" "}
+              <span className="font-mono">public.user_roles</span> directly in
+              Supabase dashboard.
+            </li>
           </ul>
         </div>
       </div>
     );
   }
 
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-lg text-muted-foreground">Checking authentication...</div>
+    );
+  }
+
   return (
-    <div className="p-6 max-w-6xl"> {/* removed mx-auto so it aligns left */}
+    <div className="p-6 max-w-6xl">
       <DebugBlock />
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
         <h1 className="text-2xl font-bold">User Management</h1>
@@ -279,5 +295,4 @@ const AdminUsers: React.FC = () => {
 };
 
 export default AdminUsers;
-
-// NOTE: This file is getting long (over 200 LOC). Consider asking me to refactor for maintainability!
+// NOTE: This file is now too long! Consider refactoring after confirming fix!
