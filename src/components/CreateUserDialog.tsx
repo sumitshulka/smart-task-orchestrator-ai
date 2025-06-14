@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import {
   Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose,
@@ -9,6 +8,7 @@ import { toast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useDepartments } from "@/hooks/useDepartments";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { apiCreateUser } from "@/integrations/supabase/apiCreateUser";
 
 interface CreateUserDialogProps {
   onUserCreated?: () => void;
@@ -31,6 +31,7 @@ const CreateUserDialog: React.FC<CreateUserDialogProps> = ({
   const [open, setOpen] = useState(false);
   const [values, setValues] = useState(initialValues);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Departments logic refactored into useDepartments
   const { departments, loading: departmentsLoading } = useDepartments();
@@ -44,52 +45,21 @@ const CreateUserDialog: React.FC<CreateUserDialogProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setError(null);
 
     try {
       const { email, password, user_name, department, phone, manager } = values;
-      const { data: created, error: authError } = await supabase.auth.admin.createUser({
+      // Only assign "user" role by default, admins can update roles after
+      const payload = {
         email,
         password,
-        user_metadata: {
-          full_name: user_name,
-          department,
-          phone,
-          manager,
-        },
-      });
-
-      if (authError || !created?.user?.id) {
-        toast({
-          title: "Failed to create user",
-          description: authError?.message || "Unknown error",
-        });
-        setLoading(false);
-        return;
-      }
-
-      const publicUser = {
-        id: created.user.id,
-        email,
         user_name,
         department,
         phone,
         manager,
-        organization: currentUser?.organization || organization || "Main",
-        created_by: currentUser?.id,
+        roles: ["user"],
       };
-
-      const { error: dbError } = await supabase
-        .from("users")
-        .insert([publicUser]);
-
-      if (dbError) {
-        toast({
-          title: "Failed to store extra user info",
-          description: dbError.message,
-        });
-        setLoading(false);
-        return;
-      }
+      const result = await apiCreateUser(payload);
 
       toast({
         title: "User created successfully",
@@ -101,9 +71,10 @@ const CreateUserDialog: React.FC<CreateUserDialogProps> = ({
       setLoading(false);
       onUserCreated?.();
     } catch (err: any) {
+      setError(err.message || "Could not create user");
       toast({
-        title: "Unexpected error",
-        description: err.message || "Could not create user",
+        title: "Failed to create user",
+        description: err.message || "An error occurred",
       });
       setLoading(false);
     }
@@ -179,6 +150,7 @@ const CreateUserDialog: React.FC<CreateUserDialogProps> = ({
               onChange={handleChange}
               disabled={loading}
             />
+            {error && (<div className="text-red-600 text-sm">{error}</div>)}
           </div>
           <DialogFooter>
             <Button type="submit" disabled={loading}>
