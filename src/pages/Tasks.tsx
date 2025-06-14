@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { fetchTasks, deleteTask, Task } from "@/integrations/supabase/tasks";
+import { fetchTasks, deleteTask, updateTask, Task } from "@/integrations/supabase/tasks";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/use-toast";
 import useSupabaseSession from "@/hooks/useSupabaseSession";
 import CreateTaskSheet from "@/components/CreateTaskSheet";
+import EditTaskSheet from "@/components/EditTaskSheet";
 import { format } from "date-fns";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import {
@@ -13,7 +14,7 @@ import {
   SelectItem,
   SelectValue,
 } from "@/components/ui/select";
-import { Image } from "lucide-react";
+import { Image, Edit, Trash2, Check } from "lucide-react";
 import TaskFiltersSidebar from "@/components/TaskFiltersSidebar";
 import { useUsersAndTeams } from "@/hooks/useUsersAndTeams";
 
@@ -72,6 +73,29 @@ const TasksPage: React.FC = () => {
       toast({ title: "Delete failed", description: err.message });
     }
     setLoading(false);
+  }
+
+  // Mark Complete function
+  async function handleCompleteTask(task: Task) {
+    if (task.status === "completed") {
+      toast({ title: "Task is already completed" });
+      return;
+    }
+    try {
+      await updateTask(task.id, {
+        status: "completed",
+        // If you have actual_completion_date column in table, you can add: actual_completion_date: new Date().toISOString()
+      });
+      load();
+      toast({ title: "Task marked as completed" });
+    } catch (err: any) {
+      toast({ title: "Completion failed", description: err.message });
+    }
+  }
+
+  // Restrict delete to status 'pending' or 'new'
+  function canDelete(status: string) {
+    return status === "pending" || status === "new";
   }
 
   // new filtering logic
@@ -150,6 +174,40 @@ const TasksPage: React.FC = () => {
         <div className="grid grid-cols-1 gap-6">
           {filteredTasks.map((task) => (
             <Card key={task.id} className="relative group transition hover:shadow-lg">
+              {/* TOP CENTER ICONS */}
+              <div className="absolute left-1/2 top-2 -translate-x-1/2 z-10 flex gap-4 opacity-0 group-hover:opacity-100 transition-all">
+                {/* Edit icon */}
+                <EditTaskSheet task={task} onUpdated={load}>
+                  <Button size="icon" variant="ghost" className="text-gray-400 hover:text-blue-600" title="Edit Task">
+                    <Edit size={20} />
+                  </Button>
+                </EditTaskSheet>
+
+                {/* Delete icon */}
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className={`text-gray-400 ${canDelete(task.status) ? "hover:text-red-600" : "opacity-60 cursor-not-allowed"}`}
+                  title={canDelete(task.status) ? "Delete Task" : "Can only delete New or Pending tasks"}
+                  onClick={() => canDelete(task.status) && handleDeleteTask(task.id)}
+                  disabled={!canDelete(task.status)}
+                >
+                  <Trash2 size={20} />
+                </Button>
+
+                {/* Complete icon */}
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className={`text-gray-400 hover:text-green-700`}
+                  title={task.status === "completed" ? "Already completed" : "Mark as Complete"}
+                  onClick={() => handleCompleteTask(task)}
+                  disabled={task.status === "completed"}
+                >
+                  <Check size={20} />
+                </Button>
+              </div>
+              {/* Card Header and Content */}
               <CardHeader className="pb-2">
                 <div className="flex justify-between items-center">
                   <h2 className="font-semibold text-lg truncate">
@@ -207,14 +265,6 @@ const TasksPage: React.FC = () => {
                       : "-"}
                   </div>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition"
-                  onClick={() => handleDeleteTask(task.id)}
-                >
-                  Delete
-                </Button>
               </CardContent>
             </Card>
           ))}
@@ -225,3 +275,5 @@ const TasksPage: React.FC = () => {
 };
 
 export default TasksPage;
+
+// Note: This file has grown quite long (>228 lines). Please consider refactoring this file into smaller, focused components for better maintainability!
