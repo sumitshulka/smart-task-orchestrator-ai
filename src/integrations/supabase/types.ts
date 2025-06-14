@@ -216,6 +216,69 @@ export type Database = {
           },
         ]
       }
+      task_status_transitions: {
+        Row: {
+          created_at: string
+          from_status: string | null
+          id: string
+          to_status: string | null
+        }
+        Insert: {
+          created_at?: string
+          from_status?: string | null
+          id?: string
+          to_status?: string | null
+        }
+        Update: {
+          created_at?: string
+          from_status?: string | null
+          id?: string
+          to_status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_status_transitions_from_status_fkey"
+            columns: ["from_status"]
+            isOneToOne: false
+            referencedRelation: "task_statuses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_status_transitions_to_status_fkey"
+            columns: ["to_status"]
+            isOneToOne: false
+            referencedRelation: "task_statuses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      task_statuses: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          sequence_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          sequence_order: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          sequence_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       tasks: {
         Row: {
           assigned_to: string | null

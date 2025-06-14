@@ -3,6 +3,7 @@ import React, { useState } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import DepartmentsManager from "@/components/settings/DepartmentsManager";
 import OfficeLocationsManager from "@/components/settings/OfficeLocationsManager";
+import StatusManager from "@/components/settings/StatusManager";
 
 const AdminSettings: React.FC = () => {
   const [tab, setTab] = useState("departments");
@@ -21,6 +22,9 @@ const AdminSettings: React.FC = () => {
               <TabsTrigger value="office-locations" className="w-full md:text-left">
                 Office Locations
               </TabsTrigger>
+              <TabsTrigger value="statuses" className="w-full md:text-left">
+                Task Statuses
+              </TabsTrigger>
             </TabsList>
             {/* Tab content area */}
             <div className="flex-1 min-w-0">
@@ -29,6 +33,9 @@ const AdminSettings: React.FC = () => {
               </TabsContent>
               <TabsContent value="office-locations">
                 <OfficeLocationsManager />
+              </TabsContent>
+              <TabsContent value="statuses">
+                <StatusManager />
               </TabsContent>
             </div>
           </div>
