@@ -1,15 +1,9 @@
-
-// No custom types for User/Team to resolve build error.
 import React from "react";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { format } from "date-fns";
-
-// Remove the faulty imports and use plain shape as per current useUsersAndTeams
-// type User = { id: string; email: string; user_name?: string };
-// type Team = { id: string; name: string };
 
 type TaskFiltersSidebarProps = {
   priorityFilter: string;
@@ -129,4 +123,3 @@ export default function TaskFiltersSidebar({
     </aside>
   );
 }
-
