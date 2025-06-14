@@ -5,32 +5,42 @@ import DepartmentsManager from "@/components/settings/DepartmentsManager";
 import OfficeLocationsManager from "@/components/settings/OfficeLocationsManager";
 import StatusManager from "@/components/settings/StatusManager";
 
+// Added styles for top/left alignment and consistent card offset
 const AdminSettings: React.FC = () => {
   const [tab, setTab] = useState("departments");
 
   return (
     <div className="max-w-5xl mx-auto py-10 px-4">
       <h2 className="text-2xl font-semibold mb-8">Settings</h2>
-      <div className="flex flex-col md:flex-row gap-6">
-        <Tabs value={tab} onValueChange={setTab} className="flex-1">
-          <div className="flex flex-col md:flex-row gap-8 items-stretch">
-            {/* Left-aligned, top-aligned tab list */}
+      <div className="flex flex-col md:flex-row gap-8 items-start">
+        {/* Left-aligned, top-aligned tab list, fixed width */}
+        <Tabs value={tab} onValueChange={setTab} className="flex-1 w-full">
+          <div className="flex flex-row gap-0">
             <TabsList
-              className="md:flex md:flex-col md:min-w-[200px] md:items-start md:h-auto !justify-start p-0 gap-1"
+              className="flex flex-col min-w-[210px] gap-1 bg-transparent p-0 items-stretch"
               style={{ alignSelf: "flex-start" }}
             >
-              <TabsTrigger value="departments" className="w-full md:text-left justify-start">
+              <TabsTrigger
+                value="departments"
+                className="justify-start w-full text-left px-4 py-2"
+              >
                 Departments
               </TabsTrigger>
-              <TabsTrigger value="office-locations" className="w-full md:text-left justify-start">
+              <TabsTrigger
+                value="office-locations"
+                className="justify-start w-full text-left px-4 py-2"
+              >
                 Office Locations
               </TabsTrigger>
-              <TabsTrigger value="statuses" className="w-full md:text-left justify-start">
+              <TabsTrigger
+                value="statuses"
+                className="justify-start w-full text-left px-4 py-2"
+              >
                 Task Statuses
               </TabsTrigger>
             </TabsList>
-            {/* Tab content area */}
-            <div className="flex-1 min-w-0">
+            {/* Tab content area: Card always aligns with tab list/heading */}
+            <div className="flex-1 min-w-0 pl-0 md:pl-8">
               <TabsContent value="departments">
                 <DepartmentsManager />
               </TabsContent>
