@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect } from "react";
 import {
   Sheet,
@@ -44,6 +45,7 @@ const TaskDetailsSheet: React.FC<Props> = ({
   currentUser,
   onUpdated,
 }) => {
+  // Always run hooks regardless of task
   const [comment, setComment] = useState("");
   const [assignTo, setAssignTo] = useState(task?.assigned_to || "");
   const [status, setStatus] = useState(task?.status || "");
@@ -53,13 +55,11 @@ const TaskDetailsSheet: React.FC<Props> = ({
   const { activity, reload: reloadActivity, loading: activityLoading } = useTaskActivity(task?.id || null);
 
   // new: reload usersById for activity log
-  const usersById = React.useMemo(() => {
+  const usersById = useMemo(() => {
     const obj: Record<string, { email: string; user_name: string | null }> = {};
     users.forEach(u => obj[u.id] = u);
     return obj;
   }, [users]);
-
-  if (!task) return null;
 
   const showAssign = hasManagerPermissions(currentUser);
 
@@ -68,11 +68,11 @@ const TaskDetailsSheet: React.FC<Props> = ({
     const newStatus = e.target.value;
     setStatus(newStatus);
     try {
-      await updateTask(task.id, { status: newStatus });
+      await updateTask(task!.id, { status: newStatus });
       await createTaskActivity({
-        task_id: task.id,
+        task_id: task!.id,
         action_type: "status_changed",
-        old_value: task.status,
+        old_value: task!.status,
         new_value: newStatus,
         acted_by: currentUser.id,
       });
@@ -89,11 +89,11 @@ const TaskDetailsSheet: React.FC<Props> = ({
   async function handleAssign() {
     setLoading(true);
     try {
-      await updateTask(task.id, { assigned_to: assignTo });
+      await updateTask(task!.id, { assigned_to: assignTo });
       await createTaskActivity({
-        task_id: task.id,
+        task_id: task!.id,
         action_type: "assigned",
-        old_value: task.assigned_to,
+        old_value: task!.assigned_to,
         new_value: assignTo,
         acted_by: currentUser.id,
       });
@@ -111,7 +111,7 @@ const TaskDetailsSheet: React.FC<Props> = ({
   async function handleComment() {
     try {
       await createTaskActivity({
-        task_id: task.id,
+        task_id: task!.id,
         action_type: "comment",
         old_value: null,
         new_value: comment,
@@ -132,16 +132,19 @@ const TaskDetailsSheet: React.FC<Props> = ({
       setStatus(task.status);
       return;
     }
-
     const found = statuses.find(
       s => s.name.trim().toLowerCase() === (task.status || "").trim().toLowerCase()
     );
     const statusToSet = found ? found.name : task.status;
-
     setStatus(statusToSet);
     // Debug: check the value in devtools
     console.log("Dropdown status set to:", statusToSet);
   }, [task, statuses, open]);
+
+  // Reset assignTo if task changes
+  useEffect(() => {
+    setAssignTo(task?.assigned_to || "");
+  }, [task]);
 
   // Make modal content scrollable
   return (
@@ -155,89 +158,99 @@ const TaskDetailsSheet: React.FC<Props> = ({
                 All task details and actions.
               </SheetDescription>
             </SheetHeader>
-            <div className="space-y-3">
-              <div>
-                <label className="block font-bold mb-1">Task Title</label>
-                <div>{task.title}</div>
+            {!task ? (
+              <div className="text-center text-muted-foreground py-20">
+                No task selected.
               </div>
-              <div>
-                <label className="block font-bold mb-1">Status</label>
-                {/* Status change for manager, assigned, or creator */}
-                {(hasManagerPermissions(currentUser) || task.assigned_to === currentUser.id || task.created_by === currentUser.id) ? (
-                  <select
-                    className="w-full border rounded p-2"
-                    value={status}
-                    onChange={handleStatusChange}
-                    disabled={statusesLoading}
-                  >
-                    {statuses.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
-                  </select>
-                ) : (
-                  <div>{task.status}</div>
-                )}
-              </div>
-              <div>
-                <label className="block font-bold mb-1">Description</label>
-                <div>{task.description || <span className="text-muted-foreground">No description</span>}</div>
-              </div>
-              <div>
-                <label className="block font-bold mb-1">Priority</label>
+            ) : (
+              <div className="space-y-3">
                 <div>
-                  {task.priority === 1 ? "High" : task.priority === 2 ? "Medium" : "Low"}
+                  <label className="block font-bold mb-1">Task Title</label>
+                  <div>{task.title}</div>
+                </div>
+                <div>
+                  <label className="block font-bold mb-1">Status</label>
+                  {/* Status change for manager, assigned, or creator */}
+                  {(hasManagerPermissions(currentUser) || task.assigned_to === currentUser.id || task.created_by === currentUser.id) ? (
+                    <select
+                      className="w-full border rounded p-2"
+                      value={status}
+                      onChange={handleStatusChange}
+                      disabled={statusesLoading}
+                    >
+                      {statuses.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+                    </select>
+                  ) : (
+                    <div>{task.status}</div>
+                  )}
+                </div>
+                <div>
+                  <label className="block font-bold mb-1">Description</label>
+                  <div>{task.description || <span className="text-muted-foreground">No description</span>}</div>
+                </div>
+                <div>
+                  <label className="block font-bold mb-1">Priority</label>
+                  <div>
+                    {task.priority === 1 ? "High" : task.priority === 2 ? "Medium" : "Low"}
+                  </div>
+                </div>
+                <div>
+                  <label className="block font-bold mb-1">Assigned To</label>
+                  <div>
+                    {task.assigned_user
+                      ? task.assigned_user.user_name || task.assigned_user.email
+                      : task.assigned_to
+                      ? `(${task.assigned_to})`
+                      : "-"}
+                  </div>
+                </div>
+                <div>
+                  <label className="block font-bold mb-1">Due Date</label>
+                  <div>
+                    {task.status === "completed"
+                      ? (
+                        <span>
+                          Completion: {task.actual_completion_date || "-"}
+                        </span>
+                      ) : (
+                        <span>
+                          {task.due_date || "-"}
+                        </span>
+                      )
+                    }
+                  </div>
+                </div>
+                <div>
+                  <label className="block font-bold mb-1">Estimated Hours</label>
+                  <div>{task.estimated_hours || "-"}</div>
+                </div>
+                <div>
+                  <label className="block font-bold mb-1">Created At</label>
+                  <div>{task.created_at ? task.created_at.slice(0, 10) : "-"}</div>
                 </div>
               </div>
-              <div>
-                <label className="block font-bold mb-1">Assigned To</label>
-                <div>
-                  {task.assigned_user
-                    ? task.assigned_user.user_name || task.assigned_user.email
-                    : task.assigned_to
-                    ? `(${task.assigned_to})`
-                    : "-"}
+            )}
+            {/* Actions & Comments: only if task */}
+            {task && (
+              <div className="border-t pt-4 mt-6">
+                <label className="block font-bold mb-1">Actions &amp; Comments</label>
+                <div className="flex flex-col gap-3">
+                  <Textarea
+                    placeholder="Add comment or update made..."
+                    value={comment}
+                    onChange={e => setComment(e.target.value)}
+                  />
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={handleComment}
+                    disabled={!comment}
+                  >Add Comment</Button>
                 </div>
               </div>
-              <div>
-                <label className="block font-bold mb-1">Due Date</label>
-                <div>
-                  {task.status === "completed"
-                    ? (
-                      <span>
-                        Completion: {task.actual_completion_date || "-"}
-                      </span>
-                    ) : (
-                      <span>
-                        {task.due_date || "-"}
-                      </span>
-                    )
-                  }
-                </div>
-              </div>
-              <div>
-                <label className="block font-bold mb-1">Estimated Hours</label>
-                <div>{task.estimated_hours || "-"}</div>
-              </div>
-              <div>
-                <label className="block font-bold mb-1">Created At</label>
-                <div>{task.created_at ? task.created_at.slice(0, 10) : "-"}</div>
-              </div>
-            </div>
-            <div className="border-t pt-4 mt-6">
-              <label className="block font-bold mb-1">Actions &amp; Comments</label>
-              <div className="flex flex-col gap-3">
-                <Textarea
-                  placeholder="Add comment or update made..."
-                  value={comment}
-                  onChange={e => setComment(e.target.value)}
-                />
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={handleComment}
-                  disabled={!comment}
-                >Add Comment</Button>
-              </div>
-            </div>
-            {showAssign && (
+            )}
+            {/* Assignment: only if task */}
+            {task && showAssign && (
               <div className="border-t pt-4 mt-6">
                 <label className="block font-bold mb-1">Assign To</label>
                 <div className="flex gap-2 items-center">
@@ -264,14 +277,16 @@ const TaskDetailsSheet: React.FC<Props> = ({
               </div>
             )}
             {/* Activity log/timeline */}
-            <div className="border-t pt-4 mt-6">
-              <label className="block font-bold mb-1">Activity Log</label>
-              {activityLoading ? (
-                <div className="text-muted-foreground text-sm">Loading activity log...</div>
-              ) : (
-                <TaskActivityTimeline activity={activity} usersById={usersById} />
-              )}
-            </div>
+            {task && (
+              <div className="border-t pt-4 mt-6">
+                <label className="block font-bold mb-1">Activity Log</label>
+                {activityLoading ? (
+                  <div className="text-muted-foreground text-sm">Loading activity log...</div>
+                ) : (
+                  <TaskActivityTimeline activity={activity} usersById={usersById} />
+                )}
+              </div>
+            )}
           </ScrollArea>
           <SheetFooter className="mt-4 p-6">
             <SheetClose asChild>
@@ -284,3 +299,4 @@ const TaskDetailsSheet: React.FC<Props> = ({
   );
 };
 export default TaskDetailsSheet;
+
