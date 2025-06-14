@@ -13,10 +13,12 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 interface CreateUserDialogProps {
   onUserCreated?: () => void;
   departments: string[];
+  organization?: string; // (Optional) if passed, use as default org
 }
 
 const initialValues = {
@@ -31,10 +33,34 @@ const initialValues = {
 const CreateUserDialog: React.FC<CreateUserDialogProps> = ({
   onUserCreated,
   departments,
+  organization,
 }) => {
   const [open, setOpen] = useState(false);
   const [values, setValues] = useState(initialValues);
   const [loading, setLoading] = useState(false);
+
+  // For tracking who is the current admin
+  const [currentUser, setCurrentUser] = useState<null | { id: string; organization?: string }>(null);
+
+  // Fetch current admin user id and org if not already loaded
+  React.useEffect(() => {
+    const fetch = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        // Fetch their org from the DB, if using it
+        // We'll try from users table if present, else fallback to prop/org = "Main"
+        let org = organization;
+        const { data } = await supabase
+          .from("users")
+          .select("organization")
+          .eq("id", session.user.id)
+          .maybeSingle();
+        if (data?.organization) org = data.organization;
+        setCurrentUser({ id: session.user.id, organization: org });
+      }
+    };
+    fetch();
+  }, [organization]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setValues((v) => ({ ...v, [e.target.name]: e.target.value }));
@@ -46,9 +72,8 @@ const CreateUserDialog: React.FC<CreateUserDialogProps> = ({
 
     try {
       const { email, password, user_name, department, phone, manager } = values;
-      // Use Supabase Auth Admin API to create user
-      const { supabase } = await import("@/integrations/supabase/client");
-      const { data, error } = await supabase.auth.admin.createUser({
+      // 1. Create user via Supabase Auth
+      const { data: created, error: authError } = await supabase.auth.admin.createUser({
         email,
         password,
         user_metadata: {
@@ -59,10 +84,35 @@ const CreateUserDialog: React.FC<CreateUserDialogProps> = ({
         },
       });
 
-      if (error) {
+      if (authError || !created?.user?.id) {
         toast({
           title: "Failed to create user",
-          description: error.message,
+          description: authError?.message || "Unknown error",
+        });
+        setLoading(false);
+        return;
+      }
+
+      // 2. Insert metadata into public.users table
+      const publicUser = {
+        id: created.user.id,
+        email,
+        user_name,
+        department,
+        phone,
+        manager,
+        organization: currentUser?.organization || organization || "Main",
+        created_by: currentUser?.id,
+      };
+
+      const { error: dbError } = await supabase
+        .from("users")
+        .insert([publicUser]);
+
+      if (dbError) {
+        toast({
+          title: "Failed to store extra user info",
+          description: dbError.message,
         });
         setLoading(false);
         return;

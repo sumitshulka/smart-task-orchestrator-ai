@@ -1,10 +1,11 @@
+
 import React, { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/components/ui/use-toast";
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
-import { Filter, Plus, MoreVertical } from "lucide-react";
+import { Filter } from "lucide-react";
 import UserTableActions from "@/components/UserTableActions";
 import CreateUserDialog from "@/components/CreateUserDialog";
 
@@ -15,7 +16,8 @@ interface User {
   user_name?: string;
   department?: string;
   manager?: string;
-  is_active?: boolean;
+  organization?: string;
+  created_by?: string;
 }
 
 const departments = [
@@ -33,33 +35,47 @@ const AdminUsers: React.FC = () => {
   const [search, setSearch] = useState("");
   const [selectedDept, setSelectedDept] = useState("");
   const [status, setStatus] = useState("");
+  const [organization, setOrganization] = useState<string | null>(null); // Filtering by org
 
-  // Fetch users: Simulated data for now, extend here for your user source
+  // Fetch the current admin's org for scoping
+  useEffect(() => {
+    async function fetchOrg() {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        // look up their org from public.users, fallback to null (see table RLS)
+        const { data } = await supabase
+          .from("users")
+          .select("organization")
+          .eq("id", session.user.id)
+          .maybeSingle();
+        setOrganization(data?.organization ?? null);
+      }
+    }
+    fetchOrg();
+  }, []);
+
+  // Fetch users from public.users
   useEffect(() => {
     async function fetchUsers() {
       setLoading(true);
-      const { data, error } = await supabase.auth.admin.listUsers({ perPage: 1000 });
+      let query = supabase.from("users").select("*").order("created_at", { ascending: false });
+      if (organization) {
+        query = query.eq("organization", organization);
+      }
+      const { data, error } = await query;
       if (error) {
         toast({ title: "Error loading users", description: error.message });
+        setUsers([]);
         setLoading(false);
         return;
       }
-      // Mock data for additional columns
-      setUsers(
-        (data?.users || []).map((u: any, i: number) => ({
-          id: u.id,
-          email: u.email,
-          user_name: u.user_metadata?.full_name ?? u.email?.split("@")[0] ?? "User "+i,
-          department: departments[i % departments.length],
-          phone: u.phone,
-          manager: departments[(i + 2) % departments.length] + " Manager",
-          is_active: !u.banned, // Supabase doesn't have is_active; just example
-        }))
-      );
+      setUsers(data || []);
       setLoading(false);
     }
-    fetchUsers();
-  }, []);
+    if (organization) {
+      fetchUsers();
+    }
+  }, [organization]);
 
   // Filtering logic
   const filtered = useMemo(() => {
@@ -69,38 +85,24 @@ const AdminUsers: React.FC = () => {
         user.user_name?.toLowerCase().includes(search.toLowerCase()) ||
         user.email?.toLowerCase().includes(search.toLowerCase());
       const matchesDept = selectedDept === "" || user.department === selectedDept;
-      const matchesStatus =
-        !status ||
-        (status === "active" && user.is_active) ||
-        (status === "inactive" && !user.is_active);
-      return matchesSearch && matchesDept && matchesStatus;
+      // Status (active/inactive) is not tracked in public.users, so disabled for now
+      return matchesSearch && matchesDept;
     });
-  }, [users, search, selectedDept, status]);
+  }, [users, search, selectedDept]);
 
   // Enhance: Allow parent to refresh user list after create
   const handleUserCreated = () => {
-    // re-fetch users after creating new user
-    // We use fetchUsers directly but since it's inside useEffect,
-    // we copy the logic inline:
+    // just re-fetch from DB
     setLoading(true);
-    supabase.auth.admin.listUsers({ perPage: 1000 })
+    if (!organization) return;
+    supabase.from("users").select("*").eq("organization", organization).order("created_at", { ascending: false })
       .then(({ data, error }) => {
         if (error) {
           toast({ title: "Error loading users", description: error.message });
           setLoading(false);
           return;
         }
-        setUsers(
-          (data?.users || []).map((u: any, i: number) => ({
-            id: u.id,
-            email: u.email,
-            user_name: u.user_metadata?.full_name ?? u.email?.split("@")[0] ?? "User " + i,
-            department: departments[i % departments.length],
-            phone: u.phone,
-            manager: u.user_metadata?.manager ?? departments[(i + 2) % departments.length] + " Manager",
-            is_active: !u.banned,
-          }))
-        );
+        setUsers(data || []);
         setLoading(false);
       });
   };
@@ -109,7 +111,7 @@ const AdminUsers: React.FC = () => {
     <div className="p-6 max-w-6xl mx-auto">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
         <h1 className="text-2xl font-bold">User Management</h1>
-        <CreateUserDialog onUserCreated={handleUserCreated} departments={departments} />
+        <CreateUserDialog onUserCreated={handleUserCreated} departments={departments} organization={organization || undefined} />
       </div>
       {/* Filters */}
       <div className="flex flex-col sm:flex-row flex-wrap gap-3 mb-5 bg-muted/30 border rounded-md px-4 py-3">
@@ -137,18 +139,20 @@ const AdminUsers: React.FC = () => {
             ))}
           </select>
         </div>
-        <div className="flex items-center gap-2">
+        {/* Status filter is hidden, uncomment if you add user status */}
+        {/* <div className="flex items-center gap-2">
           <span className="text-sm">Status:</span>
           <select
             className="border rounded px-2 py-1 text-sm bg-background"
             value={status}
             onChange={(e) => setStatus(e.target.value)}
+            disabled
           >
             <option value="">All</option>
             <option value="active">Active</option>
             <option value="inactive">Inactive</option>
           </select>
-        </div>
+        </div> */}
       </div>
       {/* Table */}
       <div className="rounded-md border shadow bg-background overflow-x-auto">
@@ -200,3 +204,5 @@ const AdminUsers: React.FC = () => {
 };
 
 export default AdminUsers;
+
+// NOTE: This file is getting long (over 200 LOC). Consider asking me to refactor for maintainability!

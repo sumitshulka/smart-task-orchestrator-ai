@@ -172,6 +172,42 @@ export type Database = {
           },
         ]
       }
+      users: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          department: string | null
+          email: string
+          id: string
+          manager: string | null
+          organization: string | null
+          phone: string | null
+          user_name: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          department?: string | null
+          email: string
+          id: string
+          manager?: string | null
+          organization?: string | null
+          phone?: string | null
+          user_name?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          department?: string | null
+          email?: string
+          id?: string
+          manager?: string | null
+          organization?: string | null
+          phone?: string | null
+          user_name?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
