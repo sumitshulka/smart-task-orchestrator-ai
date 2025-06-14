@@ -12,7 +12,7 @@ const emptyTaskState = {
   title: "",
   description: "",
   priority: 2,
-  due_date: "",
+  due_date: null as string | null, // <-- changed from ""
   estimated_hours: null,
   status: "pending",
   type: "personal",
@@ -42,18 +42,28 @@ const TasksPage: React.FC = () => {
   }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    setNewTask({ ...newTask, [e.target.name]: e.target.value });
+    const { name, value, type } = e.target;
+    if (name === "priority") {
+      setNewTask({ ...newTask, [name]: Number(value) });
+    } else if (name === "due_date") {
+      setNewTask({ ...newTask, [name]: value === "" ? null : value });
+    } else {
+      setNewTask({ ...newTask, [name]: value });
+    }
   };
 
   async function handleCreateTask() {
     setCreating(true);
     try {
-      // Ensure required fields for the DB insert
-      const requiredTask = {
+      const taskPayload = {
         ...newTask,
-        created_by: CURRENT_USER_ID,  // Set creator
+        created_by: CURRENT_USER_ID, // Set creator
       };
-      await createTask(requiredTask);
+      // Ensure due_date is null if not set or empty string
+      if (!taskPayload.due_date) {
+        taskPayload.due_date = null;
+      }
+      await createTask(taskPayload);
       setNewTask(emptyTaskState);
       load();
       toast({ title: "Task created" });
@@ -108,7 +118,7 @@ const TasksPage: React.FC = () => {
         <Input
           name="due_date"
           type="date"
-          value={newTask.due_date}
+          value={newTask.due_date || ""}
           onChange={handleChange}
           className="mb-2 sm:mb-0"
         />
@@ -177,3 +187,4 @@ const TasksPage: React.FC = () => {
   );
 };
 export default TasksPage;
+
