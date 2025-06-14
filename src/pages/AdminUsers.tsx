@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -7,6 +6,7 @@ import { toast } from "@/components/ui/use-toast";
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
 import { Filter, Plus, MoreVertical } from "lucide-react";
 import UserTableActions from "@/components/UserTableActions";
+import CreateUserDialog from "@/components/CreateUserDialog";
 
 interface User {
   id: string;
@@ -32,7 +32,7 @@ const AdminUsers: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [selectedDept, setSelectedDept] = useState("");
-  const [status, setStatus] = useState(""); // "active", "inactive" or ""
+  const [status, setStatus] = useState("");
 
   // Fetch users: Simulated data for now, extend here for your user source
   useEffect(() => {
@@ -77,14 +77,39 @@ const AdminUsers: React.FC = () => {
     });
   }, [users, search, selectedDept, status]);
 
+  // Enhance: Allow parent to refresh user list after create
+  const handleUserCreated = () => {
+    // re-fetch users after creating new user
+    // We use fetchUsers directly but since it's inside useEffect,
+    // we copy the logic inline:
+    setLoading(true);
+    supabase.auth.admin.listUsers({ perPage: 1000 })
+      .then(({ data, error }) => {
+        if (error) {
+          toast({ title: "Error loading users", description: error.message });
+          setLoading(false);
+          return;
+        }
+        setUsers(
+          (data?.users || []).map((u: any, i: number) => ({
+            id: u.id,
+            email: u.email,
+            user_name: u.user_metadata?.full_name ?? u.email?.split("@")[0] ?? "User " + i,
+            department: departments[i % departments.length],
+            phone: u.phone,
+            manager: u.user_metadata?.manager ?? departments[(i + 2) % departments.length] + " Manager",
+            is_active: !u.banned,
+          }))
+        );
+        setLoading(false);
+      });
+  };
+
   return (
     <div className="p-6 max-w-6xl mx-auto">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
         <h1 className="text-2xl font-bold">User Management</h1>
-        <Button className="w-full md:w-auto gap-2" size="sm">
-          <Plus className="w-4 h-4" />
-          Create User
-        </Button>
+        <CreateUserDialog onUserCreated={handleUserCreated} departments={departments} />
       </div>
       {/* Filters */}
       <div className="flex flex-col sm:flex-row flex-wrap gap-3 mb-5 bg-muted/30 border rounded-md px-4 py-3">
