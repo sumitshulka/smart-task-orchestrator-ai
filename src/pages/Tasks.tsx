@@ -39,7 +39,7 @@ const TasksPage: React.FC = () => {
   }
 
   return (
-    <div className="max-w-6xl mx-auto p-8 pt-6 text-left">
+    <div className="w-full px-8 py-6 text-left">
       <h1 className="text-2xl font-bold mb-6">Tasks</h1>
       <CreateTaskSheet onTaskCreated={load} />
       {loading && <div className="text-muted-foreground mb-4">Loading...</div>}

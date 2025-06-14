@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import {
   Sheet,
@@ -218,7 +217,8 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated }) => {
       <SheetTrigger asChild>
         <Button className="mb-6" variant="default">Add Task</Button>
       </SheetTrigger>
-      <SheetContent side="right" className="max-w-4xl w-full overflow-y-auto"> 
+      <SheetContent side="right" className="max-w-5xl w-[60vw] overflow-y-auto">
+        {/* Modal widened by 25% */}
         <form className="p-2 space-y-6" onSubmit={handleSubmit}>
           <SheetHeader>
             <SheetTitle>Create Task</SheetTitle>
