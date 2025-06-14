@@ -1,16 +1,45 @@
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { fetchTasks, deleteTask, Task } from "@/integrations/supabase/tasks";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/use-toast";
 import useSupabaseSession from "@/hooks/useSupabaseSession";
 import CreateTaskSheet from "@/components/CreateTaskSheet";
 import { format } from "date-fns";
+import { Card, CardHeader, CardContent } from "@/components/ui/card";
+import {
+  Select,
+  SelectTrigger,
+  SelectContent,
+  SelectItem,
+  SelectValue,
+} from "@/components/ui/select";
+import { Image } from "lucide-react";
+
+const priorities = [
+  { label: "All", value: "" },
+  { label: "High", value: "1" },
+  { label: "Medium", value: "2" },
+  { label: "Low", value: "3" },
+];
+
+const statuses = [
+  { label: "All", value: "" },
+  { label: "Pending", value: "pending" },
+  { label: "In Progress", value: "in_progress" },
+  { label: "Completed", value: "completed" },
+];
+
+const fallbackImage =
+  "https://images.unsplash.com/photo-1582562124811-c09040d0a901?auto=format&fit=crop&w=400&q=80";
 
 const TasksPage: React.FC = () => {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(false);
   const { user, loading: sessionLoading } = useSupabaseSession();
+  // filters
+  const [priorityFilter, setPriorityFilter] = useState<string>("");
+  const [statusFilter, setStatusFilter] = useState<string>("");
 
   async function load() {
     setLoading(true);
@@ -40,73 +69,139 @@ const TasksPage: React.FC = () => {
     setLoading(false);
   }
 
+  // filtering logic
+  const filteredTasks = useMemo(() => {
+    return tasks.filter((task) => {
+      const priorityPass =
+        !priorityFilter || String(task.priority) === priorityFilter;
+      const statusPass = !statusFilter || task.status === statusFilter;
+      return priorityPass && statusPass;
+    });
+  }, [tasks, priorityFilter, statusFilter]);
+
   return (
-    <div className="w-full px-8 py-6 text-left">
-      <div className="flex items-center justify-between mb-6">
+    <div className="w-full max-w-6xl mx-auto px-4 py-8">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-6">
         <h1 className="text-2xl font-bold">Tasks</h1>
-        <CreateTaskSheet onTaskCreated={load} />
+        <div className="flex flex-wrap items-center gap-2 sm:gap-4">
+          <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+            <SelectTrigger className="w-[120px]">
+              <SelectValue placeholder="Priority" />
+            </SelectTrigger>
+            <SelectContent>
+              {priorities.map((p) => (
+                <SelectItem key={p.value} value={p.value}>
+                  {p.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-[140px]">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              {statuses.map((s) => (
+                <SelectItem key={s.value} value={s.value}>
+                  {s.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <CreateTaskSheet onTaskCreated={load} />
+        </div>
       </div>
-      {loading && <div className="text-muted-foreground mb-4">Loading...</div>}
-      <table className="w-full border text-sm rounded shadow bg-background">
-        <thead>
-          <tr className="bg-muted">
-            <th className="p-2 text-left">Title</th>
-            <th className="p-2 text-left">Description</th>
-            <th className="p-2 text-left">Priority</th>
-            <th className="p-2 text-left">Due Date</th>
-            <th className="p-2 text-left">Status</th>
-            <th className="p-2 text-left">Assigned To</th>
-            <th className="p-2 text-left">Create Date</th>
-            <th className="p-2"></th>
-          </tr>
-        </thead>
-        <tbody>
-          {tasks.length === 0 && (
-            <tr>
-              <td colSpan={8} className="p-4 text-center text-muted-foreground">
-                No tasks found.
-              </td>
-            </tr>
-          )}
-          {tasks.map((task) => (
-            <tr key={task.id} className="border-b last:border-b-0">
-              <td className="p-2">{task.title}</td>
-              <td className="p-2">{task.description}</td>
-              <td className="p-2">
-                {task.priority === 1
-                  ? "High"
-                  : task.priority === 2
-                  ? "Medium"
-                  : "Low"}
-              </td>
-              <td className="p-2">{task.due_date}</td>
-              <td className="p-2 capitalize">{task.status}</td>
-              <td className="p-2">
-                {task.assigned_user
-                  ? task.assigned_user.user_name ||
-                    task.assigned_user.email
-                  : task.assigned_to
-                  ? `(${task.assigned_to})`
-                  : "-"}
-              </td>
-              <td className="p-2">
-                {task.created_at
-                  ? format(new Date(task.created_at), "yyyy-MM-dd HH:mm")
-                  : "-"}
-              </td>
-              <td className="p-2 text-right">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleDeleteTask(task.id)}
+
+      {loading && (
+        <div className="text-muted-foreground mb-4 text-center">Loading...</div>
+      )}
+
+      {!loading && filteredTasks.length === 0 && (
+        <div className="flex flex-col items-center justify-center mt-16">
+          <img
+            src={fallbackImage}
+            alt="No data found"
+            className="w-40 h-40 object-cover rounded-lg mb-4 shadow"
+          />
+          <div className="text-muted-foreground text-lg mb-2 flex items-center gap-2">
+            <Image className="w-5 h-5" />
+            No tasks found.
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+        {filteredTasks.map((task) => (
+          <Card key={task.id} className="relative group transition hover:shadow-lg">
+            <CardHeader className="pb-2">
+              <div className="flex justify-between items-center">
+                <h2 className="font-semibold text-lg truncate">
+                  {task.title}
+                </h2>
+                <span
+                  className={`text-xs px-2 py-1 rounded-full ${
+                    task.priority === 1
+                      ? "bg-red-100 text-red-700"
+                      : task.priority === 2
+                      ? "bg-yellow-100 text-yellow-700"
+                      : "bg-green-100 text-green-700"
+                  }`}
                 >
-                  Delete
-                </Button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+                  {task.priority === 1
+                    ? "High"
+                    : task.priority === 2
+                    ? "Medium"
+                    : "Low"}
+                </span>
+              </div>
+              <div className="mt-1 text-xs text-muted-foreground line-clamp-2">
+                {task.description}
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-col gap-2 text-sm">
+                <div>
+                  <span className="font-semibold">Status:</span>{" "}
+                  <span className="capitalize">{task.status}</span>
+                </div>
+                <div>
+                  <span className="font-semibold">Due:</span>{" "}
+                  {task.due_date ? (
+                    <span>
+                      {format(new Date(task.due_date), "yyyy-MM-dd")}
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground">No due date</span>
+                  )}
+                </div>
+                <div>
+                  <span className="font-semibold">Assigned To:</span>{" "}
+                  {task.assigned_user
+                    ? task.assigned_user.user_name ||
+                      task.assigned_user.email
+                    : task.assigned_to
+                    ? `(${task.assigned_to})`
+                    : "-"}
+                </div>
+                <div>
+                  <span className="font-semibold">Created:</span>{" "}
+                  {task.created_at
+                    ? format(new Date(task.created_at), "yyyy-MM-dd HH:mm")
+                    : "-"}
+                </div>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition"
+                onClick={() => handleDeleteTask(task.id)}
+              >
+                Delete
+              </Button>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
     </div>
   );
 };
