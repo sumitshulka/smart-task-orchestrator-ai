@@ -210,14 +210,14 @@ export default function AdminDashboard() {
         if (taskFilter.op === "in") taskQuery = taskQuery.in(taskFilter.column, taskFilter.value);
         else if (taskFilter.op === "eq") taskQuery = taskQuery.eq(taskFilter.column, taskFilter.value);
       }
-      const { data: taskRows, error: taskRowsErr } = await taskQuery;
+      const { data: taskRows } = await taskQuery;
+      // Typecast to any[] to prevent deep type inference error
+      const taskRowsArr: any[] = Array.isArray(taskRows) ? taskRows : [];
       // Count statuses client-side
       const statusCounts: Record<string, number> = {};
-      if (taskRows) {
-        taskRows.forEach((row: any) => {
-          statusCounts[row.status] = (statusCounts[row.status] || 0) + 1;
-        });
-      }
+      taskRowsArr.forEach((row: any) => {
+        statusCounts[row.status] = (statusCounts[row.status] || 0) + 1;
+      });
       setStatusStats(
         Object.entries(statusCounts).map(([status, count]) => ({ status, count }))
       );
