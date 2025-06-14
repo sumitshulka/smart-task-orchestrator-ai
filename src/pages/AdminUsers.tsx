@@ -36,22 +36,59 @@ const AdminUsers: React.FC = () => {
   const [selectedDept, setSelectedDept] = useState("");
   const [status, setStatus] = useState("");
   const [organization, setOrganization] = useState<string | null>(null); // Filtering by org
+  const [me, setMe] = useState<{id: string, email: string, organization: string | null } | null>(null);
+  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
 
   // Fetch the current admin's org for scoping
   useEffect(() => {
-    async function fetchOrg() {
-      const { data: { session } } = await supabase.auth.getSession();
+    async function fetchOrgAndMe() {
+      const { data: { session }, error } = await supabase.auth.getSession();
+      if (error) {
+        setMe(null);
+        setIsAdmin(false);
+        setOrganization(null);
+        return;
+      }
+
       if (session?.user) {
+        const uid = session.user.id;
+        const email = session.user.email || "";
         // look up their org from public.users, fallback to null (see table RLS)
         const { data } = await supabase
           .from("users")
           .select("organization")
-          .eq("id", session.user.id)
+          .eq("id", uid)
           .maybeSingle();
+
+        setMe({ id: uid, email, organization: data?.organization ?? null });
         setOrganization(data?.organization ?? null);
+
+        // Check if current user is admin (via public.user_roles + public.roles)
+        const { data: adminData, error: adminErr } = await supabase
+          .from("user_roles")
+          .select(`
+            id,
+            user_id,
+            role_id,
+            roles:role_id (
+              name
+            )
+          `)
+          .eq("user_id", uid);
+
+        // adminData is an array, each having roles
+        const hasAdminRole = !!(adminData && adminData.some((row: any) => {
+          // row.roles is an object with name
+          return row?.roles?.name === "admin";
+        }));
+        setIsAdmin(hasAdminRole);
+      } else {
+        setMe(null);
+        setIsAdmin(false);
+        setOrganization(null);
       }
     }
-    fetchOrg();
+    fetchOrgAndMe();
   }, []);
 
   // Fetch users from public.users
@@ -74,6 +111,8 @@ const AdminUsers: React.FC = () => {
     }
     if (organization) {
       fetchUsers();
+    } else {
+      setUsers([]);
     }
   }, [organization]);
 
@@ -107,8 +146,31 @@ const AdminUsers: React.FC = () => {
       });
   };
 
+  // DEBUGGING OUTPUT
+  function DebugBlock() {
+    return (
+      <div className="mb-4 border border-yellow-300 bg-yellow-50 text-yellow-800 rounded px-4 py-3 text-xs max-w-2xl">
+        <div className="mb-1 font-semibold">[DEBUG INFO]</div>
+        <div><b>Logged-in User:</b> {me ? `${me.email} (${me.id.slice(0, 8)})` : "(none)"}</div>
+        <div><b>Organization (for filter):</b> {organization || "(none)"}</div>
+        <div><b>Is Admin:</b> {isAdmin === null ? "checking..." : isAdmin ? "YES" : "NO"}</div>
+        <div><b>Number of users in filtered org:</b> {users ? users.length : 0}</div>
+        <div>
+          <b>Notes:</b>
+          <ul className="list-disc list-inside">
+            <li>If you do <b>not</b> see users here and "Is Admin" says NO, you don't have the admin role (check your <span className="font-mono">public.user_roles</span> table in Supabase).</li>
+            <li>If super admin's organization is different than your org, you will only see yourself here (organization filter is strict).</li>
+            <li>If "Organization" is blank, your user is not mapped in <span className="font-mono">public.users</span> or has no org set.</li>
+            <li>If issue persists, check <span className="font-mono">public.users</span> and <span className="font-mono">public.user_roles</span> directly in Supabase dashboard.</li>
+          </ul>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-6 max-w-6xl"> {/* removed mx-auto so it aligns left */}
+      <DebugBlock />
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
         <h1 className="text-2xl font-bold">User Management</h1>
         <CreateUserDialog onUserCreated={handleUserCreated} departments={departments} organization={organization || undefined} />
@@ -139,20 +201,6 @@ const AdminUsers: React.FC = () => {
             ))}
           </select>
         </div>
-        {/* Status filter is hidden, uncomment if you add user status */}
-        {/* <div className="flex items-center gap-2">
-          <span className="text-sm">Status:</span>
-          <select
-            className="border rounded px-2 py-1 text-sm bg-background"
-            value={status}
-            onChange={(e) => setStatus(e.target.value)}
-            disabled
-          >
-            <option value="">All</option>
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-          </select>
-        </div> */}
       </div>
       {/* Table */}
       <div className="rounded-md border shadow bg-background overflow-x-auto">
