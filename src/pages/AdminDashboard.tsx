@@ -113,18 +113,22 @@ export default function AdminDashboard() {
   useEffect(() => {
     async function setup() {
       setLoading(true);
-      const { data: sessionData } = await supabase.auth.getUser();
-      const user = sessionData?.user;
+      // 1: Get current user
+      const sessionDataResult: any = await supabase.auth.getUser();
+      const user = sessionDataResult?.data?.user;
       if (!user) {
         navigate("/auth");
         return;
       }
       setUserId(user.id);
 
-      const { data: roleRows } = await supabase
+      // 2: Get roles
+      // Avoid deep inference by casting
+      const roleRowsResult: any = await supabase
         .from("user_roles")
         .select("*, role:roles(name)")
         .eq("user_id", user.id);
+      const roleRows: any[] = roleRowsResult?.data ?? [];
       const roleNames: string[] =
         roleRows?.map((r: any) => r.role?.name || "").filter(Boolean) || [];
       let _role: Role = "user";
@@ -137,15 +141,14 @@ export default function AdminDashboard() {
       // Universal filters
       let nextTaskFilter: any = {};
       if (_role === "admin") {
-        // Org-wide
         nextTaskFilter = {};
       } else if (_role === "manager" || _role === "team_manager") {
-        // Teams
-        const { data: memberships } = await supabase
+        const membershipsResult: any = await supabase
           .from("team_memberships")
           .select("team_id")
           .eq("user_id", user.id);
-        const teamIds = memberships?.map((m) => m.team_id) || [];
+        const memberships: any[] = membershipsResult?.data ?? [];
+        const teamIds = memberships?.map((m: any) => m.team_id) || [];
         if (teamIds.length) {
           nextTaskFilter = { column: "team_id", op: "in", value: teamIds };
         }
@@ -156,34 +159,40 @@ export default function AdminDashboard() {
 
       // 1. Org or user stats
       if (_role === "admin") {
-        const [{ count: userCount }, { count: teamCount }, { count: taskCount }, { data: completedTasks }, { data: pendingTasks }] =
-          await Promise.all([
-            supabase.from("users").select("id", { count: "exact" }),
-            supabase.from("teams").select("id", { count: "exact" }),
-            supabase.from("tasks").select("id", { count: "exact" }),
-            supabase.from("tasks").select("id").eq("status", "completed"),
-            supabase.from("tasks").select("id").eq("status", "pending"),
-          ]);
+        const [
+          userCountResult,
+          teamCountResult,
+          taskCountResult,
+          completedTasksResult,
+          pendingTasksResult,
+        ]: any = await Promise.all([
+          supabase.from("users").select("id", { count: "exact" }),
+          supabase.from("teams").select("id", { count: "exact" }),
+          supabase.from("tasks").select("id", { count: "exact" }),
+          supabase.from("tasks").select("id").eq("status", "completed"),
+          supabase.from("tasks").select("id").eq("status", "pending"),
+        ]);
         setOrgStats({
-          users: userCount || 0,
-          teams: teamCount || 0,
-          totalTasks: taskCount || 0,
-          completedTasks: completedTasks?.length || 0,
-          pendingTasks: pendingTasks?.length || 0,
+          users: userCountResult?.count || 0,
+          teams: teamCountResult?.count || 0,
+          totalTasks: taskCountResult?.count || 0,
+          completedTasks: completedTasksResult?.data?.length || 0,
+          pendingTasks: pendingTasksResult?.data?.length || 0,
         });
       } else if (_role === "manager" || _role === "team_manager") {
         // Teams user is a member of
-        const { data: memberships } = await supabase
+        const membershipsResult: any = await supabase
           .from("team_memberships")
           .select("team_id")
           .eq("user_id", user.id);
-        const teamIds = memberships?.map((m) => m.team_id) || [];
+        const memberships: any[] = membershipsResult?.data ?? [];
+        const teamIds = memberships?.map((m: any) => m.team_id) || [];
         if (teamIds.length) {
-          const { count: teamTaskCount } = await supabase
+          const teamTaskCountResult: any = await supabase
             .from("tasks")
             .select("id", { count: "exact" })
             .in("team_id", teamIds);
-          const { count: completedTeamTasks } = await supabase
+          const completedTeamTasksResult: any = await supabase
             .from("tasks")
             .select("id", { count: "exact" })
             .in("team_id", teamIds)
@@ -191,41 +200,82 @@ export default function AdminDashboard() {
           setOrgStats({
             users: users.length || 0,
             teams: teamIds.length,
-            totalTasks: teamTaskCount || 0,
-            completedTasks: completedTeamTasks || 0,
-            pendingTasks: (teamTaskCount || 0) - (completedTeamTasks || 0),
+            totalTasks: teamTaskCountResult?.count || 0,
+            completedTasks: completedTeamTasksResult?.count || 0,
+            pendingTasks:
+              (teamTaskCountResult?.count || 0) -
+              (completedTeamTasksResult?.count || 0),
           });
         }
       } else if (_role === "user") {
-        const [{ count: assigned }, { count: completed }, { count: pending }] = await Promise.all([
-          supabase.from("tasks").select("id", { count: "exact" }).eq("assigned_to", user.id),
-          supabase.from("tasks").select("id", { count: "exact" }).eq("assigned_to", user.id).eq("status", "completed"),
-          supabase.from("tasks").select("id", { count: "exact" }).eq("assigned_to", user.id).eq("status", "pending"),
+        const [
+          assignedResult,
+          completedResult,
+          pendingResult,
+        ]: any = await Promise.all([
+          supabase
+            .from("tasks")
+            .select("id", { count: "exact" })
+            .eq("assigned_to", user.id),
+          supabase
+            .from("tasks")
+            .select("id", { count: "exact" })
+            .eq("assigned_to", user.id)
+            .eq("status", "completed"),
+          supabase
+            .from("tasks")
+            .select("id", { count: "exact" })
+            .eq("assigned_to", user.id)
+            .eq("status", "pending"),
         ]);
         setUserStats({
-          assignedTasks: assigned || 0,
-          completed: completed || 0,
-          pending: pending || 0,
+          assignedTasks: assignedResult?.count || 0,
+          completed: completedResult?.count || 0,
+          pending: pendingResult?.count || 0,
         });
       }
 
-      // 3. Overdue tasks (due date < today and not completed)
-      let overdueQuery = supabase.from("tasks").select("*").lt("due_date", dayjs().format("YYYY-MM-DD")).neq("status", "completed");
+      // 3. Overdue tasks
+      let overdueQuery: any = supabase
+        .from("tasks")
+        .select("*")
+        .lt("due_date", dayjs().format("YYYY-MM-DD"))
+        .neq("status", "completed");
       if (taskFilter.column) {
-        if (taskFilter.op === "in") overdueQuery = overdueQuery.in(taskFilter.column, taskFilter.value);
-        else if (taskFilter.op === "eq") overdueQuery = overdueQuery.eq(taskFilter.column, taskFilter.value);
+        if (taskFilter.op === "in")
+          overdueQuery = overdueQuery.in(
+            taskFilter.column,
+            taskFilter.value
+          );
+        else if (taskFilter.op === "eq")
+          overdueQuery = overdueQuery.eq(
+            taskFilter.column,
+            taskFilter.value
+          );
       }
-      const { data: overdue } = await overdueQuery;
-      setOverdueTasks(overdue || []);
+      const overdueResult: any = await overdueQuery;
+      setOverdueTasks(overdueResult?.data || []);
 
-      // 4. High priority tasks (priority = 1, not completed)
-      let highPrioQuery = supabase.from("tasks").select("*").eq("priority", 1).neq("status", "completed");
+      // 4. High priority tasks
+      let highPrioQuery: any = supabase
+        .from("tasks")
+        .select("*")
+        .eq("priority", 1)
+        .neq("status", "completed");
       if (taskFilter.column) {
-        if (taskFilter.op === "in") highPrioQuery = highPrioQuery.in(taskFilter.column, taskFilter.value);
-        else if (taskFilter.op === "eq") highPrioQuery = highPrioQuery.eq(taskFilter.column, taskFilter.value);
+        if (taskFilter.op === "in")
+          highPrioQuery = highPrioQuery.in(
+            taskFilter.column,
+            taskFilter.value
+          );
+        else if (taskFilter.op === "eq")
+          highPrioQuery = highPrioQuery.eq(
+            taskFilter.column,
+            taskFilter.value
+          );
       }
-      const { data: highPrio } = await highPrioQuery;
-      setHighPriorityTasks(highPrio || []);
+      const highPrioResult: any = await highPrioQuery;
+      setHighPriorityTasks(highPrioResult?.data || []);
 
       // 5. Assigned vs completion per month (last 6 months)
       const fromDate = dayjs().subtract(5, "months").startOf("month");
@@ -233,11 +283,16 @@ export default function AdminDashboard() {
       for (let i = 0; i < 6; i++) {
         months.push(dayjs(fromDate).add(i, "month"));
       }
-      let assignedPerMonth = [];
-      let completedPerMonth = [];
       // Query all assignments & completions in last 6 months
-      let assignedQ = supabase.from("tasks").select("id,created_at").gte("created_at", months[0].format("YYYY-MM-DD"));
-      let completedQ = supabase.from("tasks").select("id,actual_completion_date").gte("created_at", months[0].format("YYYY-MM-DD")).eq("status", "completed");
+      let assignedQ: any = supabase
+        .from("tasks")
+        .select("id,created_at")
+        .gte("created_at", months[0].format("YYYY-MM-DD"));
+      let completedQ: any = supabase
+        .from("tasks")
+        .select("id,actual_completion_date")
+        .gte("created_at", months[0].format("YYYY-MM-DD"))
+        .eq("status", "completed");
       if (taskFilter.column) {
         if (taskFilter.op === "in") {
           assignedQ = assignedQ.in(taskFilter.column, taskFilter.value);
@@ -247,7 +302,12 @@ export default function AdminDashboard() {
           completedQ = completedQ.eq(taskFilter.column, taskFilter.value);
         }
       }
-      const [{ data: assignedData }, { data: completedData }] = await Promise.all([assignedQ, completedQ]);
+      const [assignedDataResult, completedDataResult]: any = await Promise.all([
+        assignedQ,
+        completedQ,
+      ]);
+      const assignedData: any[] = assignedDataResult?.data ?? [];
+      const completedData: any[] = completedDataResult?.data ?? [];
       // Format as monthly buckets
       const stats = months.map((m) => ({
         month: m.format("MMM YYYY"),
@@ -271,9 +331,16 @@ export default function AdminDashboard() {
       setTaskMonthlyStats(stats);
 
       // 6. Overdue ratio
-      const totalTasks = (_role === "user" && userStats) ? userStats.assignedTasks : (orgStats?.totalTasks || 0);
-      const overdueCount = (overdue || []).length;
-      setOverdueRatio(totalTasks ? `${Math.round((overdueCount / totalTasks) * 100)}%` : "0%");
+      const totalTasks =
+        _role === "user" && userStats
+          ? userStats.assignedTasks
+          : orgStats?.totalTasks || 0;
+      const overdueCount = (overdueResult?.data || []).length;
+      setOverdueRatio(
+        totalTasks
+          ? `${Math.round((overdueCount / totalTasks) * 100)}%`
+          : "0%"
+      );
 
       setLoading(false);
     }
