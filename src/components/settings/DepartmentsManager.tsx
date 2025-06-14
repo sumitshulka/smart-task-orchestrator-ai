@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
@@ -78,12 +77,12 @@ const DepartmentsManager: React.FC = () => {
   };
 
   return (
-    <div>
+    <div className="p-4 max-w-3xl w-full">
       <div className="flex mb-4 justify-between items-center">
         <h3 className="text-xl font-semibold">Departments</h3>
         <Button size="sm" onClick={() => setOpenForm(true)}>+ Add Department</Button>
       </div>
-      <div className="rounded border bg-background">
+      <div className="border rounded shadow bg-background overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
