@@ -11,6 +11,7 @@ import CreateUserDialog from "@/components/CreateUserDialog";
 import EditUserDialog from "@/components/EditUserDialog";
 import useSupabaseSession from "@/hooks/useSupabaseSession";
 import DownloadSampleExcel from "@/components/DownloadSampleExcel";
+import BulkUserUploadDialog from "@/components/BulkUserUploadDialog";
 
 interface User {
   id: string;
@@ -191,6 +192,7 @@ const AdminUsers: React.FC = () => {
         <h1 className="text-2xl font-bold">User Management</h1>
         <div className="flex gap-3">
           <DownloadSampleExcel />
+          <BulkUserUploadDialog />
           <CreateUserDialog onUserCreated={handleUserCreated} organization={organization || undefined} />
         </div>
       </div>
