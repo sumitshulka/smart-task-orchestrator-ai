@@ -82,40 +82,56 @@ const EditUserDialog: React.FC<EditUserDialogProps> = ({
     if (!user) return;
     setSaving(true);
 
-    // Make sure to set manager to null if empty string, so DB clears value
+    // Defensive handling: manager ID should be string or null (never undefined)
+    let managerValue: string | null = form.manager?.trim() === "" ? null : form.manager;
+    // Optional: Avoid setting manager to self
+    if (managerValue === user.id) managerValue = null;
+
+    // Build update payload
     const cleanedForm = {
-      user_name: form.user_name,
-      department: form.department,
-      phone: form.phone,
-      manager: form.manager === "" ? null : form.manager,
+      user_name: form.user_name?.trim() || null,
+      department: form.department?.trim() || null,
+      phone: form.phone?.trim() || null,
+      manager: managerValue,
     };
 
-    console.log("[EditUserDialog] About to update user:", user.id, cleanedForm);
+    // Debug log for payload
+    console.log("[EditUserDialog] Prepared to update user:", user.id, cleanedForm);
 
-    const { data, error } = await supabase
-      .from("users")
-      .update(cleanedForm)
-      .eq("id", user.id)
-      .select("*"); // Get updated row
+    try {
+      const { data, error } = await supabase
+        .from("users")
+        .update(cleanedForm)
+        .eq("id", user.id)
+        .select("*");
 
-    console.log("[EditUserDialog] Supabase update result:", { data, error });
+      console.log("[EditUserDialog] Supabase update result:", { data, error });
 
-    if (error) {
-      toast({ title: "Failed to update user", description: error.message });
+      if (error) {
+        toast({ title: "Failed to update user", description: error.message });
+        setSaving(false);
+        return;
+      }
+
+      // "data" will be [] if either (a) nothing changed, or (b) RLS blocks select-after-update.
+      if (!data || data.length === 0) {
+        toast({ 
+          title: "Update failed",
+          description: "No data returned from backend. (If RLS is enabled, check your policies. Otherwise, did you actually change any values?)"
+        });
+        setSaving(false);
+        return;
+      }
+
+      toast({ title: "User updated!" });
       setSaving(false);
-      return;
-    }
-    if (!data || data.length === 0) {
-      toast({ title: "Update failed", description: "No data returned from backend." });
+      onOpenChange(false);
+      if (onUserUpdated) onUserUpdated();
+    } catch (err: any) {
+      // Defensive fallback for unexpected errors
+      console.error("[EditUserDialog] Caught exception:", err);
+      toast({ title: "Unexpected error", description: err.message || String(err) });
       setSaving(false);
-      return;
-    }
-
-    toast({ title: "User updated!" });
-    setSaving(false);
-    onOpenChange(false);
-    if (onUserUpdated) {
-      onUserUpdated();
     }
   }
 
