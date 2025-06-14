@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { fetchTasks, deleteTask, Task } from "@/integrations/supabase/tasks";
 import { Button } from "@/components/ui/button";
@@ -40,7 +39,7 @@ const TasksPage: React.FC = () => {
   }
 
   return (
-    <div className="max-w-5xl mx-auto p-6">
+    <div className="max-w-6xl mx-auto p-8 pt-6 text-left">
       <h1 className="text-2xl font-bold mb-6">Tasks</h1>
       <CreateTaskSheet onTaskCreated={load} />
       {loading && <div className="text-muted-foreground mb-4">Loading...</div>}
@@ -94,4 +93,3 @@ const TasksPage: React.FC = () => {
 };
 
 export default TasksPage;
-
