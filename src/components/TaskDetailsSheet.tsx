@@ -47,7 +47,7 @@ const TaskDetailsSheet: React.FC<Props> = ({
   const [comment, setComment] = useState("");
   const [assignTo, setAssignTo] = useState(task?.assigned_to || "");
   const [status, setStatus] = useState(task?.status || "");
-  const [loading, setLoading] = useState(false); // <-- Added loading state for assignment
+  const [loading, setLoading] = useState(false);
   const { users } = useUsersAndTeams();
   const { statuses, loading: statusesLoading } = useTaskStatuses();
   const { activity, reload: reloadActivity, loading: activityLoading } = useTaskActivity(task?.id || null);
@@ -125,20 +125,23 @@ const TaskDetailsSheet: React.FC<Props> = ({
     }
   }
 
-  // Keep status in sync if task/statuses change
+  // Properly sync dropdown value to true current task status on open and task change
   useEffect(() => {
-    // Try to match status to the statuses array entry for a normalized value
-    if (task && statuses.length > 0) {
-      const currentStatus = statuses.find(
-        s => s.name.toLowerCase() === (task.status || "").toLowerCase()
-      );
-      if (currentStatus) {
-        setStatus(currentStatus.name);
-      } else {
-        setStatus(statuses[0].name);
-      }
+    if (!task) return;
+    if (!statuses.length) {
+      setStatus(task.status);
+      return;
     }
-  }, [task, statuses]);
+
+    const found = statuses.find(
+      s => s.name.trim().toLowerCase() === (task.status || "").trim().toLowerCase()
+    );
+    const statusToSet = found ? found.name : task.status;
+
+    setStatus(statusToSet);
+    // Debug: check the value in devtools
+    console.log("Dropdown status set to:", statusToSet);
+  }, [task, statuses, open]);
 
   // Make modal content scrollable
   return (
