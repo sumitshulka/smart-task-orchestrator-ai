@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -77,21 +78,11 @@ const TeamManagerDialog: React.FC<TeamManagerDialogProps> = ({
       return;
     }
 
-    function isValidUser(obj: unknown): obj is User {
-      return (
-        obj !== null &&
-        typeof obj === "object" &&
-        "id" in obj &&
-        "email" in obj &&
-        typeof (obj as any).id === "string" &&
-        typeof (obj as any).email === "string"
-      );
-    }
-
     async function fetchMembers() {
-      const { data, error } = await supabase
+      // First fetch memberships (no join)
+      const { data: membershipsRaw, error } = await supabase
         .from("team_memberships")
-        .select("id, joined_at, role_within_team, user_id, user:users(id,email,user_name)")
+        .select("id, joined_at, role_within_team, user_id")
         .eq("team_id", team.id);
 
       if (error) {
@@ -99,22 +90,48 @@ const TeamManagerDialog: React.FC<TeamManagerDialogProps> = ({
         setMembers([]);
         return;
       }
+      if (!membershipsRaw || membershipsRaw.length === 0) {
+        setMembers([]);
+        setSelectedUserIds([]);
+        setManagerId("");
+        return;
+      }
+      // Gather all user ids for later join
+      const memberUserIds: string[] = membershipsRaw.map((m: any) => m.user_id);
 
-      // Only add TeamMembers where `user` is valid. Explicitly shape them as TeamMember.
-      const validMembers: TeamMember[] = (data || [])
-        .filter((m: any) => isValidUser(m.user))
+      // Now fetch user metadata for those IDs (from public.users)
+      const { data: usersData, error: userLoadErr } = await supabase
+        .from("users")
+        .select("id, email, user_name")
+        .in("id", memberUserIds);
+
+      if (userLoadErr) {
+        toast({ title: "Failed to load member user data", description: userLoadErr.message });
+        setMembers([]);
+        setSelectedUserIds([]);
+        setManagerId("");
+        return;
+      }
+      // Map user_id -> user
+      const usersById: Record<string, User> = {};
+      (usersData || []).forEach((u: any) => {
+        usersById[u.id] = u;
+      });
+
+      // Build full members, filtering out any memberships where no user found
+      const enrichedMembers: TeamMember[] = (membershipsRaw || [])
+        .filter((m: any) => usersById[m.user_id])
         .map((m: any) => ({
           id: m.id,
           joined_at: m.joined_at,
           role_within_team: m.role_within_team,
           user_id: m.user_id,
-          user: m.user,
+          user: usersById[m.user_id],
         }));
 
-      setMembers(validMembers);
-      setSelectedUserIds(validMembers.map((m) => m.user_id));
-      // Find manager (if any)
-      const managerEntry = validMembers.find((m: any) => m.role_within_team === "manager");
+      setMembers(enrichedMembers);
+      setSelectedUserIds(enrichedMembers.map(m => m.user_id));
+      const managerEntry = enrichedMembers.find((m) => m.role_within_team === "manager");
       setManagerId(managerEntry?.user_id || "");
     }
     fetchMembers();
@@ -307,3 +324,4 @@ const TeamManagerDialog: React.FC<TeamManagerDialogProps> = ({
 };
 
 export default TeamManagerDialog;
+
