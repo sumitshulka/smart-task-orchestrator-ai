@@ -1,19 +1,40 @@
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { toast } from "@/components/ui/use-toast";
+import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
+import { Filter, Plus, MoreVertical } from "lucide-react";
+import UserTableActions from "@/components/UserTableActions";
 
 interface User {
   id: string;
   email: string;
-  created_at?: string;
+  phone?: string;
+  user_name?: string;
+  department?: string;
+  manager?: string;
+  is_active?: boolean;
 }
+
+const departments = [
+  "Sales",
+  "Marketing",
+  "Engineering",
+  "HR",
+  "Finance",
+  "Support",
+];
 
 const AdminUsers: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
+  const [search, setSearch] = useState("");
+  const [selectedDept, setSelectedDept] = useState("");
+  const [status, setStatus] = useState(""); // "active", "inactive" or ""
 
+  // Fetch users: Simulated data for now, extend here for your user source
   useEffect(() => {
     async function fetchUsers() {
       setLoading(true);
@@ -23,38 +44,132 @@ const AdminUsers: React.FC = () => {
         setLoading(false);
         return;
       }
+      // Mock data for additional columns
       setUsers(
-        data?.users.map((u: any) => ({
+        (data?.users || []).map((u: any, i: number) => ({
           id: u.id,
           email: u.email,
-          created_at: u.created_at,
-        })) || []
+          user_name: u.user_metadata?.full_name ?? u.email?.split("@")[0] ?? "User "+i,
+          department: departments[i % departments.length],
+          phone: u.phone,
+          manager: departments[(i + 2) % departments.length] + " Manager",
+          is_active: !u.banned, // Supabase doesn't have is_active; just example
+        }))
       );
       setLoading(false);
     }
     fetchUsers();
   }, []);
 
+  // Filtering logic
+  const filtered = useMemo(() => {
+    return users.filter((user) => {
+      const matchesSearch =
+        search === "" ||
+        user.user_name?.toLowerCase().includes(search.toLowerCase()) ||
+        user.email?.toLowerCase().includes(search.toLowerCase());
+      const matchesDept = selectedDept === "" || user.department === selectedDept;
+      const matchesStatus =
+        !status ||
+        (status === "active" && user.is_active) ||
+        (status === "inactive" && !user.is_active);
+      return matchesSearch && matchesDept && matchesStatus;
+    });
+  }, [users, search, selectedDept, status]);
+
   return (
-    <div className="p-6 max-w-3xl mx-auto">
-      <h1 className="text-2xl font-bold mb-6">User Management</h1>
-      {loading && <div className="text-muted-foreground mb-4">Loading...</div>}
-      <table className="w-full text-sm border rounded-md shadow bg-background">
-        <thead>
-          <tr className="bg-muted">
-            <th className="p-2 text-left">Email</th>
-            <th className="p-2 text-left">Created At</th>
-          </tr>
-        </thead>
-        <tbody>
-          {users.map((user) => (
-            <tr key={user.id} className="border-b last:border-b-0">
-              <td className="p-2">{user.email}</td>
-              <td className="p-2">{user.created_at ? new Date(user.created_at).toLocaleString() : "--"}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="p-6 max-w-6xl mx-auto">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
+        <h1 className="text-2xl font-bold">User Management</h1>
+        <Button className="w-full md:w-auto gap-2" size="sm">
+          <Plus className="w-4 h-4" />
+          Create User
+        </Button>
+      </div>
+      {/* Filters */}
+      <div className="flex flex-col sm:flex-row flex-wrap gap-3 mb-5 bg-muted/30 border rounded-md px-4 py-3">
+        <div className="flex items-center gap-2">
+          <Filter className="w-4 h-4 text-muted-foreground" />
+          <Input
+            placeholder="Search name or email..."
+            className="w-[180px]"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-sm">Department:</span>
+          <select
+            className="border rounded px-2 py-1 text-sm bg-background"
+            value={selectedDept}
+            onChange={(e) => setSelectedDept(e.target.value)}
+          >
+            <option value="">All</option>
+            {departments.map((d) => (
+              <option key={d} value={d}>
+                {d}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-sm">Status:</span>
+          <select
+            className="border rounded px-2 py-1 text-sm bg-background"
+            value={status}
+            onChange={(e) => setStatus(e.target.value)}
+          >
+            <option value="">All</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+          </select>
+        </div>
+      </div>
+      {/* Table */}
+      <div className="rounded-md border shadow bg-background overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>User ID</TableHead>
+              <TableHead>User Name</TableHead>
+              <TableHead>Department</TableHead>
+              <TableHead>Email</TableHead>
+              <TableHead>Phone</TableHead>
+              <TableHead>Manager</TableHead>
+              <TableHead className="text-center w-12">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {loading ? (
+              <TableRow>
+                <TableCell colSpan={7}>
+                  <span className="text-muted-foreground">Loading...</span>
+                </TableCell>
+              </TableRow>
+            ) : filtered.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={7}>
+                  <span className="text-muted-foreground">No users found.</span>
+                </TableCell>
+              </TableRow>
+            ) : (
+              filtered.map((user) => (
+                <TableRow key={user.id}>
+                  <TableCell>{user.id.slice(0, 8)}</TableCell>
+                  <TableCell>{user.user_name ?? "--"}</TableCell>
+                  <TableCell>{user.department ?? "--"}</TableCell>
+                  <TableCell>{user.email}</TableCell>
+                  <TableCell>{user.phone || "--"}</TableCell>
+                  <TableCell>{user.manager || "--"}</TableCell>
+                  <TableCell className="text-center">
+                    <UserTableActions user={user} />
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </div>
     </div>
   );
 };
