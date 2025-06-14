@@ -208,11 +208,13 @@ export default function AdminDashboard() {
         if (taskFilter.op === "in") taskQuery = taskQuery.in(taskFilter.column, taskFilter.value);
         else if (taskFilter.op === "eq") taskQuery = taskQuery.eq(taskFilter.column, taskFilter.value);
       }
-      // Explicitly break type inference to avoid TS2589
-      const dataRaw = await taskQuery;
-      const taskRows: any[] = (dataRaw.data ?? []) as any[];
+      // ---- NEW: Stop TypeScript from inferring deep types by using unknown, then cast manually
+      const statusDataRaw = (await taskQuery) as { data: unknown };
+      const taskRows: { status: string }[] = Array.isArray((statusDataRaw.data as any)) 
+        ? (statusDataRaw.data as any[]).map((row: any) => ({ status: row.status })) 
+        : [];
       const statusCounts: Record<string, number> = {};
-      taskRows.forEach((row: any) => {
+      taskRows.forEach((row) => {
         statusCounts[row.status] = (statusCounts[row.status] || 0) + 1;
       });
       setStatusStats(
