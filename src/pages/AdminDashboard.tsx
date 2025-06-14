@@ -209,11 +209,12 @@ export default function AdminDashboard() {
         if (taskFilter.op === "in") taskQuery = taskQuery.in(taskFilter.column, taskFilter.value);
         else if (taskFilter.op === "eq") taskQuery = taskQuery.eq(taskFilter.column, taskFilter.value);
       }
-      const { data } = await taskQuery;
-      const taskRows: any[] = Array.isArray(data) ? data : [];
+      // Explicitly type data as any[] RIGHT AT DESTRUCTURE
+      const { data: taskRows }: { data: any[] } = await taskQuery;
+      const rows: any[] = Array.isArray(taskRows) ? taskRows : [];
       // Count statuses client-side
       const statusCounts: Record<string, number> = {};
-      taskRows.forEach((row: any) => {
+      rows.forEach((row: any) => {
         statusCounts[row.status] = (statusCounts[row.status] || 0) + 1;
       });
       setStatusStats(
