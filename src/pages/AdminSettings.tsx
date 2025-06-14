@@ -13,16 +13,19 @@ const AdminSettings: React.FC = () => {
       <h2 className="text-2xl font-semibold mb-8">Settings</h2>
       <div className="flex flex-col md:flex-row gap-6">
         <Tabs value={tab} onValueChange={setTab} className="flex-1">
-          <div className="flex flex-col md:flex-row gap-8">
-            {/* Vertical/left-aligned tab list */}
-            <TabsList className="md:flex md:flex-col md:min-w-[200px] md:items-start md:h-auto">
-              <TabsTrigger value="departments" className="w-full md:text-left">
+          <div className="flex flex-col md:flex-row gap-8 items-stretch">
+            {/* Left-aligned, top-aligned tab list */}
+            <TabsList
+              className="md:flex md:flex-col md:min-w-[200px] md:items-start md:h-auto !justify-start p-0 gap-1"
+              style={{ alignSelf: "flex-start" }}
+            >
+              <TabsTrigger value="departments" className="w-full md:text-left justify-start">
                 Departments
               </TabsTrigger>
-              <TabsTrigger value="office-locations" className="w-full md:text-left">
+              <TabsTrigger value="office-locations" className="w-full md:text-left justify-start">
                 Office Locations
               </TabsTrigger>
-              <TabsTrigger value="statuses" className="w-full md:text-left">
+              <TabsTrigger value="statuses" className="w-full md:text-left justify-start">
                 Task Statuses
               </TabsTrigger>
             </TabsList>
@@ -46,3 +49,4 @@ const AdminSettings: React.FC = () => {
 };
 
 export default AdminSettings;
+
