@@ -43,6 +43,23 @@ serve(async (req) => {
       });
     }
 
+    // Extract admin user id from JWT (present in header)
+    const adminAuthHeader = req.headers.get("authorization") || req.headers.get("Authorization");
+    let adminUserId: string | null = null;
+    if (adminAuthHeader && adminAuthHeader.startsWith("Bearer ")) {
+      const jwt = adminAuthHeader.substring(7);
+      // Parse JWT to get admin sub (user id)
+      try {
+        const [, payloadB64] = jwt.split(".");
+        const decoded = JSON.parse(atob(payloadB64));
+        if (decoded && decoded.sub) {
+          adminUserId = decoded.sub;
+        }
+      } catch (e) {
+        console.warn("[LOG] Could not parse admin JWT for sub:", e);
+      }
+    }
+
     // 1. CREATE THE USER IN AUTH
     console.log("[LOG] Creating user in Auth service for email:", email);
     const createUserRes = await fetch(`${SUPABASE_URL}/auth/v1/admin/users`, {
@@ -77,9 +94,30 @@ serve(async (req) => {
     const userId = createUserData.user.id;
     console.log("[LOG] Auth user created with id:", userId);
 
+    // 1.5: FETCH ADMIN ORGANIZATION FOR INHERIT
+    let organizationToUse = null;
+    if (adminUserId) {
+      const usersRes = await fetch(`${SUPABASE_URL}/rest/v1/users?select=organization&id=eq.${adminUserId}`, {
+        headers: {
+          "apikey": SERVICE_ROLE_KEY,
+          "Authorization": `Bearer ${SERVICE_ROLE_KEY}`,
+        }
+      });
+      const adminUsersRows = await usersRes.json();
+      if (Array.isArray(adminUsersRows) && adminUsersRows.length > 0) {
+        organizationToUse = adminUsersRows[0].organization || null;
+      }
+      if (!organizationToUse) {
+        organizationToUse = "Main"; // fallback
+      }
+    } else {
+      organizationToUse = "Main"; // fallback if admin not determined
+    }
+    console.log("[LOG] Organization to assign:", organizationToUse);
+
     // 2. ADD TO PUBLIC.USERS
     console.log("[LOG] Inserting user profile row into users table.");
-    const usersRes = await fetch(`${SUPABASE_URL}/rest/v1/users`, {
+    const usersRes2 = await fetch(`${SUPABASE_URL}/rest/v1/users`, {
       method: "POST",
       headers: {
         "apikey": SERVICE_ROLE_KEY,
@@ -94,12 +132,13 @@ serve(async (req) => {
         department,
         phone,
         manager,
-        created_by: null,
+        organization: organizationToUse,
+        created_by: adminUserId,
       }]),
     });
-    const usersData = await usersRes.json();
-    console.log("[LOG] usersRes:", usersRes.status, usersRes.statusText, JSON.stringify(usersData));
-    if (!usersRes.ok) {
+    const usersData = await usersRes2.json();
+    console.log("[LOG] usersRes:", usersRes2.status, usersRes2.statusText, JSON.stringify(usersData));
+    if (!usersRes2.ok) {
       console.error("[LOG] User profile insertion failed.", usersData);
       return new Response(JSON.stringify({ error: usersData.message || "User profile insertion failed" }), {
         status: 400, headers: corsHeaders
@@ -135,7 +174,7 @@ serve(async (req) => {
             body: JSON.stringify([{
               user_id: userId,
               role_id: role_id,
-              assigned_by: null,
+              assigned_by: adminUserId ?? null,
             }])
           });
           const urData = await urRes.json();
