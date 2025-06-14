@@ -1,3 +1,4 @@
+
 import React from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -5,6 +6,7 @@ import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@
 import { Filter } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/components/ui/use-toast";
+import TeamManagerDialog from "@/components/TeamManagerDialog";
 
 interface Team {
   id: string;
@@ -18,28 +20,63 @@ const AdminTeams: React.FC = () => {
   const [teams, setTeams] = React.useState<Team[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [search, setSearch] = React.useState("");
+  const [createDialog, setCreateDialog] = React.useState(false);
+  const [editDialogOpen, setEditDialogOpen] = React.useState(false);
+  const [editTeam, setEditTeam] = React.useState<Team | null>(null);
+  const [membersMap, setMembersMap] = React.useState<Record<string, string[]>>({});
+  const [managersMap, setManagersMap] = React.useState<Record<string, string>>({});
 
+  // Fetch teams
   React.useEffect(() => {
-    async function fetchTeams() {
-      setLoading(true);
-      const { data, error } = await supabase
-        .from("teams")
-        .select("*")
-        .order("name");
-      
-      if (error) {
-        toast({ title: "Error loading teams", description: error.message });
-        setLoading(false);
-        return;
-      }
-      
-      setTeams(data || []);
-      setLoading(false);
-    }
-    
-    fetchTeams();
+    fetchTeamsWithMembers();
+    // eslint-disable-next-line
   }, []);
 
+  async function fetchTeamsWithMembers() {
+    setLoading(true);
+    const { data: teams, error } = await supabase
+      .from("teams")
+      .select("*")
+      .order("name");
+    if (error) {
+      toast({ title: "Error loading teams", description: error.message });
+      setLoading(false);
+      return;
+    }
+    setTeams(teams || []);
+    // For each team, fetch members and manager
+    const teamIds = (teams || []).map((t: any) => t.id);
+    if (teamIds.length === 0) {
+      setMembersMap({});
+      setManagersMap({});
+      setLoading(false);
+      return;
+    }
+    // Fetch memberships for all teams in one query
+    const { data: memberships, error: memErr } = await supabase
+      .from("team_memberships")
+      .select("team_id, user_id, role_within_team, user:users(id, user_name, email)")
+      .in("team_id", teamIds);
+    if (memErr) {
+      toast({ title: "Error loading team members", description: memErr.message });
+      setLoading(false);
+      return;
+    }
+    const membMap: Record<string, string[]> = {};
+    const managerMap: Record<string, string> = {};
+    (memberships || []).forEach((m: any) => {
+      if (!membMap[m.team_id]) membMap[m.team_id] = [];
+      membMap[m.team_id].push(m.user.user_name || m.user.email || m.user_id);
+      if (m.role_within_team === "manager") {
+        managerMap[m.team_id] = m.user.user_name || m.user.email || m.user_id;
+      }
+    });
+    setMembersMap(membMap);
+    setManagersMap(managerMap);
+    setLoading(false);
+  }
+
+  // Filtered by search
   const filteredTeams = React.useMemo(() => {
     return teams.filter(team => 
       search === "" || 
@@ -48,13 +85,33 @@ const AdminTeams: React.FC = () => {
     );
   }, [teams, search]);
 
+  function handleTeamCreatedOrUpdated() {
+    fetchTeamsWithMembers();
+  }
+
+  function handleEditTeam(team: Team) {
+    setEditTeam(team);
+    setEditDialogOpen(true);
+  }
+
   return (
     <div className="p-6 max-w-6xl w-full">
+      {/* Create/Edit Team Dialogs */}
+      <TeamManagerDialog
+        open={createDialog}
+        onOpenChange={setCreateDialog}
+        onTeamUpdated={handleTeamCreatedOrUpdated}
+      />
+      <TeamManagerDialog
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
+        team={editTeam}
+        onTeamUpdated={handleTeamCreatedOrUpdated}
+      />
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
         <h1 className="text-2xl font-bold">Team Management</h1>
-        <Button>Create Team</Button>
+        <Button onClick={() => setCreateDialog(true)}>Create Team</Button>
       </div>
-      
       {/* Filters */}
       <div className="flex flex-col sm:flex-row flex-wrap gap-3 mb-5 bg-muted/30 border rounded-md px-4 py-3">
         <div className="flex items-center gap-2">
@@ -67,7 +124,6 @@ const AdminTeams: React.FC = () => {
           />
         </div>
       </div>
-      
       {/* Table */}
       <div className="border rounded shadow bg-background overflow-x-auto">
         <Table>
@@ -76,6 +132,7 @@ const AdminTeams: React.FC = () => {
               <TableHead>Team Name</TableHead>
               <TableHead>Description</TableHead>
               <TableHead>Members</TableHead>
+              <TableHead>Manager</TableHead>
               <TableHead>Created By</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
@@ -83,13 +140,13 @@ const AdminTeams: React.FC = () => {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={5}>
+                <TableCell colSpan={6}>
                   <span className="text-muted-foreground">Loading teams...</span>
                 </TableCell>
               </TableRow>
             ) : filteredTeams.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5}>
+                <TableCell colSpan={6}>
                   <span className="text-muted-foreground">No teams found.</span>
                 </TableCell>
               </TableRow>
@@ -98,10 +155,15 @@ const AdminTeams: React.FC = () => {
                 <TableRow key={team.id}>
                   <TableCell>{team.name}</TableCell>
                   <TableCell>{team.description || "--"}</TableCell>
-                  <TableCell>0</TableCell>
+                  <TableCell>
+                    {(membersMap[team.id] || []).join(", ") || "--"}
+                  </TableCell>
+                  <TableCell>
+                    {managersMap[team.id] || "--"}
+                  </TableCell>
                   <TableCell>{team.created_by.slice(0, 8)}</TableCell>
                   <TableCell className="text-right">
-                    <Button variant="ghost" size="sm">Edit</Button>
+                    <Button variant="ghost" size="sm" onClick={() => handleEditTeam(team)}>Edit</Button>
                   </TableCell>
                 </TableRow>
               ))
