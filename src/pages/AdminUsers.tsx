@@ -12,6 +12,7 @@ import EditUserDialog from "@/components/EditUserDialog";
 import useSupabaseSession from "@/hooks/useSupabaseSession";
 import DownloadSampleExcel from "@/components/DownloadSampleExcel";
 import BulkUserUploadDialog from "@/components/BulkUserUploadDialog";
+import { useUserList } from "@/hooks/useUserList";
 
 interface User {
   id: string;
@@ -37,6 +38,9 @@ const AdminUsers: React.FC = () => {
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editUser, setEditUser] = useState<User | null>(null);
+
+  // Fetch all users for mapping manager IDs to names for display
+  const { users: allSimpleUsers, loading: usersListLoading } = useUserList();
 
   // Redirect to /auth if user is logged out and auth has finished loading
   useEffect(() => {
@@ -168,6 +172,16 @@ const AdminUsers: React.FC = () => {
       });
   };
 
+  // Helper to get manager's display name/email from manager id
+  function getManagerDisplay(managerId: string | undefined) {
+    if (!managerId) return "--";
+    const m = allSimpleUsers.find(u => u.id === managerId);
+    if (m) {
+      return m.user_name ? `${m.user_name} (${m.email})` : m.email;
+    }
+    return managerId; // fallback to id if not found
+  }
+
   // Show loading state while checking authentication
   if (authLoading) {
     return (
@@ -256,7 +270,7 @@ const AdminUsers: React.FC = () => {
                   <TableCell>{user.department ?? "--"}</TableCell>
                   <TableCell>{user.email}</TableCell>
                   <TableCell>{user.phone || "--"}</TableCell>
-                  <TableCell>{user.manager || "--"}</TableCell>
+                  <TableCell>{getManagerDisplay(user.manager)}</TableCell>
                   <TableCell className="text-center">
                     <UserTableActions user={user} onEdit={handleEditUser} />
                   </TableCell>
