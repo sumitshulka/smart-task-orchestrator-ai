@@ -45,13 +45,13 @@ function StatCard({ label, value, extra }: { label: string; value: number | stri
   );
 }
 
-// Pie chart for statuses
+// Pie chart for statuses -- UPDATED
 function StatusPieChart({ data, width = 220, height = 180 }) {
   const COLORS = [
     "#8884d8", "#82ca9d", "#ffc658", "#e57373", "#ba68c8", "#4dd0e1", "#ffd54f", "#a1887f",
   ];
   return (
-    <div className="mx-auto">
+    <div className="flex flex-col items-center justify-center">
       <PieChart width={width} height={height}>
         <Pie
           data={data}
@@ -60,18 +60,26 @@ function StatusPieChart({ data, width = 220, height = 180 }) {
           cx="50%"
           cy="50%"
           outerRadius={65}
-          label={({ status, count }) => `${status} (${count})`}
+          label={false} // Hide default labels to prevent overlap
         >
           {data.map((entry, i) => (
             <Cell key={`cell-${i}`} fill={COLORS[i % COLORS.length]} />
           ))}
         </Pie>
-        <Tooltip />
+        <Tooltip
+          contentStyle={{ fontSize: 13 }}
+          formatter={(value, name, props) =>
+            [`${value}`, `Status: ${props.payload.status}`]
+          }
+        />
+        <Legend
+          layout="horizontal"
+          verticalAlign="bottom"
+          align="center"
+          iconType="circle"
+          wrapperStyle={{ fontSize: 14, marginTop: 10 }}
+        />
       </PieChart>
-      {/* Move legend outside and below the PieChart, with margin for breathing space */}
-      <div className="mt-2 flex justify-center">
-        <Legend layout="horizontal" verticalAlign="bottom" align="center" />
-      </div>
     </div>
   );
 }
