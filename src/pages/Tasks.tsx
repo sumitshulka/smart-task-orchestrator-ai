@@ -80,34 +80,45 @@ const TasksPage: React.FC = () => {
 
   return (
     <div className="w-full max-w-6xl mx-auto px-4 py-8">
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-6">
+      <div className="flex w-full items-center justify-between gap-4 mb-6">
+        {/* Heading */}
         <h1 className="text-2xl font-bold">Tasks</h1>
-        <div className="flex flex-wrap items-center gap-2 sm:gap-4">
-          <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-            <SelectTrigger className="w-[120px]">
-              <SelectValue placeholder="Priority" />
-            </SelectTrigger>
-            <SelectContent>
-              {priorities.map((p) => (
-                <SelectItem key={p.value} value={p.value}>
-                  {p.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-[140px]">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              {statuses.map((s) => (
-                <SelectItem key={s.value} value={s.value}>
-                  {s.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <CreateTaskSheet onTaskCreated={load} />
+        {/* Filters */}
+        <div className="flex-1 flex justify-center">
+          <div className="flex flex-wrap items-center gap-4">
+            <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+              <SelectTrigger className="w-[160px] h-16 border-2 border-muted">
+                <SelectValue placeholder="Priority" />
+              </SelectTrigger>
+              <SelectContent>
+                {priorities.map((p) => (
+                  <SelectItem key={p.value} value={p.value}>
+                    {p.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-[160px] h-16 border-2 border-muted">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                {statuses.map((s) => (
+                  <SelectItem key={s.value} value={s.value}>
+                    {s.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        {/* Add Task button */}
+        <div>
+          <CreateTaskSheet>
+            <Button className="h-16 px-8 rounded-xl text-lg font-semibold bg-[#0c1221] text-white hover:bg-[#202942]">
+              Add Task
+            </Button>
+          </CreateTaskSheet>
         </div>
       </div>
 
