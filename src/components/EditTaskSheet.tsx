@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { updateTask, Task } from "@/integrations/supabase/tasks";
 import { toast } from "@/components/ui/use-toast";
+import { useTaskStatuses } from "@/hooks/useTaskStatuses";
 
 // Additional statuses for select
 const statusOptions = [
@@ -37,12 +38,13 @@ const EditTaskSheet: React.FC<Props> = ({ task, onUpdated, children }) => {
     description: task.description || "",
     priority: task.priority || 2,
     due_date: task.due_date ? task.due_date.slice(0, 10) : "",
-    status: task.status || "pending",
+    status: task.status || "",
     estimated_hours: task.estimated_hours || "",
-    // Track completion date, but only pre-fill if completed
     actual_completion_date: task.actual_completion_date || "",
   });
   const [loading, setLoading] = useState(false);
+
+  const { statuses, loading: statusesLoading } = useTaskStatuses();
 
   useEffect(() => {
     if (open) {
@@ -51,12 +53,12 @@ const EditTaskSheet: React.FC<Props> = ({ task, onUpdated, children }) => {
         description: task.description || "",
         priority: task.priority || 2,
         due_date: task.due_date ? task.due_date.slice(0, 10) : "",
-        status: task.status || "pending",
+        status: task.status && statuses.length > 0 && statuses.some(s => s.name === task.status) ? task.status : (statuses[0]?.name || ""),
         estimated_hours: task.estimated_hours || "",
         actual_completion_date: task.actual_completion_date || "",
       });
     }
-  }, [open, task]);
+  }, [open, statuses, task]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -78,7 +80,6 @@ const EditTaskSheet: React.FC<Props> = ({ task, onUpdated, children }) => {
         due_date: form.due_date || null,
         status: form.status,
         estimated_hours: form.estimated_hours ? Number(form.estimated_hours) : null,
-        // Only update completion date for completed status
         actual_completion_date: form.status === "completed"
           ? (form.actual_completion_date || new Date().toISOString().slice(0, 10))
           : null,
@@ -137,12 +138,15 @@ const EditTaskSheet: React.FC<Props> = ({ task, onUpdated, children }) => {
                 value={form.status}
                 onChange={handleChange}
                 className="w-full border rounded p-2"
+                disabled={statusesLoading || statuses.length === 0}
+                required
               >
-                <option value="new">New</option>
-                <option value="pending">Pending</option>
-                <option value="assigned">Assigned</option>
-                <option value="in_progress">In Progress</option>
-                <option value="completed">Completed</option>
+                {statusesLoading && (
+                  <option value="">Loading...</option>
+                )}
+                {statuses.map((s) => (
+                  <option key={s.id} value={s.name}>{s.name}</option>
+                ))}
               </select>
             </div>
             <div className="sm:col-span-2">
@@ -188,7 +192,7 @@ const EditTaskSheet: React.FC<Props> = ({ task, onUpdated, children }) => {
             )}
           </div>
           <SheetFooter className="mt-8">
-            <Button type="submit" disabled={loading}>
+            <Button type="submit" disabled={loading || statusesLoading}>
               {loading ? "Updating..." : "Update Task"}
             </Button>
             <SheetClose asChild>

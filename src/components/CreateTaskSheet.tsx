@@ -17,6 +17,7 @@ import { toast } from "@/components/ui/use-toast";
 import useSupabaseSession from "@/hooks/useSupabaseSession";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Command, CommandInput, CommandList, CommandItem, CommandEmpty } from "@/components/ui/command";
+import { useTaskStatuses } from "@/hooks/useTaskStatuses";
 
 // Simulated quick user record
 type User = { id: string; email: string; user_name: string | null };
@@ -75,8 +76,18 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children }) => {
   const [userOptionCount, setUserOptionCount] = useState(0);
   const [creating, setCreating] = useState(false);
   const { user, loading: sessionLoading } = useSupabaseSession();
+  const { statuses, loading: statusLoading } = useTaskStatuses();
 
   useEffect(() => {
+    if (open && statuses.length > 0) {
+      // Set status to first available DB status if not already set
+      setForm(f => ({
+        ...f,
+        status: f.status && statuses.some(s => s.name === f.status)
+          ? f.status
+          : statuses[0]?.name || ""
+      }));
+    }
     if (open) {
       fetchTasks().then(setTasks).catch(() => setTasks([]));
       fetchUsers()
@@ -86,7 +97,7 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children }) => {
         })
         .catch(() => setUsers([]));
     }
-  }, [open]);
+  }, [open, statuses]);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
@@ -143,7 +154,7 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children }) => {
         description: form.description,
         priority: form.priority,
         due_date: form.due_date || null,
-        status: form.status,
+        status: form.status, // Now matches the DB value
         type: form.type,
         estimated_hours: form.estimated_hours ? Number(form.estimated_hours) : null,
         assigned_to: assignedTo || null,
@@ -330,9 +341,14 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children }) => {
                 value={form.status}
                 onChange={handleChange}
                 className="w-full border rounded p-2"
+                disabled={statusLoading || statuses.length === 0}
+                required
               >
-                {statusOptions.map((opt) => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                {statusLoading && (
+                  <option value="">Loading...</option>
+                )}
+                {statuses.map((opt) => (
+                  <option key={opt.id} value={opt.name}>{opt.name}</option>
                 ))}
               </select>
             </div>
