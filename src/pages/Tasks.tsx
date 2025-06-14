@@ -58,7 +58,10 @@ const TasksPage: React.FC = () => {
 
   const [showTooManyWarning, setShowTooManyWarning] = useState(false);
 
-  async function load() {
+  // New: allTasks for "latest" fallback
+  const [allTasks, setAllTasks] = useState<Task[]>([]);
+
+  async function load(fetchAll: boolean = false) {
     setLoading(true);
     setShowTooManyWarning(false);
 
@@ -67,7 +70,7 @@ const TasksPage: React.FC = () => {
     const fromDateObj = new Date(today);
     fromDateObj.setDate(today.getDate() - 30);
 
-    // --- CHANGED SECTION: set toDateObj as tomorrow for inclusive today ---
+    // Set toDateObj as tomorrow for inclusive today
     const toDateObj = new Date(today);
     toDateObj.setDate(today.getDate() + 1); // tomorrow
     const fromDateStr = fromDateObj.toISOString().slice(0, 10);
@@ -75,41 +78,58 @@ const TasksPage: React.FC = () => {
 
     // Build filter query from current filters
     const input: FetchTasksInput = {
-      fromDate: fromDateStr,
-      toDate: toDateStr,
-      priority: priorityFilter === "all" ? undefined : Number(priorityFilter),
-      status: statusFilter === "all" ? undefined : statusFilter,
-      assignedTo: userFilter === "all" ? undefined : userFilter,
-      teamId: teamFilter === "all" ? undefined : teamFilter,
+      fromDate: (fetchAll ? fromDateStr : fromDateStr),
+      toDate: (fetchAll ? toDateStr : toDateStr),
+      priority: (fetchAll || priorityFilter === "all") ? undefined : Number(priorityFilter),
+      status: (fetchAll || statusFilter === "all") ? undefined : statusFilter,
+      assignedTo: (fetchAll || userFilter === "all") ? undefined : userFilter,
+      teamId: (fetchAll || teamFilter === "all") ? undefined : teamFilter,
       offset: (page - 1) * pageSize,
       limit: pageSize,
     };
+    if (fetchAll) {
+      // Remove date filter, just get last 30 days
+      delete input.priority;
+      delete input.status;
+      delete input.assignedTo;
+      delete input.teamId;
+      // keep fromDate/toDate as last 30 days
+    }
     console.log("[TASKS] Calling fetchTasksPaginated with input:", input);
     try {
       const { tasks, total } = await fetchTasksPaginated(input);
-      console.log("[TASKS] fetchTasksPaginated response:", tasks, "Total:", total);
-      // Print first 5 tasks for manual inspection
-      if (tasks.length) {
-        console.log("[TASKS] Example task:", tasks[0]);
-        // Print all assigned_to user ids to check type
-        console.log("[TASKS] All assigned_to:", tasks.map(t => t.assigned_to));
-      }
-      if (total > 100) {
-        setShowTooManyWarning(true);
-        setTasks([]);
-        setTotalTasks(total);
+      if (fetchAll) {
+        setAllTasks(tasks);
       } else {
-        setTasks(tasks);
-        setTotalTasks(total);
+        if (tasks.length) {
+          setTasks(tasks);
+          setTotalTasks(total);
+        } else {
+          setTasks([]);
+          setTotalTasks(total);
+        }
+        if (total > 100) {
+          setShowTooManyWarning(true);
+          setTasks([]);
+          setTotalTasks(total);
+        }
       }
     } catch (err: any) {
       toast({ title: "Failed to load tasks", description: err.message });
+      if (fetchAll) setAllTasks([]);
     }
     setLoading(false);
   }
 
+  // Modified: load both filtered and unfiltered data if no result
   useEffect(() => {
-    load();
+    // Load filtered data
+    load(false).then(() => {
+      // Only fetch allTasks if filtered resulted in no tasks and not loading latest already
+      if (!tasks.length && !loading) {
+        load(true); // load latest tasks for fallback
+      }
+    });
     // eslint-disable-next-line
   }, [priorityFilter, statusFilter, userFilter, teamFilter, dateRange, page, pageSize]);
 
@@ -195,23 +215,36 @@ const TasksPage: React.FC = () => {
           <div className="text-muted-foreground mb-4 text-center">Loading...</div>
         )}
 
+        {/* Modification: When no tasks found, but there are latest tasks, show both */}
         {!loading && !showTooManyWarning && filteredTasks.length === 0 && (
-          <div className="flex flex-col items-center justify-center mt-16">
-            <img
-              src={fallbackImage}
-              alt="No data found"
-              className="w-40 h-40 object-cover rounded-lg mb-4 shadow"
-            />
-            <div className="text-muted-foreground text-lg mb-2 flex items-center gap-2">
-              <Image className="w-5 h-5" />
-              No tasks found.
+          <div>
+            <div className="flex flex-col items-center justify-center mt-16">
+              <img
+                src={fallbackImage}
+                alt="No data found"
+                className="w-40 h-40 object-cover rounded-lg mb-4 shadow"
+              />
+              <div className="text-muted-foreground text-lg mb-2 flex items-center gap-2">
+                <Image className="w-5 h-5" />
+                No tasks found.
+              </div>
             </div>
+            {allTasks.length > 0 && (
+              <div className="mt-10">
+                <h2 className="text-lg font-bold mb-4">Latest Tasks</h2>
+                <div className="grid grid-cols-1 gap-6">
+                  {allTasks.map((task) => (
+                    <TaskCard key={task.id} task={task} onTaskUpdated={load} canDelete={canDelete} />
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
         <div className="grid grid-cols-1 gap-6">
-          {!showTooManyWarning &&
-            tasks.map((task) => (
+          {!showTooManyWarning && filteredTasks.length > 0 &&
+            filteredTasks.map((task) => (
               <TaskCard key={task.id} task={task} onTaskUpdated={load} canDelete={canDelete} />
             ))}
         </div>
