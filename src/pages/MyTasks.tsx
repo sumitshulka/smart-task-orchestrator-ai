@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import useSupabaseSession from "@/hooks/useSupabaseSession";
 import { fetchTasks, Task, updateTask } from "@/integrations/supabase/tasks";
@@ -42,6 +43,10 @@ const getStatusKey = (status: string) => {
 
 export default function MyTasksPage() {
   const { user } = useSupabaseSession();
+
+  // Debug log: Show current user state as soon as possible in function body
+  console.log("[DEBUG][MyTasksPage] useSupabaseSession user:", user);
+
   const [tasks, setTasks] = useState<Task[]>([]);
   const [totalTasks, setTotalTasks] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -60,7 +65,10 @@ export default function MyTasksPage() {
   const [detailsOpen, setDetailsOpen] = useState(false);
 
   async function load() {
-    if (!user?.id) return;
+    if (!user?.id) {
+      console.log("[DEBUG][MyTasksPage] No user or user.id present in session state!", user);
+      return;
+    }
     setLoading(true);
     setShowTooManyWarning(false);
     const today = new Date();
@@ -77,17 +85,26 @@ export default function MyTasksPage() {
       limit: pageSize,
     };
     // Log which user id we're passing and their type
-    console.log("[MY TASKS] Fetching tasks for user.id:", user.id, typeof user.id);
-    console.log("[MY TASKS] Input to fetchTasksPaginated:", input);
+    console.log("[DEBUG][MyTasksPage] Fetching tasks for user.id:", user.id, typeof user.id);
+    console.log("[DEBUG][MyTasksPage] Input to fetchTasksPaginated:", input);
     try {
       const { tasks, total } = await fetchTasksPaginated(input);
-      console.log("[MY TASKS] fetchTasksPaginated response:", tasks, "Total:", total);
-      // Print first 5 tasks for manual inspection
+      // Log the raw result and total
+      console.log("[DEBUG][MyTasksPage] fetchTasksPaginated response:", tasks, "Total:", total);
+
+      // Print all assigned_to and created_by for all returned tasks for debugging assignment policy
       if (tasks.length) {
-        console.log("[MY TASKS] Example task:", tasks[0]);
-        // Print all assigned_to user ids to check type
-        console.log("[MY TASKS] All assigned_to:", tasks.map(t => t.assigned_to));
+        tasks.slice(0, 5).forEach((task, idx) => {
+          console.log(`[DEBUG][MyTasksPage] Task[${idx}]: id=${task.id} assigned_to=${task.assigned_to} created_by=${task.created_by} status=${task.status} title=${task.title}`)
+        });
+        const allAssigned = tasks.map(t => t.assigned_to);
+        const allCreated = tasks.map(t => t.created_by);
+        console.log("[DEBUG][MyTasksPage] All assigned_to:", allAssigned);
+        console.log("[DEBUG][MyTasksPage] All created_by:", allCreated);
+      } else {
+        console.log("[DEBUG][MyTasksPage] No tasks returned from fetchTasksPaginated for user.id:", user.id);
       }
+
       if (total > 100) {
         setShowTooManyWarning(true);
         setTasks([]);
@@ -97,6 +114,7 @@ export default function MyTasksPage() {
         setTotalTasks(total);
       }
     } catch (err: any) {
+      console.error("[DEBUG][MyTasksPage] Error in fetchTasksPaginated:", err);
       toast({ title: "Failed to load tasks", description: err.message });
     }
     setLoading(false);
