@@ -88,7 +88,7 @@ const TasksPage: React.FC = () => {
         <div className="flex flex-1 justify-center gap-4">
           <Select value={priorityFilter} onValueChange={setPriorityFilter}>
             <SelectTrigger
-              className="h-16 w-[160px] border-2 border-muted bg-background rounded-xl text-base font-semibold px-6 flex items-center"
+              className="h-11 w-[160px] border-2 border-muted bg-background rounded-xl text-base font-semibold px-6 flex items-center"
             >
               <SelectValue placeholder="Priority" />
             </SelectTrigger>
@@ -102,7 +102,7 @@ const TasksPage: React.FC = () => {
           </Select>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger
-              className="h-16 w-[160px] border-2 border-muted bg-background rounded-xl text-base font-semibold px-6 flex items-center"
+              className="h-11 w-[160px] border-2 border-muted bg-background rounded-xl text-base font-semibold px-6 flex items-center"
             >
               <SelectValue placeholder="Status" />
             </SelectTrigger>
@@ -118,7 +118,7 @@ const TasksPage: React.FC = () => {
         {/* Add Task button */}
         <div className="flex-shrink-0">
           <CreateTaskSheet onTaskCreated={load}>
-            <Button className="h-16 px-8 rounded-xl text-lg font-semibold bg-[#0c1221] text-white hover:bg-[#202942] flex items-center">
+            <Button className="h-11 px-8 rounded-xl text-lg font-semibold bg-[#0c1221] text-white hover:bg-[#202942] flex items-center">
               Add Task
             </Button>
           </CreateTaskSheet>
