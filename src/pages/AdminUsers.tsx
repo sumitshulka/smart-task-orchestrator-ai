@@ -108,7 +108,7 @@ const AdminUsers: React.FC = () => {
   };
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
+    <div className="p-6 max-w-6xl"> {/* removed mx-auto so it aligns left */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
         <h1 className="text-2xl font-bold">User Management</h1>
         <CreateUserDialog onUserCreated={handleUserCreated} departments={departments} organization={organization || undefined} />
@@ -206,3 +206,4 @@ const AdminUsers: React.FC = () => {
 export default AdminUsers;
 
 // NOTE: This file is getting long (over 200 LOC). Consider asking me to refactor for maintainability!
+
