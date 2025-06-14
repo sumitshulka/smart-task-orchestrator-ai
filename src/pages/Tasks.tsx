@@ -84,7 +84,7 @@ const TasksPage: React.FC = () => {
     try {
       await updateTask(task.id, {
         status: "completed",
-        // If you have actual_completion_date column in table, you can add: actual_completion_date: new Date().toISOString()
+        actual_completion_date: new Date().toISOString().slice(0, 10),
       });
       load();
       toast({ title: "Task marked as completed" });
@@ -243,11 +243,17 @@ const TasksPage: React.FC = () => {
                     <span className="font-semibold">Due:</span>{" "}
                     {task.due_date ? (
                       <span>
-                        {format(new Date(task.due_date), "yyyy-MM-dd")}
+                        {task.due_date}
                       </span>
                     ) : (
                       <span className="text-muted-foreground">No due date</span>
                     )}
+                  </div>
+                  <div>
+                    <span className="font-semibold">Created:</span>{" "}
+                    {task.created_at
+                      ? task.created_at.slice(0, 10)
+                      : "-"}
                   </div>
                   <div>
                     <span className="font-semibold">Assigned To:</span>{" "}
@@ -258,12 +264,12 @@ const TasksPage: React.FC = () => {
                       ? `(${task.assigned_to})`
                       : "-"}
                   </div>
-                  <div>
-                    <span className="font-semibold">Created:</span>{" "}
-                    {task.created_at
-                      ? format(new Date(task.created_at), "yyyy-MM-dd HH:mm")
-                      : "-"}
-                  </div>
+                  {task.status === "completed" && task.actual_completion_date && (
+                    <div>
+                      <span className="font-semibold">Completion Date:</span>{" "}
+                      {task.actual_completion_date}
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>

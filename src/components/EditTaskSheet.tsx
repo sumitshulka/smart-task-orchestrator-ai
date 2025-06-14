@@ -16,6 +16,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { updateTask, Task } from "@/integrations/supabase/tasks";
 import { toast } from "@/components/ui/use-toast";
 
+// Additional statuses for select
+const statusOptions = [
+  { label: "New", value: "new" },
+  { label: "Pending", value: "pending" },
+  { label: "Assigned", value: "assigned" },
+  { label: "In Progress", value: "in_progress" },
+  { label: "Completed", value: "completed" },
+];
+
 type Props = {
   task: Task;
   onUpdated: () => void;
@@ -29,7 +38,7 @@ const EditTaskSheet: React.FC<Props> = ({ task, onUpdated, children }) => {
     description: task.description || "",
     priority: task.priority || 2,
     due_date: task.due_date ? task.due_date.slice(0, 10) : "",
-    status: task.status,
+    status: task.status || "pending",
     estimated_hours: task.estimated_hours || "",
   });
   const [loading, setLoading] = useState(false);
@@ -41,18 +50,16 @@ const EditTaskSheet: React.FC<Props> = ({ task, onUpdated, children }) => {
         description: task.description || "",
         priority: task.priority || 2,
         due_date: task.due_date ? task.due_date.slice(0, 10) : "",
-        status: task.status,
+        status: task.status || "pending",
         estimated_hours: task.estimated_hours || "",
       });
     }
   }, [open, task]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    const { name, value, type } = e.target;
+    const { name, value } = e.target;
     if (name === "priority") {
       setForm(f => ({ ...f, [name]: Number(value) }));
-    } else if (name === "estimated_hours") {
-      setForm(f => ({ ...f, [name]: value }));
     } else {
       setForm(f => ({ ...f, [name]: value }));
     }
@@ -67,6 +74,7 @@ const EditTaskSheet: React.FC<Props> = ({ task, onUpdated, children }) => {
         description: form.description,
         priority: form.priority,
         due_date: form.due_date || null,
+        status: form.status,
         estimated_hours: form.estimated_hours ? Number(form.estimated_hours) : null,
       };
       await updateTask(task.id, updatePayload);
@@ -114,6 +122,21 @@ const EditTaskSheet: React.FC<Props> = ({ task, onUpdated, children }) => {
                 <option value={1}>High</option>
                 <option value={2}>Medium</option>
                 <option value={3}>Low</option>
+              </select>
+            </div>
+            <div>
+              <label className="block mb-1 font-medium">Status</label>
+              <select
+                name="status"
+                value={form.status}
+                onChange={handleChange}
+                className="w-full border rounded p-2"
+              >
+                {statusOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
               </select>
             </div>
             <div className="sm:col-span-2">
