@@ -8,6 +8,7 @@ import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import dayjs from "dayjs";
 import { useStatusStats } from "@/hooks/useStatusStats";
+import TaskDetailsSheet from "@/components/TaskDetailsSheet";
 
 type Role = "admin" | "manager" | "team_manager" | "user" | "unknown";
 
@@ -105,6 +106,10 @@ export default function AdminDashboard() {
   const [taskMonthlyStats, setTaskMonthlyStats] = useState<{ month: string; assigned: number; completed: number }[]>([]);
   const [overdueRatio, setOverdueRatio] = useState<string>("0%");
   const [oldestOpenTasks, setOldestOpenTasks] = useState<any[]>([]);
+
+  // --- NEW: Task details drawer state
+  const [detailsTask, setDetailsTask] = useState<any | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState<boolean>(false);
 
   const navigate = useNavigate();
 
@@ -482,7 +487,19 @@ export default function AdminDashboard() {
                             <span className="text-muted-foreground">No due date</span>
                           )}
                         </span>
-                        <span className="col-span-1">{priorityLabel(t.priority)}</span>
+                        <span className="col-span-1 flex items-center gap-2">
+                          {priorityLabel(t.priority)}
+                          <button
+                            className="ml-2 text-blue-600 underline text-xs font-medium hover:text-blue-800"
+                            onClick={() => {
+                              setDetailsTask(t);
+                              setDetailsOpen(true);
+                            }}
+                            type="button"
+                          >
+                            View task
+                          </button>
+                        </span>
                       </li>
                     ))}
                   </ul>
@@ -496,7 +513,7 @@ export default function AdminDashboard() {
 
           {/* --- 3 Stat Cards in a Row --- */}
           <div className="mt-7 grid gap-7 md:grid-cols-3">
-            {/* Overdue tasks count/card */}
+            {/* Overdue tasks */}
             <StatCard
               label="Overdue Tasks"
               value={overdueTasks.length}
@@ -534,7 +551,7 @@ export default function AdminDashboard() {
               )}
             />
 
-            {/* Overdue ratio */}
+            {/* Overdue Task Ratio */}
             <StatCard
               label="Overdue Task Ratio"
               value={overdueRatio}
@@ -591,7 +608,6 @@ export default function AdminDashboard() {
               <AssignedVsCompletedChart data={taskMonthlyStats} />
             </SectionCard>
           </div>
-          
           {/* --- OLDEST OPEN TASKS for Users --- */}
           <div className="mt-7">
             <Card>
@@ -615,7 +631,19 @@ export default function AdminDashboard() {
                             <span className="text-muted-foreground">No due date</span>
                           )}
                         </span>
-                        <span className="col-span-1">{priorityLabel(t.priority)}</span>
+                        <span className="col-span-1 flex items-center gap-2">
+                          {priorityLabel(t.priority)}
+                          <button
+                            className="ml-2 text-blue-600 underline text-xs font-medium hover:text-blue-800"
+                            onClick={() => {
+                              setDetailsTask(t);
+                              setDetailsOpen(true);
+                            }}
+                            type="button"
+                          >
+                            View task
+                          </button>
+                        </span>
                       </li>
                     ))}
                   </ul>
@@ -626,7 +654,6 @@ export default function AdminDashboard() {
             </Card>
           </div>
           {/* --------------------------- */}
-
           {/* --- 3 Stat Cards in a Row for User --- */}
           <div className="mt-7 grid gap-7 md:grid-cols-3">
             {/* Overdue tasks */}
@@ -678,6 +705,20 @@ export default function AdminDashboard() {
           </div>
         </>
       )}
+
+      {/* --- TaskDetailsSheet Drawer --- */}
+      <TaskDetailsSheet
+        task={detailsTask}
+        open={detailsOpen}
+        onOpenChange={(open: boolean) => setDetailsOpen(open)}
+        currentUser={{ id: userId, role }}
+        onUpdated={() => {
+          // When details update, re-fetch oldest open tasks etc
+          // Optionally: could refetch all stats, but for now just reload all
+          window.location.reload();
+          // Or -- refactor in future for more efficient reload!
+        }}
+      />
     </div>
   );
 }
