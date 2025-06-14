@@ -27,11 +27,11 @@ const UserRoleManager: React.FC = () => {
     async function fetchInitialData() {
       setLoading(true);
       // Fetch all users from auth (via RPC or Admin API)
-      const usersResponse = await supabase.auth.admin.listUsers({ perPage: 1000 });
-      if (usersResponse.error) {
-        toast({ title: "Error loading users", description: usersResponse.error.message });
+      const { data: usersData, error: userError } = await supabase.auth.admin.listUsers({ perPage: 1000 });
+      if (userError) {
+        toast({ title: "Error loading users", description: userError.message });
       } else {
-        setUsers(usersResponse.users?.map((u: any) => ({ id: u.id, email: u.email })) ?? []);
+        setUsers(usersData?.users?.map((u: any) => ({ id: u.id, email: u.email })) ?? []);
       }
       try {
         setRoles(await fetchRoles());
@@ -51,7 +51,8 @@ const UserRoleManager: React.FC = () => {
   const handleAssignRole = async (user_id: string, role_id: string) => {
     setLoading(true);
     try {
-      await addRoleToUser(user_id, role_id, supabase.auth.getUser().data?.user?.id || null);
+      const { data: currentUserData } = await supabase.auth.getUser();
+      await addRoleToUser(user_id, role_id, currentUserData?.user?.id || null);
       toast({ title: "Role assigned" });
       setUserRoles(await fetchUserRoles());
     } catch (err: any) {
