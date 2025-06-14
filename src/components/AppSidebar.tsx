@@ -1,3 +1,4 @@
+
 import React from "react";
 import { useLocation, NavLink } from "react-router-dom";
 import {
@@ -12,48 +13,19 @@ import {
   SidebarTrigger,
   SidebarProvider,
 } from "@/components/ui/sidebar";
-import { LayoutDashboard, Users2, UsersRound, ShieldCheck, ClipboardList, ListTodo, History } from "lucide-react"; // add LayoutDashboard icon
+import { 
+  LayoutDashboard, 
+  Users2, 
+  Users,         // New icon: 'Users' (for Team Management)
+  ShieldCheck, 
+  ClipboardList, 
+  ListTodo, 
+  History 
+} from "lucide-react";
 import Logo from "./Logo";
 
 export default function AppSidebar() {
   const location = useLocation();
-  const navItems = [
-    {
-      label: "Dashboard",
-      to: "/admin/dashboard",
-      Icon: LayoutDashboard,
-    },
-    {
-      label: "User Management",
-      to: "/admin/users",
-      Icon: Users2,
-    },
-    {
-      label: "Team Management",
-      to: "/admin/teams",
-      Icon: UsersRound,
-    },
-    {
-      label: "Roles and Privileges",
-      to: "/admin/roles",
-      Icon: ShieldCheck,
-    },
-    {
-      label: "Tasks",
-      to: "/admin/tasks",
-      Icon: ClipboardList,
-    },
-    {
-      label: "My Tasks",
-      to: "/admin/my-tasks",
-      Icon: ListTodo,
-    },
-    {
-      label: "Historical Tasks",
-      to: "/admin/historical-tasks",
-      Icon: History,
-    },
-  ];
 
   return (
     <Sidebar className="w-64 min-w-14">
@@ -62,27 +34,134 @@ export default function AppSidebar() {
         <div className="border-b pb-2 mb-2">
           <Logo />
         </div>
+
+        {/* Dashboard - ungrouped */}
         <SidebarGroup>
-          <SidebarGroupLabel>Menu</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {navItems.map((item) => (
-                <SidebarMenuItem key={item.to}>
-                  <SidebarMenuButton asChild isActive={location.pathname.startsWith(item.to)}>
-                    <NavLink
-                      to={item.to}
-                      end
-                      className={({ isActive }) =>
-                        "flex items-center gap-2 py-1.5 px-2 rounded transition " +
-                        (isActive ? "bg-muted text-primary font-semibold" : "hover:bg-muted/50")
-                      }
-                    >
-                      <item.Icon className="w-5 h-5" />
-                      <span className="hidden md:inline">{item.label}</span>
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={location.pathname.startsWith("/admin/dashboard")}>
+                  <NavLink
+                    to="/admin/dashboard"
+                    end
+                    className={({ isActive }) =>
+                      "flex items-center gap-2 py-1.5 px-2 rounded transition " +
+                      (isActive ? "bg-muted text-primary font-semibold" : "hover:bg-muted/50")
+                    }
+                  >
+                    <LayoutDashboard className="w-5 h-5" />
+                    <span className="hidden md:inline">Dashboard</span>
+                  </NavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        {/* Task Management Section */}
+        <SidebarGroup>
+          <SidebarGroupLabel>Task Management</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={location.pathname.startsWith("/admin/tasks")}>
+                  <NavLink
+                    to="/admin/tasks"
+                    end
+                    className={({ isActive }) =>
+                      "flex items-center gap-2 py-1.5 px-2 rounded transition " +
+                      (isActive ? "bg-muted text-primary font-semibold" : "hover:bg-muted/50")
+                    }
+                  >
+                    <ClipboardList className="w-5 h-5" />
+                    <span className="hidden md:inline">Tasks</span>
+                  </NavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={location.pathname.startsWith("/admin/my-tasks")}>
+                  <NavLink
+                    to="/admin/my-tasks"
+                    end
+                    className={({ isActive }) =>
+                      "flex items-center gap-2 py-1.5 px-2 rounded transition " +
+                      (isActive ? "bg-muted text-primary font-semibold" : "hover:bg-muted/50")
+                    }
+                  >
+                    <ListTodo className="w-5 h-5" />
+                    <span className="hidden md:inline">My Tasks</span>
+                  </NavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={location.pathname.startsWith("/admin/historical-tasks")}>
+                  <NavLink
+                    to="/admin/historical-tasks"
+                    end
+                    className={({ isActive }) =>
+                      "flex items-center gap-2 py-1.5 px-2 rounded transition " +
+                      (isActive ? "bg-muted text-primary font-semibold" : "hover:bg-muted/50")
+                    }
+                  >
+                    <History className="w-5 h-5" />
+                    <span className="hidden md:inline">Historical Tasks</span>
+                  </NavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        {/* Management Section */}
+        <SidebarGroup>
+          <SidebarGroupLabel>Management</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={location.pathname.startsWith("/admin/users")}>
+                  <NavLink
+                    to="/admin/users"
+                    end
+                    className={({ isActive }) =>
+                      "flex items-center gap-2 py-1.5 px-2 rounded transition " +
+                      (isActive ? "bg-muted text-primary font-semibold" : "hover:bg-muted/50")
+                    }
+                  >
+                    <Users2 className="w-5 h-5" />
+                    <span className="hidden md:inline">User Management</span>
+                  </NavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={location.pathname.startsWith("/admin/teams")}>
+                  <NavLink
+                    to="/admin/teams"
+                    end
+                    className={({ isActive }) =>
+                      "flex items-center gap-2 py-1.5 px-2 rounded transition " +
+                      (isActive ? "bg-muted text-primary font-semibold" : "hover:bg-muted/50")
+                    }
+                  >
+                    <Users className="w-5 h-5" />
+                    <span className="hidden md:inline">Team Management</span>
+                  </NavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={location.pathname.startsWith("/admin/roles")}>
+                  <NavLink
+                    to="/admin/roles"
+                    end
+                    className={({ isActive }) =>
+                      "flex items-center gap-2 py-1.5 px-2 rounded transition " +
+                      (isActive ? "bg-muted text-primary font-semibold" : "hover:bg-muted/50")
+                    }
+                  >
+                    <ShieldCheck className="w-5 h-5" />
+                    <span className="hidden md:inline">Roles and Privileges</span>
+                  </NavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
