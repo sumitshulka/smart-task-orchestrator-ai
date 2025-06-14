@@ -204,6 +204,7 @@ export default function MyTasksPage() {
     <div className="flex flex-col w-full max-w-7xl mx-auto px-4 py-8">
       <div className="flex w-full items-center gap-4 mb-6">
         <h1 className="text-2xl font-bold flex-shrink-0">My Tasks</h1>
+        {/* List/Kanban toggle always visible */}
         <div className="ml-auto flex gap-2">
           <Button
             variant={view === "list" ? "default" : "outline"}
