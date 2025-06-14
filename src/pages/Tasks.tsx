@@ -1,23 +1,15 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { fetchTasks, deleteTask, updateTask, Task } from "@/integrations/supabase/tasks";
+import { fetchTasks, Task } from "@/integrations/supabase/tasks";
 import { Button } from "@/components/ui/button";
-import { toast } from "@/components/ui/use-toast";
+import { toast } from "@/hooks/use-toast";
 import useSupabaseSession from "@/hooks/useSupabaseSession";
 import CreateTaskSheet from "@/components/CreateTaskSheet";
-import EditTaskSheet from "@/components/EditTaskSheet";
-import { format } from "date-fns";
-import { Card, CardHeader, CardContent } from "@/components/ui/card";
-import {
-  Select,
-  SelectTrigger,
-  SelectContent,
-  SelectItem,
-  SelectValue,
-} from "@/components/ui/select";
-import { Image, Edit, Trash2, Check } from "lucide-react";
+import TaskCard from "@/components/TaskCard";
+import { Image } from "lucide-react";
 import TaskFiltersSidebar from "@/components/TaskFiltersSidebar";
 import { useUsersAndTeams } from "@/hooks/useUsersAndTeams";
 
+// Priorities filter dropdown
 const priorities = [
   { label: "All", value: "all" },
   { label: "High", value: "1" },
@@ -25,6 +17,7 @@ const priorities = [
   { label: "Low", value: "3" },
 ];
 
+// Status filter dropdown
 const statuses = [
   { label: "All", value: "all" },
   { label: "Pending", value: "pending" },
@@ -62,53 +55,26 @@ const TasksPage: React.FC = () => {
     load();
   }, []);
 
-  async function handleDeleteTask(id: string) {
-    if (!window.confirm("Delete this task?")) return;
-    setLoading(true);
-    try {
-      await deleteTask(id);
-      load();
-      toast({ title: "Task deleted" });
-    } catch (err: any) {
-      toast({ title: "Delete failed", description: err.message });
-    }
-    setLoading(false);
-  }
-
-  // Mark Complete function
-  async function handleCompleteTask(task: Task) {
-    if (task.status === "completed") {
-      toast({ title: "Task is already completed" });
-      return;
-    }
-    try {
-      await updateTask(task.id, {
-        status: "completed",
-        actual_completion_date: new Date().toISOString().slice(0, 10),
-      });
-      load();
-      toast({ title: "Task marked as completed" });
-    } catch (err: any) {
-      toast({ title: "Completion failed", description: err.message });
-    }
-  }
-
   // Restrict delete to status 'pending' or 'new'
   function canDelete(status: string) {
     return status === "pending" || status === "new";
   }
 
-  // new filtering logic
+  // Filtering logic
   const filteredTasks = useMemo(() => {
     return tasks.filter((task) => {
       // Priority filter
-      const priorityPass = !priorityFilter || priorityFilter === "all" || String(task.priority) === priorityFilter;
+      const priorityPass =
+        !priorityFilter || priorityFilter === "all" || String(task.priority) === priorityFilter;
       // Status filter
-      const statusPass = !statusFilter || statusFilter === "all" || task.status === statusFilter;
+      const statusPass =
+        !statusFilter || statusFilter === "all" || task.status === statusFilter;
       // User filter
-      const userPass = !userFilter || userFilter === "all" || (task.assigned_to && task.assigned_to === userFilter);
+      const userPass =
+        !userFilter || userFilter === "all" || (task.assigned_to && task.assigned_to === userFilter);
       // Team filter
-      const teamPass = !teamFilter || teamFilter === "all" || (task.team_id && task.team_id === teamFilter);
+      const teamPass =
+        !teamFilter || teamFilter === "all" || (task.team_id && task.team_id === teamFilter);
       // Date filter (created_at)
       let datePass = true;
       if (dateRange.from && dateRange.to) {
@@ -151,7 +117,6 @@ const TasksPage: React.FC = () => {
             </CreateTaskSheet>
           </div>
         </div>
-
         {loading && (
           <div className="text-muted-foreground mb-4 text-center">Loading...</div>
         )}
@@ -173,106 +138,12 @@ const TasksPage: React.FC = () => {
         {/* Grid layout: single card per row */}
         <div className="grid grid-cols-1 gap-6">
           {filteredTasks.map((task) => (
-            <Card key={task.id} className="relative group transition hover:shadow-lg">
-              {/* TOP CENTER ICONS */}
-              <div className="absolute left-1/2 top-2 -translate-x-1/2 z-10 flex gap-4 opacity-0 group-hover:opacity-100 transition-all">
-                {/* Edit icon */}
-                <EditTaskSheet task={task} onUpdated={load}>
-                  <Button size="icon" variant="ghost" className="text-gray-400 hover:text-blue-600" title="Edit Task">
-                    <Edit size={20} />
-                  </Button>
-                </EditTaskSheet>
-
-                {/* Delete icon */}
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className={`text-gray-400 ${canDelete(task.status) ? "hover:text-red-600" : "opacity-60 cursor-not-allowed"}`}
-                  title={canDelete(task.status) ? "Delete Task" : "Can only delete New or Pending tasks"}
-                  onClick={() => canDelete(task.status) && handleDeleteTask(task.id)}
-                  disabled={!canDelete(task.status)}
-                >
-                  <Trash2 size={20} />
-                </Button>
-
-                {/* Complete icon */}
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className={`text-gray-400 hover:text-green-700`}
-                  title={task.status === "completed" ? "Already completed" : "Mark as Complete"}
-                  onClick={() => handleCompleteTask(task)}
-                  disabled={task.status === "completed"}
-                >
-                  <Check size={20} />
-                </Button>
-              </div>
-              {/* Card Header and Content */}
-              <CardHeader className="pb-2">
-                <div className="flex justify-between items-center">
-                  <h2 className="font-semibold text-lg truncate">
-                    {task.title}
-                  </h2>
-                  <span
-                    className={`text-xs px-2 py-1 rounded-full ${
-                      task.priority === 1
-                        ? "bg-red-100 text-red-700"
-                        : task.priority === 2
-                        ? "bg-yellow-100 text-yellow-700"
-                        : "bg-green-100 text-green-700"
-                    }`}
-                  >
-                    {task.priority === 1
-                      ? "High"
-                      : task.priority === 2
-                      ? "Medium"
-                      : "Low"}
-                  </span>
-                </div>
-                <div className="mt-1 text-xs text-muted-foreground line-clamp-2">
-                  {task.description}
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-col md:flex-row md:items-center md:gap-6 gap-2 text-sm">
-                  <div>
-                    <span className="font-semibold">Status:</span>{" "}
-                    <span className="capitalize">{task.status}</span>
-                  </div>
-                  <div>
-                    <span className="font-semibold">Due:</span>{" "}
-                    {task.due_date ? (
-                      <span>
-                        {task.due_date}
-                      </span>
-                    ) : (
-                      <span className="text-muted-foreground">No due date</span>
-                    )}
-                  </div>
-                  <div>
-                    <span className="font-semibold">Created:</span>{" "}
-                    {task.created_at
-                      ? task.created_at.slice(0, 10)
-                      : "-"}
-                  </div>
-                  <div>
-                    <span className="font-semibold">Assigned To:</span>{" "}
-                    {task.assigned_user
-                      ? task.assigned_user.user_name ||
-                        task.assigned_user.email
-                      : task.assigned_to
-                      ? `(${task.assigned_to})`
-                      : "-"}
-                  </div>
-                  {task.status === "completed" && task.actual_completion_date && (
-                    <div>
-                      <span className="font-semibold">Completion Date:</span>{" "}
-                      {task.actual_completion_date}
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+            <TaskCard
+              key={task.id}
+              task={task}
+              onTaskUpdated={load}
+              canDelete={canDelete}
+            />
           ))}
         </div>
       </div>
@@ -282,4 +153,4 @@ const TasksPage: React.FC = () => {
 
 export default TasksPage;
 
-// Note: This file has grown quite long (>228 lines). Please consider refactoring this file into smaller, focused components for better maintainability!
+// Note: The main page is now much shorter! Core card logic is refactored to TaskCard.tsx.
