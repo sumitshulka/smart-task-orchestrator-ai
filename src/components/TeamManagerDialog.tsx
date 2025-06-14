@@ -91,27 +91,28 @@ const TeamManagerDialog: React.FC<TeamManagerDialogProps> = ({
     async function fetchMembers() {
       const { data, error } = await supabase
         .from("team_memberships")
-        .select("*, user:users(id, email, user_name)")
+        .select("id, joined_at, role_within_team, user_id, user:users(id,email,user_name)")
         .eq("team_id", team.id);
+
       if (error) {
         toast({ title: "Failed to load team members", description: error.message });
         setMembers([]);
         return;
       }
-      // Extra log to capture invalid user objects
-      if (data) {
-        data.forEach((m: any) => {
-          if (!isValidUser(m.user)) {
-            console.warn("[TeamManagerDialog] Invalid user join result:", m.user, m);
-          }
-        });
-      }
 
-      // Filter only memberships with a valid user object
-      const validMembers = (data || []).filter((m: any) => isValidUser(m.user));
+      // Only add TeamMembers where `user` is valid. Explicitly shape them as TeamMember.
+      const validMembers: TeamMember[] = (data || [])
+        .filter((m: any) => isValidUser(m.user))
+        .map((m: any) => ({
+          id: m.id,
+          joined_at: m.joined_at,
+          role_within_team: m.role_within_team,
+          user_id: m.user_id,
+          user: m.user,
+        }));
 
-      setMembers(validMembers as TeamMember[]);
-      setSelectedUserIds(validMembers.map((m: any) => m.user_id));
+      setMembers(validMembers);
+      setSelectedUserIds(validMembers.map((m) => m.user_id));
       // Find manager (if any)
       const managerEntry = validMembers.find((m: any) => m.role_within_team === "manager");
       setManagerId(managerEntry?.user_id || "");
