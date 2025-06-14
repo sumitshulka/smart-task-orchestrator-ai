@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { fetchTasks, deleteTask, Task } from "@/integrations/supabase/tasks";
 import { Button } from "@/components/ui/button";
@@ -40,8 +41,10 @@ const TasksPage: React.FC = () => {
 
   return (
     <div className="w-full px-8 py-6 text-left">
-      <h1 className="text-2xl font-bold mb-6">Tasks</h1>
-      <CreateTaskSheet onTaskCreated={load} />
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-bold">Tasks</h1>
+        <CreateTaskSheet onTaskCreated={load} />
+      </div>
       {loading && <div className="text-muted-foreground mb-4">Loading...</div>}
       <table className="w-full border text-sm rounded shadow bg-background">
         <thead>
@@ -93,3 +96,4 @@ const TasksPage: React.FC = () => {
 };
 
 export default TasksPage;
+
