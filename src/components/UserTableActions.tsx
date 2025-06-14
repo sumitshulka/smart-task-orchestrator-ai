@@ -1,6 +1,6 @@
-
 import React from "react";
 import { MoreVertical, User, Edit, UserCheck, UserX } from "lucide-react";
+import EditUserDialog from "./EditUserDialog";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -16,13 +16,18 @@ interface UserTableActionsProps {
     id: string;
     user_name?: string;
     is_active?: boolean;
+    email?: string;
+    department?: string;
+    phone?: string;
+    manager?: string;
   };
+  onEdit: (user: UserTableActionsProps["user"]) => void;
 }
 
-const UserTableActions: React.FC<UserTableActionsProps> = ({ user }) => {
+const UserTableActions: React.FC<UserTableActionsProps> = ({ user, onEdit }) => {
   // Handlers: just alert for now; you can implement modals per need
   function handleEditUser() {
-    alert("Edit User: " + (user.user_name || user.id));
+    onEdit(user);
   }
   function handleEditRole() {
     alert("Edit Role: " + (user.user_name || user.id));

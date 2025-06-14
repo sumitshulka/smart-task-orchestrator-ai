@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -9,6 +8,7 @@ import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@
 import { Filter } from "lucide-react";
 import UserTableActions from "@/components/UserTableActions";
 import CreateUserDialog from "@/components/CreateUserDialog";
+import EditUserDialog from "@/components/EditUserDialog";
 import useSupabaseSession from "@/hooks/useSupabaseSession";
 
 interface User {
@@ -42,6 +42,8 @@ const AdminUsers: React.FC = () => {
   const [organization, setOrganization] = useState<string | null>(null);
   const [me, setMe] = useState<{ id: string, email: string, organization: string | null } | null>(null);
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editUser, setEditUser] = useState<User | null>(null);
 
   // Redirect to /auth if user is logged out and auth has finished loading
   useEffect(() => {
@@ -161,6 +163,28 @@ const AdminUsers: React.FC = () => {
       });
   };
 
+  // open edit dialog
+  const handleEditUser = (user: User) => {
+    setEditUser(user);
+    setEditDialogOpen(true);
+  };
+
+  // re-fetch users after edit
+  const handleUserUpdated = () => {
+    if (!organization) return;
+    setLoading(true);
+    supabase.from("users").select("*").eq("organization", organization).order("created_at", { ascending: false })
+      .then(({ data, error }) => {
+        if (error) {
+          toast({ title: "Error loading users", description: error.message });
+          setLoading(false);
+        } else {
+          setUsers(data || []);
+          setLoading(false);
+        }
+      });
+  };
+
   // Debug block (unchanged)
   function DebugBlock() {
     return (
@@ -228,6 +252,13 @@ const AdminUsers: React.FC = () => {
 
   return (
     <div className="p-6 max-w-6xl">
+      <EditUserDialog
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
+        user={editUser}
+        departments={departments}
+        onUserUpdated={handleUserUpdated}
+      />
       <DebugBlock />
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
         <h1 className="text-2xl font-bold">User Management</h1>
@@ -297,7 +328,7 @@ const AdminUsers: React.FC = () => {
                   <TableCell>{user.phone || "--"}</TableCell>
                   <TableCell>{user.manager || "--"}</TableCell>
                   <TableCell className="text-center">
-                    <UserTableActions user={user} />
+                    <UserTableActions user={user} onEdit={handleEditUser} />
                   </TableCell>
                 </TableRow>
               ))
@@ -311,4 +342,3 @@ const AdminUsers: React.FC = () => {
 
 export default AdminUsers;
 // NOTE: This file is now too long! Consider refactoring after confirming fix!
-
