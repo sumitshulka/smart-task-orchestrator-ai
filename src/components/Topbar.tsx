@@ -1,10 +1,11 @@
 
 import React from "react";
+import { useNavigate } from "react-router-dom";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { LogOut } from "lucide-react";
+import { Settings } from "lucide-react";
 
-// Replace with actual data/fetch from auth later
 const USER = {
   name: "Jane Doe",
   email: "janedoe@email.com",
@@ -19,6 +20,8 @@ const getInitials = (name: string) => {
 };
 
 const Topbar: React.FC = () => {
+  const navigate = useNavigate();
+
   // Placeholder - replace with actual logout (Supabase or custom logic)
   const handleLogout = () => {
     // TODO: Add actual logout logic with Supabase
@@ -29,6 +32,13 @@ const Topbar: React.FC = () => {
     <header className="flex items-center justify-between border-b bg-background h-14 px-6 gap-4">
       <div className="text-lg font-semibold tracking-tight">Admin Dashboard</div>
       <div className="flex items-center gap-2">
+        <button
+          aria-label="Settings"
+          onClick={() => navigate("/admin/settings")}
+          className="rounded-full p-1.5 hover:bg-accent text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+        >
+          <Settings className="w-6 h-6" />
+        </button>
         <DropdownMenu>
           <DropdownMenuTrigger className="outline-none rounded-full focus:ring-2 focus:ring-primary/50">
             <Avatar>
@@ -54,3 +64,4 @@ const Topbar: React.FC = () => {
 };
 
 export default Topbar;
+

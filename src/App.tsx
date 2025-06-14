@@ -10,6 +10,7 @@ import AuthPage from "@/pages/Auth";
 import AdminLayout from "@/layouts/AdminLayout";
 import AdminUsers from "@/pages/AdminUsers";
 import AdminTeams from "@/pages/AdminTeams";
+import AdminSettings from "./pages/AdminSettings";
 
 const queryClient = new QueryClient();
 
@@ -50,6 +51,14 @@ const App = () => (
             element={
               <AdminLayout>
                 <AdminRolesPage />
+              </AdminLayout>
+            }
+          />
+          <Route
+            path="/admin/settings"
+            element={
+              <AdminLayout>
+                <AdminSettings />
               </AdminLayout>
             }
           />
