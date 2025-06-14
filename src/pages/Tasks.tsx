@@ -143,7 +143,8 @@ const TasksPage: React.FC = () => {
         </div>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+      {/* Grid layout update: now single card per row */}
+      <div className="grid grid-cols-1 gap-6">
         {filteredTasks.map((task) => (
           <Card key={task.id} className="relative group transition hover:shadow-lg">
             <CardHeader className="pb-2">

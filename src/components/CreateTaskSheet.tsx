@@ -107,6 +107,26 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children }) => {
 
   const resetForm = () => setForm(initialForm);
 
+  // Ensure the current user is included in the users list
+  const usersWithCurrent = React.useMemo(() => {
+    let allUsers = users || [];
+    // If current user does not exist in users, add them
+    if (
+      user?.id &&
+      !allUsers.some((u) => u.id === user.id)
+    ) {
+      allUsers = [
+        ...allUsers,
+        {
+          id: user.id,
+          email: user.email ?? "Unknown",
+          user_name: user.user_metadata?.user_name || user.user_metadata?.name || null,
+        },
+      ];
+    }
+    return allUsers;
+  }, [users, user]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user?.id) {
@@ -116,6 +136,8 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children }) => {
     setCreating(true);
 
     try {
+      // If "assigned_to" not set, assign to current user
+      const assignedTo = form.assigned_to || user.id;
       const payload: any = {
         title: form.title,
         description: form.description,
@@ -124,10 +146,10 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children }) => {
         status: form.status,
         type: form.type,
         estimated_hours: form.estimated_hours ? Number(form.estimated_hours) : null,
-        assigned_to: form.assigned_to || null,
+        assigned_to: assignedTo || null,
         team_id: null,
         created_by: user.id,
-        start_date: form.start_date || null, // optional, only if db supports
+        start_date: form.start_date || null,
       };
       const newTask = await createTask(payload);
       if (form.isSubTask && form.superTaskId) {
@@ -152,7 +174,7 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children }) => {
   // Render user display
   const renderAssignedToInput = () => {
     if (userOptionCount > 50) {
-      const userDisplay = users.find(u => u.id === form.assigned_to);
+      const userDisplay = usersWithCurrent.find(u => u.id === form.assigned_to);
       const label = userDisplay
         ? userDisplay.user_name || userDisplay.email
         : form.assigned_to
@@ -176,7 +198,7 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children }) => {
               <Command>
                 <CommandInput placeholder="Search users by name or email..." autoFocus />
                 <CommandList>
-                  {users.map((u) => (
+                  {usersWithCurrent.map((u) => (
                     <CommandItem
                       key={u.id}
                       onSelect={() => {
@@ -203,7 +225,7 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children }) => {
           className="w-full border rounded p-2"
         >
           <option value="">Select a user</option>
-          {users.map((u) => (
+          {usersWithCurrent.map((u) => (
             <option key={u.id} value={u.id}>
               {u.user_name ?? u.email}
             </option>
