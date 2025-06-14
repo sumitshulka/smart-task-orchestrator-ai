@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -78,8 +77,17 @@ const TeamManagerDialog: React.FC<TeamManagerDialogProps> = ({
       return;
     }
 
-    setTeamName(team.name || "");
-    setTeamDesc(team.description || "");
+    function isValidUser(obj: unknown): obj is User {
+      return (
+        obj !== null &&
+        typeof obj === "object" &&
+        "id" in obj &&
+        "email" in obj &&
+        typeof (obj as any).id === "string" &&
+        typeof (obj as any).email === "string"
+      );
+    }
+
     async function fetchMembers() {
       const { data, error } = await supabase
         .from("team_memberships")
@@ -90,22 +98,19 @@ const TeamManagerDialog: React.FC<TeamManagerDialogProps> = ({
         setMembers([]);
         return;
       }
-
-      // --- Add this filter to ignore any rows where `user` is null or malformed ---
-      const validMembers = (data || []).filter((m: any) =>
-        m.user && typeof m.user === "object" && "id" in m.user && "email" in m.user
-      );
-
-      if ((data || []).length !== validMembers.length) {
-        console.warn(
-          "[TeamManagerDialog] Some membership rows were skipped because user join failed.",
-          {
-            allRows: data,
-            validRows: validMembers,
+      // Extra log to capture invalid user objects
+      if (data) {
+        data.forEach((m: any) => {
+          if (!isValidUser(m.user)) {
+            console.warn("[TeamManagerDialog] Invalid user join result:", m.user, m);
           }
-        );
+        });
       }
-      setMembers(validMembers);
+
+      // Filter only memberships with a valid user object
+      const validMembers = (data || []).filter((m: any) => isValidUser(m.user));
+
+      setMembers(validMembers as TeamMember[]);
       setSelectedUserIds(validMembers.map((m: any) => m.user_id));
       // Find manager (if any)
       const managerEntry = validMembers.find((m: any) => m.role_within_team === "manager");
