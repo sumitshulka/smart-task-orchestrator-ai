@@ -1,4 +1,6 @@
 
+import { supabase } from "@/integrations/supabase/client";
+
 // Calls the edge function to create a user securely as an admin
 export async function apiCreateUser(payload: {
   email: string;
@@ -9,19 +11,14 @@ export async function apiCreateUser(payload: {
   manager?: string;
   roles?: string[];
 }) {
-  const resp = await fetch(
-    `${import.meta.env.VITE_SUPABASE_FUNCTIONS_URL || "https://hzfwmftpyxjtdohxhcgb.supabase.co/functions/v1"}/create-user-admin`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-    }
-  );
-  if (!resp.ok) {
-    const error = await resp.json();
-    throw new Error(error.error || "Failed to create user");
+  const { data, error } = await supabase.functions.invoke("create-user-admin", {
+    body: payload,
+  });
+  if (error) {
+    throw new Error(error.message ?? "Failed to create user");
   }
-  return await resp.json();
+  if (data && data.error) {
+    throw new Error(data.error || "Failed to create user");
+  }
+  return data;
 }
