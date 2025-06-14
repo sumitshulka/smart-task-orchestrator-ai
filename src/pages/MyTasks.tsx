@@ -10,7 +10,10 @@ import { useDrop, useDrag, DndProvider } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
 import TaskDetailsSheet from "@/components/TaskDetailsSheet";
 import TaskCard from "@/components/TaskCard";
-import CreateTaskSheet from "@/components/CreateTaskSheet";
+
+import KanbanColumn from "./MyTasks/KanbanColumn";
+import KanbanTaskCard from "./MyTasks/KanbanTaskCard";
+import TaskCardClickable from "./MyTasks/TaskCardClickable";
 
 // Pastel color classes for Kanban columns
 const KANBAN_COLORS: Record<string, string> = {
@@ -87,86 +90,6 @@ export default function MyTasksPage() {
     [statuses]
   );
 
-  // Kanban column (always shows, even empty)
-  const KanbanColumn = ({ statusKey, statusLabel, children }: any) => {
-    const [{ isOver, canDrop }, dropRef] = useDrop({
-      accept: CARD_TYPE,
-      canDrop: (item: { id: string; status: string }) =>
-        getStatusKey(item.status) !== statusKey,
-      drop: (item: { id: string; status: string }) => {
-        handleTaskDrop(item.id, statusKey);
-      },
-      collect: (monitor) => ({
-        isOver: monitor.isOver(),
-        canDrop: monitor.canDrop(),
-      }),
-    });
-
-    return (
-      <div
-        ref={dropRef}
-        className={`
-          min-w-[320px] rounded-lg p-4 shadow-md transition-all
-          ${KANBAN_COLORS[statusKey] || "bg-slate-50"}
-          ${isOver && canDrop ? "ring-2 ring-primary" : ""}
-        `}
-      >
-        <h3 className="font-semibold text-lg mb-4 capitalize">{statusLabel}</h3>
-        <div className="flex flex-col gap-4 min-h-[40px]">
-          {children}
-        </div>
-      </div>
-    );
-  };
-
-  // Minimal Kanban Card for Kanban view only
-  function KanbanTaskCard({ task }: { task: Task }) {
-    const isCompleted = getStatusKey(task.status) === "completed";
-    // Open details modal
-    const openDetails = () => {
-      setDetailsTask(task);
-      setDetailsOpen(true);
-    };
-    // Drag
-    const [{ isDragging }, dragRef] = useDrag({
-      type: CARD_TYPE,
-      item: { id: task.id, status: task.status },
-      collect: (monitor) => ({
-        isDragging: monitor.isDragging(),
-      }),
-    });
-    return (
-      <div
-        ref={dragRef}
-        style={{ opacity: isDragging ? 0.5 : 1, cursor: "pointer" }}
-        className="rounded border bg-white shadow p-4 hover:shadow-lg transition-all select-none max-w-[320px] mx-auto"
-        onClick={openDetails}
-      >
-        <div className="font-semibold mb-2 truncate">{task.title}</div>
-        <div className="flex justify-between items-center text-sm">
-          <span className="capitalize bg-gray-100 px-2 py-1 rounded text-gray-700">
-            {task.status}
-          </span>
-          <span>
-            {isCompleted
-              ? (
-                  <span>
-                    <span className="text-muted-foreground">Completed:</span>{" "}
-                    {task.actual_completion_date || "-"}
-                  </span>
-                )
-              : (
-                  <span>
-                    <span className="text-muted-foreground">Due:</span>{" "}
-                    {task.due_date || "-"}
-                  </span>
-                )}
-          </span>
-        </div>
-      </div>
-    );
-  }
-
   // Handler to update task status on drop
   const handleTaskDrop = async (taskId: string, newStatusKey: string) => {
     const statusObj = statuses.find(
@@ -188,24 +111,21 @@ export default function MyTasksPage() {
     }
   };
 
-  // --- Unified Task Card Click in Both Views ---
-  function TaskCardClickable({ task }: { task: Task }) {
-    const openDetails = () => {
-      setDetailsTask(task);
-      setDetailsOpen(true);
-    };
-    return (
-      <div className="cursor-pointer" onClick={openDetails}>
-        <TaskCard task={task} onTaskUpdated={load} canDelete={canDelete} />
-      </div>
-    );
-  }
+  // Handler to pass to KanbanColumn
+  const onDropTask = (item: { id: string; status: string }, statusKey: string) => {
+    handleTaskDrop(item.id, statusKey);
+  };
+
+  // --- Sheet handler for details ---
+  const openDetailsForTask = (task: Task) => {
+    setDetailsTask(task);
+    setDetailsOpen(true);
+  };
 
   return (
     <div className="flex flex-col w-full max-w-7xl mx-auto px-4 py-8">
       <div className="flex w-full items-center gap-4 mb-6">
         <h1 className="text-2xl font-bold flex-shrink-0">My Tasks</h1>
-        {/* List/Kanban toggle and Add Task button always visible together */}
         <div className="ml-auto flex gap-2 items-center">
           <Button
             variant={view === "list" ? "default" : "outline"}
@@ -257,7 +177,13 @@ export default function MyTasksPage() {
       {!loading && !statusesLoading && tasks.length > 0 && view === "list" && (
         <div className="grid grid-cols-1 gap-6">
           {tasks.map((task) => (
-            <TaskCardClickable key={task.id} task={task} />
+            <TaskCardClickable
+              key={task.id}
+              task={task}
+              onOpen={() => openDetailsForTask(task)}
+              canDelete={canDelete}
+              onTaskUpdated={load}
+            />
           ))}
         </div>
       )}
@@ -274,10 +200,17 @@ export default function MyTasksPage() {
                   key={statusKey}
                   statusKey={statusKey}
                   statusLabel={statusObj ? statusObj.name : statusKey}
+                  onDrop={onDropTask}
+                  CARD_TYPE={CARD_TYPE}
                 >
                   {tasksByStatus[statusKey] && tasksByStatus[statusKey].length > 0 ? (
                     tasksByStatus[statusKey].map((task) => (
-                      <KanbanTaskCard key={task.id} task={task} />
+                      <KanbanTaskCard
+                        key={task.id}
+                        task={task}
+                        CARD_TYPE={CARD_TYPE}
+                        onClick={() => openDetailsForTask(task)}
+                      />
                     ))
                   ) : (
                     <div className="text-muted-foreground text-sm py-4 text-center">
@@ -290,7 +223,6 @@ export default function MyTasksPage() {
           </div>
         </DndProvider>
       )}
-      {/* Kanban task details modal */}
       <TaskDetailsSheet
         task={detailsTask}
         open={detailsOpen}
