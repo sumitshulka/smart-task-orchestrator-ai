@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from "react";
 import {
   fetchRoles,
@@ -10,11 +11,17 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/use-toast";
+import { format } from "date-fns";
 
 type User = {
   id: string;
   email: string;
 };
+
+type EditState = {
+  userId: string;
+  roleId: string;
+} | null;
 
 const UserRoleManager: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
@@ -23,6 +30,10 @@ const UserRoleManager: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [sessionUserId, setSessionUserId] = useState<string | null>(null);
   const [sessionUserEmail, setSessionUserEmail] = useState<string | null>(null);
+
+  // State for editing roles
+  const [editState, setEditState] = useState<EditState>(null);
+  const [editNewRole, setEditNewRole] = useState<string>("");
 
   useEffect(() => {
     async function fetchInitialData() {
@@ -72,8 +83,9 @@ const UserRoleManager: React.FC = () => {
     fetchInitialData();
   }, []);
 
-  const getUserRoles = (user_id: string) => {
-    return userRoles.filter((ur) => ur.user_id === user_id).map((ur) => ur.role);
+  const getUserRolesFull = (user_id: string) => {
+    // Returns an array of UserRole for the given user
+    return userRoles.filter((ur) => ur.user_id === user_id);
   };
 
   const handleAssignRole = async (user_id: string, role_id: string) => {
@@ -103,6 +115,45 @@ const UserRoleManager: React.FC = () => {
     setLoading(false);
   };
 
+  // ----- EDIT ROLE HANDLING -----
+  const startEdit = (userId: string, oldRoleId: string) => {
+    setEditState({ userId, roleId: oldRoleId });
+    setEditNewRole(oldRoleId); // default to the current role
+  };
+
+  const cancelEdit = () => {
+    setEditState(null);
+    setEditNewRole("");
+  };
+
+  const saveEdit = async () => {
+    if (!editState || !editNewRole) return;
+    const { userId, roleId: oldRoleId } = editState;
+    if (oldRoleId === editNewRole) {
+      cancelEdit();
+      return;
+    }
+    setLoading(true);
+    try {
+      // Remove old role and add new role
+      await removeRoleFromUser(userId, oldRoleId);
+      const { data: currentUserData } = await supabase.auth.getUser();
+      await addRoleToUser(userId, editNewRole, currentUserData?.user?.id || null);
+      toast({ title: "Role updated" });
+      setUserRoles(await fetchUserRoles());
+      cancelEdit();
+    } catch (err: any) {
+      toast({ title: "Error updating role", description: err.message });
+      console.log(`[LOVABLE DEBUG][UserRoleManager] Error editing role:`, err);
+      setLoading(false);
+    }
+    setLoading(false);
+  };
+
+  const getRoleNameById = (roleId: string) => {
+    return roles.find((r) => r.id === roleId)?.name ?? "Unknown";
+  };
+
   return (
     <div className="p-6 max-w-3xl ml-0">
       <h1 className="text-2xl font-bold mb-6">User Role Management</h1>
@@ -117,37 +168,112 @@ const UserRoleManager: React.FC = () => {
           <tr className="bg-muted">
             <th className="p-2 text-left">User</th>
             <th className="p-2 text-left">Roles</th>
+            <th className="p-2 text-left">Date Assigned</th>
             <th className="p-2 text-center">Add Role</th>
           </tr>
         </thead>
         <tbody>
           {users.map((user) => {
-            const assignedRoles = getUserRoles(user.id);
+            // This returns an array of UserRole {id, user_id, role_id, assigned_by, assigned_at, role}
+            const assignedUserRoles = getUserRolesFull(user.id);
+
             return (
               <tr key={user.id} className="border-b last:border-b-0">
                 <td className="p-2">{user.email}</td>
+                {/* Roles col */}
                 <td className="p-2">
-                  {assignedRoles.length > 0 ? (
-                    assignedRoles.map((role) => (
+                  {assignedUserRoles.length > 0 ? (
+                    assignedUserRoles.map((ur) => (
                       <span
-                        key={role.id}
+                        key={ur.role.id}
                         className="inline-flex items-center gap-1 px-2 py-1 rounded bg-accent mr-2 mb-1"
                       >
-                        {role.name}
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleRemoveRole(user.id, role.id)}
-                          disabled={loading}
-                        >
-                          &times;
-                        </Button>
+                        {/* If in edit mode for this user+role */}
+                        {editState &&
+                        editState.userId === user.id &&
+                        editState.roleId === ur.role.id ? (
+                          <>
+                            <select
+                              className="border rounded p-1 mr-1"
+                              disabled={loading}
+                              value={editNewRole}
+                              onChange={(e) => setEditNewRole(e.target.value)}
+                            >
+                              {roles.map((role) => (
+                                <option key={role.id} value={role.id}>
+                                  {role.name}
+                                </option>
+                              ))}
+                            </select>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="mr-1"
+                              onClick={saveEdit}
+                              disabled={loading}
+                            >
+                              Save
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={cancelEdit}
+                              disabled={loading}
+                            >
+                              Cancel
+                            </Button>
+                          </>
+                        ) : (
+                          <>
+                            {ur.role.name}
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => startEdit(user.id, ur.role.id)}
+                              disabled={loading}
+                              title="Edit role"
+                            >
+                              &#9998; {/* Pencil/Edit icon - use unicode or install Lucide icon as needed */}
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleRemoveRole(user.id, ur.role.id)}
+                              disabled={loading}
+                            >
+                              &times;
+                            </Button>
+                          </>
+                        )}
                       </span>
                     ))
                   ) : (
                     <span className="text-muted-foreground">none</span>
                   )}
                 </td>
+                {/* Date assigned col */}
+                <td className="p-2">
+                  {assignedUserRoles.length > 0
+                    ? assignedUserRoles.map((ur) =>
+                        ur.assigned_at
+                          ? (
+                              <div
+                                key={ur.role.id}
+                                className="text-xs text-muted-foreground ml-0"
+                              >
+                                {format(new Date(ur.assigned_at), "yyyy-MM-dd HH:mm")}
+                              </div>
+                            )
+                          : (
+                              <div key={ur.role.id} className="text-xs ml-0 text-gray-500">
+                                N/A
+                              </div>
+                            )
+                      )
+                    : <span className="text-muted-foreground">N/A</span>
+                  }
+                </td>
+                {/* Add role col */}
                 <td className="p-2 text-center">
                   <select
                     className="border rounded p-1"
@@ -159,7 +285,9 @@ const UserRoleManager: React.FC = () => {
                   >
                     <option value="">Select role</option>
                     {roles
-                      .filter((role) => !assignedRoles.find((ar) => ar.id === role.id))
+                      .filter(
+                        (role) => !assignedUserRoles.find((ur) => ur.role.id === role.id)
+                      )
                       .map((role) => (
                         <option key={role.id} value={role.id}>
                           {role.name}
@@ -177,3 +305,4 @@ const UserRoleManager: React.FC = () => {
 };
 
 export default UserRoleManager;
+
