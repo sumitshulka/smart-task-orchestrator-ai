@@ -208,8 +208,9 @@ export default function AdminDashboard() {
         if (taskFilter.op === "in") taskQuery = taskQuery.in(taskFilter.column, taskFilter.value);
         else if (taskFilter.op === "eq") taskQuery = taskQuery.eq(taskFilter.column, taskFilter.value);
       }
-      const { data } = await taskQuery;
-      const taskRows: any[] = data ? (data as any[]) : [];
+      // Explicitly break type inference to avoid TS2589
+      const dataRaw = await taskQuery;
+      const taskRows: any[] = (dataRaw.data ?? []) as any[];
       const statusCounts: Record<string, number> = {};
       taskRows.forEach((row: any) => {
         statusCounts[row.status] = (statusCounts[row.status] || 0) + 1;
