@@ -47,6 +47,7 @@ const TaskDetailsSheet: React.FC<Props> = ({
   const [comment, setComment] = useState("");
   const [assignTo, setAssignTo] = useState(task?.assigned_to || "");
   const [status, setStatus] = useState(task?.status || "");
+  const [loading, setLoading] = useState(false); // <-- Added loading state for assignment
   const { users } = useUsersAndTeams();
   const { statuses, loading: statusesLoading } = useTaskStatuses();
   const { activity, reload: reloadActivity, loading: activityLoading } = useTaskActivity(task?.id || null);
