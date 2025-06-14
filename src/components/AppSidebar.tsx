@@ -1,3 +1,4 @@
+
 import React from "react";
 import { useLocation, NavLink } from "react-router-dom";
 import {
@@ -12,7 +13,7 @@ import {
   SidebarTrigger,
   SidebarProvider,
 } from "@/components/ui/sidebar";
-import { Users2, UsersRound, ShieldCheck, ClipboardList } from "lucide-react";
+import { Users2, UsersRound, ShieldCheck, ClipboardList, ListTodo } from "lucide-react"; // Added ListTodo
 import Logo from "./Logo";
 
 export default function AppSidebar() {
@@ -38,11 +39,15 @@ export default function AppSidebar() {
       to: "/admin/tasks",
       Icon: ClipboardList,
     },
+    {
+      label: "My Tasks",
+      to: "/admin/my-tasks",
+      Icon: ListTodo,
+    },
   ];
 
   return (
     <Sidebar className="w-64 min-w-14">
-      {/* Mini collapse button */}
       <SidebarTrigger className="m-2 self-end" />
       <SidebarContent>
         <div className="border-b pb-2 mb-2">
