@@ -209,10 +209,9 @@ export default function AdminDashboard() {
         if (taskFilter.op === "in") taskQuery = taskQuery.in(taskFilter.column, taskFilter.value);
         else if (taskFilter.op === "eq") taskQuery = taskQuery.eq(taskFilter.column, taskFilter.value);
       }
-      // FIX: prevent TS2589 by NOT typing at destructure and breaking the chain
-      // @ts-expect-error: ignore deep type inference (Supabase SDK issue)
+      // FIX: prevent TS2589 by destructuring first, then casting to any[]
       const { data } = await taskQuery;
-      const taskRows: any[] = Array.isArray(data) ? data : [];
+      const taskRows = (data as any[]) || [];
       // Count statuses client-side
       const statusCounts: Record<string, number> = {};
       taskRows.forEach((row: any) => {
