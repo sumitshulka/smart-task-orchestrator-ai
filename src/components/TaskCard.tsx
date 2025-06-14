@@ -6,6 +6,23 @@ import { Edit, Trash2, Check } from "lucide-react";
 import { Task, deleteTask, updateTask } from "@/integrations/supabase/tasks";
 import { toast } from "@/hooks/use-toast";
 
+// Utility to determine if overdue/in time
+function getTimeIndicator(task: Task) {
+  // If completed, show nothing
+  if (!task || task.status === "completed") return null;
+  if (!task.due_date) {
+    // No due date, consider "In Time"
+    return "in_time";
+  }
+  // Compare today's date to due_date (all as YYYY-MM-DD strings)
+  const todayStr = new Date().toISOString().slice(0, 10);
+  if (todayStr <= task.due_date) {
+    return "in_time";
+  }
+  // Overdue if not completed, and today > due_date
+  return "overdue";
+}
+
 type TaskCardProps = {
   task: Task;
   onTaskUpdated: () => void;
@@ -51,6 +68,9 @@ export default function TaskCard({ task, onTaskUpdated, canDelete }: TaskCardPro
       ? "bg-yellow-100 text-yellow-700"
       : "bg-green-100 text-green-700";
 
+  // New: Determine inTime/overdue
+  const timeStatus = getTimeIndicator(task);
+
   return (
     <Card className="relative group transition hover:shadow-lg">
       {/* Floating top/center actions */}
@@ -87,15 +107,29 @@ export default function TaskCard({ task, onTaskUpdated, canDelete }: TaskCardPro
 
       {/* Card header and summary */}
       <CardHeader className="pb-2">
-        <div className="flex justify-between items-center">
+        <div className="flex justify-between items-center gap-2">
           <h2 className="font-semibold text-lg truncate">{task.title}</h2>
-          <span className={`text-xs px-2 py-1 rounded-full ${priorityClass}`}>
-            {task.priority === 1
-              ? "High"
-              : task.priority === 2
-              ? "Medium"
-              : "Low"}
-          </span>
+          <div className="flex gap-2 items-center">
+            {/* Priority badge */}
+            <span className={`text-xs px-2 py-1 rounded-full ${priorityClass}`}>
+              {task.priority === 1
+                ? "High"
+                : task.priority === 2
+                ? "Medium"
+                : "Low"}
+            </span>
+            {/* New: In Time / Overdue badge */}
+            {timeStatus === "in_time" && (
+              <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-700 font-medium">
+                In Time
+              </span>
+            )}
+            {timeStatus === "overdue" && (
+              <span className="text-xs px-2 py-1 rounded-full bg-red-100 text-red-700 font-medium">
+                Overdue
+              </span>
+            )}
+          </div>
         </div>
         <div className="mt-1 text-xs text-muted-foreground line-clamp-2">{task.description}</div>
       </CardHeader>
