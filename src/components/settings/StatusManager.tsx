@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -8,6 +8,7 @@ import { toast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useTaskStatuses } from "@/hooks/useTaskStatuses";
 import StatusLifecycleGraph from "./StatusLifecycleGraph";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 
 type TaskStatus = {
   id: string;
@@ -114,97 +115,102 @@ const StatusManager: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6">
-      <h3 className="text-lg font-semibold mb-2">Task Statuses</h3>
-      <div className="border rounded shadow bg-background overflow-x-auto">
-        <DndProvider backend={HTML5Backend}>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-muted">
-                <th className="w-12 p-2">#</th>
-                <th className="w-1/6 p-2">Status Name</th>
-                <th className="w-1/2 p-2">Description</th>
-                <th className="w-1/4 p-2 text-center">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {statuses.map((status, idx) => (
-                <DraggableRow key={status.id} index={idx} moveRow={moveRow} status={status}>
-                  <td className="p-2 cursor-move">{idx + 1}</td>
-                  <td className="p-2">
-                    {editing[status.id] ? (
-                      <Input
-                        value={inputStatus[status.id].name}
-                        onChange={(e) =>
-                          setInputStatus((cur) => ({
-                            ...cur,
-                            [status.id]: { ...cur[status.id], name: e.target.value },
-                          }))
-                        }
-                      />
-                    ) : (
-                      status.name
-                    )}
-                  </td>
-                  <td className="p-2">
-                    {editing[status.id] ? (
-                      <Input
-                        value={inputStatus[status.id].description}
-                        onChange={(e) =>
-                          setInputStatus((cur) => ({
-                            ...cur,
-                            [status.id]: { ...cur[status.id], description: e.target.value },
-                          }))
-                        }
-                      />
-                    ) : (
-                      status.description
-                    )}
-                  </td>
-                  <td className="p-2">
-                    <div className="flex items-center justify-center gap-2">
+    <Card className="max-w-3xl mx-auto">
+      <CardHeader className="flex flex-row items-center justify-between pb-2">
+        <CardTitle className="text-lg font-semibold">Task Statuses</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="border rounded bg-background overflow-x-auto shadow-sm">
+          <DndProvider backend={HTML5Backend}>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-muted">
+                  <th className="w-12 p-2">#</th>
+                  <th className="w-1/6 p-2">Status Name</th>
+                  <th className="w-1/2 p-2">Description</th>
+                  <th className="w-1/4 p-2 text-center">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {statuses.map((status, idx) => (
+                  <DraggableRow key={status.id} index={idx} moveRow={moveRow} status={status}>
+                    <td className="p-2 cursor-move">{idx + 1}</td>
+                    <td className="p-2">
                       {editing[status.id] ? (
-                        <Button size="sm" variant="default" onClick={() => handleSaveStatus(status.id)}>Save</Button>
+                        <Input
+                          value={inputStatus[status.id].name}
+                          onChange={(e) =>
+                            setInputStatus((cur) => ({
+                              ...cur,
+                              [status.id]: { ...cur[status.id], name: e.target.value },
+                            }))
+                          }
+                        />
                       ) : (
-                        <>
-                          <Button variant="outline" size="sm" onClick={() => handleEditStatus(status.id)}>
-                            Edit
-                          </Button>
-                          <Button variant="destructive" size="sm" onClick={() => handleDeleteStatus(status.id)}>
-                            Delete
-                          </Button>
-                        </>
+                        status.name
                       )}
-                    </div>
-                  </td>
-                </DraggableRow>
-              ))}
-            </tbody>
-          </table>
-        </DndProvider>
-      </div>
-      <div className="flex flex-wrap gap-2 items-end mt-2">
-        <Input
-          placeholder="Status name"
-          className="w-[180px]"
-          value={newStatus.name}
-          onChange={(e) => setNewStatus({ ...newStatus, name: e.target.value })}
-        />
-        <Input
-          placeholder="Description"
-          className="w-[250px]"
-          value={newStatus.description}
-          onChange={(e) => setNewStatus({ ...newStatus, description: e.target.value })}
-        />
-        <Button onClick={handleAddStatus} variant="default">
-          Add
-        </Button>
-      </div>
-      {/* Transitions + Graph */}
-      <div className="mt-10">
-        <StatusLifecycleGraph statuses={statuses} />
-      </div>
-    </div>
+                    </td>
+                    <td className="p-2">
+                      {editing[status.id] ? (
+                        <Input
+                          value={inputStatus[status.id].description}
+                          onChange={(e) =>
+                            setInputStatus((cur) => ({
+                              ...cur,
+                              [status.id]: { ...cur[status.id], description: e.target.value },
+                            }))
+                          }
+                        />
+                      ) : (
+                        status.description
+                      )}
+                    </td>
+                    <td className="p-2">
+                      <div className="flex items-center justify-center gap-2">
+                        {editing[status.id] ? (
+                          <Button size="sm" variant="default" onClick={() => handleSaveStatus(status.id)}>Save</Button>
+                        ) : (
+                          <>
+                            <Button variant="outline" size="sm" onClick={() => handleEditStatus(status.id)}>
+                              Edit
+                            </Button>
+                            <Button variant="destructive" size="sm" onClick={() => handleDeleteStatus(status.id)}>
+                              Delete
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                  </DraggableRow>
+                ))}
+              </tbody>
+            </table>
+          </DndProvider>
+        </div>
+
+        <div className="flex flex-wrap gap-2 items-end mt-4">
+          <Input
+            placeholder="Status name"
+            className="w-[180px]"
+            value={newStatus.name}
+            onChange={(e) => setNewStatus({ ...newStatus, name: e.target.value })}
+          />
+          <Input
+            placeholder="Description"
+            className="w-[250px]"
+            value={newStatus.description}
+            onChange={(e) => setNewStatus({ ...newStatus, description: e.target.value })}
+          />
+          <Button onClick={handleAddStatus} variant="default">
+            Add
+          </Button>
+        </div>
+        {/* Transitions + Graph */}
+        <div className="mt-10">
+          <StatusLifecycleGraph statuses={statuses} />
+        </div>
+      </CardContent>
+    </Card>
   );
 };
 

@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { toast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import OfficeLocationForm from "./OfficeLocationForm";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 
 interface OfficeLocation {
   id: string;
@@ -88,58 +89,60 @@ const OfficeLocationsManager: React.FC = () => {
   };
 
   return (
-    <div className="p-4 max-w-3xl w-full">
-      <div className="flex mb-4 justify-between items-center">
-        <h3 className="text-xl font-semibold">Office Locations</h3>
+    <Card className="max-w-3xl mx-auto">
+      <CardHeader className="flex flex-row items-center justify-between pb-2">
+        <CardTitle className="text-lg font-semibold">Office Locations</CardTitle>
         <Button size="sm" onClick={() => setOpenForm(true)}>+ Add Location</Button>
-      </div>
-      <div className="border rounded shadow bg-background overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-10">S No</TableHead>
-              <TableHead className="w-1/6">Location Name</TableHead>
-              <TableHead className="w-1/4">Address</TableHead>
-              <TableHead className="w-1/6">Location Manager</TableHead>
-              <TableHead className="w-1/6">Creation Date</TableHead>
-              <TableHead className="w-20 text-center">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading ? (
+      </CardHeader>
+      <CardContent>
+        <div className="border rounded bg-background overflow-x-auto shadow-sm">
+          <Table>
+            <TableHeader>
               <TableRow>
-                <TableCell colSpan={6}><span className="text-muted-foreground">Loading...</span></TableCell>
+                <TableHead className="w-10">S No</TableHead>
+                <TableHead className="w-1/6">Location Name</TableHead>
+                <TableHead className="w-1/4">Address</TableHead>
+                <TableHead className="w-1/6">Location Manager</TableHead>
+                <TableHead className="w-1/6">Creation Date</TableHead>
+                <TableHead className="w-20 text-center">Actions</TableHead>
               </TableRow>
-            ) : locations.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={6}><span className="text-muted-foreground">No office locations found.</span></TableCell>
-              </TableRow>
-            ) : (
-              locations.map((loc, idx) => (
-                <TableRow key={loc.id}>
-                  <TableCell>{idx + 1}</TableCell>
-                  <TableCell>{loc.location_name}</TableCell>
-                  <TableCell>{loc.address}</TableCell>
-                  <TableCell>{loc.location_manager || "--"}</TableCell>
-                  <TableCell>
-                    {loc.created_at ? new Date(loc.created_at).toLocaleString() : "--"}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center justify-center gap-2">
-                      <Button size="icon" variant="ghost" aria-label="Edit" onClick={() => { setEditLocation(loc); setOpenForm(true); }}>
-                        <Edit className="w-4 h-4" />
-                      </Button>
-                      <Button size="icon" variant="ghost" aria-label="Delete" onClick={() => handleDelete(loc.id)}>
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
+            </TableHeader>
+            <TableBody>
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={6}><span className="text-muted-foreground">Loading...</span></TableCell>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
+              ) : locations.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6}><span className="text-muted-foreground">No office locations found.</span></TableCell>
+                </TableRow>
+              ) : (
+                locations.map((loc, idx) => (
+                  <TableRow key={loc.id}>
+                    <TableCell>{idx + 1}</TableCell>
+                    <TableCell>{loc.location_name}</TableCell>
+                    <TableCell>{loc.address}</TableCell>
+                    <TableCell>{loc.location_manager || "--"}</TableCell>
+                    <TableCell>
+                      {loc.created_at ? new Date(loc.created_at).toLocaleString() : "--"}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center justify-center gap-2">
+                        <Button size="icon" variant="ghost" aria-label="Edit" onClick={() => { setEditLocation(loc); setOpenForm(true); }}>
+                          <Edit className="w-4 h-4" />
+                        </Button>
+                        <Button size="icon" variant="ghost" aria-label="Delete" onClick={() => handleDelete(loc.id)}>
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      </CardContent>
       <Dialog open={openForm} onOpenChange={o => { setOpenForm(o); if (!o) setEditLocation(null); }}>
         <DialogContent>
           <DialogHeader>
@@ -152,7 +155,7 @@ const OfficeLocationsManager: React.FC = () => {
           />
         </DialogContent>
       </Dialog>
-    </div>
+    </Card>
   );
 };
 

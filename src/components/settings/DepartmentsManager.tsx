@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { toast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import DepartmentForm from "./DepartmentForm";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 
 interface Department {
   id: string;
@@ -78,50 +79,52 @@ const DepartmentsManager: React.FC = () => {
   };
 
   return (
-    <div className="p-4 max-w-3xl w-full">
-      <div className="flex mb-4 justify-between items-center">
-        <h3 className="text-xl font-semibold">Departments</h3>
+    <Card className="max-w-3xl mx-auto">
+      <CardHeader className="flex flex-row items-center justify-between pb-2">
+        <CardTitle className="text-lg font-semibold">Departments</CardTitle>
         <Button size="sm" onClick={() => setOpenForm(true)}>+ Add Department</Button>
-      </div>
-      <div className="border rounded shadow bg-background overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-1/4">Name</TableHead>
-              <TableHead className="w-2/4">Description</TableHead>
-              <TableHead className="w-1/4 text-center">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading ? (
+      </CardHeader>
+      <CardContent>
+        <div className="border rounded bg-background overflow-x-auto shadow-sm">
+          <Table>
+            <TableHeader>
               <TableRow>
-                <TableCell colSpan={3}><span className="text-muted-foreground">Loading...</span></TableCell>
+                <TableHead className="w-1/4">Name</TableHead>
+                <TableHead className="w-2/4">Description</TableHead>
+                <TableHead className="w-1/4 text-center">Actions</TableHead>
               </TableRow>
-            ) : departments.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={3}><span className="text-muted-foreground">No departments found.</span></TableCell>
-              </TableRow>
-            ) : (
-              departments.map((d) => (
-                <TableRow key={d.id}>
-                  <TableCell>{d.name}</TableCell>
-                  <TableCell>{d.description || "--"}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center justify-center gap-2">
-                      <Button size="icon" variant="ghost" aria-label="Edit" onClick={() => { setEditDep(d); setOpenForm(true); }}>
-                        <Edit className="w-4 h-4" />
-                      </Button>
-                      <Button size="icon" variant="ghost" aria-label="Delete" onClick={() => handleDelete(d.id)}>
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
+            </TableHeader>
+            <TableBody>
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={3}><span className="text-muted-foreground">Loading...</span></TableCell>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
+              ) : departments.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={3}><span className="text-muted-foreground">No departments found.</span></TableCell>
+                </TableRow>
+              ) : (
+                departments.map((d) => (
+                  <TableRow key={d.id}>
+                    <TableCell>{d.name}</TableCell>
+                    <TableCell>{d.description || "--"}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center justify-center gap-2">
+                        <Button size="icon" variant="ghost" aria-label="Edit" onClick={() => { setEditDep(d); setOpenForm(true); }}>
+                          <Edit className="w-4 h-4" />
+                        </Button>
+                        <Button size="icon" variant="ghost" aria-label="Delete" onClick={() => handleDelete(d.id)}>
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      </CardContent>
       <Dialog open={openForm} onOpenChange={o => { setOpenForm(o); if (!o) setEditDep(null); }}>
         <DialogContent>
           <DialogHeader>
@@ -134,7 +137,7 @@ const DepartmentsManager: React.FC = () => {
           />
         </DialogContent>
       </Dialog>
-    </div>
+    </Card>
   );
 };
 
