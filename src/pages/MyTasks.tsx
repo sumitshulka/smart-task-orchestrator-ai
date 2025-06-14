@@ -1,15 +1,15 @@
-
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import useSupabaseSession from "@/hooks/useSupabaseSession";
 import { fetchTasks, Task, updateTask } from "@/integrations/supabase/tasks";
 import { useUsersAndTeams } from "@/hooks/useUsersAndTeams";
-import TaskCard from "@/components/TaskCard";
 import { Button } from "@/components/ui/button";
 import { Image, Kanban, List } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useTaskStatuses } from "@/hooks/useTaskStatuses";
 import { useDrop, useDrag, DndProvider } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
+import TaskDetailsSheet from "@/components/TaskDetailsSheet";
+import TaskCard from "@/components/TaskCard";
 
 // Pastel color classes for Kanban columns
 const KANBAN_COLORS: Record<string, string> = {
@@ -24,7 +24,6 @@ const fallbackImage =
   "https://images.unsplash.com/photo-1582562124811-c09040d0a901?auto=format&fit=crop&w=400&q=80";
 
 const getStatusKey = (status: string) => {
-  // For normalized comparison (e.g., "In Progress" → "in progress")
   return status.trim().toLowerCase().replace(/_/g, " ");
 };
 
@@ -35,6 +34,10 @@ export default function MyTasksPage() {
   const [view, setView] = useState<"list" | "kanban">("list");
   const { users, teams } = useUsersAndTeams();
   const { statuses, loading: statusesLoading } = useTaskStatuses();
+
+  // Sheet (modal) state for Task Details
+  const [detailsTask, setDetailsTask] = useState<Task | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
 
   async function load() {
     if (!user?.id) return;
@@ -50,6 +53,7 @@ export default function MyTasksPage() {
 
   useEffect(() => {
     load();
+    // eslint-disable-next-line
   }, [user?.id]);
 
   // Grouped tasks for Kanban
@@ -67,17 +71,12 @@ export default function MyTasksPage() {
     return columns;
   }, [tasks, statuses]);
 
-  // Allow delete for new/pending statuses
   function canDelete(status: string) {
     const skey = getStatusKey(status);
     return skey === "pending" || skey === "new";
   }
 
-  // Kanban drag-n-drop
-  // React DnD item type
   const CARD_TYPE = "TASK_CARD";
-
-  // For consistent column ordering (by status sequence)
   const sortedStatusKeys = useMemo(
     () =>
       statuses
@@ -87,9 +86,8 @@ export default function MyTasksPage() {
     [statuses]
   );
 
-  // Drop target for Kanban columns
-  const KanbanColumn = ({ statusKey, statusLabel, children, canDropHandler }: any) => {
-    // Accept drops for this column/status
+  // Kanban column (always shows, even empty)
+  const KanbanColumn = ({ statusKey, statusLabel, children }: any) => {
     const [{ isOver, canDrop }, dropRef] = useDrop({
       accept: CARD_TYPE,
       canDrop: (item: { id: string; status: string }) =>
@@ -120,8 +118,15 @@ export default function MyTasksPage() {
     );
   };
 
-  // Drag source: make task card draggable in Kanban mode
-  function DraggableTaskCard({ task, onTaskUpdated, canDelete }: any) {
+  // Minimal Kanban Card for Kanban view only
+  function KanbanTaskCard({ task }: { task: Task }) {
+    const isCompleted = getStatusKey(task.status) === "completed";
+    // Open details modal
+    const openDetails = () => {
+      setDetailsTask(task);
+      setDetailsOpen(true);
+    };
+    // Drag
     const [{ isDragging }, dragRef] = useDrag({
       type: CARD_TYPE,
       item: { id: task.id, status: task.status },
@@ -130,8 +135,33 @@ export default function MyTasksPage() {
       }),
     });
     return (
-      <div ref={dragRef} style={{ opacity: isDragging ? 0.5 : 1, cursor: "grab" }}>
-        <TaskCard task={task} onTaskUpdated={onTaskUpdated} canDelete={canDelete} />
+      <div
+        ref={dragRef}
+        style={{ opacity: isDragging ? 0.5 : 1, cursor: "pointer" }}
+        className="rounded border bg-white shadow p-4 hover:shadow-lg transition-all select-none"
+        onClick={openDetails}
+      >
+        <div className="font-semibold mb-2 truncate">{task.title}</div>
+        <div className="flex justify-between items-center text-sm">
+          <span className="capitalize bg-gray-100 px-2 py-1 rounded text-gray-700">
+            {task.status}
+          </span>
+          <span>
+            {isCompleted
+              ? (
+                  <span>
+                    <span className="text-muted-foreground">Completed:</span>{" "}
+                    {task.actual_completion_date || "-"}
+                  </span>
+                )
+              : (
+                  <span>
+                    <span className="text-muted-foreground">Due:</span>{" "}
+                    {task.due_date || "-"}
+                  </span>
+                )}
+          </span>
+        </div>
       </div>
     );
   }
@@ -221,12 +251,7 @@ export default function MyTasksPage() {
                 >
                   {tasksByStatus[statusKey] && tasksByStatus[statusKey].length > 0 ? (
                     tasksByStatus[statusKey].map((task) => (
-                      <DraggableTaskCard
-                        key={task.id}
-                        task={task}
-                        onTaskUpdated={load}
-                        canDelete={canDelete}
-                      />
+                      <KanbanTaskCard key={task.id} task={task} />
                     ))
                   ) : (
                     <div className="text-muted-foreground text-sm py-4 text-center">
@@ -239,6 +264,14 @@ export default function MyTasksPage() {
           </div>
         </DndProvider>
       )}
+      {/* Kanban task details modal */}
+      <TaskDetailsSheet
+        task={detailsTask}
+        open={detailsOpen}
+        onOpenChange={setDetailsOpen}
+        currentUser={user}
+        onUpdated={load}
+      />
     </div>
   );
 }
