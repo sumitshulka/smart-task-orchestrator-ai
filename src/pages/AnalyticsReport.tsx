@@ -93,13 +93,13 @@ export default function AnalyticsReport() {
   }, [taskData]);
 
   return (
-    <div className="max-w-5xl mx-auto p-4">
-      <h1 className="text-2xl font-semibold mb-4">Analytics Report</h1>
+    <div className="max-w-5xl p-4 w-full">
+      <h1 className="text-2xl font-semibold mb-4 text-left">Analytics Report</h1>
       {isLoading ? (
-        <div>Loading...</div>
+        <div className="text-left">Loading...</div>
       ) : (
         <Tabs defaultValue="status" className="w-full">
-          <TabsList className="mb-6">
+          <TabsList className="mb-6 flex items-center space-x-2 justify-start">
             <TabsTrigger value="status">Status Breakdown</TabsTrigger>
             <TabsTrigger value="trend">Task Creation Trend</TabsTrigger>
             <TabsTrigger value="overdue">Overdue Tasks</TabsTrigger>
@@ -108,8 +108,8 @@ export default function AnalyticsReport() {
 
           <TabsContent value="status" className="w-full">
             <section>
-              <h2 className="text-lg font-semibold mb-2">Task Status Distribution</h2>
-              <div className="flex justify-center">
+              <h2 className="text-lg font-semibold mb-2 text-left">Task Status Distribution</h2>
+              <div className="flex flex-row items-start">
                 <PieChart width={340} height={260}>
                   <Pie
                     dataKey="count"
@@ -133,29 +133,31 @@ export default function AnalyticsReport() {
 
           <TabsContent value="trend" className="w-full">
             <section>
-              <h2 className="text-lg font-semibold mb-2">Task Creation Trend</h2>
-              <ResponsiveContainer width="100%" height={240}>
-                <BarChart data={trendData}>
-                  <XAxis dataKey="date" />
-                  <YAxis allowDecimals={false} />
-                  <Tooltip />
-                  <Bar dataKey="count" fill="#8884d8" />
-                </BarChart>
-              </ResponsiveContainer>
+              <h2 className="text-lg font-semibold mb-2 text-left">Task Creation Trend</h2>
+              <div className="w-full" style={{ minWidth: 350 }}>
+                <ResponsiveContainer width="100%" height={240}>
+                  <BarChart data={trendData}>
+                    <XAxis dataKey="date" />
+                    <YAxis allowDecimals={false} />
+                    <Tooltip />
+                    <Bar dataKey="count" fill="#8884d8" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             </section>
           </TabsContent>
 
           <TabsContent value="overdue" className="w-full">
             <section>
-              <h2 className="text-lg font-semibold mb-2">Overdue Tasks</h2>
-              <div className="text-3xl font-bold text-red-600">{overdueCount}</div>
-              <span className="text-muted-foreground">Tasks past due date and not completed</span>
+              <h2 className="text-lg font-semibold mb-2 text-left">Overdue Tasks</h2>
+              <div className="text-3xl font-bold text-red-600 text-left">{overdueCount}</div>
+              <span className="text-muted-foreground text-left block">Tasks past due date and not completed</span>
             </section>
           </TabsContent>
 
           <TabsContent value="performers" className="w-full">
             <section>
-              <h2 className="text-lg font-semibold mb-2">Top Performers (Most Completed)</h2>
+              <h2 className="text-lg font-semibold mb-2 text-left">Top Performers (Most Completed)</h2>
               <ul className="list-disc list-inside">
                 {performerData.map((p, idx) => (
                   <li key={p.employee || idx}>
@@ -170,3 +172,4 @@ export default function AnalyticsReport() {
     </div>
   );
 }
+
