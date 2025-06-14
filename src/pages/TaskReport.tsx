@@ -63,6 +63,18 @@ function defaultFilterDates() {
   };
 }
 
+// Add EmployeeReport type for strict typing
+type EmployeeReport = {
+  employeeId: string;
+  employeeName: string;
+  totalCreated: number;
+  assigned: number;
+  pending: number;
+  inProgress: number;
+  completed: number;
+  completionRatio?: string;
+};
+
 export default function TaskReport() {
   const form = useForm<Filters>({
     defaultValues: defaultFilterDates(),
@@ -87,10 +99,10 @@ export default function TaskReport() {
   });
 
   // Group and calculate stats per employee
-  const report = React.useMemo(() => {
+  const report = React.useMemo<EmployeeReport[]>(() => {
     if (!taskData) return [];
     // Get unique users
-    const userMap = {};
+    const userMap: Record<string, EmployeeReport> = {};
     taskData.forEach(task => {
       if (!task.created_by) return;
       const uid = task.created_by;
@@ -113,13 +125,13 @@ export default function TaskReport() {
       else if (status === "completed") userMap[uid].completed += 1;
     });
     // Calculate completion ratio
-    return Object.values(userMap).map(u => ({
+    return Object.values(userMap).map((u) => ({
       ...u,
       completionRatio:
         u.totalCreated > 0
           ? ((u.completed / u.totalCreated) * 100).toFixed(2) + "%"
           : "-"
-    }));
+    })) as EmployeeReport[];
   }, [taskData]);
 
   return (
@@ -214,7 +226,7 @@ export default function TaskReport() {
                 <TableCell colSpan={columns.length}>No data found.</TableCell>
               </TableRow>
             ) : (
-              report.map((row: any) => (
+              report.map((row: EmployeeReport) => (
                 <TableRow key={row.employeeId}>
                   <TableCell>{row.employeeId}</TableCell>
                   <TableCell>{row.employeeName}</TableCell>
@@ -233,3 +245,5 @@ export default function TaskReport() {
     </div>
   );
 }
+
+// src/pages/TaskReport.tsx is getting long. After you confirm the build is fixed, consider asking me to refactor this page into smaller components for maintainability!
