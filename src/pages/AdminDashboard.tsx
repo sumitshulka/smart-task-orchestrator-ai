@@ -66,8 +66,11 @@ function StatusPieChart({ data, width = 220, height = 180 }) {
           ))}
         </Pie>
         <Tooltip />
-        <Legend />
       </PieChart>
+      {/* Move legend outside and below the PieChart, with margin for breathing space */}
+      <div className="mt-2 flex justify-center">
+        <Legend layout="horizontal" verticalAlign="bottom" align="center" />
+      </div>
     </div>
   );
 }
