@@ -38,11 +38,28 @@ const AdminUsers: React.FC = () => {
   const [me, setMe] = useState<{id: string, email: string, organization: string | null } | null>(null);
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
 
+  // On component mount, immediately log the session
+  useEffect(() => {
+    (async () => {
+      const { data: { session }, error } = await supabase.auth.getSession();
+      console.log("[LOVABLE DEBUG] getSession() called on mount:", session, error);
+
+      // Log localStorage tokens as well
+      try {
+        const tokenData = window.localStorage.getItem("supabase.auth.token");
+        console.log("[LOVABLE DEBUG] window.localStorage.supabase.auth.token:", tokenData);
+      } catch (e) {
+        console.log("[LOVABLE DEBUG] localStorage access failed:", e);
+      }
+    })();
+  }, []);
+
   // Fetch the current admin's org for scoping
   useEffect(() => {
     async function fetchOrgAndMe() {
       const { data: { session }, error } = await supabase.auth.getSession();
-      console.log("[DEBUG] Supabase auth.getSession():", session, error);
+      console.log("[DEBUG] Supabase auth.getSession() (in fetchOrgAndMe):", session, error);
+
       if (error) {
         setMe(null);
         setIsAdmin(false);
@@ -52,6 +69,8 @@ const AdminUsers: React.FC = () => {
       if (session?.user) {
         const uid = session.user.id;
         const email = session.user.email || "";
+        console.log("[LOVABLE DEBUG] Session user:", uid, email);
+
         // look up their org from public.users, fallback to null (see table RLS)
         const { data } = await supabase
           .from("users")
@@ -90,6 +109,7 @@ const AdminUsers: React.FC = () => {
         setMe(null);
         setIsAdmin(false);
         setOrganization(null);
+        console.log("[LOVABLE DEBUG] No user in session!");
       }
     }
     fetchOrgAndMe();
