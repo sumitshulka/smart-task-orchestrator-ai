@@ -22,15 +22,6 @@ interface User {
   created_by?: string;
 }
 
-const departments = [
-  "Sales",
-  "Marketing",
-  "Engineering",
-  "HR",
-  "Finance",
-  "Support",
-];
-
 const AdminUsers: React.FC = () => {
   const navigate = useNavigate();
   const { session, user, loading: authLoading } = useSupabaseSession();
@@ -261,7 +252,7 @@ const AdminUsers: React.FC = () => {
       <DebugBlock />
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
         <h1 className="text-2xl font-bold">User Management</h1>
-        <CreateUserDialog onUserCreated={handleUserCreated} departments={departments} organization={organization || undefined} />
+        <CreateUserDialog onUserCreated={handleUserCreated} organization={organization || undefined} />
       </div>
       {/* Filters */}
       <div className="flex flex-col sm:flex-row flex-wrap gap-3 mb-5 bg-muted/30 border rounded-md px-4 py-3">
@@ -282,10 +273,8 @@ const AdminUsers: React.FC = () => {
             onChange={(e) => setSelectedDept(e.target.value)}
           >
             <option value="">All</option>
-            {departments.map((d) => (
-              <option key={d} value={d}>
-                {d}
-              </option>
+            {[...new Set(users.map((u) => u.department).filter(Boolean))].map((d) => (
+              <option key={d} value={d as string}>{d}</option>
             ))}
           </select>
         </div>

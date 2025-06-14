@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import {
   Dialog,
@@ -17,7 +16,6 @@ import { supabase } from "@/integrations/supabase/client";
 
 interface CreateUserDialogProps {
   onUserCreated?: () => void;
-  departments: string[];
   organization?: string; // (Optional) if passed, use as default org
 }
 
@@ -32,23 +30,45 @@ const initialValues = {
 
 const CreateUserDialog: React.FC<CreateUserDialogProps> = ({
   onUserCreated,
-  departments,
   organization,
 }) => {
   const [open, setOpen] = useState(false);
   const [values, setValues] = useState(initialValues);
   const [loading, setLoading] = useState(false);
 
+  // NEW: Departments from DB
+  const [departments, setDepartments] = useState<string[]>([]);
+  const [departmentsLoading, setDepartmentsLoading] = useState(false);
+
   // For tracking who is the current admin
   const [currentUser, setCurrentUser] = useState<null | { id: string; organization?: string }>(null);
+
+  // Fetch Departments from Supabase
+  React.useEffect(() => {
+    const fetchDepartments = async () => {
+      setDepartmentsLoading(true);
+      const { data, error } = await supabase
+        .from("departments")
+        .select("name")
+        .order("name");
+      if (error) {
+        toast({
+          title: "Failed to load departments",
+          description: error.message,
+        });
+      } else {
+        setDepartments(data?.map((d: { name: string }) => d.name) || []);
+      }
+      setDepartmentsLoading(false);
+    };
+    fetchDepartments();
+  }, []);
 
   // Fetch current admin user id and org if not already loaded
   React.useEffect(() => {
     const fetch = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
-        // Fetch their org from the DB, if using it
-        // We'll try from users table if present, else fallback to prop/org = "Main"
         let org = organization;
         const { data } = await supabase
           .from("users")
@@ -182,10 +202,10 @@ const CreateUserDialog: React.FC<CreateUserDialogProps> = ({
               className="border rounded px-2 py-2 text-sm bg-background"
               value={values.department}
               onChange={handleChange}
-              disabled={loading}
+              disabled={loading || departmentsLoading}
               required
             >
-              <option value="">Select department</option>
+              <option value="">{departmentsLoading ? "Loading departments..." : "Select department"}</option>
               {departments.map((d) => (
                 <option key={d} value={d}>
                   {d}
