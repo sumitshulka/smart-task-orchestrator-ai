@@ -11,6 +11,7 @@ import AdminLayout from "@/layouts/AdminLayout";
 import AdminUsers from "@/pages/AdminUsers";
 import AdminTeams from "@/pages/AdminTeams";
 import AdminSettings from "./pages/AdminSettings";
+import TasksPage from "./pages/Tasks";
 
 const queryClient = new QueryClient();
 
@@ -59,6 +60,14 @@ const App = () => (
             element={
               <AdminLayout>
                 <AdminSettings />
+              </AdminLayout>
+            }
+          />
+          <Route
+            path="/admin/tasks"
+            element={
+              <AdminLayout>
+                <TasksPage />
               </AdminLayout>
             }
           />

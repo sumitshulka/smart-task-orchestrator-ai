@@ -1,4 +1,3 @@
-
 import React from "react";
 import { useLocation, NavLink } from "react-router-dom";
 import {
@@ -13,7 +12,7 @@ import {
   SidebarTrigger,
   SidebarProvider,
 } from "@/components/ui/sidebar";
-import { Users2, UsersRound, ShieldCheck } from "lucide-react";
+import { Users2, UsersRound, ShieldCheck, ClipboardList } from "lucide-react";
 import Logo from "./Logo";
 
 export default function AppSidebar() {
@@ -33,6 +32,11 @@ export default function AppSidebar() {
       label: "Roles and Privileges",
       to: "/admin/roles",
       Icon: ShieldCheck,
+    },
+    {
+      label: "Tasks",
+      to: "/admin/tasks",
+      Icon: ClipboardList,
     },
   ];
 
