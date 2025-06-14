@@ -7,17 +7,28 @@ const AdminSettings: React.FC = () => {
   const [tab, setTab] = useState("departments");
 
   return (
-    <div className="max-w-3xl mx-auto py-10 px-4">
-      <h2 className="text-2xl font-semibold mb-6">Settings</h2>
-      <Tabs value={tab} onValueChange={setTab}>
-        <TabsList>
-          <TabsTrigger value="departments">Departments</TabsTrigger>
-          {/* Add more tabs here as needed */}
-        </TabsList>
-        <TabsContent value="departments">
-          <DepartmentsManager />
-        </TabsContent>
-      </Tabs>
+    <div className="max-w-5xl mx-auto py-10 px-4">
+      <h2 className="text-2xl font-semibold mb-8">Settings</h2>
+      <div className="flex flex-col md:flex-row gap-6">
+        <Tabs value={tab} onValueChange={setTab} className="flex-1">
+          <div className="flex flex-col md:flex-row gap-8">
+            {/* Vertical/left-aligned tab list */}
+            <TabsList className="md:flex md:flex-col md:min-w-[200px] md:items-start md:h-auto">
+              <TabsTrigger value="departments" className="w-full md:text-left">
+                Departments
+              </TabsTrigger>
+              {/* Add more tabs here as needed */}
+            </TabsList>
+            {/* Tab content area */}
+            <div className="flex-1 min-w-0">
+              <TabsContent value="departments">
+                <DepartmentsManager />
+              </TabsContent>
+              {/* Add more <TabsContent> blocks for other settings as needed */}
+            </div>
+          </div>
+        </Tabs>
+      </div>
     </div>
   );
 };
