@@ -9,6 +9,13 @@ import { supabase } from "@/integrations/supabase/client";
 import OfficeLocationForm from "./OfficeLocationForm";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 
+// Add User type for local mapping
+type User = {
+  id: string;
+  user_name: string | null;
+  email: string;
+};
+
 interface OfficeLocation {
   id: string;
   location_name: string;
@@ -22,6 +29,21 @@ const OfficeLocationsManager: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [openForm, setOpenForm] = useState(false);
   const [editLocation, setEditLocation] = useState<OfficeLocation | null>(null);
+  // New: users cache for lookup of user names
+  const [users, setUsers] = useState<User[]>([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+
+  // Fetch all users for mapping IDs to names/emails
+  const fetchUsers = async () => {
+    setUsersLoading(true);
+    const { data, error } = await supabase
+      .from("users")
+      .select("id, user_name, email");
+    if (!error && data) {
+      setUsers(data);
+    }
+    setUsersLoading(false);
+  };
 
   const fetchLocations = async () => {
     setLoading(true);
@@ -39,6 +61,7 @@ const OfficeLocationsManager: React.FC = () => {
 
   useEffect(() => {
     fetchLocations();
+    fetchUsers();
   }, []);
 
   const handleCreateOrUpdate = async (
@@ -75,6 +98,7 @@ const OfficeLocationsManager: React.FC = () => {
     setOpenForm(false);
     setEditLocation(null);
     fetchLocations();
+    fetchUsers(); // Ensure user info is up-to-date (e.g. if new user added elsewhere)
   };
 
   const handleDelete = async (id: string) => {
@@ -86,6 +110,14 @@ const OfficeLocationsManager: React.FC = () => {
     }
     toast({ title: "Office location deleted" });
     fetchLocations();
+  };
+
+  // Lookup user by ID
+  const getUserDisplayName = (userId: string | null | undefined) => {
+    if (!userId) return "--";
+    const user = users.find((u) => u.id === userId);
+    if (!user) return "--";
+    return user.user_name ? `${user.user_name} (${user.email})` : user.email;
   };
 
   return (
@@ -122,7 +154,13 @@ const OfficeLocationsManager: React.FC = () => {
                     <TableCell>{idx + 1}</TableCell>
                     <TableCell>{loc.location_name}</TableCell>
                     <TableCell>{loc.address}</TableCell>
-                    <TableCell>{loc.location_manager || "--"}</TableCell>
+                    <TableCell>
+                      {
+                        loc.location_manager
+                          ? getUserDisplayName(loc.location_manager)
+                          : "--"
+                      }
+                    </TableCell>
                     <TableCell>
                       {loc.created_at ? new Date(loc.created_at).toLocaleString() : "--"}
                     </TableCell>
@@ -160,3 +198,4 @@ const OfficeLocationsManager: React.FC = () => {
 };
 
 export default OfficeLocationsManager;
+
