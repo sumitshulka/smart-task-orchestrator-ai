@@ -10,6 +10,7 @@ import { useDrop, useDrag, DndProvider } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
 import TaskDetailsSheet from "@/components/TaskDetailsSheet";
 import TaskCard from "@/components/TaskCard";
+import CreateTaskSheet from "@/components/CreateTaskSheet";
 
 // Pastel color classes for Kanban columns
 const KANBAN_COLORS: Record<string, string> = {
@@ -223,6 +224,12 @@ export default function MyTasksPage() {
             Kanban
           </Button>
         </div>
+        {/* Add Task Button visible only when user is present */}
+        {user?.id && (
+          <div className="ml-4">
+            <CreateTaskSheet onTaskCreated={load} defaultAssignedTo={user.id} />
+          </div>
+        )}
       </div>
       {(loading || statusesLoading) && (
         <div className="text-muted-foreground mb-4 text-center">Loading...</div>

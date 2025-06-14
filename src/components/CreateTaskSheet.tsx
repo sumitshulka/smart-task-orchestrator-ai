@@ -32,6 +32,7 @@ async function fetchUsers(): Promise<User[]> {
 interface Props {
   onTaskCreated: () => void;
   children?: React.ReactNode;
+  defaultAssignedTo?: string; // Add new prop for default assigned user
 }
 
 const initialForm = {
@@ -67,7 +68,7 @@ const typeOptions = [
   { value: "team", label: "Team" },
 ];
 
-const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children }) => {
+const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssignedTo }) => {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(initialForm);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -98,6 +99,15 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children }) => {
         .catch(() => setUsers([]));
     }
   }, [open, statuses]);
+
+  useEffect(() => {
+    if (open) {
+      setForm(f => ({
+        ...f,
+        assigned_to: defaultAssignedTo && !f.assigned_to ? defaultAssignedTo : f.assigned_to
+      }));
+    }
+  }, [open, statuses, defaultAssignedTo]);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
