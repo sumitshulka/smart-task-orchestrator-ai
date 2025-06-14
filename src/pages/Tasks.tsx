@@ -173,7 +173,7 @@ const TasksPage: React.FC = () => {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="flex flex-col gap-2 text-sm">
+              <div className="flex flex-col md:flex-row md:items-center md:gap-6 gap-2 text-sm">
                 <div>
                   <span className="font-semibold">Status:</span>{" "}
                   <span className="capitalize">{task.status}</span>
