@@ -1,9 +1,10 @@
+
 import React, { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { Edit, Trash2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import OfficeLocationForm from "./OfficeLocationForm";
 
@@ -96,12 +97,12 @@ const OfficeLocationsManager: React.FC = () => {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-12">S No</TableHead>
-              <TableHead>Location Name</TableHead>
-              <TableHead>Address</TableHead>
-              <TableHead>Location Manager</TableHead>
-              <TableHead>Creation Date</TableHead>
-              <TableHead className="w-16">Actions</TableHead>
+              <TableHead className="w-10">S No</TableHead>
+              <TableHead className="w-1/6">Location Name</TableHead>
+              <TableHead className="w-1/4">Address</TableHead>
+              <TableHead className="w-1/6">Location Manager</TableHead>
+              <TableHead className="w-1/6">Creation Date</TableHead>
+              <TableHead className="w-20 text-center">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -123,13 +124,15 @@ const OfficeLocationsManager: React.FC = () => {
                   <TableCell>
                     {loc.created_at ? new Date(loc.created_at).toLocaleString() : "--"}
                   </TableCell>
-                  <TableCell className="flex gap-2">
-                    <Button size="icon" variant="ghost" onClick={() => { setEditLocation(loc); setOpenForm(true); }}>
-                      <Edit className="w-4 h-4" />
-                    </Button>
-                    <Button size="icon" variant="ghost" onClick={() => handleDelete(loc.id)}>
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
+                  <TableCell>
+                    <div className="flex items-center justify-center gap-2">
+                      <Button size="icon" variant="ghost" aria-label="Edit" onClick={() => { setEditLocation(loc); setOpenForm(true); }}>
+                        <Edit className="w-4 h-4" />
+                      </Button>
+                      <Button size="icon" variant="ghost" aria-label="Delete" onClick={() => handleDelete(loc.id)}>
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))

@@ -1,8 +1,9 @@
+
 import React, { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { Edit, Trash2 } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import DepartmentForm from "./DepartmentForm";
@@ -86,9 +87,9 @@ const DepartmentsManager: React.FC = () => {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Description</TableHead>
-              <TableHead className="w-16">Actions</TableHead>
+              <TableHead className="w-1/4">Name</TableHead>
+              <TableHead className="w-2/4">Description</TableHead>
+              <TableHead className="w-1/4 text-center">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -105,13 +106,15 @@ const DepartmentsManager: React.FC = () => {
                 <TableRow key={d.id}>
                   <TableCell>{d.name}</TableCell>
                   <TableCell>{d.description || "--"}</TableCell>
-                  <TableCell className="flex gap-2">
-                    <Button size="icon" variant="ghost" onClick={() => { setEditDep(d); setOpenForm(true); }}>
-                      <Edit className="w-4 h-4" />
-                    </Button>
-                    <Button size="icon" variant="ghost" onClick={() => handleDelete(d.id)}>
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
+                  <TableCell>
+                    <div className="flex items-center justify-center gap-2">
+                      <Button size="icon" variant="ghost" aria-label="Edit" onClick={() => { setEditDep(d); setOpenForm(true); }}>
+                        <Edit className="w-4 h-4" />
+                      </Button>
+                      <Button size="icon" variant="ghost" aria-label="Delete" onClick={() => handleDelete(d.id)}>
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))
