@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   Sheet,
   SheetContent,
@@ -124,6 +124,21 @@ const TaskDetailsSheet: React.FC<Props> = ({
       toast({ title: "Failed to add comment", description: err.message });
     }
   }
+
+  // Keep status in sync if task/statuses change
+  useEffect(() => {
+    // Try to match status to the statuses array entry for a normalized value
+    if (task && statuses.length > 0) {
+      const currentStatus = statuses.find(
+        s => s.name.toLowerCase() === (task.status || "").toLowerCase()
+      );
+      if (currentStatus) {
+        setStatus(currentStatus.name);
+      } else {
+        setStatus(statuses[0].name);
+      }
+    }
+  }, [task, statuses]);
 
   // Make modal content scrollable
   return (
