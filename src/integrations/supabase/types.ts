@@ -33,6 +33,33 @@ export type Database = {
         }
         Relationships: []
       }
+      office_locations: {
+        Row: {
+          address: string
+          created_at: string
+          id: string
+          location_manager: string | null
+          location_name: string
+          updated_at: string
+        }
+        Insert: {
+          address: string
+          created_at?: string
+          id?: string
+          location_manager?: string | null
+          location_name: string
+          updated_at?: string
+        }
+        Update: {
+          address?: string
+          created_at?: string
+          id?: string
+          location_manager?: string | null
+          location_name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       roles: {
         Row: {
           created_at: string | null
