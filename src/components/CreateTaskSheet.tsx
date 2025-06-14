@@ -1,0 +1,333 @@
+
+import React, { useState, useEffect } from "react";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription, SheetFooter, SheetClose } from "@/components/ui/sheet";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { fetchTasks, createTask, Task } from "@/integrations/supabase/tasks";
+import { toast } from "@/components/ui/use-toast";
+import useSupabaseSession from "@/hooks/useSupabaseSession";
+
+interface Props {
+  onTaskCreated: () => void;
+}
+
+const initialForm = {
+  title: "",
+  description: "",
+  start_date: "",
+  due_date: "",
+  actual_end_date: "",
+  priority: 2,
+  status: "pending",
+  type: "personal",
+  estimated_hours: "",
+  assigned_to: "",
+  isSubTask: false,
+  superTaskId: "",
+  isDependent: false,
+  dependencyTaskId: "",
+};
+
+const statusOptions = [
+  { value: "pending", label: "Pending" },
+  { value: "in_progress", label: "In Progress" },
+  { value: "complete", label: "Complete" },
+];
+
+const priorityOptions = [
+  { value: 1, label: "High" },
+  { value: 2, label: "Medium" },
+  { value: 3, label: "Low" },
+];
+
+const typeOptions = [
+  { value: "personal", label: "Personal" },
+  { value: "team", label: "Team" },
+];
+
+const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated }) => {
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState(initialForm);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [creating, setCreating] = useState(false);
+  const { user, loading: sessionLoading } = useSupabaseSession();
+
+  useEffect(() => {
+    if (open) {
+      fetchTasks().then(setTasks).catch(() => setTasks([]));
+    }
+  }, [open]);
+
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
+  ) => {
+    const { name, value, type, checked } = e.target;
+    if (type === "checkbox") {
+      setForm((f) => ({ ...f, [name]: checked }));
+    } else if (name === "priority") {
+      setForm((f) => ({ ...f, [name]: Number(value) }));
+    } else {
+      setForm((f) => ({ ...f, [name]: value }));
+    }
+    // If toggling off subtask/dependency, clear values
+    if (name === "isSubTask" && !checked) setForm((f) => ({ ...f, superTaskId: "" }));
+    if (name === "isDependent" && !checked) setForm((f) => ({ ...f, dependencyTaskId: "" }));
+  };
+
+  const resetForm = () => setForm(initialForm);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user?.id) {
+      toast({ title: "You must be logged in to create a task." });
+      return;
+    }
+    setCreating(true);
+    try {
+      // Prepare payload
+      const payload: any = {
+        title: form.title,
+        description: form.description,
+        priority: form.priority,
+        due_date: form.due_date || null,
+        status: form.status,
+        type: form.type,
+        estimated_hours: form.estimated_hours ? Number(form.estimated_hours) : null,
+        assigned_to: form.assigned_to || null,
+        team_id: null,
+        created_by: user.id,
+        // The tasks table does not have start_date or actual_end_date fields
+        // You may need to add them in your DB schema for full support
+      };
+      // Insert new task
+      const newTask = await createTask(payload);
+      // Handle subtasks
+      if (form.isSubTask && form.superTaskId) {
+        // You likely have a subtasks table: create the subtask entry linked to superTaskId and newTask.id
+        // For now just a toast (DB function not included)
+        toast({ title: "Subtask link not implemented yet." });
+      }
+      // Handle dependencies
+      if (form.isDependent && form.dependencyTaskId) {
+        // You likely have a task_dependencies table (see schema)
+        toast({ title: "Dependency link not implemented yet." });
+      }
+      toast({ title: "Task created" });
+      resetForm();
+      setOpen(false);
+      onTaskCreated();
+    } catch (err: any) {
+      toast({ title: "Create failed", description: err.message });
+    }
+    setCreating(false);
+  };
+
+  // Get list of tasks for possible super task/dependency selection, filter to not allow circular/self selection
+  const selectableTasks = tasks.filter((t) => t.title && t.title.length > 0);
+
+  return (
+    <Sheet open={open} onOpenChange={setOpen}>
+      <SheetTrigger asChild>
+        <Button className="mb-6" variant="default">Add Task</Button>
+      </SheetTrigger>
+      <SheetContent side="right" className="max-w-2xl w-full overflow-y-auto">
+        <form className="p-2 space-y-4" onSubmit={handleSubmit}>
+          <SheetHeader>
+            <SheetTitle>Create Task</SheetTitle>
+            <SheetDescription>
+              Fill in the details below to create a new task.
+            </SheetDescription>
+          </SheetHeader>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label className="block mb-1 font-medium">Task Title</label>
+              <Input
+                name="title"
+                value={form.title}
+                onChange={handleChange}
+                required
+                placeholder="Enter task title"
+              />
+            </div>
+            <div>
+              <label className="block mb-1 font-medium">Priority</label>
+              <select
+                name="priority"
+                value={form.priority}
+                onChange={handleChange}
+                className="w-full border rounded p-2"
+              >
+                {priorityOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+            <div className="sm:col-span-2">
+              <label className="block mb-1 font-medium">Description</label>
+              <Textarea
+                name="description"
+                value={form.description}
+                onChange={handleChange}
+                placeholder="Task description"
+              />
+            </div>
+            <div>
+              <label className="block mb-1 font-medium">Start Date</label>
+              <Input
+                name="start_date"
+                type="date"
+                value={form.start_date}
+                onChange={handleChange}
+              />
+            </div>
+            <div>
+              <label className="block mb-1 font-medium">Expected End Date</label>
+              <Input
+                name="due_date"
+                type="date"
+                value={form.due_date}
+                onChange={handleChange}
+              />
+            </div>
+            <div>
+              <label className="block mb-1 font-medium">Actual End Date</label>
+              <Input
+                name="actual_end_date"
+                type="date"
+                value={form.actual_end_date}
+                onChange={handleChange}
+              />
+            </div>
+            <div>
+              <label className="block mb-1 font-medium">Assigned To (user id)</label>
+              <Input
+                name="assigned_to"
+                value={form.assigned_to}
+                onChange={handleChange}
+                placeholder="User id to assign (string)"
+              />
+            </div>
+            <div>
+              <label className="block mb-1 font-medium">Estimated Hours</label>
+              <Input
+                name="estimated_hours"
+                value={form.estimated_hours}
+                onChange={handleChange}
+                type="number"
+                min="0"
+                step="0.1"
+              />
+            </div>
+            <div>
+              <label className="block mb-1 font-medium">Status</label>
+              <select
+                name="status"
+                value={form.status}
+                onChange={handleChange}
+                className="w-full border rounded p-2"
+              >
+                {statusOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block mb-1 font-medium">Type</label>
+              <select
+                name="type"
+                value={form.type}
+                onChange={handleChange}
+                className="w-full border rounded p-2"
+              >
+                {typeOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+            <div className="sm:col-span-2 flex gap-6 items-center mt-2">
+              <label className="inline-flex items-center">
+                <input
+                  type="checkbox"
+                  name="isSubTask"
+                  checked={form.isSubTask}
+                  onChange={handleChange}
+                  className="mr-2"
+                />
+                Is Subtask?
+              </label>
+              {form.isSubTask && (
+                <select
+                  name="superTaskId"
+                  value={form.superTaskId}
+                  onChange={handleChange}
+                  className="border rounded p-2"
+                  required
+                >
+                  <option value="">Select Super Task</option>
+                  {selectableTasks
+                    .filter((t) => t.id !== undefined && t.title && t.id !== t.id)
+                    .map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.title}
+                      </option>
+                    ))
+                  }
+                </select>
+              )}
+              <label className="inline-flex items-center">
+                <input
+                  type="checkbox"
+                  name="isDependent"
+                  checked={form.isDependent}
+                  onChange={handleChange}
+                  className="mr-2"
+                />
+                Is Dependent?
+              </label>
+              {form.isDependent && (
+                <select
+                  name="dependencyTaskId"
+                  value={form.dependencyTaskId}
+                  onChange={handleChange}
+                  className="border rounded p-2"
+                  required
+                >
+                  <option value="">Select Dependency Task</option>
+                  {selectableTasks
+                    .filter((t) => t.id !== undefined && t.title && t.id !== t.id)
+                    .map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.title}
+                      </option>
+                    ))
+                  }
+                </select>
+              )}
+            </div>
+          </div>
+          <SheetFooter className="mt-6">
+            <Button type="submit" disabled={creating || sessionLoading || !user}>
+              {creating ? "Creating..." : "Create Task"}
+            </Button>
+            <SheetClose asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => {
+                  resetForm();
+                  setOpen(false);
+                }}
+              >
+                Cancel
+              </Button>
+            </SheetClose>
+          </SheetFooter>
+        </form>
+      </SheetContent>
+    </Sheet>
+  );
+};
+
+export default CreateTaskSheet;
+

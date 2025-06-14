@@ -1,29 +1,14 @@
+
 import React, { useState, useEffect } from "react";
-import { fetchTasks, createTask, updateTask, deleteTask, Task } from "@/integrations/supabase/tasks";
+import { fetchTasks, deleteTask, Task } from "@/integrations/supabase/tasks";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { toast } from "@/components/ui/use-toast";
 import useSupabaseSession from "@/hooks/useSupabaseSession";
-
-const emptyTaskState = {
-  title: "",
-  description: "",
-  priority: 2,
-  due_date: null as string | null,
-  estimated_hours: null,
-  status: "pending",
-  type: "personal",
-  assigned_to: null,
-  team_id: null,
-};
+import CreateTaskSheet from "@/components/CreateTaskSheet";
 
 const TasksPage: React.FC = () => {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(false);
-  const [newTask, setNewTask] = useState<any>(emptyTaskState);
-  const [creating, setCreating] = useState(false);
-
-  // Use session hook to get the logged-in user
   const { user, loading: sessionLoading } = useSupabaseSession();
 
   async function load() {
@@ -41,41 +26,6 @@ const TasksPage: React.FC = () => {
     load();
   }, []);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value, type } = e.target;
-    if (name === "priority") {
-      setNewTask({ ...newTask, [name]: Number(value) });
-    } else if (name === "due_date") {
-      setNewTask({ ...newTask, [name]: value === "" ? null : value });
-    } else {
-      setNewTask({ ...newTask, [name]: value });
-    }
-  };
-
-  async function handleCreateTask() {
-    if (!user?.id) {
-      toast({ title: "You must be logged in to create a task." });
-      return;
-    }
-    setCreating(true);
-    try {
-      const taskPayload = {
-        ...newTask,
-        created_by: user.id, // Use the actual logged-in user's id
-      };
-      if (!taskPayload.due_date) {
-        taskPayload.due_date = null;
-      }
-      await createTask(taskPayload);
-      setNewTask(emptyTaskState);
-      load();
-      toast({ title: "Task created" });
-    } catch (err: any) {
-      toast({ title: "Create failed", description: err.message });
-    }
-    setCreating(false);
-  }
-
   async function handleDeleteTask(id: string) {
     if (!window.confirm("Delete this task?")) return;
     setLoading(true);
@@ -90,59 +40,9 @@ const TasksPage: React.FC = () => {
   }
 
   return (
-    <div className="max-w-3xl mx-auto p-6">
+    <div className="max-w-5xl mx-auto p-6">
       <h1 className="text-2xl font-bold mb-6">Tasks</h1>
-      {/* Create Task */}
-      <div className="mb-6 border rounded p-4 bg-background flex flex-col sm:flex-row gap-2 items-end">
-        <Input
-          name="title"
-          value={newTask.title}
-          onChange={handleChange}
-          placeholder="Task Title"
-          className="mb-2 sm:mb-0"
-        />
-        <Input
-          name="description"
-          value={newTask.description}
-          onChange={handleChange}
-          placeholder="Description"
-          className="mb-2 sm:mb-0"
-        />
-        <select
-          name="priority"
-          value={newTask.priority}
-          onChange={handleChange}
-          className="border rounded px-2 py-1 mb-2 sm:mb-0"
-        >
-          <option value={1}>High</option>
-          <option value={2}>Medium</option>
-          <option value={3}>Low</option>
-        </select>
-        <Input
-          name="due_date"
-          type="date"
-          value={newTask.due_date || ""}
-          onChange={handleChange}
-          className="mb-2 sm:mb-0"
-        />
-        <select
-          name="type"
-          value={newTask.type}
-          onChange={handleChange}
-          className="border rounded px-2 py-1 mb-2 sm:mb-0"
-        >
-          <option value="personal">Personal</option>
-          <option value="team">Team</option>
-        </select>
-        <Button
-          onClick={handleCreateTask}
-          disabled={creating || sessionLoading || !user}
-        >
-          Add Task
-        </Button>
-      </div>
-
-      {/* Task List */}
+      <CreateTaskSheet onTaskCreated={load} />
       {loading && <div className="text-muted-foreground mb-4">Loading...</div>}
       <table className="w-full border text-sm rounded shadow bg-background">
         <thead>
@@ -194,3 +94,4 @@ const TasksPage: React.FC = () => {
 };
 
 export default TasksPage;
+
