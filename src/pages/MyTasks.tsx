@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import useSupabaseSession from "@/hooks/useSupabaseSession";
 import { fetchTasks, Task, updateTask } from "@/integrations/supabase/tasks";
@@ -71,11 +70,16 @@ export default function MyTasksPage() {
     }
     setLoading(true);
     setShowTooManyWarning(false);
+
     const today = new Date();
     const fromDate = new Date(today);
     fromDate.setDate(today.getDate() - 30);
+
+    // --- Modified section: set toDate as tomorrow's date (exclusive), to fully include all of today ---
+    const toDateObj = new Date(today);
+    toDateObj.setDate(today.getDate() + 1); // tomorrow
     const fromDateStr = fromDate.toISOString().slice(0, 10);
-    const toDateStr = today.toISOString().slice(0, 10);
+    const toDateStr = toDateObj.toISOString().slice(0, 10);
 
     const input: FetchTasksInput = {
       fromDate: fromDateStr,
