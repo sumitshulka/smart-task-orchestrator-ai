@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect } from "react";
 import {
   Sheet,
@@ -19,6 +18,9 @@ import { useTaskStatuses } from "@/hooks/useTaskStatuses";
 import { useTaskActivity } from "@/hooks/useTaskActivity";
 import TaskActivityTimeline from "./TaskActivityTimeline";
 import { createTaskActivity } from "@/integrations/supabase/taskActivity";
+import TaskDetailsInfo from "./TaskDetailsInfo";
+import TaskDetailsComments from "./TaskDetailsComments";
+import TaskDetailsAssign from "./TaskDetailsAssign";
 
 // Dummy role check! Replace with real logic if user roles are exposed
 const hasManagerPermissions = (user: any) =>
@@ -163,129 +165,44 @@ const TaskDetailsSheet: React.FC<Props> = ({
                 No task selected.
               </div>
             ) : (
-              <div className="space-y-3">
-                <div>
-                  <label className="block font-bold mb-1">Task Title</label>
-                  <div>{task.title}</div>
-                </div>
-                <div>
-                  <label className="block font-bold mb-1">Status</label>
-                  {/* Status change for manager, assigned, or creator */}
-                  {(hasManagerPermissions(currentUser) || task.assigned_to === currentUser.id || task.created_by === currentUser.id) ? (
-                    <select
-                      className="w-full border rounded p-2"
-                      value={status}
-                      onChange={handleStatusChange}
-                      disabled={statusesLoading}
-                    >
-                      {statuses.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
-                    </select>
+              <>
+                <TaskDetailsInfo
+                  task={task}
+                  status={status}
+                  statuses={statuses}
+                  statusesLoading={statusesLoading}
+                  canChangeStatus={
+                    hasManagerPermissions(currentUser) ||
+                    task.assigned_to === currentUser.id ||
+                    task.created_by === currentUser.id
+                  }
+                  onStatusChange={handleStatusChange}
+                />
+                <TaskDetailsComments
+                  comment={comment}
+                  setComment={setComment}
+                  handleComment={handleComment}
+                />
+                {showAssign && (
+                  <TaskDetailsAssign
+                    users={users}
+                    assignTo={assignTo}
+                    setAssignTo={setAssignTo}
+                    handleAssign={handleAssign}
+                    disabled={assignTo === task.assigned_to || loading}
+                    loading={loading}
+                  />
+                )}
+                {/* Activity log/timeline */}
+                <div className="border-t pt-4 mt-6">
+                  <label className="block font-bold mb-1">Activity Log</label>
+                  {activityLoading ? (
+                    <div className="text-muted-foreground text-sm">Loading activity log...</div>
                   ) : (
-                    <div>{task.status}</div>
+                    <TaskActivityTimeline activity={activity} usersById={usersById} />
                   )}
                 </div>
-                <div>
-                  <label className="block font-bold mb-1">Description</label>
-                  <div>{task.description || <span className="text-muted-foreground">No description</span>}</div>
-                </div>
-                <div>
-                  <label className="block font-bold mb-1">Priority</label>
-                  <div>
-                    {task.priority === 1 ? "High" : task.priority === 2 ? "Medium" : "Low"}
-                  </div>
-                </div>
-                <div>
-                  <label className="block font-bold mb-1">Assigned To</label>
-                  <div>
-                    {task.assigned_user
-                      ? task.assigned_user.user_name || task.assigned_user.email
-                      : task.assigned_to
-                      ? `(${task.assigned_to})`
-                      : "-"}
-                  </div>
-                </div>
-                <div>
-                  <label className="block font-bold mb-1">Due Date</label>
-                  <div>
-                    {task.status === "completed"
-                      ? (
-                        <span>
-                          Completion: {task.actual_completion_date || "-"}
-                        </span>
-                      ) : (
-                        <span>
-                          {task.due_date || "-"}
-                        </span>
-                      )
-                    }
-                  </div>
-                </div>
-                <div>
-                  <label className="block font-bold mb-1">Estimated Hours</label>
-                  <div>{task.estimated_hours || "-"}</div>
-                </div>
-                <div>
-                  <label className="block font-bold mb-1">Created At</label>
-                  <div>{task.created_at ? task.created_at.slice(0, 10) : "-"}</div>
-                </div>
-              </div>
-            )}
-            {/* Actions & Comments: only if task */}
-            {task && (
-              <div className="border-t pt-4 mt-6">
-                <label className="block font-bold mb-1">Actions &amp; Comments</label>
-                <div className="flex flex-col gap-3">
-                  <Textarea
-                    placeholder="Add comment or update made..."
-                    value={comment}
-                    onChange={e => setComment(e.target.value)}
-                  />
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    onClick={handleComment}
-                    disabled={!comment}
-                  >Add Comment</Button>
-                </div>
-              </div>
-            )}
-            {/* Assignment: only if task */}
-            {task && showAssign && (
-              <div className="border-t pt-4 mt-6">
-                <label className="block font-bold mb-1">Assign To</label>
-                <div className="flex gap-2 items-center">
-                  <select
-                    className="w-full border rounded p-2"
-                    value={assignTo}
-                    onChange={e => setAssignTo(e.target.value)}
-                  >
-                    <option value="">Unassigned</option>
-                    {users?.map(u => (
-                      <option key={u.id} value={u.id}>
-                        {u.user_name || u.email}
-                      </option>
-                    ))}
-                  </select>
-                  <Button
-                    type="button"
-                    onClick={handleAssign}
-                    disabled={assignTo === task.assigned_to || loading}
-                  >
-                    {loading ? "Assigning..." : "Assign"}
-                  </Button>
-                </div>
-              </div>
-            )}
-            {/* Activity log/timeline */}
-            {task && (
-              <div className="border-t pt-4 mt-6">
-                <label className="block font-bold mb-1">Activity Log</label>
-                {activityLoading ? (
-                  <div className="text-muted-foreground text-sm">Loading activity log...</div>
-                ) : (
-                  <TaskActivityTimeline activity={activity} usersById={usersById} />
-                )}
-              </div>
+              </>
             )}
           </ScrollArea>
           <SheetFooter className="mt-4 p-6">
@@ -299,4 +216,3 @@ const TaskDetailsSheet: React.FC<Props> = ({
   );
 };
 export default TaskDetailsSheet;
-
