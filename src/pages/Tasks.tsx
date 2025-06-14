@@ -1,18 +1,15 @@
-
 import React, { useState, useEffect } from "react";
 import { fetchTasks, createTask, updateTask, deleteTask, Task } from "@/integrations/supabase/tasks";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/components/ui/use-toast";
-
-// TODO: Replace this with actual auth session user id
-const CURRENT_USER_ID = "00000000-0000-0000-0000-000000000001";
+import useSupabaseSession from "@/hooks/useSupabaseSession";
 
 const emptyTaskState = {
   title: "",
   description: "",
   priority: 2,
-  due_date: null as string | null, // <-- changed from ""
+  due_date: null as string | null,
   estimated_hours: null,
   status: "pending",
   type: "personal",
@@ -25,6 +22,9 @@ const TasksPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [newTask, setNewTask] = useState<any>(emptyTaskState);
   const [creating, setCreating] = useState(false);
+
+  // Use session hook to get the logged-in user
+  const { user, loading: sessionLoading } = useSupabaseSession();
 
   async function load() {
     setLoading(true);
@@ -53,13 +53,16 @@ const TasksPage: React.FC = () => {
   };
 
   async function handleCreateTask() {
+    if (!user?.id) {
+      toast({ title: "You must be logged in to create a task." });
+      return;
+    }
     setCreating(true);
     try {
       const taskPayload = {
         ...newTask,
-        created_by: CURRENT_USER_ID, // Set creator
+        created_by: user.id, // Use the actual logged-in user's id
       };
-      // Ensure due_date is null if not set or empty string
       if (!taskPayload.due_date) {
         taskPayload.due_date = null;
       }
@@ -131,7 +134,10 @@ const TasksPage: React.FC = () => {
           <option value="personal">Personal</option>
           <option value="team">Team</option>
         </select>
-        <Button onClick={handleCreateTask} disabled={creating}>
+        <Button
+          onClick={handleCreateTask}
+          disabled={creating || sessionLoading || !user}
+        >
           Add Task
         </Button>
       </div>
@@ -186,5 +192,5 @@ const TasksPage: React.FC = () => {
     </div>
   );
 };
-export default TasksPage;
 
+export default TasksPage;
