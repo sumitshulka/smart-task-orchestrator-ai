@@ -27,6 +27,11 @@ export default function TasksPagination({
   pageSizeOptions,
 }: TasksPaginationProps) {
   if (totalTasks <= pageSize) return null;
+
+  // Calculate display range
+  const start = totalTasks === 0 ? 0 : (page - 1) * pageSize + 1;
+  const end = Math.min(page * pageSize, totalTasks);
+
   return (
     <Pagination className="my-6">
       <PaginationContent>
@@ -53,29 +58,30 @@ export default function TasksPagination({
           <PaginationNext
             onClick={() =>
               setPage(
-                page < Math.ceil(totalTasks / pageSize)
-                  ? page + 1
-                  : page
+                page < Math.ceil(totalTasks / pageSize) ? page + 1 : page
               )
             }
             aria-disabled={page >= Math.ceil(totalTasks / pageSize)}
           />
         </PaginationItem>
       </PaginationContent>
-      <div className="flex items-center gap-2 ml-8">
-        <span className="text-sm">Rows per page:</span>
-        <select
-          className="border rounded px-2 text-sm"
-          value={pageSize}
-          onChange={(e) => {
-            setPage(1);
-            setPageSize(Number(e.target.value));
-          }}
-        >
-          {pageSizeOptions.map(opt => (
-            <option key={opt} value={opt}>{opt}</option>
-          ))}
-        </select>
+      <div className="flex items-center gap-4 ml-8">
+        <span className="text-sm min-w-max">{start}–{end} of {totalTasks}</span>
+        <div className="flex items-center gap-2">
+          <span className="text-sm">Rows per page:</span>
+          <select
+            className="border rounded px-2 text-sm"
+            value={pageSize}
+            onChange={(e) => {
+              setPage(1);
+              setPageSize(Number(e.target.value));
+            }}
+          >
+            {pageSizeOptions.map(opt => (
+              <option key={opt} value={opt}>{opt}</option>
+            ))}
+          </select>
+        </div>
       </div>
     </Pagination>
   );

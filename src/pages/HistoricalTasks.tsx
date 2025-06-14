@@ -5,14 +5,7 @@ import TaskCard from "@/components/TaskCard";
 import { useUsersAndTeams } from "@/hooks/useUsersAndTeams";
 import TaskFiltersSidebar from "@/components/TaskFiltersSidebar";
 import { Button } from "@/components/ui/button";
-import {
-  Pagination,
-  PaginationContent,
-  PaginationItem,
-  PaginationLink,
-  PaginationPrevious,
-  PaginationNext,
-} from "@/components/ui/pagination";
+import TasksPagination from "@/components/TasksPagination";
 
 const pageSizeOptions = [25, 50, 75, 100];
 
@@ -153,56 +146,18 @@ export default function HistoricalTasksPage() {
             ))}
         </div>
         {!!tasks.length && !showTooManyWarning && (
-          <Pagination className="my-6">
-            <PaginationContent>
-              <PaginationItem>
-                <PaginationPrevious
-                  onClick={() => setPage(page > 1 ? page - 1 : 1)}
-                  aria-disabled={page <= 1}
-                />
-              </PaginationItem>
-              {Array.from(
-                { length: Math.ceil(totalTasks / pageSize) },
-                (_, i) => (
-                  <PaginationItem key={i}>
-                    <PaginationLink
-                      isActive={i + 1 === page}
-                      onClick={() => setPage(i + 1)}
-                    >
-                      {i + 1}
-                    </PaginationLink>
-                  </PaginationItem>
-                )
-              )}
-              <PaginationItem>
-                <PaginationNext
-                  onClick={() =>
-                    setPage(
-                      page < Math.ceil(totalTasks / pageSize) ? page + 1 : page
-                    )
-                  }
-                  aria-disabled={page >= Math.ceil(totalTasks / pageSize)}
-                />
-              </PaginationItem>
-            </PaginationContent>
-            <div className="flex items-center gap-2 ml-8">
-              <span className="text-sm">Rows per page:</span>
-              <select
-                className="border rounded px-2 text-sm"
-                value={pageSize}
-                onChange={(e) => {
-                  setPage(1);
-                  setPageSize(Number(e.target.value));
-                }}
-              >
-                {pageSizeOptions.map(opt => (
-                  <option key={opt} value={opt}>{opt}</option>
-                ))}
-              </select>
-            </div>
-          </Pagination>
+          <TasksPagination
+            page={page}
+            setPage={setPage}
+            pageSize={pageSize}
+            setPageSize={setPageSize}
+            totalTasks={totalTasks}
+            pageSizeOptions={pageSizeOptions}
+          />
         )}
       </div>
     </div>
   );
 }
+
+// Note: This file is getting quite large. You should consider refactoring it for easier maintenance!
