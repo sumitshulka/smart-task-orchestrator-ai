@@ -1,5 +1,4 @@
-
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   Sheet,
   SheetContent,
@@ -15,6 +14,10 @@ import { useUsersAndTeams } from "@/hooks/useUsersAndTeams";
 import { updateTask, Task } from "@/integrations/supabase/tasks";
 import { toast } from "@/components/ui/use-toast";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useTaskStatuses } from "@/hooks/useTaskStatuses";
+import { useTaskActivity } from "@/hooks/useTaskActivity";
+import TaskActivityTimeline from "./TaskActivityTimeline";
+import { createTaskActivity } from "@/integrations/supabase/taskActivity";
 
 // Dummy role check! Replace with real logic if user roles are exposed
 const hasManagerPermissions = (user: any) =>
@@ -43,19 +46,59 @@ const TaskDetailsSheet: React.FC<Props> = ({
 }) => {
   const [comment, setComment] = useState("");
   const [assignTo, setAssignTo] = useState(task?.assigned_to || "");
+  const [status, setStatus] = useState(task?.status || "");
   const { users } = useUsersAndTeams();
-  const [loading, setLoading] = useState(false);
+  const { statuses, loading: statusesLoading } = useTaskStatuses();
+  const { activity, reload: reloadActivity, loading: activityLoading } = useTaskActivity(task?.id || null);
+
+  // new: reload usersById for activity log
+  const usersById = React.useMemo(() => {
+    const obj: Record<string, { email: string; user_name: string | null }> = {};
+    users.forEach(u => obj[u.id] = u);
+    return obj;
+  }, [users]);
 
   if (!task) return null;
 
   const showAssign = hasManagerPermissions(currentUser);
 
+  // Status change logic
+  async function handleStatusChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    const newStatus = e.target.value;
+    setStatus(newStatus);
+    try {
+      await updateTask(task.id, { status: newStatus });
+      await createTaskActivity({
+        task_id: task.id,
+        action_type: "status_changed",
+        old_value: task.status,
+        new_value: newStatus,
+        acted_by: currentUser.id,
+      });
+      toast({ title: "Task status updated" });
+      onUpdated();
+      reloadActivity();
+      onOpenChange(false);
+    } catch (err: any) {
+      toast({ title: "Failed to change status", description: err.message });
+    }
+  }
+
+  // Assign handler
   async function handleAssign() {
     setLoading(true);
     try {
       await updateTask(task.id, { assigned_to: assignTo });
+      await createTaskActivity({
+        task_id: task.id,
+        action_type: "assigned",
+        old_value: task.assigned_to,
+        new_value: assignTo,
+        acted_by: currentUser.id,
+      });
       toast({ title: "Task assignee updated" });
       onUpdated();
+      reloadActivity();
       onOpenChange(false);
     } catch (err: any) {
       toast({ title: "Failed to re-assign", description: err.message });
@@ -63,10 +106,22 @@ const TaskDetailsSheet: React.FC<Props> = ({
     setLoading(false);
   }
 
-  function handleComment() {
-    // Placeholder: Integration with comments backend would go here
-    toast({ title: "Comment added (not yet implemented)" });
-    setComment("");
+  // Comment handler
+  async function handleComment() {
+    try {
+      await createTaskActivity({
+        task_id: task.id,
+        action_type: "comment",
+        old_value: null,
+        new_value: comment,
+        acted_by: currentUser.id,
+      });
+      toast({ title: "Comment added" });
+      setComment("");
+      reloadActivity();
+    } catch (err: any) {
+      toast({ title: "Failed to add comment", description: err.message });
+    }
   }
 
   // Make modal content scrollable
@@ -78,7 +133,7 @@ const TaskDetailsSheet: React.FC<Props> = ({
             <SheetHeader>
               <SheetTitle>Task Details</SheetTitle>
               <SheetDescription>
-                All task details and assignment.
+                All task details and actions.
               </SheetDescription>
             </SheetHeader>
             <div className="space-y-3">
@@ -88,7 +143,19 @@ const TaskDetailsSheet: React.FC<Props> = ({
               </div>
               <div>
                 <label className="block font-bold mb-1">Status</label>
-                <div>{task.status}</div>
+                {/* Status change for manager, assigned, or creator */}
+                {(hasManagerPermissions(currentUser) || task.assigned_to === currentUser.id || task.created_by === currentUser.id) ? (
+                  <select
+                    className="w-full border rounded p-2"
+                    value={status}
+                    onChange={handleStatusChange}
+                    disabled={statusesLoading}
+                  >
+                    {statuses.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+                  </select>
+                ) : (
+                  <div>{task.status}</div>
+                )}
               </div>
               <div>
                 <label className="block font-bold mb-1">Description</label>
@@ -177,6 +244,15 @@ const TaskDetailsSheet: React.FC<Props> = ({
                 </div>
               </div>
             )}
+            {/* Activity log/timeline */}
+            <div className="border-t pt-4 mt-6">
+              <label className="block font-bold mb-1">Activity Log</label>
+              {activityLoading ? (
+                <div className="text-muted-foreground text-sm">Loading activity log...</div>
+              ) : (
+                <TaskActivityTimeline activity={activity} usersById={usersById} />
+              )}
+            </div>
           </ScrollArea>
           <SheetFooter className="mt-4 p-6">
             <SheetClose asChild>
