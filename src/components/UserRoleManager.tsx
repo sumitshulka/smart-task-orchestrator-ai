@@ -27,11 +27,11 @@ const UserRoleManager: React.FC = () => {
     async function fetchInitialData() {
       setLoading(true);
       // Fetch all users from auth (via RPC or Admin API)
-      const { data: usersData, error: userError } = await supabase.auth.admin.listUsers({ perPage: 1000 });
-      if (userError) {
-        toast({ title: "Error loading users", description: userError.message });
+      const usersResponse = await supabase.auth.admin.listUsers({ perPage: 1000 });
+      if (usersResponse.error) {
+        toast({ title: "Error loading users", description: usersResponse.error.message });
       } else {
-        setUsers(usersData?.users?.map((u: any) => ({ id: u.id, email: u.email })) ?? []);
+        setUsers(usersResponse.users?.map((u: any) => ({ id: u.id, email: u.email })) ?? []);
       }
       try {
         setRoles(await fetchRoles());
@@ -100,7 +100,7 @@ const UserRoleManager: React.FC = () => {
                         {role.name}
                         <Button
                           variant="ghost"
-                          size="xs"
+                          size="sm"
                           onClick={() => handleRemoveRole(user.id, role.id)}
                           disabled={loading}
                         >
