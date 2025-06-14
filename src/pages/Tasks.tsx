@@ -110,7 +110,8 @@ const TasksPage: React.FC = () => {
 
   // Filtering logic
   const filteredTasks = useMemo(() => {
-    return tasks.filter((task) => {
+    console.log("[LOVABLE DEBUG][Tasks.tsx] Raw Tasks:", tasks);
+    const result = tasks.filter((task) => {
       // Priority filter
       const priorityPass =
         !priorityFilter || priorityFilter === "all" || String(task.priority) === priorityFilter;
@@ -131,6 +132,8 @@ const TasksPage: React.FC = () => {
       }
       return priorityPass && statusPass && userPass && teamPass && datePass;
     });
+    console.log("[LOVABLE DEBUG][Tasks.tsx] Filtered Tasks:", result);
+    return result;
   }, [tasks, priorityFilter, statusFilter, userFilter, teamFilter, dateRange]);
 
   return (

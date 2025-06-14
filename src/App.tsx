@@ -13,6 +13,7 @@ import AdminTeams from "@/pages/AdminTeams";
 import AdminSettings from "./pages/AdminSettings";
 import TasksPage from "./pages/Tasks";
 import MyTasksPage from "./pages/MyTasks";
+import HistoricalTasks from "./pages/HistoricalTasks";
 
 const queryClient = new QueryClient();
 
@@ -77,6 +78,14 @@ const App = () => (
             element={
               <AdminLayout>
                 <MyTasksPage />
+              </AdminLayout>
+            }
+          />
+          <Route
+            path="/admin/historical-tasks"
+            element={
+              <AdminLayout>
+                <HistoricalTasks />
               </AdminLayout>
             }
           />
