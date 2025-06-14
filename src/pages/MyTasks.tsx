@@ -14,7 +14,14 @@ import CreateTaskSheet from "@/components/CreateTaskSheet";
 import KanbanColumn from "./MyTasks/KanbanColumn";
 import KanbanTaskCard from "./MyTasks/KanbanTaskCard";
 import TaskCardClickable from "./MyTasks/TaskCardClickable";
-import Pagination from "@/components/ui/pagination";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationPrevious,
+  PaginationNext,
+} from "@/components/ui/pagination";
 import { fetchTasksPaginated, FetchTasksInput } from "@/integrations/supabase/tasks";
 
 // Pastel color classes for Kanban columns
@@ -38,6 +45,9 @@ export default function MyTasksPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [totalTasks, setTotalTasks] = useState(0);
   const [loading, setLoading] = useState(false);
+
+  // -- ADDED: State for view (list/kanban) --
+  const [view, setView] = useState<"list" | "kanban">("list");
 
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
@@ -87,7 +97,7 @@ export default function MyTasksPage() {
   useEffect(() => {
     load();
     // eslint-disable-next-line
-  }, [user?.id]);
+  }, [user?.id, page, pageSize]);
 
   // Grouped tasks for Kanban
   const tasksByStatus = useMemo(() => {
