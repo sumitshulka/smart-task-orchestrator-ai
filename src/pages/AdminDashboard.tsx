@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
@@ -204,14 +203,23 @@ export default function AdminDashboard() {
       }
 
       // 2. Status Pie Chart data
-      let taskQuery = supabase.from("tasks").select("status, count:id", { count: "exact" }).group("status");
+      // -- FIX: Fetch all relevant tasks, count statuses in JS, do NOT use .group
+
+      let taskQuery = supabase.from("tasks").select("status");
       if (taskFilter.column) {
         if (taskFilter.op === "in") taskQuery = taskQuery.in(taskFilter.column, taskFilter.value);
         else if (taskFilter.op === "eq") taskQuery = taskQuery.eq(taskFilter.column, taskFilter.value);
       }
-      const { data: statusPie } = await taskQuery;
+      const { data: taskRows, error: taskRowsErr } = await taskQuery;
+      // Count statuses client-side
+      const statusCounts: Record<string, number> = {};
+      if (taskRows) {
+        taskRows.forEach((row: any) => {
+          statusCounts[row.status] = (statusCounts[row.status] || 0) + 1;
+        });
+      }
       setStatusStats(
-        (statusPie || []).map((r: any) => ({ status: r.status, count: r.count || 0 }))
+        Object.entries(statusCounts).map(([status, count]) => ({ status, count }))
       );
 
       // 3. Overdue tasks (due date < today and not completed)
@@ -501,4 +509,3 @@ export default function AdminDashboard() {
     </div>
   );
 }
-
