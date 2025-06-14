@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -6,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import { AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader, AlertDialogFooter, AlertDialogTitle, AlertDialogDescription, AlertDialogAction, AlertDialogCancel } from "@/components/ui/alert-dialog";
 
 interface User {
   id: string;
@@ -47,12 +47,27 @@ const TeamManagerDialog: React.FC<TeamManagerDialogProps> = ({
 }) => {
   const isEdit = Boolean(team);
   const [saving, setSaving] = useState(false);
-  const [teamName, setTeamName] = useState(team?.name || "");
-  const [teamDesc, setTeamDesc] = useState(team?.description || "");
+  const [teamName, setTeamName] = useState("");
+  const [teamDesc, setTeamDesc] = useState("");
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
   const [managerId, setManagerId] = useState<string>("");
+  const [deleteOpen, setDeleteOpen] = useState(false);
+
+  // Keep form state in sync with team prop and dialog open state.
+  useEffect(() => {
+    if (open && team) {
+      setTeamName(team.name || "");
+      setTeamDesc(team.description || "");
+    } else if (!open) {
+      setTeamName("");
+      setTeamDesc("");
+      setManagerId("");
+      setSelectedUserIds([]);
+      setMembers([]);
+    }
+  }, [open, team]);
 
   // Load all users for assignment
   useEffect(() => {
@@ -70,8 +85,6 @@ const TeamManagerDialog: React.FC<TeamManagerDialogProps> = ({
   // If editing: fetch team members + manager
   useEffect(() => {
     if (!open || !team) {
-      setTeamName("");
-      setTeamDesc("");
       setMembers([]);
       setSelectedUserIds([]);
       setManagerId("");
@@ -88,6 +101,8 @@ const TeamManagerDialog: React.FC<TeamManagerDialogProps> = ({
       if (error) {
         toast({ title: "Failed to load team members", description: error.message });
         setMembers([]);
+        setSelectedUserIds([]);
+        setManagerId("");
         return;
       }
       if (!membershipsRaw || membershipsRaw.length === 0) {
@@ -141,6 +156,14 @@ const TeamManagerDialog: React.FC<TeamManagerDialogProps> = ({
   useEffect(() => {
     if (!selectedUserIds.includes(managerId)) setManagerId("");
   }, [selectedUserIds, managerId]);
+
+  // Ensure inputs are updated if dialog is opened for another team
+  useEffect(() => {
+    if (team && isEdit && open) {
+      setTeamName(team.name || "");
+      setTeamDesc(team.description || "");
+    }
+  }, [team, isEdit, open]);
 
   // Handle Save/Update
   async function handleSubmit(e: React.FormEvent) {
@@ -236,6 +259,39 @@ const TeamManagerDialog: React.FC<TeamManagerDialogProps> = ({
     if (onTeamUpdated) onTeamUpdated();
   }
 
+  // Handle Delete
+  async function handleDeleteTeam() {
+    if (!team || !team.id) return;
+    setSaving(true);
+    // First, delete memberships tied to the team (to avoid FK constraints)
+    const { error: memErr } = await supabase
+      .from("team_memberships")
+      .delete()
+      .eq("team_id", team.id);
+
+    if (memErr) {
+      toast({ title: "Failed to delete team memberships", description: memErr.message });
+      setSaving(false);
+      return;
+    }
+    // Then, delete the team itself
+    const { error: teamErr } = await supabase
+      .from("teams")
+      .delete()
+      .eq("id", team.id);
+
+    if (teamErr) {
+      toast({ title: "Failed to delete team", description: teamErr.message });
+      setSaving(false);
+      return;
+    }
+    toast({ title: "Team deleted" });
+    setSaving(false);
+    setDeleteOpen(false);
+    onOpenChange(false);
+    if (onTeamUpdated) onTeamUpdated();
+  }
+
   // UI: member assignment as a big select with checkboxes
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -313,6 +369,31 @@ const TeamManagerDialog: React.FC<TeamManagerDialogProps> = ({
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} disabled={saving}>
               Cancel
             </Button>
+            {isEdit && (
+              <>
+                <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+                  <AlertDialogTrigger asChild>
+                    <Button type="button" variant="destructive" onClick={() => setDeleteOpen(true)} disabled={saving}>
+                      Delete Team
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Delete This Team?</AlertDialogTitle>
+                    </AlertDialogHeader>
+                    <AlertDialogDescription>
+                      Are you sure you want to delete this team? This action cannot be undone.
+                    </AlertDialogDescription>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel disabled={saving}>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={handleDeleteTeam} disabled={saving} className="bg-destructive text-destructive-foreground">
+                        Delete
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </>
+            )}
             <Button type="submit" disabled={saving || !teamName || !managerId}>
               {isEdit ? "Update" : "Create"}
             </Button>
@@ -324,4 +405,3 @@ const TeamManagerDialog: React.FC<TeamManagerDialogProps> = ({
 };
 
 export default TeamManagerDialog;
-
