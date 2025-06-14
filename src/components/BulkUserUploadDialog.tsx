@@ -1,4 +1,3 @@
-
 import React, { useRef, useState } from "react";
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -30,7 +29,7 @@ const REQUIRED_COLUMNS = [
   "Phone",
 ];
 
-function validateRows(rows: RowData[], existingEmployeeIds: Set<string>, existingEmails: Set<string>) {
+function validateRows(rows: RowData[], existingEmployeeIds: Set<string>, existingEmails: Set<string>): RowData[] {
   const seenIds = new Set<string>();
   const seenEmails = new Set<string>();
   return rows.map((row, idx) => {
@@ -50,7 +49,17 @@ function validateRows(rows: RowData[], existingEmployeeIds: Set<string>, existin
       seenEmails.add(row["Email"].toLowerCase());
     }
     // More column checks as needed
-    return { ...row, _errors: errors, _action: (errors["Employee ID"] === "Exists in system" || errors["Email"] === "Exists in system") ? "ignore" : "create" };
+
+    // Explicit assignment using union type
+    let action: "create" | "update" | "ignore" = "create";
+    if (errors["Employee ID"] === "Exists in system" || errors["Email"] === "Exists in system") {
+      action = "ignore";
+    }
+    return {
+      ...row,
+      _errors: errors,
+      _action: action,
+    };
   });
 }
 
@@ -100,7 +109,8 @@ function EditableTable({ rows, setRows }: { rows: RowData[], setRows: (rows: Row
                 {row._errors["Employee ID"] === "Exists in system" || row._errors["Email"] === "Exists in system" ? (
                   <select
                     value={row._action}
-                    onChange={e => handleActionChange(i, e.target.value as any)}
+                    // ensure type safety when selecting action
+                    onChange={e => handleActionChange(i, e.target.value as "update" | "ignore")}
                     className="border px-1 py-1 rounded text-sm"
                   >
                     <option value="update">Update</option>
