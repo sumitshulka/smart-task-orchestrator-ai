@@ -10,7 +10,6 @@ import UserTableActions from "@/components/UserTableActions";
 import CreateUserDialog from "@/components/CreateUserDialog";
 import EditUserDialog from "@/components/EditUserDialog";
 import useSupabaseSession from "@/hooks/useSupabaseSession";
-import UsersDebugBlock from "@/components/admin/UsersDebugBlock";
 
 interface User {
   id: string;
@@ -187,7 +186,6 @@ const AdminUsers: React.FC = () => {
         user={editUser}
         onUserUpdated={handleUserUpdated}
       />
-      <UsersDebugBlock me={me} organization={organization} isAdmin={isAdmin} users={users} />
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
         <h1 className="text-2xl font-bold">User Management</h1>
         <CreateUserDialog onUserCreated={handleUserCreated} organization={organization || undefined} />
