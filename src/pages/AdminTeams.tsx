@@ -44,6 +44,7 @@ const AdminTeams: React.FC = () => {
       return;
     }
     setTeams(teams || []);
+
     // For each team, fetch members and manager
     const teamIds = (teams || []).map((t: any) => t.id);
     if (teamIds.length === 0) {
@@ -52,25 +53,50 @@ const AdminTeams: React.FC = () => {
       setLoading(false);
       return;
     }
-    // Fetch memberships for all teams in one query
+
+    // Fetch memberships for all teams WITHOUT join
     const { data: memberships, error: memErr } = await supabase
       .from("team_memberships")
-      .select("team_id, user_id, role_within_team, user:users(id, user_name, email)")
+      .select("team_id, user_id, role_within_team")
       .in("team_id", teamIds);
+
     if (memErr) {
       toast({ title: "Error loading team members", description: memErr.message });
       setLoading(false);
       return;
     }
+
+    const allUserIds = [...new Set((memberships || []).map((m: any) => m.user_id))];
+    let usersById: Record<string, any> = {};
+    if (allUserIds.length > 0) {
+      const { data: usersData, error: usersErr } = await supabase
+        .from("users")
+        .select("id, user_name, email")
+        .in("id", allUserIds);
+
+      if (usersErr) {
+        toast({ title: "Error loading team user info", description: usersErr.message });
+      } else if (usersData) {
+        usersById = Object.fromEntries(usersData.map((u: any) => [u.id, u]));
+      }
+    }
+
+    // Build maps for each team
     const membMap: Record<string, string[]> = {};
     const managerMap: Record<string, string> = {};
+
     (memberships || []).forEach((m: any) => {
       if (!membMap[m.team_id]) membMap[m.team_id] = [];
-      membMap[m.team_id].push(m.user.user_name || m.user.email || m.user_id);
+      const user = usersById[m.user_id];
+      let label = m.user_id;
+      if (user) label = user.user_name || user.email || m.user_id;
+      membMap[m.team_id].push(label);
+
       if (m.role_within_team === "manager") {
-        managerMap[m.team_id] = m.user.user_name || m.user.email || m.user_id;
+        managerMap[m.team_id] = label;
       }
     });
+
     setMembersMap(membMap);
     setManagersMap(managerMap);
     setLoading(false);
