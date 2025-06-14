@@ -203,16 +203,13 @@ export default function AdminDashboard() {
       }
 
       // 2. Status Pie Chart data
-      // Avoid deep type inference error by breaking the type chain
       let taskQuery = supabase.from("tasks").select("status");
       if (taskFilter.column) {
         if (taskFilter.op === "in") taskQuery = taskQuery.in(taskFilter.column, taskFilter.value);
         else if (taskFilter.op === "eq") taskQuery = taskQuery.eq(taskFilter.column, taskFilter.value);
       }
-      // FIX: prevent TS2589 by destructuring first, then casting to any[]
       const { data } = await taskQuery;
-      const taskRows = (data as any[]) || [];
-      // Count statuses client-side
+      const taskRows: any[] = data ? (data as any[]) : [];
       const statusCounts: Record<string, number> = {};
       taskRows.forEach((row: any) => {
         statusCounts[row.status] = (statusCounts[row.status] || 0) + 1;
