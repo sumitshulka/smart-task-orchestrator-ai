@@ -62,17 +62,21 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated }) => {
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) => {
-    const { name, value, type, checked } = e.target;
+    const { name, value, type } = e.target as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
+
     if (type === "checkbox") {
+      // Only HTMLInputElement has checked
+      const { checked } = e.target as HTMLInputElement;
       setForm((f) => ({ ...f, [name]: checked }));
+
+      // If toggling off subtask/dependency, clear values
+      if (name === "isSubTask" && !checked) setForm((f) => ({ ...f, superTaskId: "" }));
+      if (name === "isDependent" && !checked) setForm((f) => ({ ...f, dependencyTaskId: "" }));
     } else if (name === "priority") {
       setForm((f) => ({ ...f, [name]: Number(value) }));
     } else {
       setForm((f) => ({ ...f, [name]: value }));
     }
-    // If toggling off subtask/dependency, clear values
-    if (name === "isSubTask" && !checked) setForm((f) => ({ ...f, superTaskId: "" }));
-    if (name === "isDependent" && !checked) setForm((f) => ({ ...f, dependencyTaskId: "" }));
   };
 
   const resetForm = () => setForm(initialForm);
@@ -266,7 +270,7 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated }) => {
                 >
                   <option value="">Select Super Task</option>
                   {selectableTasks
-                    .filter((t) => t.id !== undefined && t.title && t.id !== t.id)
+                    .filter((t) => t.id !== undefined)
                     .map((t) => (
                       <option key={t.id} value={t.id}>
                         {t.title}
@@ -295,7 +299,7 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated }) => {
                 >
                   <option value="">Select Dependency Task</option>
                   {selectableTasks
-                    .filter((t) => t.id !== undefined && t.title && t.id !== t.id)
+                    .filter((t) => t.id !== undefined)
                     .map((t) => (
                       <option key={t.id} value={t.id}>
                         {t.title}
@@ -330,4 +334,3 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated }) => {
 };
 
 export default CreateTaskSheet;
-
