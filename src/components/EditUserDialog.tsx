@@ -1,5 +1,5 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -20,7 +20,6 @@ interface EditUserDialogProps {
   onOpenChange: (open: boolean) => void;
   user: User | null;
   onUserUpdated?: () => void;
-  departments?: string[];
 }
 
 const EditUserDialog: React.FC<EditUserDialogProps> = ({
@@ -28,7 +27,6 @@ const EditUserDialog: React.FC<EditUserDialogProps> = ({
   onOpenChange,
   user,
   onUserUpdated,
-  departments = [],
 }) => {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
@@ -37,6 +35,27 @@ const EditUserDialog: React.FC<EditUserDialogProps> = ({
     phone: user?.phone ?? "",
     manager: user?.manager ?? "",
   });
+  const [departments, setDepartments] = useState<string[]>([]);
+  const [departmentsLoading, setDepartmentsLoading] = useState(false);
+
+  // Fetch departments dynamically from Supabase
+  useEffect(() => {
+    async function fetchDepartments() {
+      setDepartmentsLoading(true);
+      const { data, error } = await supabase.from("departments").select("name").order("name");
+      if (error) {
+        toast({ title: "Failed to load departments", description: error.message });
+        setDepartments([]);
+        setDepartmentsLoading(false);
+        return;
+      }
+      setDepartments(data.map((d: {name: string}) => d.name));
+      setDepartmentsLoading(false);
+    }
+    if (open) {
+      fetchDepartments();
+    }
+  }, [open]);
 
   React.useEffect(() => {
     if (user) {
@@ -109,6 +128,7 @@ const EditUserDialog: React.FC<EditUserDialogProps> = ({
               value={form.department}
               onChange={handleChange}
               className="border rounded px-2 py-1 w-full"
+              disabled={departmentsLoading}
             >
               <option value="">-- Select --</option>
               {departments.map((dep) => (

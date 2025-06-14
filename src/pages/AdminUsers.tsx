@@ -256,7 +256,6 @@ const AdminUsers: React.FC = () => {
         open={editDialogOpen}
         onOpenChange={setEditDialogOpen}
         user={editUser}
-        departments={departments}
         onUserUpdated={handleUserUpdated}
       />
       <DebugBlock />
