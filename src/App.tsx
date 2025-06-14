@@ -7,6 +7,9 @@ import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import AdminRolesPage from "./pages/AdminRoles";
 import AuthPage from "@/pages/Auth";
+import AdminLayout from "@/layouts/AdminLayout";
+import AdminUsers from "@/pages/AdminUsers";
+import AdminTeams from "@/pages/AdminTeams";
 
 const queryClient = new QueryClient();
 
@@ -17,9 +20,39 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<Index />} />
+          <Route
+            path="/"
+            element={
+              <AdminLayout>
+                <AdminUsers />
+              </AdminLayout>
+            }
+          />
           <Route path="/auth" element={<AuthPage />} />
-          <Route path="/admin/roles" element={<AdminRolesPage />} />
+          <Route
+            path="/admin/users"
+            element={
+              <AdminLayout>
+                <AdminUsers />
+              </AdminLayout>
+            }
+          />
+          <Route
+            path="/admin/teams"
+            element={
+              <AdminLayout>
+                <AdminTeams />
+              </AdminLayout>
+            }
+          />
+          <Route
+            path="/admin/roles"
+            element={
+              <AdminLayout>
+                <AdminRolesPage />
+              </AdminLayout>
+            }
+          />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
