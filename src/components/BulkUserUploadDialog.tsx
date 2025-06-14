@@ -228,6 +228,13 @@ const BulkUserUploadDialog: React.FC = () => {
 
   const hasErrors = parsedRows.some(row => Object.values(row._errors).length > 0);
 
+  // --- UTILITY: generate random password for Auth user creation, if not in Excel
+  function genRandomPassword(length = 12) {
+    // quick and simple
+    const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$";
+    return Array.from({ length }).map(() => chars[Math.floor(Math.random() * chars.length)]).join("");
+  }
+
   async function handleConfirm() {
     if (!roleNameToId["manager"] || !roleNameToId["user"]) {
       toast({ title: "Error", description: "Roles not found in system. Please set up 'manager' and 'user' roles in database first." });
@@ -255,40 +262,71 @@ const BulkUserUploadDialog: React.FC = () => {
       for (const row of parsedRows) {
         if (row._action === "ignore") continue;
 
-        // Build insert/update row for users
+        const emailLower = row["Email"]?.toLowerCase();
         const userFields: any = {
           user_name: row["Employee Name"],
           department: row["Department"],
           phone: row["Phone"],
           email: row["Email"],
           manager: row["Manager"] || null,
-          // Organization and created_by could be handled here if necessary (you might want to add those)
+          // Optionally organization/created_by can be set here if desired
         };
 
-        // Existing user check by Employee ID or Email
         let userId: string | undefined = undefined;
 
-        // If Employee ID is present and in users
-        if (row["Employee ID"] && empIdToUserObj.has(row["Employee ID"])) {
+        // --- CHECK IF AUTH USER EXISTS ---
+        // Try to get by email
+        if (emailToId.has(emailLower)) {
+          userId = emailToId.get(emailLower);
+        } else if (row["Employee ID"] && empIdToUserObj.has(row["Employee ID"])) {
           userId = row["Employee ID"];
-        } else if (row["Email"] && emailToId.has(row["Email"].toLowerCase())) {
-          userId = emailToId.get(row["Email"].toLowerCase());
         }
 
-        // CREATE
+        // CREATE NEW AUTH USER if needed
         if (row._action === "create") {
-          // If user does not exist, insert
+          let newUuid: string | undefined = undefined;
+          // If user does not exist, create in Auth first
           if (!userId) {
-            // Must provide a user id for PK for users table (corresponds to an auth user).
-            // Here, we let DB generate uuid if that's the policy, else need to link to auth
-            const { data: newUser, error: insertErr } = await supabase.from("users").insert([{
-              ...userFields
-            }]).select().single();
-            if (insertErr) {
-              toast({ title: "User not inserted", description: `Row ${row._rowIndex}: ${insertErr.message}` });
+            // Create Auth user!
+            const randomPass = genRandomPassword(16);
+            const { data: created, error: authError } = await supabase.auth.admin.createUser({
+              email: row["Email"],
+              password: randomPass,
+              user_metadata: {
+                full_name: row["Employee Name"],
+                department: row["Department"],
+                phone: row["Phone"],
+                manager: row["Manager"],
+              },
+            });
+
+            if (authError || !created?.user?.id) {
+              toast({
+                title: "Failed to create Auth account",
+                description: `Row ${row._rowIndex}: ${authError?.message || "Unknown error"}`,
+              });
               continue;
             }
-            userId = newUser.id;
+            newUuid = created.user.id;
+            userId = newUuid;
+            // After creating Auth user, also insert profile row
+            const publicUser = {
+              id: newUuid,
+              email: row["Email"],
+              user_name: row["Employee Name"],
+              department: row["Department"],
+              phone: row["Phone"],
+              manager: row["Manager"],
+              // organization and created_by can be updated here if needed
+            };
+            const { error: dbError } = await supabase.from("users").insert([publicUser]);
+            if (dbError) {
+              toast({
+                title: "Failed to store user profile",
+                description: `Row ${row._rowIndex}: ${dbError.message}`,
+              });
+              continue;
+            }
             newUsersInserted++;
           } else {
             toast({
