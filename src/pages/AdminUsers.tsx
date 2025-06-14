@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -43,13 +42,13 @@ const AdminUsers: React.FC = () => {
   useEffect(() => {
     async function fetchOrgAndMe() {
       const { data: { session }, error } = await supabase.auth.getSession();
+      console.log("[DEBUG] Supabase auth.getSession():", session, error);
       if (error) {
         setMe(null);
         setIsAdmin(false);
         setOrganization(null);
         return;
       }
-
       if (session?.user) {
         const uid = session.user.id;
         const email = session.user.email || "";
@@ -59,6 +58,8 @@ const AdminUsers: React.FC = () => {
           .select("organization")
           .eq("id", uid)
           .maybeSingle();
+
+        console.log("[DEBUG] public.users org lookup:", data);
 
         setMe({ id: uid, email, organization: data?.organization ?? null });
         setOrganization(data?.organization ?? null);
@@ -76,12 +77,15 @@ const AdminUsers: React.FC = () => {
           `)
           .eq("user_id", uid);
 
+        console.log("[DEBUG] public.user_roles for user:", adminData, adminErr);
+
         // adminData is an array, each having roles
         const hasAdminRole = !!(adminData && adminData.some((row: any) => {
           // row.roles is an object with name
           return row?.roles?.name === "admin";
         }));
         setIsAdmin(hasAdminRole);
+        console.log("[DEBUG] Is admin? ", hasAdminRole);
       } else {
         setMe(null);
         setIsAdmin(false);
@@ -104,15 +108,18 @@ const AdminUsers: React.FC = () => {
         toast({ title: "Error loading users", description: error.message });
         setUsers([]);
         setLoading(false);
+        console.log("[DEBUG] Error loading users:", error);
         return;
       }
       setUsers(data || []);
       setLoading(false);
+      console.log("[DEBUG] Users fetched:", data);
     }
     if (organization) {
       fetchUsers();
     } else {
       setUsers([]);
+      console.log("[DEBUG] Organization not set, skipping fetchUsers");
     }
   }, [organization]);
 
@@ -254,4 +261,3 @@ const AdminUsers: React.FC = () => {
 export default AdminUsers;
 
 // NOTE: This file is getting long (over 200 LOC). Consider asking me to refactor for maintainability!
-
