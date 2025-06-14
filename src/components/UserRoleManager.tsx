@@ -40,14 +40,16 @@ const UserRoleManager: React.FC = () => {
         console.log(`[LOVABLE DEBUG][UserRoleManager] No session user!`, sessionError);
       }
 
-      // Fetch all users from auth (via RPC or Admin API)
-      const { data: usersData, error: userError } = await supabase.auth.admin.listUsers({ perPage: 1000 });
+      // Fetch users from the public.users table
+      const { data: usersData, error: userError } = await supabase
+        .from("users")
+        .select("id, email");
       if (userError) {
         toast({ title: "Error loading users", description: userError.message });
         console.log(`[LOVABLE DEBUG][UserRoleManager] Error loading users:`, userError);
       } else {
-        setUsers(usersData?.users?.map((u: any) => ({ id: u.id, email: u.email })) ?? []);
-        console.log(`[LOVABLE DEBUG][UserRoleManager] Users loaded:`, usersData?.users?.map((u: any) => ({ id: u.id, email: u.email })));
+        setUsers(usersData ?? []);
+        console.log(`[LOVABLE DEBUG][UserRoleManager] Users loaded:`, usersData);
       }
       try {
         const _roles = await fetchRoles();
