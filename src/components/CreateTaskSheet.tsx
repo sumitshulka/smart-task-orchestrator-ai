@@ -30,6 +30,7 @@ async function fetchUsers(): Promise<User[]> {
 
 interface Props {
   onTaskCreated: () => void;
+  children?: React.ReactNode;
 }
 
 const initialForm = {
@@ -65,7 +66,7 @@ const typeOptions = [
   { value: "team", label: "Team" },
 ];
 
-const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated }) => {
+const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children }) => {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(initialForm);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -215,7 +216,14 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated }) => {
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
-        <Button className="mb-6" variant="default">Add Task</Button>
+        {/* If children is provided, use it as the trigger. Otherwise, show the default button */}
+        {children ? (
+          children
+        ) : (
+          <Button className="mb-6" variant="default">
+            Add Task
+          </Button>
+        )}
       </SheetTrigger>
       <SheetContent side="right" className="max-w-5xl w-[60vw] overflow-y-auto">
         {/* Modal widened by 25% */}
