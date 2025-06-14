@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/use-toast";
 import useSupabaseSession from "@/hooks/useSupabaseSession";
 import CreateTaskSheet from "@/components/CreateTaskSheet";
+import { format } from "date-fns";
 
 const TasksPage: React.FC = () => {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -54,13 +55,15 @@ const TasksPage: React.FC = () => {
             <th className="p-2 text-left">Priority</th>
             <th className="p-2 text-left">Due Date</th>
             <th className="p-2 text-left">Status</th>
+            <th className="p-2 text-left">Assigned To</th>
+            <th className="p-2 text-left">Create Date</th>
             <th className="p-2"></th>
           </tr>
         </thead>
         <tbody>
           {tasks.length === 0 && (
             <tr>
-              <td colSpan={6} className="p-4 text-center text-muted-foreground">
+              <td colSpan={8} className="p-4 text-center text-muted-foreground">
                 No tasks found.
               </td>
             </tr>
@@ -78,6 +81,19 @@ const TasksPage: React.FC = () => {
               </td>
               <td className="p-2">{task.due_date}</td>
               <td className="p-2 capitalize">{task.status}</td>
+              <td className="p-2">
+                {task.assigned_user
+                  ? task.assigned_user.user_name ||
+                    task.assigned_user.email
+                  : task.assigned_to
+                  ? `(${task.assigned_to})`
+                  : "-"}
+              </td>
+              <td className="p-2">
+                {task.created_at
+                  ? format(new Date(task.created_at), "yyyy-MM-dd HH:mm")
+                  : "-"}
+              </td>
               <td className="p-2 text-right">
                 <Button
                   variant="ghost"
@@ -96,4 +112,3 @@ const TasksPage: React.FC = () => {
 };
 
 export default TasksPage;
-

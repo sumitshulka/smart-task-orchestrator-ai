@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 
 // -------- Type Definitions --------
@@ -15,18 +16,38 @@ export type Task = {
   team_id: string | null;
   created_at: string;
   updated_at: string;
+  assigned_user?: {
+    email: string;
+    user_name: string | null;
+  } | null;
 };
 
 // -------- CRUD Functions --------
 
-// Fetch all tasks visible to current user
+// Fetch all tasks visible to current user, including assigned user's email and name
 export async function fetchTasks(): Promise<Task[]> {
   const { data, error } = await supabase
     .from("tasks")
-    .select("*")
+    .select(`
+      *,
+      assigned_user:assigned_to (
+        email,
+        user_name
+      )
+    `)
     .order("created_at", { ascending: false });
   if (error) throw error;
-  return data as Task[];
+
+  // Flatten assigned_user property
+  // (if joining does not map as expected, fallback to previous structure)
+  return (data as any[]).map(task => {
+    // "assigned_user" will contain the joined user object (if any).
+    // If using Supabase join as above does not work, fallback to task.assigned_user = null
+    return {
+      ...task,
+      assigned_user: task.assigned_user || null,
+    };
+  }) as Task[];
 }
 
 // Update: require created_by in new task input
