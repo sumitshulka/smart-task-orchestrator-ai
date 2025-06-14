@@ -104,6 +104,7 @@ export default function AdminDashboard() {
   const [highPriorityTasks, setHighPriorityTasks] = useState<any[]>([]);
   const [taskMonthlyStats, setTaskMonthlyStats] = useState<{ month: string; assigned: number; completed: number }[]>([]);
   const [overdueRatio, setOverdueRatio] = useState<string>("0%");
+  const [oldestOpenTasks, setOldestOpenTasks] = useState<any[]>([]);
 
   const navigate = useNavigate();
 
@@ -345,6 +346,31 @@ export default function AdminDashboard() {
           : "0%"
       );
 
+      // --- Get 5 oldest open (non-completed) tasks for this user/role ---
+      let oldestOpenTasksQuery: any = supabase
+        .from("tasks")
+        .select("*")
+        .neq("status", "completed")
+        .order("due_date", { ascending: true, nullsFirst: true })
+        .order("created_at", { ascending: true })
+        .limit(5);
+
+      if (nextTaskFilter.column) {
+        if (nextTaskFilter.op === "in") {
+          oldestOpenTasksQuery = oldestOpenTasksQuery.in(
+            nextTaskFilter.column,
+            nextTaskFilter.value
+          );
+        } else if (nextTaskFilter.op === "eq") {
+          oldestOpenTasksQuery = oldestOpenTasksQuery.eq(
+            nextTaskFilter.column,
+            nextTaskFilter.value
+          );
+        }
+      }
+      const oldestOpenTasksResult: any = await oldestOpenTasksQuery;
+      setOldestOpenTasks(oldestOpenTasksResult?.data || []);
+
       setLoading(false);
     }
     setup();
@@ -371,6 +397,15 @@ export default function AdminDashboard() {
         <Button onClick={() => window.location.reload()}>Retry</Button>
       </div>
     );
+  }
+
+  // Helper: Show task priority as label
+  function priorityLabel(priority: number | null) {
+    return priority === 1
+      ? <span className="text-xs px-2 py-1 rounded-full bg-red-100 text-red-700 font-medium">High</span>
+      : priority === 2
+      ? <span className="text-xs px-2 py-1 rounded-full bg-yellow-100 text-yellow-700 font-medium">Medium</span>
+      : <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-700 font-medium">Low</span>;
   }
 
   // CARD/ROW WRAPPERS
@@ -423,6 +458,38 @@ export default function AdminDashboard() {
               <AssignedVsCompletedChart data={taskMonthlyStats} />
             </SectionCard>
           </div>
+
+          {/* ---------- OLDEST OPEN TASKS LIST SECTION ---------- */}
+          <div className="mt-7">
+            <Card>
+              <CardHeader>
+                <CardTitle>Oldest Open Tasks</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {oldestOpenTasks && oldestOpenTasks.length > 0 ? (
+                  <ul className="divide-y">
+                    {oldestOpenTasks.map((t: any) => (
+                      <li key={t.id} className="py-2 text-sm flex flex-wrap items-center justify-between gap-2">
+                        <span className="font-medium">{t.title}</span>
+                        <span>
+                          Due:{" "}
+                          {t.due_date ? (
+                            <span>{t.due_date}</span>
+                          ) : (
+                            <span className="text-muted-foreground">No due date</span>
+                          )}
+                        </span>
+                        {priorityLabel(t.priority)}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <span className="text-muted-foreground text-sm">No open tasks.</span>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+          {/* ---------------------------------------------------- */}
 
           {/* --- 3 Stat Cards in a Row --- */}
           <div className="mt-7 grid gap-7 md:grid-cols-3">
@@ -522,6 +589,38 @@ export default function AdminDashboard() {
             </SectionCard>
           </div>
           
+          {/* --- OLDEST OPEN TASKS for Users --- */}
+          <div className="mt-7">
+            <Card>
+              <CardHeader>
+                <CardTitle>Oldest Open Tasks</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {oldestOpenTasks && oldestOpenTasks.length > 0 ? (
+                  <ul className="divide-y">
+                    {oldestOpenTasks.map((t: any) => (
+                      <li key={t.id} className="py-2 text-sm flex flex-wrap items-center justify-between gap-2">
+                        <span className="font-medium">{t.title}</span>
+                        <span>
+                          Due:{" "}
+                          {t.due_date ? (
+                            <span>{t.due_date}</span>
+                          ) : (
+                            <span className="text-muted-foreground">No due date</span>
+                          )}
+                        </span>
+                        {priorityLabel(t.priority)}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <span className="text-muted-foreground text-sm">No open tasks.</span>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+          {/* --------------------------- */}
+
           {/* --- 3 Stat Cards in a Row for User --- */}
           <div className="mt-7 grid gap-7 md:grid-cols-3">
             {/* Overdue tasks */}
