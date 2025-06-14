@@ -82,18 +82,31 @@ const EditUserDialog: React.FC<EditUserDialogProps> = ({
     if (!user) return;
     setSaving(true);
 
-    const { error } = await supabase
+    // Make sure to set manager to null if empty string, so DB clears value
+    const cleanedForm = {
+      user_name: form.user_name,
+      department: form.department,
+      phone: form.phone,
+      manager: form.manager === "" ? null : form.manager,
+    };
+
+    console.log("[EditUserDialog] About to update user:", user.id, cleanedForm);
+
+    const { data, error } = await supabase
       .from("users")
-      .update({
-        user_name: form.user_name,
-        department: form.department,
-        phone: form.phone,
-        manager: form.manager
-      })
-      .eq("id", user.id);
+      .update(cleanedForm)
+      .eq("id", user.id)
+      .select("*"); // Get updated row
+
+    console.log("[EditUserDialog] Supabase update result:", { data, error });
 
     if (error) {
       toast({ title: "Failed to update user", description: error.message });
+      setSaving(false);
+      return;
+    }
+    if (!data || data.length === 0) {
+      toast({ title: "Update failed", description: "No data returned from backend." });
       setSaving(false);
       return;
     }
@@ -158,7 +171,9 @@ const EditUserDialog: React.FC<EditUserDialogProps> = ({
               disabled={usersLoading}
             >
               <option value="">Select Manager</option>
-              {allUsers.map((u) => (
+              {allUsers
+                .filter(u => u.id !== user.id) // Don't allow self-manager
+                .map((u) => (
                 <option key={u.id} value={u.id}>
                   {u.user_name ? `${u.user_name} (${u.email})` : u.email}
                 </option>
@@ -180,3 +195,4 @@ const EditUserDialog: React.FC<EditUserDialogProps> = ({
 };
 
 export default EditUserDialog;
+
