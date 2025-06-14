@@ -45,9 +45,8 @@ const AdminUsers: React.FC = () => {
   }, [authLoading, user, navigate]);
 
   useEffect(() => {
-    console.log("[LOVABLE DEBUG][AdminUsers] useSupabaseSession: session:", session, " user:", user, " loading:", authLoading);
     if (!authLoading && !user) {
-      console.warn("[LOVABLE DEBUG][AdminUsers] No user/session detected - you are NOT logged in. Redirect may be required.");
+      // User not logged in; possible redirect in previous effect
     }
   }, [session, user, authLoading]);
 
@@ -62,7 +61,6 @@ const AdminUsers: React.FC = () => {
     async function fetchOrgAndMe() {
       const uid = user.id;
       const email = user.email || "";
-      console.log("[LOVABLE DEBUG][AdminUsers] Session user:", uid, email);
 
       // Fetch user's org from public.users
       const { data, error } = await supabase
@@ -71,13 +69,11 @@ const AdminUsers: React.FC = () => {
         .eq("id", uid)
         .maybeSingle();
 
-      console.log("[DEBUG][AdminUsers] public.users org lookup:", data, error);
-
       setMe({ id: uid, email, organization: data?.organization ?? null });
       setOrganization(data?.organization ?? null);
 
       // Check admin role
-      const { data: adminData, error: adminErr } = await supabase
+      const { data: adminData } = await supabase
         .from("user_roles")
         .select(`
           id,
@@ -89,13 +85,10 @@ const AdminUsers: React.FC = () => {
         `)
         .eq("user_id", uid);
 
-      console.log("[DEBUG][AdminUsers] user_roles lookup:", adminData, adminErr);
-
       const hasAdminRole = !!(adminData && adminData.some((row: any) =>
         row?.roles?.name === "admin"
       ));
       setIsAdmin(hasAdminRole);
-      console.log("[DEBUG][AdminUsers] Is admin? ", hasAdminRole);
     }
     fetchOrgAndMe();
   }, [user]);
@@ -113,18 +106,15 @@ const AdminUsers: React.FC = () => {
         toast({ title: "Error loading users", description: error.message });
         setUsers([]);
         setLoading(false);
-        console.log("[DEBUG][AdminUsers] Error loading users:", error);
         return;
       }
       setUsers(data || []);
       setLoading(false);
-      console.log("[DEBUG][AdminUsers] Users fetched:", data);
     }
     if (organization) {
       fetchUsers();
     } else {
       setUsers([]);
-      console.log("[DEBUG][AdminUsers] Organization not set, skipping fetchUsers");
     }
   }, [organization]);
 
@@ -277,4 +267,3 @@ const AdminUsers: React.FC = () => {
 };
 
 export default AdminUsers;
-// NOTE: This file is now much cleaner!
