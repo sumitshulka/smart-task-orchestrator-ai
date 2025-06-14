@@ -19,15 +19,18 @@ interface User {
   email: string;
 }
 
+const NONE_VALUE = "none";
+
 const OfficeLocationForm: React.FC<OfficeLocationFormProps> = ({
   initialValues,
   onSubmit,
   onCancel
 }) => {
+  // Set initial value for location_manager to "none" if falsy
   const [values, setValues] = useState({
     location_name: initialValues?.location_name || "",
     address: initialValues?.address || "",
-    location_manager: initialValues?.location_manager || "",
+    location_manager: initialValues?.location_manager ? initialValues.location_manager : NONE_VALUE,
   });
   const [loading, setLoading] = useState(false);
 
@@ -82,7 +85,8 @@ const OfficeLocationForm: React.FC<OfficeLocationFormProps> = ({
     onSubmit({
       location_name: values.location_name,
       address: values.address,
-      location_manager: values.location_manager || null,
+      location_manager:
+        values.location_manager === NONE_VALUE ? null : values.location_manager,
     });
     setLoading(false);
   };
@@ -116,7 +120,7 @@ const OfficeLocationForm: React.FC<OfficeLocationFormProps> = ({
           <>
             <Button type="button" className="w-full justify-between" variant="outline"
               onClick={() => setCommandOpen(true)} disabled={loading}>
-              {values.location_manager
+              {values.location_manager && values.location_manager !== NONE_VALUE
                 ? users.find(u => u.id === values.location_manager)?.user_name ||
                   users.find(u => u.id === values.location_manager)?.email ||
                   "Select Location Manager"
@@ -134,6 +138,19 @@ const OfficeLocationForm: React.FC<OfficeLocationFormProps> = ({
                     {users.length === 0 && (
                       <CommandEmpty>No users found.</CommandEmpty>
                     )}
+                    {/* Add (None) option */}
+                    <CommandItem
+                      key={NONE_VALUE}
+                      value="(None)"
+                      onSelect={() => {
+                        setValues((v) => ({ ...v, location_manager: NONE_VALUE }));
+                        setCommandOpen(false);
+                      }}
+                    >
+                      <div>
+                        <div className="font-medium text-muted-foreground">(None)</div>
+                      </div>
+                    </CommandItem>
                     {users.map(user => (
                       <CommandItem
                         key={user.id}
@@ -156,7 +173,7 @@ const OfficeLocationForm: React.FC<OfficeLocationFormProps> = ({
           </>
         ) : (
           <Select
-            value={values.location_manager}
+            value={values.location_manager || NONE_VALUE}
             onValueChange={val =>
               setValues((v) => ({ ...v, location_manager: val }))
             }
@@ -166,7 +183,7 @@ const OfficeLocationForm: React.FC<OfficeLocationFormProps> = ({
               <SelectValue placeholder="Select Location Manager" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem key="" value="">
+              <SelectItem key={NONE_VALUE} value={NONE_VALUE}>
                 (None)
               </SelectItem>
               {users.map(user => (
@@ -191,4 +208,3 @@ const OfficeLocationForm: React.FC<OfficeLocationFormProps> = ({
 };
 
 export default OfficeLocationForm;
-
