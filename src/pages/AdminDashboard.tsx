@@ -7,6 +7,7 @@ import { PieChart, Pie, Cell, Tooltip, Legend, BarChart, XAxis, YAxis, Bar, Resp
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import dayjs from "dayjs";
+import { useStatusStats } from "@/hooks/useStatusStats";
 
 type Role = "admin" | "manager" | "team_manager" | "user" | "unknown";
 
@@ -96,13 +97,15 @@ export default function AdminDashboard() {
   const [userStats, setUserStats] = useState<UserStats | null>(null);
 
   // New: For Analytics
-  const [statusStats, setStatusStats] = useState<StatusStat[]>([]);
   const [overdueTasks, setOverdueTasks] = useState<any[]>([]);
   const [highPriorityTasks, setHighPriorityTasks] = useState<any[]>([]);
   const [taskMonthlyStats, setTaskMonthlyStats] = useState<{ month: string; assigned: number; completed: number }[]>([]);
   const [overdueRatio, setOverdueRatio] = useState<string>("0%");
 
   const navigate = useNavigate();
+
+  // Keep this in state so hooks can use the params
+  const [taskFilter, setTaskFilter] = useState<any>({});
 
   useEffect(() => {
     async function setup() {
@@ -129,10 +132,10 @@ export default function AdminDashboard() {
       setRole(_role);
 
       // Universal filters
-      let taskFilter: any = {};
+      let nextTaskFilter: any = {};
       if (_role === "admin") {
         // Org-wide
-        taskFilter = {};
+        nextTaskFilter = {};
       } else if (_role === "manager" || _role === "team_manager") {
         // Teams
         const { data: memberships } = await supabase
@@ -141,11 +144,12 @@ export default function AdminDashboard() {
           .eq("user_id", user.id);
         const teamIds = memberships?.map((m) => m.team_id) || [];
         if (teamIds.length) {
-          taskFilter = { column: "team_id", op: "in", value: teamIds };
+          nextTaskFilter = { column: "team_id", op: "in", value: teamIds };
         }
       } else if (_role === "user") {
-        taskFilter = { column: "assigned_to", op: "eq", value: user.id };
+        nextTaskFilter = { column: "assigned_to", op: "eq", value: user.id };
       }
+      setTaskFilter(nextTaskFilter);
 
       // 1. Org or user stats
       if (_role === "admin") {
@@ -201,25 +205,6 @@ export default function AdminDashboard() {
           pending: pending || 0,
         });
       }
-
-      // 2. Status Pie Chart data
-      let taskQuery = supabase.from("tasks").select("status");
-      if (taskFilter.column) {
-        if (taskFilter.op === "in") taskQuery = taskQuery.in(taskFilter.column, taskFilter.value);
-        else if (taskFilter.op === "eq") taskQuery = taskQuery.eq(taskFilter.column, taskFilter.value);
-      }
-      // ---- NEW: Stop TypeScript from inferring deep types by using unknown, then cast manually
-      const statusDataRaw = (await taskQuery) as { data: unknown };
-      const taskRows: { status: string }[] = Array.isArray((statusDataRaw.data as any)) 
-        ? (statusDataRaw.data as any[]).map((row: any) => ({ status: row.status })) 
-        : [];
-      const statusCounts: Record<string, number> = {};
-      taskRows.forEach((row) => {
-        statusCounts[row.status] = (statusCounts[row.status] || 0) + 1;
-      });
-      setStatusStats(
-        Object.entries(statusCounts).map(([status, count]) => ({ status, count }))
-      );
 
       // 3. Overdue tasks (due date < today and not completed)
       let overdueQuery = supabase.from("tasks").select("*").lt("due_date", dayjs().format("YYYY-MM-DD")).neq("status", "completed");
