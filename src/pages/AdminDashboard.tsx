@@ -469,9 +469,12 @@ export default function AdminDashboard() {
                 {oldestOpenTasks && oldestOpenTasks.length > 0 ? (
                   <ul className="divide-y">
                     {oldestOpenTasks.map((t: any) => (
-                      <li key={t.id} className="py-2 text-sm flex flex-wrap items-center justify-between gap-2">
-                        <span className="font-medium">{t.title}</span>
-                        <span>
+                      <li
+                        key={t.id}
+                        className="py-2 text-sm grid grid-cols-3 gap-2 items-center"
+                      >
+                        <span className="col-span-1 font-medium truncate">{t.title}</span>
+                        <span className="col-span-1">
                           Due:{" "}
                           {t.due_date ? (
                             <span>{t.due_date}</span>
@@ -479,7 +482,7 @@ export default function AdminDashboard() {
                             <span className="text-muted-foreground">No due date</span>
                           )}
                         </span>
-                        {priorityLabel(t.priority)}
+                        <span className="col-span-1">{priorityLabel(t.priority)}</span>
                       </li>
                     ))}
                   </ul>
@@ -599,9 +602,12 @@ export default function AdminDashboard() {
                 {oldestOpenTasks && oldestOpenTasks.length > 0 ? (
                   <ul className="divide-y">
                     {oldestOpenTasks.map((t: any) => (
-                      <li key={t.id} className="py-2 text-sm flex flex-wrap items-center justify-between gap-2">
-                        <span className="font-medium">{t.title}</span>
-                        <span>
+                      <li
+                        key={t.id}
+                        className="py-2 text-sm grid grid-cols-3 gap-2 items-center"
+                      >
+                        <span className="col-span-1 font-medium truncate">{t.title}</span>
+                        <span className="col-span-1">
                           Due:{" "}
                           {t.due_date ? (
                             <span>{t.due_date}</span>
@@ -609,7 +615,7 @@ export default function AdminDashboard() {
                             <span className="text-muted-foreground">No due date</span>
                           )}
                         </span>
-                        {priorityLabel(t.priority)}
+                        <span className="col-span-1">{priorityLabel(t.priority)}</span>
                       </li>
                     ))}
                   </ul>
