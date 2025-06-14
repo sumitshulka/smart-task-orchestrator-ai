@@ -330,34 +330,33 @@ const BulkUserUploadDialog: React.FC = () => {
         // We'll do a double-pass after all users created, but for simple case, whenever a user's Employee ID is listed in someone's "Manager", assign manager role.
 
         // We'll find all Employee IDs listed as managers in the Excel file
-      }
-      // Double pass: assign manager roles to referenced managers
-      const managerEmployeeIds = parsedRows
-        .map(r => r["Manager"])
-        .filter(mid => mid && typeof mid === "string" && mid !== "")
-        .filter((mid, i, arr) => arr.indexOf(mid) === i); // unique
+        const managerEmployeeIds = parsedRows
+          .map(r => r["Manager"])
+          .filter(mid => mid && typeof mid === "string" && mid !== "")
+          .filter((mid, i, arr) => arr.indexOf(mid) === i); // unique
 
-      for (const mgrEmpId of managerEmployeeIds) {
-        let mgrUserId: string | undefined = undefined;
-        // First try to find that manager's DB id
-        if (empIdToUserObj.has(mgrEmpId)) {
-          mgrUserId = mgrEmpId;
-        } else if (
-          emailToId.has(parsedRows.find(r => r["Employee ID"] === mgrEmpId)?.Email?.toLowerCase() || "")
-        ) {
-          mgrUserId = emailToId.get(parsedRows.find(r => r["Employee ID"] === mgrEmpId)?.Email?.toLowerCase() || "");
+        for (const mgrEmpId of managerEmployeeIds) {
+          let mgrUserId: string | undefined = undefined;
+          // First try to find that manager's DB id
+          if (empIdToUserObj.has(mgrEmpId)) {
+            mgrUserId = mgrEmpId;
+          } else if (
+            emailToId.has(parsedRows.find(r => r["Employee ID"] === mgrEmpId)?.Email?.toLowerCase() || "")
+          ) {
+            mgrUserId = emailToId.get(parsedRows.find(r => r["Employee ID"] === mgrEmpId)?.Email?.toLowerCase() || "");
+          }
+          if (mgrUserId && roleNameToId["manager"]) {
+            // Upsert "manager" role for this user
+            await supabase
+              .from("user_roles")
+              .upsert([
+                { user_id: mgrUserId, role_id: roleNameToId["manager"] }
+              ], { onConflict: "user_id,role_id" });
+            rolesAssigned++;
+          }
         }
-        if (mgrUserId && roleManagerId) {
-          // Upsert "manager" role for this user
-          await supabase
-            .from("user_roles")
-            .upsert([
-              { user_id: mgrUserId, role_id: roleManagerId }
-            ], { onConflict: "user_id,role_id" });
-          rolesAssigned++;
-        }
-      }
 
+      }
       toast({
         title: "Successfully uploaded users",
         description: `${newUsersInserted} created, ${updated} updated, ${rolesAssigned} roles assigned.`
