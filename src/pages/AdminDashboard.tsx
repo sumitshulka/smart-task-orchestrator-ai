@@ -1,10 +1,9 @@
-
 import React, { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { useUsersAndTeams } from "@/hooks/useUsersAndTeams";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { BarChart, PieChart } from "recharts";
+import { BarChart, PieChart, Pie, Cell, Tooltip, Legend } from "recharts";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -42,7 +41,7 @@ function TaskPieChart({ data, width = 260, height = 200 }) {
   return (
     <div className="mx-auto">
       <PieChart width={width} height={height}>
-        <PieChart.Pie
+        <Pie
           data={data}
           dataKey="value"
           nameKey="name"
@@ -51,11 +50,11 @@ function TaskPieChart({ data, width = 260, height = 200 }) {
           outerRadius={60}
           label
         >
-          <PieChart.Cell fill="#8884d8" />
-          <PieChart.Cell fill="#82ca9d" />
-          <PieChart.Cell fill="#ffc658" />
-        </PieChart.Pie>
-        <PieChart.Tooltip />
+          <Cell fill="#8884d8" />
+          <Cell fill="#82ca9d" />
+          <Cell fill="#ffc658" />
+        </Pie>
+        <Tooltip />
       </PieChart>
     </div>
   );
@@ -207,7 +206,7 @@ export default function AdminDashboard() {
               </CardHeader>
               <CardContent>
                 <PieChart width={220} height={160}>
-                  <PieChart.Pie
+                  <Pie
                     data={[
                       { name: "Completed", value: orgStats.completedTasks },
                       { name: "Pending", value: orgStats.pendingTasks },
@@ -220,11 +219,11 @@ export default function AdminDashboard() {
                     fill="#8884d8"
                     label
                   >
-                    <PieChart.Cell fill="#82ca9d" />
-                    <PieChart.Cell fill="#ffc658" />
-                  </PieChart.Pie>
-                  <PieChart.Tooltip />
-                  <PieChart.Legend />
+                    <Cell fill="#82ca9d" />
+                    <Cell fill="#ffc658" />
+                  </Pie>
+                  <Tooltip />
+                  <Legend />
                 </PieChart>
               </CardContent>
             </Card>
