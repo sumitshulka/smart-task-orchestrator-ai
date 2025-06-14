@@ -420,7 +420,9 @@ export default function AdminDashboard() {
               <AssignedVsCompletedChart data={taskMonthlyStats} />
             </SectionCard>
           </div>
-          <div className="mt-7 grid md:grid-cols-2 gap-7">
+
+          {/* --- 3 Stat Cards in a Row --- */}
+          <div className="mt-7 grid gap-7 md:grid-cols-3">
             {/* Overdue tasks count/card */}
             <StatCard
               label="Overdue Tasks"
@@ -439,6 +441,7 @@ export default function AdminDashboard() {
                 </div>
               )}
             />
+
             {/* High Priority tasks */}
             <StatCard
               label="High Priority Tasks"
@@ -457,8 +460,7 @@ export default function AdminDashboard() {
                 </div>
               )}
             />
-          </div>
-          <div className="mt-7 max-w-lg">
+
             {/* Overdue ratio */}
             <StatCard
               label="Overdue Task Ratio"
@@ -469,6 +471,7 @@ export default function AdminDashboard() {
             />
           </div>
 
+          {/* How to use section */}
           <div className="mt-7">
             <Card>
               <CardHeader>
@@ -515,7 +518,9 @@ export default function AdminDashboard() {
               <AssignedVsCompletedChart data={taskMonthlyStats} />
             </SectionCard>
           </div>
-          <div className="mt-7 grid md:grid-cols-2 gap-7">
+          
+          {/* --- 3 Stat Cards in a Row for User --- */}
+          <div className="mt-7 grid gap-7 md:grid-cols-3">
             {/* Overdue tasks */}
             <StatCard
               label="Overdue Tasks"
@@ -534,6 +539,7 @@ export default function AdminDashboard() {
                 </div>
               )}
             />
+
             {/* High Priority tasks */}
             <StatCard
               label="High Priority Tasks"
@@ -552,8 +558,8 @@ export default function AdminDashboard() {
                 </div>
               )}
             />
-          </div>
-          <div className="mt-7 max-w-lg">
+
+            {/* Overdue Task Ratio */}
             <StatCard
               label="Overdue Task Ratio"
               value={overdueRatio}
