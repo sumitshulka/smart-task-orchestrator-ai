@@ -75,3 +75,66 @@ export async function deleteTask(id: string) {
     .eq("id", id);
   if (error) throw error;
 }
+
+// New: Paginated and filterable fetch for tasks
+export type FetchTasksInput = {
+  fromDate?: string; // 'YYYY-MM-DD'
+  toDate?: string;   // 'YYYY-MM-DD'
+  assignedTo?: string; // user id
+  teamId?: string;
+  status?: string;
+  priority?: number;
+  offset?: number;
+  limit?: number;
+  // Add more filters as needed
+};
+
+export type FetchTasksResult = {
+  tasks: Task[];
+  total: number;
+};
+
+export async function fetchTasksPaginated(input: FetchTasksInput = {}): Promise<FetchTasksResult> {
+  let query = supabase
+    .from("tasks")
+    .select(`
+      *,
+      assigned_user:assigned_to (
+        email,
+        user_name
+      )
+    `, { count: "exact" })
+    .order("created_at", { ascending: false });
+
+  // Filtering: created_at
+  if (input.fromDate || input.toDate) {
+    if (input.fromDate && input.toDate) {
+      query = query.gte("created_at", input.fromDate).lte("created_at", input.toDate);
+    } else if (input.fromDate) {
+      query = query.gte("created_at", input.fromDate);
+    } else if (input.toDate) {
+      query = query.lte("created_at", input.toDate);
+    }
+  }
+  // Other filters
+  if (input.assignedTo) query = query.eq("assigned_to", input.assignedTo);
+  if (input.teamId) query = query.eq("team_id", input.teamId);
+  if (input.status && input.status !== "all") query = query.eq("status", input.status);
+  if (input.priority && input.priority !== -1) query = query.eq("priority", input.priority);
+
+  // Limiting
+  if (typeof input.offset === "number" && typeof input.limit === "number") {
+    query = query.range(input.offset, input.offset + input.limit - 1);
+  }
+
+  const { data, count, error } = await query;
+  if (error) throw error;
+  return {
+    tasks: (data as any[]).map(task => ({
+      ...task,
+      assigned_user: task.assigned_user || null,
+      actual_completion_date: task.actual_completion_date ?? null,
+    })) as Task[],
+    total: count ?? 0,
+  };
+}

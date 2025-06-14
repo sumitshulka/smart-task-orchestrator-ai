@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import useSupabaseSession from "@/hooks/useSupabaseSession";
 import { fetchTasks, Task, updateTask } from "@/integrations/supabase/tasks";
@@ -15,6 +14,8 @@ import CreateTaskSheet from "@/components/CreateTaskSheet";
 import KanbanColumn from "./MyTasks/KanbanColumn";
 import KanbanTaskCard from "./MyTasks/KanbanTaskCard";
 import TaskCardClickable from "./MyTasks/TaskCardClickable";
+import Pagination from "@/components/ui/pagination";
+import { fetchTasksPaginated, FetchTasksInput } from "@/integrations/supabase/tasks";
 
 // Pastel color classes for Kanban columns
 const KANBAN_COLORS: Record<string, string> = {
@@ -35,8 +36,14 @@ const getStatusKey = (status: string) => {
 export default function MyTasksPage() {
   const { user } = useSupabaseSession();
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [totalTasks, setTotalTasks] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [view, setView] = useState<"list" | "kanban">("list");
+
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const pageSizeOptions = [25, 50, 75, 100];
+  const [showTooManyWarning, setShowTooManyWarning] = useState(false);
+
   const { users, teams } = useUsersAndTeams();
   const { statuses, loading: statusesLoading } = useTaskStatuses();
 
@@ -47,9 +54,30 @@ export default function MyTasksPage() {
   async function load() {
     if (!user?.id) return;
     setLoading(true);
+    setShowTooManyWarning(false);
+    const today = new Date();
+    const fromDate = new Date(today);
+    fromDate.setDate(today.getDate() - 30);
+    const fromDateStr = fromDate.toISOString().slice(0, 10);
+    const toDateStr = today.toISOString().slice(0, 10);
+
+    const input: FetchTasksInput = {
+      fromDate: fromDateStr,
+      toDate: toDateStr,
+      assignedTo: user.id,
+      offset: (page - 1) * pageSize,
+      limit: pageSize,
+    };
     try {
-      const allTasks = await fetchTasks();
-      setTasks(allTasks.filter((t) => t.assigned_to === user.id));
+      const { tasks, total } = await fetchTasksPaginated(input);
+      if (total > 100) {
+        setShowTooManyWarning(true);
+        setTasks([]);
+        setTotalTasks(total);
+      } else {
+        setTasks(tasks);
+        setTotalTasks(total);
+      }
     } catch (err: any) {
       toast({ title: "Failed to load tasks", description: err.message });
     }
@@ -157,11 +185,18 @@ export default function MyTasksPage() {
           )}
         </div>
       </div>
+      {showTooManyWarning && (
+        <div className="p-4 bg-yellow-50 border border-yellow-200 text-yellow-700 rounded mb-4 text-center">
+          <strong>
+            Too many results ({totalTasks}). Please refine your filters to narrow down the results. Only up to 100 can be loaded at a time.
+          </strong>
+        </div>
+      )}
       {(loading || statusesLoading) && (
         <div className="text-muted-foreground mb-4 text-center">Loading...</div>
       )}
 
-      {!loading && !statusesLoading && tasks.length === 0 && (
+      {!loading && !statusesLoading && !showTooManyWarning && tasks.length === 0 && (
         <div className="flex flex-col items-center justify-center mt-16">
           <img
             src={fallbackImage}
@@ -175,7 +210,7 @@ export default function MyTasksPage() {
         </div>
       )}
 
-      {!loading && !statusesLoading && tasks.length > 0 && view === "list" && (
+      {!loading && !statusesLoading && !showTooManyWarning && tasks.length > 0 && view === "list" && (
         <div className="grid grid-cols-1 gap-6">
           {tasks.map((task) => (
             <TaskCardClickable
@@ -189,7 +224,7 @@ export default function MyTasksPage() {
         </div>
       )}
 
-      {!loading && !statusesLoading && view === "kanban" && (
+      {!loading && !statusesLoading && !showTooManyWarning && view === "kanban" && (
         <DndProvider backend={HTML5Backend}>
           <div className="flex gap-4 overflow-x-auto pb-6">
             {sortedStatusKeys.map((statusKey) => {
@@ -231,6 +266,58 @@ export default function MyTasksPage() {
         currentUser={user}
         onUpdated={load}
       />
+      {!showTooManyWarning && totalTasks > pageSize && view === "list" && (
+        <Pagination className="my-6">
+          <PaginationContent>
+            <PaginationItem>
+              <PaginationPrevious
+                onClick={() => setPage(page > 1 ? page - 1 : 1)}
+                aria-disabled={page <= 1}
+              />
+            </PaginationItem>
+            {Array.from(
+              { length: Math.ceil(totalTasks / pageSize) },
+              (_, i) => (
+                <PaginationItem key={i}>
+                  <PaginationLink
+                    isActive={i + 1 === page}
+                    onClick={() => setPage(i + 1)}
+                  >
+                    {i + 1}
+                  </PaginationLink>
+                </PaginationItem>
+              )
+            )}
+            <PaginationItem>
+              <PaginationNext
+                onClick={() =>
+                  setPage(
+                    page < Math.ceil(totalTasks / pageSize)
+                      ? page + 1
+                      : page
+                  )
+                }
+                aria-disabled={page >= Math.ceil(totalTasks / pageSize)}
+              />
+            </PaginationItem>
+          </PaginationContent>
+          <div className="flex items-center gap-2 ml-8">
+            <span className="text-sm">Rows per page:</span>
+            <select
+              className="border rounded px-2 text-sm"
+              value={pageSize}
+              onChange={(e) => {
+                setPage(1);
+                setPageSize(Number(e.target.value));
+              }}
+            >
+              {pageSizeOptions.map(opt => (
+                <option key={opt} value={opt}>{opt}</option>
+              ))}
+            </select>
+          </div>
+        </Pagination>
+      )}
     </div>
   );
 }

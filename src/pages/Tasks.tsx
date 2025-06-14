@@ -8,6 +8,15 @@ import TaskCard from "@/components/TaskCard";
 import { Image } from "lucide-react";
 import TaskFiltersSidebar from "@/components/TaskFiltersSidebar";
 import { useUsersAndTeams } from "@/hooks/useUsersAndTeams";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationPrevious,
+  PaginationNext,
+} from "@/components/ui/pagination";
+import { fetchTasksPaginated, FetchTasksInput } from "@/integrations/supabase/tasks";
 
 // Priorities filter dropdown
 const priorities = [
@@ -28,8 +37,11 @@ const statuses = [
 const fallbackImage =
   "https://images.unsplash.com/photo-1582562124811-c09040d0a901?auto=format&fit=crop&w=400&q=80";
 
+const pageSizeOptions = [25, 50, 75, 100];
+
 const TasksPage: React.FC = () => {
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [totalTasks, setTotalTasks] = useState(0);
   const [loading, setLoading] = useState(false);
   const { user, loading: sessionLoading } = useSupabaseSession();
   // filters
@@ -40,11 +52,44 @@ const TasksPage: React.FC = () => {
   const [dateRange, setDateRange] = useState<{ from: Date | null; to: Date | null }>({ from: null, to: null });
   const { users, teams } = useUsersAndTeams();
 
+  // Pagination state
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+
+  const [showTooManyWarning, setShowTooManyWarning] = useState(false);
+
   async function load() {
     setLoading(true);
+    setShowTooManyWarning(false);
+
+    // Prepare fetch input: default view only tasks from last 30 days
+    const today = new Date();
+    const fromDateObj = new Date(today);
+    fromDateObj.setDate(today.getDate() - 30);
+    const fromDateStr = fromDateObj.toISOString().slice(0, 10);
+    const toDateStr = today.toISOString().slice(0, 10);
+
+    // Build filter query from current filters
+    const input: FetchTasksInput = {
+      fromDate: fromDateStr,
+      toDate: toDateStr,
+      priority: priorityFilter === "all" ? undefined : Number(priorityFilter),
+      status: statusFilter === "all" ? undefined : statusFilter,
+      assignedTo: userFilter === "all" ? undefined : userFilter,
+      teamId: teamFilter === "all" ? undefined : teamFilter,
+      offset: (page - 1) * pageSize,
+      limit: pageSize,
+    };
     try {
-      const data = await fetchTasks();
-      setTasks(data);
+      const { tasks, total } = await fetchTasksPaginated(input);
+      if (total > 100) {
+        setShowTooManyWarning(true);
+        setTasks([]);
+        setTotalTasks(total);
+      } else {
+        setTasks(tasks);
+        setTotalTasks(total);
+      }
     } catch (err: any) {
       toast({ title: "Failed to load tasks", description: err.message });
     }
@@ -53,7 +98,8 @@ const TasksPage: React.FC = () => {
 
   useEffect(() => {
     load();
-  }, []);
+    // eslint-disable-next-line
+  }, [priorityFilter, statusFilter, userFilter, teamFilter, dateRange, page, pageSize]);
 
   // Restrict delete to status 'pending' or 'new'
   function canDelete(status: string) {
@@ -117,11 +163,20 @@ const TasksPage: React.FC = () => {
             </CreateTaskSheet>
           </div>
         </div>
+
+        {showTooManyWarning && (
+          <div className="p-4 bg-yellow-50 border border-yellow-200 text-yellow-700 rounded mb-4 text-center">
+            <strong>
+              Too many results ({totalTasks}). Please refine your filters to narrow down the results. Only up to 100 can be loaded at a time.
+            </strong>
+          </div>
+        )}
+
         {loading && (
           <div className="text-muted-foreground mb-4 text-center">Loading...</div>
         )}
 
-        {!loading && filteredTasks.length === 0 && (
+        {!loading && !showTooManyWarning && filteredTasks.length === 0 && (
           <div className="flex flex-col items-center justify-center mt-16">
             <img
               src={fallbackImage}
@@ -135,17 +190,66 @@ const TasksPage: React.FC = () => {
           </div>
         )}
 
-        {/* Grid layout: single card per row */}
         <div className="grid grid-cols-1 gap-6">
-          {filteredTasks.map((task) => (
-            <TaskCard
-              key={task.id}
-              task={task}
-              onTaskUpdated={load}
-              canDelete={canDelete}
-            />
-          ))}
+          {!showTooManyWarning &&
+            tasks.map((task) => (
+              <TaskCard key={task.id} task={task} onTaskUpdated={load} canDelete={canDelete} />
+            ))}
         </div>
+        {/* Pagination controls */}
+        {!showTooManyWarning && totalTasks > pageSize && (
+          <Pagination className="my-6">
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious
+                  onClick={() => setPage(page > 1 ? page - 1 : 1)}
+                  aria-disabled={page <= 1}
+                />
+              </PaginationItem>
+              {Array.from(
+                { length: Math.ceil(totalTasks / pageSize) },
+                (_, i) => (
+                  <PaginationItem key={i}>
+                    <PaginationLink
+                      isActive={i + 1 === page}
+                      onClick={() => setPage(i + 1)}
+                    >
+                      {i + 1}
+                    </PaginationLink>
+                  </PaginationItem>
+                )
+              )}
+              <PaginationItem>
+                <PaginationNext
+                  onClick={() =>
+                    setPage(
+                      page < Math.ceil(totalTasks / pageSize)
+                        ? page + 1
+                        : page
+                    )
+                  }
+                  aria-disabled={page >= Math.ceil(totalTasks / pageSize)}
+                />
+              </PaginationItem>
+            </PaginationContent>
+            {/* Page size selector */}
+            <div className="flex items-center gap-2 ml-8">
+              <span className="text-sm">Rows per page:</span>
+              <select
+                className="border rounded px-2 text-sm"
+                value={pageSize}
+                onChange={(e) => {
+                  setPage(1);
+                  setPageSize(Number(e.target.value));
+                }}
+              >
+                {pageSizeOptions.map(opt => (
+                  <option key={opt} value={opt}>{opt}</option>
+                ))}
+              </select>
+            </div>
+          </Pagination>
+        )}
       </div>
     </div>
   );
