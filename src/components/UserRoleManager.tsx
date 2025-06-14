@@ -22,22 +22,49 @@ const UserRoleManager: React.FC = () => {
   const [roles, setRoles] = useState<Role[]>([]);
   const [userRoles, setUserRoles] = useState<UserRole[]>([]);
   const [loading, setLoading] = useState(false);
+  const [sessionUserId, setSessionUserId] = useState<string | null>(null);
+  const [sessionUserEmail, setSessionUserEmail] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchInitialData() {
       setLoading(true);
+      // Get current session user before doing anything else
+      const { data: userSessionData, error: sessionError } = await supabase.auth.getUser();
+      if (userSessionData?.user) {
+        setSessionUserId(userSessionData.user.id);
+        setSessionUserEmail(userSessionData.user.email);
+        console.log(`[LOVABLE DEBUG][UserRoleManager] Session user:`, userSessionData.user.id, userSessionData.user.email);
+      } else {
+        setSessionUserId(null);
+        setSessionUserEmail(null);
+        console.log(`[LOVABLE DEBUG][UserRoleManager] No session user!`, sessionError);
+      }
+
       // Fetch all users from auth (via RPC or Admin API)
       const { data: usersData, error: userError } = await supabase.auth.admin.listUsers({ perPage: 1000 });
       if (userError) {
         toast({ title: "Error loading users", description: userError.message });
+        console.log(`[LOVABLE DEBUG][UserRoleManager] Error loading users:`, userError);
       } else {
         setUsers(usersData?.users?.map((u: any) => ({ id: u.id, email: u.email })) ?? []);
+        console.log(`[LOVABLE DEBUG][UserRoleManager] Users loaded:`, usersData?.users?.map((u: any) => ({ id: u.id, email: u.email })));
       }
       try {
-        setRoles(await fetchRoles());
-        setUserRoles(await fetchUserRoles());
+        const _roles = await fetchRoles();
+        setRoles(_roles);
+        console.log(`[LOVABLE DEBUG][UserRoleManager] Roles:`, _roles);
+
+        const _userRoles = await fetchUserRoles();
+        setUserRoles(_userRoles);
+        console.log(`[LOVABLE DEBUG][UserRoleManager] UserRoles:`, _userRoles);
+
+        // Check if current session user is admin
+        const adminRole = _roles.find(r => r.name === "admin");
+        const hasAdmin = _userRoles.some(ur => ur.user_id === userSessionData?.user?.id && ur.role_id === adminRole?.id);
+        console.log(`[LOVABLE DEBUG][UserRoleManager] Is current user admin?`, hasAdmin, "adminRole.id:", adminRole?.id, "user id:", userSessionData?.user?.id);
       } catch (err: any) {
         toast({ title: "Error", description: err.message });
+        console.log(`[LOVABLE DEBUG][UserRoleManager] Error when fetching roles/userRoles:`, err);
       }
       setLoading(false);
     }
@@ -57,6 +84,7 @@ const UserRoleManager: React.FC = () => {
       setUserRoles(await fetchUserRoles());
     } catch (err: any) {
       toast({ title: "Error assigning role", description: err.message });
+      console.log(`[LOVABLE DEBUG][UserRoleManager] Error assigning role:`, err);
     }
     setLoading(false);
   };
@@ -69,6 +97,7 @@ const UserRoleManager: React.FC = () => {
       setUserRoles(await fetchUserRoles());
     } catch (err: any) {
       toast({ title: "Error removing role", description: err.message });
+      console.log(`[LOVABLE DEBUG][UserRoleManager] Error removing role:`, err);
     }
     setLoading(false);
   };
@@ -76,6 +105,11 @@ const UserRoleManager: React.FC = () => {
   return (
     <div className="p-6 max-w-3xl mx-auto">
       <h1 className="text-2xl font-bold mb-6">User Role Management</h1>
+      {sessionUserId && (
+        <div className="mb-4 p-2 bg-muted rounded text-xs text-muted-foreground">
+          Debug: Session user = {sessionUserId} ({sessionUserEmail})
+        </div>
+      )}
       {loading && <div className="text-muted-foreground mb-4">Loading...</div>}
       <table className="w-full border text-sm rounded-md shadow bg-background">
         <thead>
@@ -142,3 +176,4 @@ const UserRoleManager: React.FC = () => {
 };
 
 export default UserRoleManager;
+
