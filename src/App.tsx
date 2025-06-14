@@ -14,6 +14,7 @@ import AdminSettings from "./pages/AdminSettings";
 import TasksPage from "./pages/Tasks";
 import MyTasksPage from "./pages/MyTasks";
 import HistoricalTasks from "./pages/HistoricalTasks";
+import AdminDashboard from "./pages/AdminDashboard";
 
 const queryClient = new QueryClient();
 
@@ -86,6 +87,14 @@ const App = () => (
             element={
               <AdminLayout>
                 <HistoricalTasks />
+              </AdminLayout>
+            }
+          />
+          <Route
+            path="/admin/dashboard"
+            element={
+              <AdminLayout>
+                <AdminDashboard />
               </AdminLayout>
             }
           />

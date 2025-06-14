@@ -1,4 +1,3 @@
-
 import React from "react";
 import { useLocation, NavLink } from "react-router-dom";
 import {
@@ -13,12 +12,17 @@ import {
   SidebarTrigger,
   SidebarProvider,
 } from "@/components/ui/sidebar";
-import { Users2, UsersRound, ShieldCheck, ClipboardList, ListTodo, History } from "lucide-react"; // Added History icon
+import { LayoutDashboard, Users2, UsersRound, ShieldCheck, ClipboardList, ListTodo, History } from "lucide-react"; // add LayoutDashboard icon
 import Logo from "./Logo";
 
 export default function AppSidebar() {
   const location = useLocation();
   const navItems = [
+    {
+      label: "Dashboard",
+      to: "/admin/dashboard",
+      Icon: LayoutDashboard,
+    },
     {
       label: "User Management",
       to: "/admin/users",
