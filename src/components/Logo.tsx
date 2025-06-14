@@ -8,7 +8,7 @@ const Logo: React.FC = () => (
       className="text-2xl md:text-3xl font-black tracking-tight bg-gradient-to-r from-blue-600 via-blue-400 to-teal-400 text-transparent bg-clip-text drop-shadow-lg"
       aria-label="Go to homepage"
     >
-      Smart Task Manager
+      #smarttask
     </a>
   </div>
 );
