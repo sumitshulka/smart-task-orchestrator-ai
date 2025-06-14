@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { useUserList } from "@/hooks/useUserList";
 
 interface User {
   id: string;
@@ -37,6 +38,9 @@ const EditUserDialog: React.FC<EditUserDialogProps> = ({
   });
   const [departments, setDepartments] = useState<string[]>([]);
   const [departmentsLoading, setDepartmentsLoading] = useState(false);
+
+  // User list for manager dropdown
+  const { users: allUsers, loading: usersLoading } = useUserList();
 
   // Fetch departments dynamically from Supabase
   useEffect(() => {
@@ -146,11 +150,20 @@ const EditUserDialog: React.FC<EditUserDialogProps> = ({
           </div>
           <div>
             <label className="block text-xs mb-1 font-medium text-muted-foreground">Manager</label>
-            <Input
+            <select
               name="manager"
               value={form.manager}
               onChange={handleChange}
-            />
+              className="border rounded px-2 py-1 w-full"
+              disabled={usersLoading}
+            >
+              <option value="">Select Manager</option>
+              {allUsers.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.user_name ? `${u.user_name} (${u.email})` : u.email}
+                </option>
+              ))}
+            </select>
           </div>
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} disabled={saving}>

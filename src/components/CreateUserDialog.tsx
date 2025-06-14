@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import {
   Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose,
@@ -9,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useDepartments } from "@/hooks/useDepartments";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { apiCreateUser } from "@/integrations/supabase/apiCreateUser";
+import { useUserList } from "@/hooks/useUserList";
 
 interface CreateUserDialogProps {
   onUserCreated?: () => void;
@@ -37,6 +39,8 @@ const CreateUserDialog: React.FC<CreateUserDialogProps> = ({
   const { departments, loading: departmentsLoading } = useDepartments();
   // Current admin logic refactored into useCurrentUser
   const currentUser = useCurrentUser(organization);
+  // All users for manager dropdown
+  const { users: allUsers, loading: usersLoading } = useUserList();
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setValues((v) => ({ ...v, [e.target.name]: e.target.value }));
@@ -143,13 +147,21 @@ const CreateUserDialog: React.FC<CreateUserDialogProps> = ({
               onChange={handleChange}
               disabled={loading}
             />
-            <Input
+            {/* MANAGER DROPDOWN */}
+            <select
               name="manager"
-              placeholder="Manager"
+              className="border rounded px-2 py-2 text-sm bg-background"
               value={values.manager}
               onChange={handleChange}
-              disabled={loading}
-            />
+              disabled={loading || usersLoading}
+            >
+              <option value="">Select Manager</option>
+              {allUsers.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.user_name ? `${u.user_name} (${u.email})` : u.email}
+                </option>
+              ))}
+            </select>
             {error && (<div className="text-red-600 text-sm">{error}</div>)}
           </div>
           <DialogFooter>
@@ -169,3 +181,4 @@ const CreateUserDialog: React.FC<CreateUserDialogProps> = ({
 };
 
 export default CreateUserDialog;
+
