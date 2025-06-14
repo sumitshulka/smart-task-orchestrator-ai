@@ -14,16 +14,20 @@ export function useStatusStats(taskFilter: any) {
   useEffect(() => {
     async function fetchStatusStats() {
       setLoading(true);
-      let taskQuery = supabase.from("tasks").select("status");
+      // Explicitly prevent excessive deep inference: use 'any'
+      let taskQuery: any = supabase.from("tasks").select("status");
       if (taskFilter && taskFilter.column) {
-        if (taskFilter.op === "in") taskQuery = taskQuery.in(taskFilter.column, taskFilter.value);
-        else if (taskFilter.op === "eq") taskQuery = taskQuery.eq(taskFilter.column, taskFilter.value);
+        if (taskFilter.op === "in") {
+          taskQuery = taskQuery.in(taskFilter.column, taskFilter.value);
+        } else if (taskFilter.op === "eq") {
+          taskQuery = taskQuery.eq(taskFilter.column, taskFilter.value);
+        }
       }
-      // Use untyped data for simplicity
-      const { data } = await taskQuery;
-      const taskRows = Array.isArray(data) ? data : [];
+      // Use any[] instead of letting TS infer supabase's type
+      const { data } = await (taskQuery as any);
+      const taskRows: any[] = Array.isArray(data) ? data : [];
       const statusCounts: Record<string, number> = {};
-      for (const row of taskRows as any[]) {
+      for (const row of taskRows) {
         statusCounts[row.status] = (statusCounts[row.status] || 0) + 1;
       }
       setStatusStats(

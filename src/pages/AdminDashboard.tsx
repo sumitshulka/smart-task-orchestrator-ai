@@ -107,6 +107,9 @@ export default function AdminDashboard() {
   // Keep this in state so hooks can use the params
   const [taskFilter, setTaskFilter] = useState<any>({});
 
+  // --- NEW: Use status stats hook
+  const { statusStats, loading: statusLoading } = useStatusStats(taskFilter);
+
   useEffect(() => {
     async function setup() {
       setLoading(true);
@@ -336,7 +339,9 @@ export default function AdminDashboard() {
           <div className="grid md:grid-cols-2 gap-7">
             {/* Status Breakdown Pie */}
             <SectionCard title="Task Status Breakdown">
-              {statusStats.length > 0 ? (
+              {statusLoading ? (
+                <div className="text-muted-foreground text-sm">Loading...</div>
+              ) : statusStats.length > 0 ? (
                 <StatusPieChart data={statusStats} />
               ) : (
                 <div className="text-muted-foreground text-sm">No tasks found for this role.</div>
@@ -431,7 +436,9 @@ export default function AdminDashboard() {
           <div className="grid md:grid-cols-2 gap-7">
             {/* Status Breakdown Pie */}
             <SectionCard title="Task Status Breakdown">
-              {statusStats.length > 0 ? (
+              {statusLoading ? (
+                <div className="text-muted-foreground text-sm">Loading...</div>
+              ) : statusStats.length > 0 ? (
                 <StatusPieChart data={statusStats} />
               ) : (
                 <div className="text-muted-foreground text-sm">No assigned tasks found.</div>
