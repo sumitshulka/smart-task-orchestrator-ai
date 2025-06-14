@@ -17,6 +17,9 @@ import {
   PaginationNext,
 } from "@/components/ui/pagination";
 import { fetchTasksPaginated, FetchTasksInput } from "@/integrations/supabase/tasks";
+import TasksList from "@/components/TasksList";
+import TasksNoResults from "@/components/TasksNoResults";
+import TasksPagination from "@/components/TasksPagination";
 
 // Priorities filter dropdown
 const priorities = [
@@ -215,92 +218,23 @@ const TasksPage: React.FC = () => {
           <div className="text-muted-foreground mb-4 text-center">Loading...</div>
         )}
 
-        {/* Modification: When no tasks found, but there are latest tasks, show both */}
         {!loading && !showTooManyWarning && filteredTasks.length === 0 && (
-          <div>
-            <div className="flex flex-col items-center justify-center mt-16">
-              <img
-                src={fallbackImage}
-                alt="No data found"
-                className="w-40 h-40 object-cover rounded-lg mb-4 shadow"
-              />
-              <div className="text-muted-foreground text-lg mb-2 flex items-center gap-2">
-                <Image className="w-5 h-5" />
-                No tasks found.
-              </div>
-            </div>
-            {allTasks.length > 0 && (
-              <div className="mt-10">
-                <h2 className="text-lg font-bold mb-4">Latest Tasks</h2>
-                <div className="grid grid-cols-1 gap-6">
-                  {allTasks.map((task) => (
-                    <TaskCard key={task.id} task={task} onTaskUpdated={load} canDelete={canDelete} />
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
+          <TasksNoResults allTasks={allTasks} onTaskUpdated={load} canDelete={canDelete} />
         )}
 
-        <div className="grid grid-cols-1 gap-6">
-          {!showTooManyWarning && filteredTasks.length > 0 &&
-            filteredTasks.map((task) => (
-              <TaskCard key={task.id} task={task} onTaskUpdated={load} canDelete={canDelete} />
-            ))}
-        </div>
-        {/* Pagination controls */}
-        {!showTooManyWarning && totalTasks > pageSize && (
-          <Pagination className="my-6">
-            <PaginationContent>
-              <PaginationItem>
-                <PaginationPrevious
-                  onClick={() => setPage(page > 1 ? page - 1 : 1)}
-                  aria-disabled={page <= 1}
-                />
-              </PaginationItem>
-              {Array.from(
-                { length: Math.ceil(totalTasks / pageSize) },
-                (_, i) => (
-                  <PaginationItem key={i}>
-                    <PaginationLink
-                      isActive={i + 1 === page}
-                      onClick={() => setPage(i + 1)}
-                    >
-                      {i + 1}
-                    </PaginationLink>
-                  </PaginationItem>
-                )
-              )}
-              <PaginationItem>
-                <PaginationNext
-                  onClick={() =>
-                    setPage(
-                      page < Math.ceil(totalTasks / pageSize)
-                        ? page + 1
-                        : page
-                    )
-                  }
-                  aria-disabled={page >= Math.ceil(totalTasks / pageSize)}
-                />
-              </PaginationItem>
-            </PaginationContent>
-            {/* Page size selector */}
-            <div className="flex items-center gap-2 ml-8">
-              <span className="text-sm">Rows per page:</span>
-              <select
-                className="border rounded px-2 text-sm"
-                value={pageSize}
-                onChange={(e) => {
-                  setPage(1);
-                  setPageSize(Number(e.target.value));
-                }}
-              >
-                {pageSizeOptions.map(opt => (
-                  <option key={opt} value={opt}>{opt}</option>
-                ))}
-              </select>
-            </div>
-          </Pagination>
+        {!showTooManyWarning && filteredTasks.length > 0 && (
+          <TasksList tasks={filteredTasks} onTaskUpdated={load} canDelete={canDelete} />
+        )}
+
+        {!showTooManyWarning && (
+          <TasksPagination
+            page={page}
+            setPage={setPage}
+            pageSize={pageSize}
+            setPageSize={setPageSize}
+            totalTasks={totalTasks}
+            pageSizeOptions={pageSizeOptions}
+          />
         )}
       </div>
     </div>
