@@ -203,19 +203,17 @@ export default function AdminDashboard() {
       }
 
       // 2. Status Pie Chart data
-      // -- FIX: Fetch all relevant tasks, count statuses in JS, do NOT use .group
-
+      // Avoid deep type inference error: always type data as any[] immediately
       let taskQuery = supabase.from("tasks").select("status");
       if (taskFilter.column) {
         if (taskFilter.op === "in") taskQuery = taskQuery.in(taskFilter.column, taskFilter.value);
         else if (taskFilter.op === "eq") taskQuery = taskQuery.eq(taskFilter.column, taskFilter.value);
       }
-      const { data: taskRows } = await taskQuery;
-      // Typecast to any[] to prevent deep type inference error
-      const taskRowsArr: any[] = Array.isArray(taskRows) ? taskRows : [];
+      const { data } = await taskQuery;
+      const taskRows: any[] = Array.isArray(data) ? data : [];
       // Count statuses client-side
       const statusCounts: Record<string, number> = {};
-      taskRowsArr.forEach((row: any) => {
+      taskRows.forEach((row: any) => {
         statusCounts[row.status] = (statusCounts[row.status] || 0) + 1;
       });
       setStatusStats(
