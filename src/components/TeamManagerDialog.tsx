@@ -52,8 +52,23 @@ const TeamManagerDialog: React.FC<TeamManagerDialogProps> = ({
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
-  const [managerId, setManagerId] = useState<string>("");
+  const [managerId, setManagerId] = useState<string>(""); // <--- this line remains the same
   const [deleteOpen, setDeleteOpen] = useState(false);
+
+  // Update managerId whenever members data changes
+  React.useEffect(() => {
+    if (!open) return;
+    if (members.length > 0) {
+      const managerEntry = members.find((m) => m.role_within_team === "manager");
+      if (managerEntry?.user_id) {
+        setManagerId(managerEntry.user_id);
+      }
+    }
+    // If team changed and there are no members, reset manager
+    if (members.length === 0) {
+      setManagerId("");
+    }
+  }, [members, open]);
 
   // Keep form state in sync with team prop and dialog open state.
   useEffect(() => {
@@ -87,7 +102,7 @@ const TeamManagerDialog: React.FC<TeamManagerDialogProps> = ({
     if (!open || !team) {
       setMembers([]);
       setSelectedUserIds([]);
-      setManagerId("");
+      // setManagerId(""); <--- Leave to be set by the managerId/members effect
       return;
     }
 
@@ -102,13 +117,11 @@ const TeamManagerDialog: React.FC<TeamManagerDialogProps> = ({
         toast({ title: "Failed to load team members", description: error.message });
         setMembers([]);
         setSelectedUserIds([]);
-        setManagerId("");
         return;
       }
       if (!membershipsRaw || membershipsRaw.length === 0) {
         setMembers([]);
         setSelectedUserIds([]);
-        setManagerId("");
         return;
       }
       // Gather all user ids for later join
@@ -124,7 +137,6 @@ const TeamManagerDialog: React.FC<TeamManagerDialogProps> = ({
         toast({ title: "Failed to load member user data", description: userLoadErr.message });
         setMembers([]);
         setSelectedUserIds([]);
-        setManagerId("");
         return;
       }
       // Map user_id -> user
@@ -146,8 +158,6 @@ const TeamManagerDialog: React.FC<TeamManagerDialogProps> = ({
 
       setMembers(enrichedMembers);
       setSelectedUserIds(enrichedMembers.map(m => m.user_id));
-      const managerEntry = enrichedMembers.find((m) => m.role_within_team === "manager");
-      setManagerId(managerEntry?.user_id || "");
     }
     fetchMembers();
   }, [open, team]);
