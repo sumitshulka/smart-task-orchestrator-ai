@@ -66,8 +66,12 @@ const TasksPage: React.FC = () => {
     const today = new Date();
     const fromDateObj = new Date(today);
     fromDateObj.setDate(today.getDate() - 30);
+
+    // --- CHANGED SECTION: set toDateObj as tomorrow for inclusive today ---
+    const toDateObj = new Date(today);
+    toDateObj.setDate(today.getDate() + 1); // tomorrow
     const fromDateStr = fromDateObj.toISOString().slice(0, 10);
-    const toDateStr = today.toISOString().slice(0, 10);
+    const toDateStr = toDateObj.toISOString().slice(0, 10);
 
     // Build filter query from current filters
     const input: FetchTasksInput = {
