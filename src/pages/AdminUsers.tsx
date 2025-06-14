@@ -1,4 +1,6 @@
+
 import React, { useEffect, useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,6 +32,7 @@ const departments = [
 ];
 
 const AdminUsers: React.FC = () => {
+  const navigate = useNavigate();
   const { session, user, loading: authLoading } = useSupabaseSession();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
@@ -40,7 +43,13 @@ const AdminUsers: React.FC = () => {
   const [me, setMe] = useState<{ id: string, email: string, organization: string | null } | null>(null);
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
 
-  // Debug logs for session and user
+  // Redirect to /auth if user is logged out and auth has finished loading
+  useEffect(() => {
+    if (!authLoading && !user) {
+      navigate("/auth", { replace: true });
+    }
+  }, [authLoading, user, navigate]);
+
   useEffect(() => {
     console.log("[LOVABLE DEBUG][AdminUsers] useSupabaseSession: session:", session, " user:", user, " loading:", authLoading);
     if (!authLoading && !user) {
@@ -205,10 +214,16 @@ const AdminUsers: React.FC = () => {
     );
   }
 
+  // Show loading state while checking authentication
   if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center text-lg text-muted-foreground">Checking authentication...</div>
     );
+  }
+
+  // If user is not authenticated, don't render anything here; useEffect will redirect to /auth
+  if (!user) {
+    return null;
   }
 
   return (
@@ -296,3 +311,4 @@ const AdminUsers: React.FC = () => {
 
 export default AdminUsers;
 // NOTE: This file is now too long! Consider refactoring after confirming fix!
+
