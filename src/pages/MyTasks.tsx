@@ -138,7 +138,7 @@ export default function MyTasksPage() {
       <div
         ref={dragRef}
         style={{ opacity: isDragging ? 0.5 : 1, cursor: "pointer" }}
-        className="rounded border bg-white shadow p-4 hover:shadow-lg transition-all select-none"
+        className="rounded border bg-white shadow p-4 hover:shadow-lg transition-all select-none max-w-[320px] mx-auto"
         onClick={openDetails}
       >
         <div className="font-semibold mb-2 truncate">{task.title}</div>
@@ -187,6 +187,19 @@ export default function MyTasksPage() {
     }
   };
 
+  // --- Unified Task Card Click in Both Views ---
+  function TaskCardClickable({ task }: { task: Task }) {
+    const openDetails = () => {
+      setDetailsTask(task);
+      setDetailsOpen(true);
+    };
+    return (
+      <div className="cursor-pointer" onClick={openDetails}>
+        <TaskCard task={task} onTaskUpdated={load} canDelete={canDelete} />
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col w-full max-w-7xl mx-auto px-4 py-8">
       <div className="flex w-full items-center gap-4 mb-6">
@@ -231,7 +244,7 @@ export default function MyTasksPage() {
       {!loading && !statusesLoading && tasks.length > 0 && view === "list" && (
         <div className="grid grid-cols-1 gap-6">
           {tasks.map((task) => (
-            <TaskCard key={task.id} task={task} onTaskUpdated={load} canDelete={canDelete} />
+            <TaskCardClickable key={task.id} task={task} />
           ))}
         </div>
       )}
