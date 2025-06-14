@@ -13,7 +13,7 @@ import {
   SidebarTrigger,
   SidebarProvider,
 } from "@/components/ui/sidebar";
-import { Users2, UsersRound, ShieldCheck, ClipboardList, ListTodo } from "lucide-react"; // Added ListTodo
+import { Users2, UsersRound, ShieldCheck, ClipboardList, ListTodo, History } from "lucide-react"; // Added History icon
 import Logo from "./Logo";
 
 export default function AppSidebar() {
@@ -43,6 +43,11 @@ export default function AppSidebar() {
       label: "My Tasks",
       to: "/admin/my-tasks",
       Icon: ListTodo,
+    },
+    {
+      label: "Historical Tasks",
+      to: "/admin/historical-tasks",
+      Icon: History,
     },
   ];
 

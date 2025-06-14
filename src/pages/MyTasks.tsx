@@ -45,8 +45,6 @@ export default function MyTasksPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [totalTasks, setTotalTasks] = useState(0);
   const [loading, setLoading] = useState(false);
-
-  // -- ADDED: State for view (list/kanban) --
   const [view, setView] = useState<"list" | "kanban">("list");
 
   const [page, setPage] = useState(1);
@@ -80,6 +78,8 @@ export default function MyTasksPage() {
     };
     try {
       const { tasks, total } = await fetchTasksPaginated(input);
+      console.log("[LOVABLE DEBUG][MyTasks.tsx] load() input:", input);
+      console.log("[LOVABLE DEBUG][MyTasks.tsx] Result:", tasks, "Total:", total);
       if (total > 100) {
         setShowTooManyWarning(true);
         setTasks([]);

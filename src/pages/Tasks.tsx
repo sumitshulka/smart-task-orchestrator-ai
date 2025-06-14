@@ -82,6 +82,8 @@ const TasksPage: React.FC = () => {
     };
     try {
       const { tasks, total } = await fetchTasksPaginated(input);
+      console.log("[LOVABLE DEBUG][Tasks.tsx] load() input:", input);
+      console.log("[LOVABLE DEBUG][Tasks.tsx] Result:", tasks, "Total:", total);
       if (total > 100) {
         setShowTooManyWarning(true);
         setTasks([]);
