@@ -111,6 +111,7 @@ const TasksPage: React.FC = () => {
   // Filtering logic
   const filteredTasks = useMemo(() => {
     console.log("[LOVABLE DEBUG][Tasks.tsx] Raw Tasks:", tasks);
+    // Only filter by dateRange if the user selected a range
     const result = tasks.filter((task) => {
       // Priority filter
       const priorityPass =
@@ -124,10 +125,13 @@ const TasksPage: React.FC = () => {
       // Team filter
       const teamPass =
         !teamFilter || teamFilter === "all" || (task.team_id && task.team_id === teamFilter);
-      // Date filter (created_at)
+
+      // Date filter: only if the user selected a custom range
       let datePass = true;
       if (dateRange.from && dateRange.to) {
+        // task.created_at is string (ISO date)
         const createdDate = new Date(task.created_at);
+        // To make the date range inclusive, compare using timestamp
         datePass = createdDate >= dateRange.from && createdDate <= dateRange.to;
       }
       return priorityPass && statusPass && userPass && teamPass && datePass;
