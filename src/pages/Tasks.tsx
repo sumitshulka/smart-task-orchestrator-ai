@@ -80,10 +80,16 @@ const TasksPage: React.FC = () => {
       offset: (page - 1) * pageSize,
       limit: pageSize,
     };
+    console.log("[TASKS] Calling fetchTasksPaginated with input:", input);
     try {
       const { tasks, total } = await fetchTasksPaginated(input);
-      console.log("[LOVABLE DEBUG][Tasks.tsx] load() input:", input);
-      console.log("[LOVABLE DEBUG][Tasks.tsx] Result:", tasks, "Total:", total);
+      console.log("[TASKS] fetchTasksPaginated response:", tasks, "Total:", total);
+      // Print first 5 tasks for manual inspection
+      if (tasks.length) {
+        console.log("[TASKS] Example task:", tasks[0]);
+        // Print all assigned_to user ids to check type
+        console.log("[TASKS] All assigned_to:", tasks.map(t => t.assigned_to));
+      }
       if (total > 100) {
         setShowTooManyWarning(true);
         setTasks([]);

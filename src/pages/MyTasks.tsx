@@ -76,10 +76,18 @@ export default function MyTasksPage() {
       offset: (page - 1) * pageSize,
       limit: pageSize,
     };
+    // Log which user id we're passing and their type
+    console.log("[MY TASKS] Fetching tasks for user.id:", user.id, typeof user.id);
+    console.log("[MY TASKS] Input to fetchTasksPaginated:", input);
     try {
       const { tasks, total } = await fetchTasksPaginated(input);
-      console.log("[LOVABLE DEBUG][MyTasks.tsx] load() input:", input);
-      console.log("[LOVABLE DEBUG][MyTasks.tsx] Result:", tasks, "Total:", total);
+      console.log("[MY TASKS] fetchTasksPaginated response:", tasks, "Total:", total);
+      // Print first 5 tasks for manual inspection
+      if (tasks.length) {
+        console.log("[MY TASKS] Example task:", tasks[0]);
+        // Print all assigned_to user ids to check type
+        console.log("[MY TASKS] All assigned_to:", tasks.map(t => t.assigned_to));
+      }
       if (total > 100) {
         setShowTooManyWarning(true);
         setTasks([]);
