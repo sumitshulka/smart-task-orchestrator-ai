@@ -289,6 +289,7 @@ export type Database = {
           estimated_hours: number | null
           id: string
           priority: number | null
+          start_date: string | null
           status: string
           team_id: string | null
           title: string
@@ -304,6 +305,7 @@ export type Database = {
           estimated_hours?: number | null
           id?: string
           priority?: number | null
+          start_date?: string | null
           status?: string
           team_id?: string | null
           title: string
@@ -319,6 +321,7 @@ export type Database = {
           estimated_hours?: number | null
           id?: string
           priority?: number | null
+          start_date?: string | null
           status?: string
           team_id?: string | null
           title?: string
