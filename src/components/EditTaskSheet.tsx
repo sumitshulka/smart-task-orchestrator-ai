@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import {
   Sheet,
@@ -40,6 +39,8 @@ const EditTaskSheet: React.FC<Props> = ({ task, onUpdated, children }) => {
     due_date: task.due_date ? task.due_date.slice(0, 10) : "",
     status: task.status || "pending",
     estimated_hours: task.estimated_hours || "",
+    // Track completion date, but only pre-fill if completed
+    actual_completion_date: task.actual_completion_date || "",
   });
   const [loading, setLoading] = useState(false);
 
@@ -52,6 +53,7 @@ const EditTaskSheet: React.FC<Props> = ({ task, onUpdated, children }) => {
         due_date: task.due_date ? task.due_date.slice(0, 10) : "",
         status: task.status || "pending",
         estimated_hours: task.estimated_hours || "",
+        actual_completion_date: task.actual_completion_date || "",
       });
     }
   }, [open, task]);
@@ -76,6 +78,10 @@ const EditTaskSheet: React.FC<Props> = ({ task, onUpdated, children }) => {
         due_date: form.due_date || null,
         status: form.status,
         estimated_hours: form.estimated_hours ? Number(form.estimated_hours) : null,
+        // Only update completion date for completed status
+        actual_completion_date: form.status === "completed"
+          ? (form.actual_completion_date || new Date().toISOString().slice(0, 10))
+          : null,
       };
       await updateTask(task.id, updatePayload);
       toast({ title: "Task updated" });
@@ -132,11 +138,11 @@ const EditTaskSheet: React.FC<Props> = ({ task, onUpdated, children }) => {
                 onChange={handleChange}
                 className="w-full border rounded p-2"
               >
-                {statusOptions.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
+                <option value="new">New</option>
+                <option value="pending">Pending</option>
+                <option value="assigned">Assigned</option>
+                <option value="in_progress">In Progress</option>
+                <option value="completed">Completed</option>
               </select>
             </div>
             <div className="sm:col-span-2">
@@ -168,6 +174,18 @@ const EditTaskSheet: React.FC<Props> = ({ task, onUpdated, children }) => {
                 step="0.1"
               />
             </div>
+            {/* Show field for completion date only if status is completed */}
+            {form.status === 'completed' && (
+              <div>
+                <label className="block mb-1 font-medium">Completion Date</label>
+                <Input
+                  name="actual_completion_date"
+                  type="date"
+                  value={form.actual_completion_date || new Date().toISOString().slice(0, 10)}
+                  onChange={handleChange}
+                />
+              </div>
+            )}
           </div>
           <SheetFooter className="mt-8">
             <Button type="submit" disabled={loading}>

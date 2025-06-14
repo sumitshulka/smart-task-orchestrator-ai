@@ -19,7 +19,7 @@ export type Task = {
     email: string;
     user_name: string | null;
   } | null;
-  actual_completion_date?: string | null;
+  actual_completion_date: string | null;
 };
 
 // -------- CRUD Functions --------
