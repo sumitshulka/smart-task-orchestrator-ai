@@ -121,10 +121,19 @@ export default function TaskReport() {
       };
       // For user: only assigned to self or created by self
       // For manager: only those assigned to any in reportUserIds
-      if (reportUserIds.length > 0) {
-        filters.assignedTo = reportUserIds.length === 1 ? reportUserIds[0] : undefined;
+      if (reportUserIds.length === 1) {
+        filters.assignedTo = reportUserIds[0];
+      } else if (reportUserIds.length > 1) {
+        // For manager/team_manager, fetch all and filter after
+        // (no assignedTo set, will filter after fetch)
       }
+      // For admin (reportUserIds.length === 0), do NOT set assignedTo
+      // console.log the filters for debugging
+      // Remove this log if not needed after patch
+      // console.log("Fetching with filters:", filters);
+
       const { tasks } = await fetchTasksPaginated(filters);
+
       // For user: just own tasks
       if (reportUserIds.length === 1) {
         return tasks.filter(t => t.assigned_to === reportUserIds[0] || t.created_by === reportUserIds[0]);
@@ -133,6 +142,7 @@ export default function TaskReport() {
       if (reportUserIds.length > 1) {
         return tasks.filter(t => reportUserIds.includes(t.assigned_to ?? ""));
       }
+      // For admin (reportUserIds.length === 0), return all
       return tasks;
     }
   });
