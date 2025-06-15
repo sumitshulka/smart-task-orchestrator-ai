@@ -141,21 +141,6 @@ const AdminDashboard = () => {
       ? "user"
       : "unknown";
 
-  // Only show "No Role Assigned" if rolesLoading is false AND roles not valid
-  if ((currentRole === "unknown" || !currentRole) && !rolesLoading) {
-    // More explicit debug info:
-    return (
-      <div className="max-w-2xl mx-auto text-center mt-16">
-        <div className="text-xl font-bold mb-2">No Role Assigned</div>
-        <div className="text-muted-foreground mb-4">
-          Unable to find one of: admin, manager, team_manager, user for account <b>{user?.email}</b>.
-          <br />
-          <pre className="text-xs bg-gray-100 rounded p-2 mt-2 text-left">{JSON.stringify({ roles, user }, null, 2)}</pre>
-        </div>
-      </div>
-    );
-  }
-
   // Check team assignment
   const isUserAndNoTeams = currentRole === "user" && teams.length === 0;
 
@@ -419,6 +404,22 @@ const AdminDashboard = () => {
     // eslint-disable-next-line
   }, [user, roles, teams]);
 
+  // --- FIX: Move "No Role Assigned" UI to a local variable ---
+  let noRoleAssignedUI = null;
+  if ((currentRole === "unknown" || !currentRole) && !rolesLoading) {
+    // More explicit debug info:
+    noRoleAssignedUI = (
+      <div className="max-w-2xl mx-auto text-center mt-16">
+        <div className="text-xl font-bold mb-2">No Role Assigned</div>
+        <div className="text-muted-foreground mb-4">
+          Unable to find one of: admin, manager, team_manager, user for account <b>{user?.email}</b>.
+          <br />
+          <pre className="text-xs bg-gray-100 rounded p-2 mt-2 text-left">{JSON.stringify({ roles, user }, null, 2)}</pre>
+        </div>
+      </div>
+    );
+  }
+
   if (loading || rolesLoading) {
     return (
       <div className="flex flex-col items-center justify-center h-80">
@@ -426,6 +427,11 @@ const AdminDashboard = () => {
         <div className="text-muted-foreground">Loading dashboard...</div>
       </div>
     );
+  }
+
+  // Move the original "No Role Assigned" return here as a conditional block
+  if (noRoleAssignedUI) {
+    return noRoleAssignedUI;
   }
 
   // CARD/ROW WRAPPERS
