@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from "react";
 import { fetchTasks, Task } from "@/integrations/supabase/tasks";
 import { Button } from "@/components/ui/button";
@@ -64,7 +65,7 @@ const TasksPage: React.FC = () => {
     filters,
     users,
     teams,
-    roles,
+    roles,   // <-- FROM usePaginatedTasks
     user,
   } = usePaginatedTasks({ isHistorical: false, initialPageSize: 25 });
   const { statuses, loading: statusesLoading } = useTaskStatuses();
@@ -82,18 +83,7 @@ const TasksPage: React.FC = () => {
     // eslint-disable-next-line
   }, [page, pageSize, filters.priorityFilter, filters.statusFilter, filters.userFilter, filters.teamFilter, filters.dateRange]);
 
-  const [roles, setRoles] = useState<string[]>([]);
-  useEffect(() => {
-    // Fetch user roles for empty-state permission error, as above
-    (async () => {
-      if (!user?.id) return setRoles([]);
-      const { data, error } = await import("@/integrations/supabase/client").then(mod =>
-        mod.supabase.from("user_roles").select("role:roles(name)").eq("user_id", user.id)
-      );
-      if (error) setRoles([]);
-      else setRoles((data ?? []).map((r: any) => r.role?.name).filter(Boolean));
-    })();
-  }, [user?.id]);
+  // --- Removed duplicate roles state and side-effect ---
 
   return (
     <div className="flex w-full max-w-6xl mx-auto px-4 py-8">
@@ -183,3 +173,4 @@ const TasksPage: React.FC = () => {
 };
 
 export default TasksPage;
+
