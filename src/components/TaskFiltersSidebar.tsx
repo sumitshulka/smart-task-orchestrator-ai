@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { format } from "date-fns";
 import DateRangePresetSelector from "./DateRangePresetSelector";
+import type { TaskStatus } from "@/hooks/useTaskStatuses"; // <-- for typing
 
 type TaskFiltersSidebarProps = {
   priorityFilter: string;
@@ -20,6 +21,8 @@ type TaskFiltersSidebarProps = {
   onDateRangeChange: (range: { from: Date | null; to: Date | null }) => void;
   users: { id: string; email: string; user_name?: string }[];
   teams: { id: string; name: string }[];
+  statuses: TaskStatus[];
+  statusesLoading: boolean;
 };
 
 const priorities = [
@@ -29,18 +32,12 @@ const priorities = [
   { label: "Low", value: "3" },
 ];
 
-const statuses = [
-  { label: "All", value: "all" },
-  { label: "Pending", value: "pending" },
-  { label: "In Progress", value: "in_progress" },
-  { label: "Completed", value: "completed" },
-];
-
 export default function TaskFiltersSidebar({
   priorityFilter, statusFilter, userFilter, teamFilter,
   dateRange, onPriorityChange, onStatusChange,
   onUserChange, onTeamChange, onDateRangeChange,
   users, teams,
+  statuses, statusesLoading
 }: TaskFiltersSidebarProps) {
   const [preset, setPreset] = useState<string>("custom");
 
@@ -78,9 +75,14 @@ export default function TaskFiltersSidebar({
             <SelectValue placeholder="Status" />
           </SelectTrigger>
           <SelectContent>
-            {statuses.map((s) => (
-              <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
-            ))}
+            <SelectItem value="all">All</SelectItem>
+            {statusesLoading ? (
+              <SelectItem value="" disabled>Loading...</SelectItem>
+            ) : (
+              statuses.map((s) => (
+                <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>
+              ))
+            )}
           </SelectContent>
         </Select>
       </div>
@@ -146,4 +148,3 @@ export default function TaskFiltersSidebar({
     </aside>
   );
 }
-

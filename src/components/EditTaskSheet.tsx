@@ -119,7 +119,10 @@ const EditTaskSheet: React.FC<Props> = ({
   }, [users, user, isAdminOrManager, isUser]);
 
   // Used to enable/disable assignment section for UI
-  const canShowAssign = allowedAssignUsers.length > 0;
+  const canShowAssign = (
+    (isAdminOrManager && users.length > 0) ||
+    (isUser && task && task.type !== "personal" && allowedAssignUsers.length > 0)
+  );
 
   useEffect(() => {
     if (open && task) {

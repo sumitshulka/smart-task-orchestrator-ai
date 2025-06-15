@@ -8,6 +8,7 @@ import TaskCard from "@/components/TaskCard";
 import { Image } from "lucide-react";
 import TaskFiltersSidebar from "@/components/TaskFiltersSidebar";
 import { useUsersAndTeams } from "@/hooks/useUsersAndTeams";
+import { useTaskStatuses } from "@/hooks/useTaskStatuses";
 import {
   Pagination,
   PaginationContent,
@@ -54,6 +55,7 @@ const TasksPage: React.FC = () => {
   const [teamFilter, setTeamFilter] = useState<string>("all");
   const [dateRange, setDateRange] = useState<{ from: Date | null; to: Date | null }>({ from: null, to: null });
   const { users, teams } = useUsersAndTeams();
+  const { statuses, loading: statusesLoading } = useTaskStatuses();
 
   // Pagination state
   const [page, setPage] = useState(1);
@@ -189,6 +191,8 @@ const TasksPage: React.FC = () => {
         onDateRangeChange={setDateRange}
         users={users}
         teams={teams}
+        statuses={statuses}
+        statusesLoading={statusesLoading}
       />
 
       {/* Main content */}
