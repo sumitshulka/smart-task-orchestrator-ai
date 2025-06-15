@@ -307,20 +307,7 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
                 placeholder="Task description"
               />
             </div>
-            {/* Row 3: Type & Priority - side by side */}
-            <div>
-              <label className="block mb-1 font-medium">Type</label>
-              <select
-                name="type"
-                value={form.type}
-                onChange={handleChange}
-                className="w-full border rounded p-2"
-              >
-                {typeOptions.map((opt) => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>
-            </div>
+            {/* Row 3: Priority & Status side-by-side */}
             <div>
               <label className="block mb-1 font-medium">Priority</label>
               <select
@@ -333,40 +320,6 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
                   <option key={opt.value} value={opt.value}>{opt.label}</option>
                 ))}
               </select>
-            </div>
-            {/* Rest of the form fields as before */}
-            <div>
-              <label className="block mb-1 font-medium">Start Date</label>
-              <Input
-                name="start_date"
-                type="date"
-                value={form.start_date}
-                onChange={handleChange}
-              />
-            </div>
-            <div>
-              <label className="block mb-1 font-medium">Expected End Date</label>
-              <Input
-                name="due_date"
-                type="date"
-                value={form.due_date}
-                onChange={handleChange}
-              />
-            </div>
-            <div>
-              <label className="block mb-1 font-medium">Assigned To</label>
-              {renderAssignedToInput()}
-            </div>
-            <div>
-              <label className="block mb-1 font-medium">Estimated Hours</label>
-              <Input
-                name="estimated_hours"
-                value={form.estimated_hours}
-                onChange={handleChange}
-                type="number"
-                min="0"
-                step="0.1"
-              />
             </div>
             <div>
               <label className="block mb-1 font-medium">Status</label>
@@ -385,6 +338,55 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
                   <option key={opt.id} value={opt.name}>{opt.name}</option>
                 ))}
               </select>
+            </div>
+            {/* Row 4: Start and End Dates */}
+            <div>
+              <label className="block mb-1 font-medium">Start Date</label>
+              <Input
+                name="start_date"
+                type="date"
+                value={form.start_date}
+                onChange={handleChange}
+              />
+            </div>
+            <div>
+              <label className="block mb-1 font-medium">Expected End Date</label>
+              <Input
+                name="due_date"
+                type="date"
+                value={form.due_date}
+                onChange={handleChange}
+              />
+            </div>
+            {/* Row 5: Assigned To (left) and Assign Type (right) */}
+            <div>
+              <label className="block mb-1 font-medium">Assigned To</label>
+              {renderAssignedToInput()}
+            </div>
+            <div>
+              <label className="block mb-1 font-medium">Assign Type</label>
+              <select
+                name="type"
+                value={form.type}
+                onChange={handleChange}
+                className="w-full border rounded p-2"
+              >
+                {typeOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+            {/* Row 6: Estimated Hours as a full-width row */}
+            <div className="sm:col-span-2">
+              <label className="block mb-1 font-medium">Estimated Hours</label>
+              <Input
+                name="estimated_hours"
+                value={form.estimated_hours}
+                onChange={handleChange}
+                type="number"
+                min="0"
+                step="0.1"
+              />
             </div>
           </div>
           {/* ADVANCED FIELDS */}
