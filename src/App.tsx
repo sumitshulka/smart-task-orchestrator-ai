@@ -17,6 +17,7 @@ import HistoricalTasks from "./pages/HistoricalTasks";
 import AdminDashboard from "./pages/AdminDashboard";
 import TaskReport from "@/pages/TaskReport";
 import AnalyticsReport from "@/pages/AnalyticsReport";
+import TaskGroupsPage from "./pages/TaskGroups";
 
 const queryClient = new QueryClient();
 
@@ -74,6 +75,15 @@ const App = () => (
             element={
               <AdminLayout>
                 <TasksPage />
+              </AdminLayout>
+            }
+          />
+          {/* Task Groups route */}
+          <Route
+            path="/admin/task-groups"
+            element={
+              <AdminLayout>
+                <TaskGroupsPage />
               </AdminLayout>
             }
           />
