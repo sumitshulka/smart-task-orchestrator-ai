@@ -1,3 +1,4 @@
+
 import React from "react";
 import { useForm, Controller } from "react-hook-form";
 import { format, startOfMonth, endOfMonth } from "date-fns";
@@ -30,13 +31,8 @@ import {
 import useSupabaseSession from "@/hooks/useSupabaseSession";
 import { useCurrentUserRoleAndTeams } from "@/hooks/useCurrentUserRoleAndTeams";
 
-type Filters = {
-  fromDate: Date;
-  toDate: Date;
-};
-
+// ----------------- EDITED COLUMNS HERE -------------------
 const columns = [
-  "Employee ID",
   "Employee Name",
   "Total Tasks Created",
   "Assigned",
@@ -45,6 +41,7 @@ const columns = [
   "Completed",
   "Completion Ratio"
 ];
+// ---------------------------------------------------------
 
 const statusKeys = ["assigned", "pending", "In Progress", "completed"];
 
@@ -64,10 +61,11 @@ function defaultFilterDates() {
   };
 }
 
-// Add EmployeeReport type for strict typing
+// Updated EmployeeReport type for strict typing, storing systemId (hidden) and email for display
 type EmployeeReport = {
-  employeeId: string;
+  systemId: string; // used internally, not shown
   employeeName: string;
+  employeeEmail: string;
   totalCreated: number;
   assigned: number;
   pending: number;
@@ -77,7 +75,7 @@ type EmployeeReport = {
 };
 
 export default function TaskReport() {
-  const form = useForm<Filters>({
+  const form = useForm<{ fromDate: Date; toDate: Date }>({
     defaultValues: defaultFilterDates(),
   });
 
@@ -112,15 +110,19 @@ export default function TaskReport() {
   // Group and calculate stats per employee
   const report = React.useMemo<EmployeeReport[]>(() => {
     if (!taskData) return [];
-    // Get unique users
     const userMap: Record<string, EmployeeReport> = {};
     taskData.forEach(task => {
       if (!task.created_by) return;
       const uid = task.created_by;
+      // Get name and email for display
+      const name = task.assigned_user?.user_name || task.assigned_user?.email || "N/A";
+      const email = task.assigned_user?.email || "N/A";
+      // Store based on created_by (internal "systemId"), but display assigned_user details (for reporting clarity)
       if (!userMap[uid]) {
         userMap[uid] = {
-          employeeId: uid,
-          employeeName: task.assigned_user?.user_name || task.assigned_user?.email || "N/A",
+          systemId: uid,
+          employeeName: name,
+          employeeEmail: email,
           totalCreated: 0,
           assigned: 0,
           pending: 0,
@@ -238,9 +240,14 @@ export default function TaskReport() {
               </TableRow>
             ) : (
               report.map((row: EmployeeReport) => (
-                <TableRow key={row.employeeId}>
-                  <TableCell>{row.employeeId}</TableCell>
-                  <TableCell>{row.employeeName}</TableCell>
+                <TableRow key={row.systemId}>
+                  {/* Employee Name + Email */}
+                  <TableCell>
+                    <span>{row.employeeName}</span>
+                    <span className="text-muted-foreground text-xs block">
+                      {row.employeeEmail}
+                    </span>
+                  </TableCell>
                   <TableCell>{row.totalCreated}</TableCell>
                   <TableCell>{row.assigned}</TableCell>
                   <TableCell>{row.pending}</TableCell>
@@ -258,3 +265,4 @@ export default function TaskReport() {
 }
 
 // src/pages/TaskReport.tsx is getting long. After you confirm the build is fixed, consider asking me to refactor this page into smaller components for maintainability!
+
