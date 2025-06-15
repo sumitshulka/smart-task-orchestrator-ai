@@ -19,6 +19,22 @@ import { useTaskStatuses } from "@/hooks/useTaskStatuses";
 
 // Simulated quick user record
 type User = { id: string; email: string; user_name: string | null; manager: string | null };
+type Role = { name: string };
+
+// HELPER: fetch roles for a given user id from Supabase
+async function fetchUserRolesFromSupabase(userId: string): Promise<string[]> {
+  const { supabase } = await import("@/integrations/supabase/client");
+  const { data, error } = await supabase
+    .from("user_roles")
+    .select(`role:role_id (name)`)
+    .eq("user_id", userId);
+  if (error) {
+    console.error("Failed to fetch user roles", error);
+    return [];
+  }
+  // The 'role' field comes as an object: { name: string }
+  return (data || []).map((r: any) => r.role?.name).filter(Boolean);
+}
 
 // Helper function to fetch users (now using Supabase)
 async function fetchUsersSupabase(): Promise<User[]> {
@@ -71,26 +87,41 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
   const [tasks, setTasks] = useState<Task[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [creating, setCreating] = useState(false);
+  const [userRoles, setUserRoles] = useState<string[]>([]);
   const { user, loading: sessionLoading } = useSupabaseSession();
   const { statuses, loading: statusLoading } = useTaskStatuses();
 
-  // New: Roles logic
+  // Get user role: use fetched roles, fallback to email only if missing
   const [userRole, setUserRole] = useState<string>("user");
+
+  // On open: fetch users and user roles afresh
+  useEffect(() => {
+    if (!open || !user?.id) return;
+    // Fetch users
+    fetchUsersSupabase().then((fetchedUsers) => {
+      setUsers(fetchedUsers);
+      console.log("[DEBUG] Users fetched:", fetchedUsers);
+    });
+    // Fetch roles for current user
+    fetchUserRolesFromSupabase(user.id).then((roles) => {
+      setUserRoles(roles);
+      console.log("[DEBUG] Current user roles:", roles);
+    });
+    // Fetch tasks for subtasks/dependencies
+    fetchTasks().then(setTasks);
+  }, [open, user?.id]);
 
   // Get user role & update state on mount
   useEffect(() => {
     if (!user) return;
-    if (user?.email?.includes("admin")) setUserRole("admin");
-    else if (user?.email?.includes("manager")) setUserRole("manager");
-    else setUserRole("user");
-  }, [user]);
-
-  // Fetch users on open, now from supabase and including manager field
-  useEffect(() => {
-    if (!open) return;
-    fetchUsersSupabase().then(setUsers);
-    fetchTasks().then(setTasks);
-  }, [open]);
+    let roleType: string = "user";
+    if (userRoles.includes("admin")) roleType = "admin";
+    else if (userRoles.includes("manager") || userRoles.includes("team manager")) roleType = "manager";
+    else if (user?.email?.includes("admin")) roleType = "admin";
+    else if (user?.email?.includes("manager")) roleType = "manager";
+    setUserRole(roleType);
+    console.log("[DEBUG] Effective User Role:", roleType);
+  }, [user, userRoles]);
 
   // NEW LOGIC: Type selection comes BEFORE assignee selection
   useEffect(() => {
@@ -102,35 +133,31 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
     }
   }, [form.type, open, user?.id]);
 
-  // Compute assignable users for create view
+  // Core: Compute assignable users for create view, with debug logs
   function getAssignableUsersForCreate() {
     if (!user) return [];
+    let list: User[] = [];
     if (form.type === "personal" && user?.id) {
-      // Only assign to yourself
-      return users.filter((u) => u.id === user.id);
-    }
-    if (form.type === "team") {
+      list = users.filter((u) => u.id === user.id);
+    } else if (form.type === "team") {
       if (userRole === "admin") {
-        // Admin can assign to anyone
-        return users;
-      }
-      if (userRole === "manager") {
-        // Managers: users who report to me ("manager" field matches my user_name)
-        // (user.user_name assumed set)
-        return users.filter(
-          (u) => u.manager === user.user_name && u.id !== user.id // Cannot assign tasks to yourself
+        list = users;
+      } else if (userRole === "manager") {
+        // Managers: users who report to me ("manager" field matches my user_name, cannot assign to self)
+        list = users.filter(
+          (u) => u.manager === user.user_name && u.id !== user.id
         );
-      }
-      if (userRole === "user") {
+      } else if (userRole === "user") {
         // Users: only assign to their manager (who's user_name matches in users list)
         const myManagerName = user.user_metadata?.manager || null;
         const myManager = users.find(
           (u) => u.user_name === myManagerName
         );
-        return myManager ? [myManager] : [];
+        list = myManager ? [myManager] : [];
       }
     }
-    return [];
+    console.log("[DEBUG] Filtering users for role:", userRole, "Got list:", list);
+    return list;
   }
 
   // Handle form changes (typed fix)
@@ -224,7 +251,7 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
         name="assigned_to"
         value={form.assigned_to}
         onChange={handleChange}
-        className="w-full border rounded p-2"
+        className="w-full border rounded p-2 bg-white z-50"
         required={form.type === "team"}
       >
         <option value="">Select a user</option>
