@@ -138,13 +138,18 @@ const AdminUsers: React.FC = () => {
     refetch();
   };
 
+  // Add deep debug logging
+  React.useEffect(() => {
+    console.log("[AdminUsers deep debug] users from Supabase:", users);
+    console.log("[AdminUsers deep debug] search:", search);
+  }, [users, search]);
+
   const filteredUsers = React.useMemo(() => {
+    const searchTerm = (search ?? "").toLowerCase();
     return users.filter((user) => {
-      const searchTerm = search.toLowerCase();
-      return (
-        user.user_name?.toLowerCase().includes(searchTerm) ||
-        user.email?.toLowerCase().includes(searchTerm)
-      );
+      const uname = typeof user.user_name === "string" ? user.user_name.toLowerCase() : "";
+      const email = typeof user.email === "string" ? user.email.toLowerCase() : "";
+      return uname.includes(searchTerm) || email.includes(searchTerm);
     });
   }, [users, search]);
 
@@ -182,20 +187,32 @@ const AdminUsers: React.FC = () => {
         </div>
         <div>
           <b>Users loaded from Supabase:</b> {debugInfo.userCount ?? "(?)"}
+          <span className="ml-2">(users.length: {users.length}, filteredUsers.length: {filteredUsers.length})</span>
           {debugInfo.userSample && (
             <span className="ml-2 text-gray-400">(Sample user: {debugInfo.userSample.email})</span>
           )}
         </div>
-        {rawSupabaseData && rawSupabaseData.length > 0 && (
-          <div>
-            <details>
-              <summary>View <span className="font-mono">users</span> raw data from Supabase ({rawSupabaseData.length} row(s))</summary>
-              <pre style={{ maxHeight: 180, overflowY: "auto" }}>
-                {JSON.stringify(rawSupabaseData, null, 2)}
-              </pre>
-            </details>
-          </div>
-        )}
+        <div>
+          <b>Current search:</b> <span className="font-mono">{JSON.stringify(search)}</span>
+        </div>
+        <div>
+          <b>Supabase users (raw):</b>
+          <details>
+            <summary>Expand</summary>
+            <pre style={{ maxHeight: 120, overflowY: "auto" }}>
+              {JSON.stringify(users, null, 2)}
+            </pre>
+          </details>
+        </div>
+        <div>
+          <b>Filtered Users:</b>
+          <details>
+            <summary>Expand</summary>
+            <pre style={{ maxHeight: 120, overflowY: "auto" }}>
+              {JSON.stringify(filteredUsers, null, 2)}
+            </pre>
+          </details>
+        </div>
         {debugInfo.fetchError && (
           <div className="text-red-600">Supabase Fetch Error: {debugInfo.fetchError}</div>
         )}
@@ -222,6 +239,9 @@ const AdminUsers: React.FC = () => {
             <span>
               No users found, even as admin. This may mean there are no users in the database, or a backend/RLS policy error.
             </span>
+          )}
+          {debugInfo.isAdmin === true && users.length > 0 && filteredUsers.length === 0 && (
+            <span className="text-red-500 font-semibold">You are admin, users are present (users.length: {users.length}), but filter/search returns no users! Check the search/filter string and confirm user fields. Try <button className="underline text-blue-800 ml-2" onClick={() => setSearch("")}>Show All Users</button></span>
           )}
         </div>
       </div>
@@ -273,6 +293,9 @@ const AdminUsers: React.FC = () => {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
+          <Button variant="ghost" className="ml-2" size="sm" onClick={() => setSearch("")}>
+            Clear
+          </Button>
         </div>
       </div>
       {/* Table */}
@@ -302,9 +325,9 @@ const AdminUsers: React.FC = () => {
                         ? "No users found in the system."
                         : "No users match your search/filter."}
                     </span>
-                    {debugInfo.isAdmin && users.length === 0 && (
+                    {debugInfo.isAdmin && users.length > 0 && (
                       <span className="text-red-700">
-                        even as admin, no users were returned from Supabase. Check the database, recent import process, and RLS policies.
+                        (Admin mode) users are in DB but filter/search is hiding them. Try clearing the search bar to see all users.
                       </span>
                     )}
                     {!debugInfo.isAdmin && (
