@@ -1,3 +1,4 @@
+
 import React from "react";
 import {
   Table,
@@ -71,32 +72,36 @@ export const BulkUserUploadPreviewEditableTable: React.FC<BulkUserUploadPreviewE
 }) => {
   if (!users || users.length === 0) return null;
 
-  // "Classic" scroll pattern for modals: scroll inside container, table grows with content
+  // Industry-standard pattern:
+  // - The wrapper handles overflow/scroll.
+  // - The table has a min-width and w-max, never w-full (avoids squishing).
+  // - Let cells content decide their width, optionally set min-w on headers/cells if needed.
+
   return (
     <TooltipProvider delayDuration={150}>
-      {/* SCROLLABLE TABLE CONTAINER, NEVER OVERFLOW MODAL */}
       <div
         className="
           w-full
           max-w-full
+          max-h-[360px]
           overflow-x-auto
           overflow-y-auto
-          border rounded-xl shadow-inner bg-white ring-1 ring-border/40
+          border
+          rounded-xl
+          shadow-inner
+          bg-white
+          ring-1 ring-border/40
           mt-2 mb-2
         "
         style={{
-          maxHeight: 360,
-          maxWidth: "100%",
+          // Leave container sizing to parent modal, do NOT force minWidth on wrapper
         }}
         tabIndex={-1}
       >
         <table
-          className="
-            border-collapse
-            min-w-[900px]    /* Table wants at least this width */
-            w-max            /* Grow wider than viewport, but scroll not squish */
-            bg-white
-          "
+          className={cn(
+            "border-collapse min-w-[900px] w-max bg-white"
+          )}
         >
           <thead>
             <tr className="bg-muted/80 sticky top-0 z-10">
@@ -122,12 +127,8 @@ export const BulkUserUploadPreviewEditableTable: React.FC<BulkUserUploadPreviewE
               const status = row._status;
               const rowIsInvalid = status === "invalid";
               const rowClass = cn(
-                idx % 2 === 0
-                  ? "bg-background"
-                  : "bg-muted/40",
-                rowIsInvalid
-                  ? "bg-red-50/80 ring-1 ring-red-200"
-                  : "",
+                idx % 2 === 0 ? "bg-background" : "bg-muted/40",
+                rowIsInvalid ? "bg-red-50/80 ring-1 ring-red-200" : "",
                 "transition-colors",
                 "group"
               );
@@ -141,7 +142,8 @@ export const BulkUserUploadPreviewEditableTable: React.FC<BulkUserUploadPreviewE
                       row._status === "invalid" &&
                       (!row[h] || row[h] === "");
                     const cellWithError =
-                      error || (row._status === "invalid" && row._message && cellIdx === 0);
+                      error ||
+                      (row._status === "invalid" && row._message && cellIdx === 0);
                     return (
                       <td
                         key={h}
@@ -249,5 +251,3 @@ export const BulkUserUploadPreviewEditableTable: React.FC<BulkUserUploadPreviewE
 };
 
 export default BulkUserUploadPreviewEditableTable;
-
-// File length warning: This file is quite long (~250+ lines). After verifying your scrollable table works, consider asking to refactor this file into smaller components for easier maintenance.
