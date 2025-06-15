@@ -2,8 +2,6 @@
 import React from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import DownloadSampleExcel from "@/components/DownloadSampleExcel";
-import BulkUserUploadDialog from "@/components/BulkUserUploadDialog";
 import { Plus, Filter } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -30,7 +28,7 @@ const AdminUsers: React.FC = () => {
   const [loading, setLoading] = React.useState(true);
 
   // Setup for dialog
-  const [bulkDialogOpen, setBulkDialogOpen] = React.useState(false);
+  // Removed BulkUserUploadDialog
 
   // For checking session info and admin status
   const { user } = useSupabaseSession();
@@ -74,12 +72,6 @@ const AdminUsers: React.FC = () => {
 
   return (
     <div className="p-6 max-w-6xl w-full">
-      {/* Bulk Upload Dialog */}
-      <BulkUserUploadDialog
-        open={bulkDialogOpen}
-        onOpenChange={setBulkDialogOpen}
-        onUsersUploaded={fetchUsers}
-      />
       {/* Dialogs */}
       <EditUserDialog
         open={createDialogOpen}
@@ -97,10 +89,7 @@ const AdminUsers: React.FC = () => {
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
         <h1 className="text-2xl font-bold">User Management</h1>
         <div className="flex gap-3 flex-wrap">
-          <DownloadSampleExcel />
-          <Button onClick={() => setBulkDialogOpen(true)}>
-            Bulk Upload
-          </Button>
+          {/* DownloadSampleExcel and Bulk Upload button removed */}
           <Button onClick={handleCreateUser}>
             <Plus className="w-4 h-4 mr-2" />
             Create User
