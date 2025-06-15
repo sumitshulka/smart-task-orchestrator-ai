@@ -20,13 +20,16 @@ import { useTaskStatuses } from "@/hooks/useTaskStatuses";
 // Simulated quick user record
 type User = { id: string; email: string; user_name: string | null };
 
-// Helper function to fetch users
-async function fetchUsers(): Promise<User[]> {
-  // This should be replaced with a proper Supabase call to your users table
-  const res = await fetch("/rest/v1/users?select=id,email,user_name", {
-    headers: { apikey: "anon", Authorization: "" },
-  });
-  return await res.json();
+// Helper function to fetch users (now using Supabase)
+async function fetchUsersSupabase(): Promise<User[]> {
+  // Uses Supabase client to fetch all users with manager field
+  // Assumes client imported (already in codebase)
+  const { supabase } = await import("@/integrations/supabase/client");
+  const { data, error } = await supabase
+    .from("users")
+    .select("id, email, user_name, manager");
+  if (error) throw error;
+  return data as User[];
 }
 
 interface Props {
@@ -82,10 +85,10 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
     else setUserRole("user");
   }, [user]);
 
-  // Load users when drawer opens
+  // Fetch users on open, now from supabase and including manager field
   useEffect(() => {
     if (!open) return;
-    fetchUsers().then(setUsers);
+    fetchUsersSupabase().then(setUsers);
     fetchTasks().then(setTasks);
   }, [open]);
 
@@ -103,20 +106,26 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
   function getAssignableUsersForCreate() {
     if (!user) return [];
     if (form.type === "personal" && user?.id) {
-      // Personal task: Can only assign to yourself
+      // Only assign to yourself
       return users.filter((u) => u.id === user.id);
     }
     if (form.type === "team") {
-      if (userRole === "admin") return users;
-      if (userRole === "manager") {
-        // In a real app, this should be restricted to team and reports
+      if (userRole === "admin") {
+        // Admin can assign to anyone
         return users;
       }
+      if (userRole === "manager") {
+        // Managers: users who report to me ("manager" field matches my user_name)
+        // (user.user_name assumed set)
+        return users.filter(
+          (u) => u.manager === user.user_name && u.id !== user.id // Cannot assign tasks to yourself
+        );
+      }
       if (userRole === "user") {
-        // Only assignable to your manager
-        // Simulate via the manager field if present
+        // Users: only assign to their manager (who's user_name matches in users list)
+        const myManagerName = user.user_metadata?.manager || null;
         const myManager = users.find(
-          (u) => u.user_name === user?.user_metadata?.manager
+          (u) => u.user_name === myManagerName
         );
         return myManager ? [myManager] : [];
       }
@@ -196,7 +205,7 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
     setForm(initialForm);
   };
 
-  // Assign to input renders
+  // Assigned To dropdown (unchanged, uses getAssignableUsersForCreate)
   const renderAssignedToInput = () => {
     if (form.type === "personal" && user?.id) {
       return (
@@ -209,7 +218,6 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
         />
       );
     }
-    // If team, show appropriate select/dropdown
     const assignableUsers = getAssignableUsersForCreate();
     return (
       <select
