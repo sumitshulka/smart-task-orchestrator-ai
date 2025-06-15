@@ -441,43 +441,70 @@ const AdminDashboard = () => {
 
       // ---------- FETCH MANAGERS/TEAM_MANAGERS WITHOUT TEAMS (For ADMIN) ----------
       if (filteredRole === "admin") {
-        // 1. Get all users with manager or team_manager roles
-        const { data: allUserRoles } = await supabase
+        // 1. Get all user_roles for managers and team_managers
+        const { data: allUserRoles, error: roleErr } = await supabase
           .from("user_roles")
-          .select("user_id, roles:role:roles(name), id");
+          .select(`
+            user_id,
+            id,
+            role:roles(name)
+          `);
 
+        if (roleErr) {
+          console.error("Failed to fetch user_roles for manager detection:", roleErr);
+        }
+        // roles data is now: { user_id, id, role: { name: string } }
+        // Get all user_ids with role.name 'manager' or 'team_manager'
         const managerIds =
           allUserRoles
             ?.filter(
               (ur: any) =>
-                ur.roles?.name === "manager" || ur.roles?.name === "team_manager"
+                ur.role &&
+                (ur.role.name === "manager" || ur.role.name === "team_manager")
             )
             .map((ur: any) => ur.user_id) || [];
 
-        // 2. Get all users assigned to at least one team
-        const { data: membershipsData } = await supabase
+        // 2. Get all user_ids who are assigned to at least one team (via team_memberships)
+        const { data: membershipsData, error: membErr } = await supabase
           .from("team_memberships")
           .select("user_id");
+        if (membErr) {
+          console.error("Failed to fetch team_memberships for manager warning strip:", membErr);
+        }
+        const usersWithTeams = membershipsData?.map((m: any) => m.user_id) || [];
 
-        const usersWithTeams =
-          membershipsData?.map((m: any) => m.user_id) || [];
-
-        // 3. Filter: Managers not in usersWithTeams
+        // 3. Find IDs with manager/team_manager role, not present in memberships
         const managerIdsWithoutTeam = managerIds.filter(
           (id: string) => !usersWithTeams.includes(id)
         );
 
-        // 4. If there are any, fetch their user info
+        // 4. Fetch user row for each manager without team (to include emails/names)
+        let managerUsers: any[] = [];
         if (managerIdsWithoutTeam.length) {
-          const { data: managerUsers } = await supabase
+          const { data, error: mgrUserErr } = await supabase
             .from("users")
             .select("id, email, user_name")
             .in("id", managerIdsWithoutTeam);
 
-          setManagersWithoutTeams(managerUsers || []);
-        } else {
-          setManagersWithoutTeams([]);
+          managerUsers = data || [];
+          if (mgrUserErr) {
+            console.error("Failed to fetch user info for managers without teams:", mgrUserErr);
+          }
         }
+
+        // 5. Debug: output list and ensure `sumits@smopl.com` is checked
+        const testManager = managerUsers.find(u => u.email === "sumits@smopl.com");
+        if (!testManager) {
+          console.log(
+            "[DEBUG] sumits@smopl.com NOT found in managersWithoutTeams list! managerIdsWithoutTeam:",
+            managerIdsWithoutTeam,
+            "Fetched managerUsers:", managerUsers
+          );
+        } else {
+          console.log("[DEBUG] sumits@smopl.com is correctly detected as manager without team");
+        }
+
+        setManagersWithoutTeams(managerUsers || []);
       }
 
       setLoading(false);
