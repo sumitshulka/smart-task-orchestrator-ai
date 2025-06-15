@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { fetchTaskGroups, createTaskGroup, deleteTaskGroup, fetchTaskGroupDetails, TaskGroup } from "@/integrations/supabase/taskGroups";
 import TaskGroupCard from "@/components/TaskGroupCard";
@@ -19,7 +18,11 @@ export default function TaskGroupsPage() {
   const [groups, setGroups] = useState<TaskGroup[]>([]);
   const [loading, setLoading] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
-  const [form, setForm] = useState({ name: "", description: "", visibility: "private" });
+  const [form, setForm] = useState<{
+    name: string;
+    description: string;
+    visibility: TaskGroup["visibility"];
+  }>({ name: "", description: "", visibility: "private" });
   const [detailsGroup, setDetailsGroup] = useState<any>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const { user } = useSupabaseSession();
@@ -41,8 +44,11 @@ export default function TaskGroupsPage() {
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     try {
-      // owner_id is set on backend/RLS via auth
-      const newG = await createTaskGroup(form);
+      const newG = await createTaskGroup({
+        name: form.name,
+        description: form.description,
+        visibility: form.visibility,
+      });
       toast({ title: "Group created" });
       setForm({ name: "", description: "", visibility: "private" });
       setCreateOpen(false);

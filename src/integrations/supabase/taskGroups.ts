@@ -18,68 +18,100 @@ export type TaskGroupTask = {
   task_id: string;
 };
 
+// Helper to safely parse visibility
+function parseVisibility(val: string): TaskGroup["visibility"] {
+  if (val === "private" || val === "managers_admin_only" || val === "all_team_members") return val;
+  return "private";
+}
+
 export async function fetchTaskGroups(): Promise<TaskGroup[]> {
-  // Counts tasks per group
+  // Fetch groups (ignore join, just get groups, then fetch task counts)
   const { data, error } = await supabase
-    .from("task_groups")
-    .select("*, task_group_tasks:task_group_tasks(id)")
+    .from("task_groups" as any)
+    .select("*")
     .order("created_at", { ascending: false });
-  if (error) throw error;
-  return (data as any[]).map(g => ({
-    ...g,
-    task_count: g.task_group_tasks?.length ?? 0,
-  }));
+
+  if (error || !data) throw error || new Error("No data");
+  // For each group, count tasks in separate query
+  const groups: TaskGroup[] = await Promise.all(
+    data.map(async (g: any) => {
+      const { count } = await supabase
+        .from("task_group_tasks" as any)
+        .select("id", { count: "exact", head: true })
+        .eq("group_id", g.id);
+      return {
+        ...g,
+        task_count: count ?? 0,
+      } as TaskGroup;
+    })
+  );
+  return groups;
 }
 
 export async function createTaskGroup(input: Pick<TaskGroup, "name" | "description" | "visibility">): Promise<TaskGroup> {
+  // Explicitly cast visibility
+  const safeInput = {
+    ...input,
+    visibility: parseVisibility(input.visibility as string)
+  };
   const { data, error } = await supabase
-    .from("task_groups")
-    .insert([input])
+    .from("task_groups" as any)
+    .insert([safeInput])
     .select("*")
-    .single();
+    .maybeSingle();
   if (error) throw error;
   return data as TaskGroup;
 }
 
 export async function deleteTaskGroup(id: string) {
   const { error } = await supabase
-    .from("task_groups")
+    .from("task_groups" as any)
     .delete()
     .eq("id", id);
   if (error) throw error;
 }
 
 export async function fetchTaskGroupDetails(groupId: string) {
-  // Get group, with attached tasks and their statuses/titles
-  const { data, error } = await supabase
-    .from("task_groups")
-    .select(`
-      *,
-      tasks:task_group_tasks(
-        task:task_id (
-          id, title, status, priority
-        )
-      )
-    `)
+  // get the group itself
+  const { data: group, error } = await supabase
+    .from("task_groups" as any)
+    .select("*")
     .eq("id", groupId)
-    .single();
+    .maybeSingle();
   if (error) throw error;
-  return data;
+
+  // get all attached tasks with details
+  const { data: links } = await supabase
+    .from("task_group_tasks" as any)
+    .select("task_id")
+    .eq("group_id", groupId);
+
+  let tasks: any[] = [];
+  if (links && links.length > 0) {
+    const ids = links.map((l: any) => l.task_id);
+    const { data: taskData } = await supabase
+      .from("tasks")
+      .select("id, title, status, priority")
+      .in("id", ids);
+    tasks = taskData ?? [];
+  }
+
+  return { ...group, tasks: tasks.map(t => ({ task: t })) };
 }
 
 // For use in Create task/subtask dropdown (with filtering on visibility if needed)
 export async function fetchAssignableTaskGroups(): Promise<TaskGroup[]> {
-  // You may want to add filtering on backend, but this gets all visible to the user
+  // Just get all visible to the user
   return fetchTaskGroups();
 }
 
 // For assigning a task to a group
 export async function assignTaskToGroup({ group_id, task_id }: { group_id: string; task_id: string }) {
   const { data, error } = await supabase
-    .from("task_group_tasks")
+    .from("task_group_tasks" as any)
     .insert([{ group_id, task_id }])
     .select("*")
-    .single();
+    .maybeSingle();
   if (error) throw error;
   return data;
 }
