@@ -1,4 +1,3 @@
-
 import React from "react";
 import {
   Dialog,
@@ -15,6 +14,7 @@ import Papa from "papaparse";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
+import DownloadSampleExcel from "@/components/DownloadSampleExcel";
 
 interface BulkUserUploadDialogProps {
   open: boolean;
@@ -212,6 +212,10 @@ const BulkUserUploadDialog = (props: BulkUserUploadDialogProps) => {
             Upload a CSV or XLSX file to add multiple users at once.
           </DialogDescription>
         </DialogHeader>
+        {/* Download sample file button */}
+        <div className="mb-2 flex justify-end">
+          <DownloadSampleExcel />
+        </div>
         <div className="grid gap-4 py-4">
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="file" className="text-right">

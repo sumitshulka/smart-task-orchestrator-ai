@@ -10,13 +10,15 @@ import {
   TableRow,
   TableCell,
 } from "@/components/ui/table";
-import { Plus, Filter } from "lucide-react";
+import { Plus, Filter, Info } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import UserTableActions from "@/components/UserTableActions";
 import EditUserDialog from "@/components/EditUserDialog";
 import BulkUserUploadDialog from "@/components/BulkUserUploadDialog";
+import DownloadSampleExcel from "@/components/DownloadSampleExcel";
 import { useQuery } from "@tanstack/react-query";
+import useSupabaseSession from "@/hooks/useSupabaseSession";
 
 interface User {
   id: string;
@@ -35,9 +37,13 @@ const AdminUsers: React.FC = () => {
   const [bulkUploadOpen, setBulkUploadOpen] = React.useState(false);
   const [editUser, setEditUser] = React.useState<User | null>(null);
   const [users, setUsers] = React.useState<User[]>([]);
+  const [debugInfo, setDebugInfo] = React.useState<any>({});
+
+  // For checking session info and admin status
+  const { user, loading: sessionLoading } = useSupabaseSession();
 
   // Fetch users using react-query (React Query v5 format)
-  const { isLoading, refetch } = useQuery({
+  const { isLoading, refetch, error: queryError } = useQuery({
     queryKey: ["users"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -46,16 +52,75 @@ const AdminUsers: React.FC = () => {
         .order("created_at", { ascending: false });
       if (error) {
         toast({ title: "Error loading users", description: error.message });
-        return [];
+        throw error;
       }
+      // Debug: log data for admin
+      console.log("[AdminUsers] Supabase returned users:", data);
       return data || [];
     },
     meta: {
       onSuccess: (data: User[]) => {
         setUsers(data);
+        // Set debug info
+        setDebugInfo((prev: any) => ({
+          ...prev,
+          userCount: data.length,
+          userSample: data[0] || null,
+        }));
+      },
+      onError: (err: any) => {
+        setDebugInfo((prev: any) => ({
+          ...prev,
+          fetchError: err.message,
+        }));
       },
     },
   });
+
+  // Fetch and show admin status based on RLS helper function
+  React.useEffect(() => {
+    const fetchDebug = async () => {
+      if (!user) return;
+      // 1. Is admin?
+      let adminStatus = false;
+      let respDebug = { };
+      try {
+        const { data: resp, error: err } = await supabase.rpc("is_admin", {
+          _user_id: user.id,
+        });
+        if (!err) {
+          adminStatus = resp === true;
+        }
+        respDebug = { isAdmin: adminStatus };
+      } catch (e) {
+        respDebug = { isAdmin: false, isAdminCheckError: (e as any).message };
+      }
+      setDebugInfo((d: any) => ({
+        ...d,
+        userEmail: user.email,
+        userId: user.id,
+        isAdmin: adminStatus,
+        ...respDebug,
+      }));
+      // 2. Is manager?
+      try {
+        const { data: isManager, error: mErr } = await supabase.rpc("is_manager", {
+          _user_id: user.id,
+        });
+        if (!mErr) {
+          setDebugInfo((d: any) => ({
+            ...d,
+            isManager: isManager === true,
+          }));
+        }
+      } catch (e) {
+        /* ignore */
+      }
+    };
+    if (user) {
+      fetchDebug();
+    }
+  }, [user]);
 
   const fetchUsersAndUpdate = () => {
     refetch();
@@ -79,8 +144,57 @@ const AdminUsers: React.FC = () => {
     setEditDialogOpen(true);
   }
 
+  // --- Debug UI Section
+  function DebugSection() {
+    if (sessionLoading) return null;
+    return (
+      <div className="bg-yellow-50 border border-yellow-300 text-yellow-800 text-xs rounded py-2 px-3 mb-4">
+        <div className="flex gap-2 items-center mb-1">
+          <Info className="w-4 h-4" />
+          <span className="font-semibold">Debug Panel</span>
+        </div>
+        <div>
+          <b>Logged-in Email/ID:</b> {debugInfo.userEmail || "(none)"} ({debugInfo.userId?.slice?.(0,8) || ""})
+        </div>
+        <div>
+          <b>Is Admin:</b> {debugInfo.isAdmin === true ? "YES" : debugInfo.isAdmin === false ? "NO" : "unknown"}
+          {debugInfo.isAdminCheckError && (
+            <span className="text-red-600 ml-2">[Admin check error: {debugInfo.isAdminCheckError}]</span>
+          )}
+        </div>
+        <div>
+          <b>Is Manager / Team Manager:</b> {debugInfo.isManager === true ? "YES" : "NO"}
+        </div>
+        <div>
+          <b>Users loaded:</b> {debugInfo.userCount ?? "(?)"}
+          {debugInfo.userSample && (
+            <span className="ml-2 text-gray-400">(Sample user: {debugInfo.userSample.email})</span>
+          )}
+        </div>
+        {debugInfo.fetchError && (
+          <div className="text-red-600">Fetch Error: {debugInfo.fetchError}</div>
+        )}
+        <div>
+          <b>Notes:</b>{" "}
+          {debugInfo.isAdmin === false && (
+            <span>
+              You only see users you manage or are on your team. Contact an admin to review permissions.
+            </span>
+          )}
+          {debugInfo.isAdmin === true && users.length === 0 && (
+            <span>
+              No users found, even as admin. This may mean there are no users in the database, or a backend/RLS policy error.
+            </span>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-6 max-w-6xl w-full">
+      {/* Debug Section */}
+      <DebugSection />
       {/* Dialogs */}
       <EditUserDialog
         open={createDialogOpen}
@@ -103,7 +217,8 @@ const AdminUsers: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
         <h1 className="text-2xl font-bold">User Management</h1>
-        <div className="flex gap-3">
+        <div className="flex gap-3 flex-wrap">
+          <DownloadSampleExcel />
           <Button onClick={() => setBulkUploadOpen(true)}>Bulk Upload</Button>
           <Button onClick={handleCreateUser}>
             <Plus className="w-4 h-4 mr-2" />
@@ -144,7 +259,23 @@ const AdminUsers: React.FC = () => {
             ) : filteredUsers.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={4}>
-                  <span className="text-muted-foreground">No users found.</span>
+                  <div className="flex flex-col gap-2 items-start">
+                    <span className="text-muted-foreground">
+                      {users.length === 0
+                        ? "No users found in the system."
+                        : "No users match your search/filter."}
+                    </span>
+                    {debugInfo.isAdmin && users.length === 0 && (
+                      <span className="text-red-700">
+                        even as admin, no users were returned from Supabase. Check the database, recent import process, and RLS policies.
+                      </span>
+                    )}
+                    {!debugInfo.isAdmin && (
+                      <span className="text-muted-foreground">
+                        If you believe this is a mistake, contact your admin to verify your roles/permissions.
+                      </span>
+                    )}
+                  </div>
                 </TableCell>
               </TableRow>
             ) : (
@@ -167,3 +298,4 @@ const AdminUsers: React.FC = () => {
 };
 
 export default AdminUsers;
+
