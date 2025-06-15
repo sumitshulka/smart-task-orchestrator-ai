@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import DownloadSampleExcel from "@/components/DownloadSampleExcel";
-import BulkUserUploadPreviewTable from "@/components/BulkUserUploadPreviewTable";
+import BulkUserUploadPreviewEditableTable from "@/components/BulkUserUploadPreviewEditableTable";
 
 interface BulkUserUploadDialogProps {
   open: boolean;
@@ -43,10 +43,43 @@ const BulkUserUploadDialog = (props: BulkUserUploadDialogProps) => {
     }
   }, [open]);
 
-  const resetFileInput = () => {
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
+  // Utility for validating a single row (extract this for reuse)
+  function validateRow(row: any, existingEmails: string[], seen: Set<string>) {
+    let status = "valid";
+    let msg = "";
+    const email = row.email && row.email.toLowerCase();
+    const emailRegex = /^[\w.-]+@[\w.-]+\.\w+$/;
+    if (!email) {
+      status = "invalid";
+      msg = "Missing email";
+    } else if (!emailRegex.test(email)) {
+      status = "invalid";
+      msg = "Invalid email format";
+    } else if (existingEmails.includes(email)) {
+      status = "exists";
+      msg = "Already exists in system";
+    } else if (seen.has(email)) {
+      status = "duplicate";
+      msg = "Duplicate in file";
     }
+    return { ...row, _status: status, _message: msg };
+  }
+
+  // Update a row and revalidate it, then update setParsedUsers/reactive state
+  const handleUpdateRow = (idx: number, newRow: any) => {
+    const seen = new Set();
+    const lowerExisting = existingEmails.map(e => e.toLowerCase());
+    const updated = parsedUsers.map((row, i) => {
+      if (i === idx) {
+        const validated = validateRow(newRow, lowerExisting, seen);
+        if (validated.email) seen.add(validated.email.toLowerCase());
+        return validated;
+      }
+      if (row.email) seen.add(row.email.toLowerCase());
+      return validateRow(row, lowerExisting, seen);
+    });
+    setParsedUsers(updated);
+    setReadyToUpload(updated.some(r => r._status === "valid"));
   };
 
   // FILE PARSE LOGIC PATCHED (ESP. XLSX)
@@ -150,39 +183,19 @@ const BulkUserUploadDialog = (props: BulkUserUploadDialogProps) => {
       const headers = Object.keys(parsedRows[0]);
       setPreviewHeaders(headers);
     } catch (e) {
-      // Parsing error already handled by parseFile toasts.
       return;
     }
 
-    // Validate each row: check email validity, duplication (self), duplication (system)
     const seen = new Set();
-    const sysDup = new Set(existingEmails);
-    const emailRegex = /^[\w.-]+@[\w.-]+\.\w+$/;
-    const email2Rows = new Map();
-
-    // Map for marking row status
-    const previewRows = parsedRows.map((row, idx) => {
-      let msg = "";
-      let status = "valid";
-      let email = row.email && row.email.toLowerCase && row.email.toLowerCase();
-      if (!email) {
-        status = "invalid"; msg = "Missing email";
-      } else if (!emailRegex.test(email)) {
-        status = "invalid"; msg = "Invalid email format";
-      } else if (sysDup.has(email)) {
-        status = "exists"; msg = "Already exists in system";
-      } else if (seen.has(email)) {
-        status = "duplicate"; msg = "Duplicate in file";
-      }
-      if (email) {
-        email2Rows.has(email) ? email2Rows.get(email).push(idx) : email2Rows.set(email, [idx]);
-      }
-      seen.add(email);
-      return { ...row, _status: status, _message: msg };
+    const lowerExisting = existingEmails.map(e => e.toLowerCase());
+    const previewRows = parsedRows.map((row) => {
+      const validated = validateRow(row, lowerExisting, seen);
+      if (validated.email) seen.add(validated.email.toLowerCase());
+      return validated;
     });
 
     setParsedUsers(previewRows);
-    setReadyToUpload(previewRows.some(r => r._status === "valid")); // Only enable upload if at least one valid
+    setReadyToUpload(previewRows.some(r => r._status === "valid"));
     toast({
       title: "File loaded",
       description: `Loaded ${previewRows.length} record${previewRows.length !== 1 ? "s" : ""}.`,
@@ -224,7 +237,7 @@ const BulkUserUploadDialog = (props: BulkUserUploadDialogProps) => {
       if (!response.ok) {
         errorDescription = serverResp?.error || `Upload failed with status ${response.status}`;
         if (response.status === 401) {
-          errorDescription += " (Unauthorized. Check your Supabase Service Role Key and function deployment.)";
+          errorDescription = "Unauthorized (status 401). Please check your Supabase function deployment and Service Role Key.";
         }
         toast({
           title: "Bulk upload failed",
@@ -235,7 +248,6 @@ const BulkUserUploadDialog = (props: BulkUserUploadDialogProps) => {
         return;
       }
 
-      // Success or partial
       toast({
         title:
           serverResp.status === "partial"
@@ -271,7 +283,7 @@ const BulkUserUploadDialog = (props: BulkUserUploadDialogProps) => {
         <DialogHeader>
           <DialogTitle>Bulk User Upload</DialogTitle>
           <DialogDescription>
-            Upload a CSV or XLSX file to add multiple users. You can review and confirm before uploading.
+            Upload a CSV or XLSX file to add multiple users. You can review and edit before uploading.
           </DialogDescription>
         </DialogHeader>
         {/* Download sample file button restored */}
@@ -301,9 +313,13 @@ const BulkUserUploadDialog = (props: BulkUserUploadDialogProps) => {
         {parsedUsers && parsedUsers.length > 0 && (
           <div>
             <p className="text-sm mb-1">
-              Review parsed records (only <span className="font-bold">"Valid"</span> records will be uploaded):
+              Review, fix errors, and confirm records for upload (only <span className="font-bold">"Valid"</span> records will be uploaded):
             </p>
-            <BulkUserUploadPreviewTable users={parsedUsers} headers={previewHeaders} />
+            <BulkUserUploadPreviewEditableTable
+              users={parsedUsers}
+              headers={previewHeaders}
+              onUpdateRow={handleUpdateRow}
+            />
           </div>
         )}
         {errorRows.length > 0 && (
