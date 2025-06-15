@@ -21,6 +21,7 @@ import { fetchTasksPaginated, FetchTasksInput } from "@/integrations/supabase/ta
 import TasksList from "@/components/TasksList";
 import TasksNoResults from "@/components/TasksNoResults";
 import TasksPagination from "@/components/TasksPagination";
+import { useCurrentUserRoleAndTeams } from "@/hooks/useCurrentUserRoleAndTeams";
 
 // Priorities filter dropdown
 const priorities = [
@@ -50,6 +51,7 @@ const TasksPage: React.FC = () => {
   const [totalTasks, setTotalTasks] = useState(0);
   const [loading, setLoading] = useState(false);
   const { user, loading: sessionLoading } = useSupabaseSession();
+  const { roles, teams: userTeams, loading: roleTeamsLoading } = useCurrentUserRoleAndTeams();
   // filters
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -68,6 +70,11 @@ const TasksPage: React.FC = () => {
   // New: allTasks for "latest" fallback
   const [allTasks, setAllTasks] = useState<Task[]>([]);
 
+  // Get user team_ids
+  const userTeamIds = useMemo(() => {
+    return (userTeams ?? []).map((t: any) => t.id);
+  }, [userTeams]);
+
   async function load(fetchAll: boolean = false) {
     setLoading(true);
     setShowTooManyWarning(false);
@@ -83,33 +90,54 @@ const TasksPage: React.FC = () => {
     const fromDateStr = fromDateObj.toISOString().slice(0, 10);
     const toDateStr = toDateObj.toISOString().slice(0, 10);
 
-    // Build filter query from current filters
-    const input: FetchTasksInput = {
+    let input: FetchTasksInput = {
       fromDate: (fetchAll ? fromDateStr : fromDateStr),
       toDate: (fetchAll ? toDateStr : toDateStr),
-      priority: (fetchAll || priorityFilter === "all") ? undefined : Number(priorityFilter),
-      status: (fetchAll || statusFilter === "all") ? undefined : statusFilter,
-      assignedTo: (fetchAll || userFilter === "all") ? undefined : userFilter,
-      teamId: (fetchAll || teamFilter === "all") ? undefined : teamFilter,
+      // ... other filters for admin/manager
       offset: (page - 1) * pageSize,
       limit: pageSize,
     };
-    if (fetchAll) {
-      // Remove date filter, just get last 30 days
-      delete input.priority;
-      delete input.status;
-      delete input.assignedTo;
-      delete input.teamId;
-      // keep fromDate/toDate as last 30 days
+
+    // Role-based filtering: restrict for "user"
+    if (!fetchAll && user && roles && roles.length > 0 && roles.includes("user") && !roles.some(r => ["admin", "manager", "team_manager"].includes(r))) {
+      // Only show:
+      // 1. Their personal tasks
+      // 2. Their team tasks (no other users' personal tasks)
+      input = {
+        ...input,
+        // We'll filter in code after fetch to return only the relevant tasks
+      };
+    } else {
+      // Original input for admin/manager/others
+      input = {
+        ...input,
+        priority: (fetchAll || priorityFilter === "all") ? undefined : Number(priorityFilter),
+        status: (fetchAll || statusFilter === "all") ? undefined : statusFilter,
+        assignedTo: (fetchAll || userFilter === "all") ? undefined : userFilter,
+        teamId: (fetchAll || teamFilter === "all") ? undefined : teamFilter,
+      };
     }
+
     console.log("[TASKS] Calling fetchTasksPaginated with input:", input);
     try {
-      const { tasks, total } = await fetchTasksPaginated(input);
+      const { tasks: fetchedTasks, total } = await fetchTasksPaginated(input);
+      let visibleTasks: Task[] = fetchedTasks;
+      
+      // If "user" role only, apply stricter filtering
+      if (!fetchAll && user && roles && roles.includes("user") && !roles.some(r => ["admin", "manager", "team_manager"].includes(r))) {
+        visibleTasks = fetchedTasks.filter(task =>
+          // They can see their own personal tasks
+          (task.type === "personal" && task.assigned_to === user.id)
+          // ...and team tasks from teams they are a member of
+          || (task.type === "team" && userTeamIds.includes(task.team_id ?? ""))
+        );
+      }
+
       if (fetchAll) {
-        setAllTasks(tasks);
+        setAllTasks(visibleTasks);
       } else {
-        if (tasks.length) {
-          setTasks(tasks);
+        if (visibleTasks.length) {
+          setTasks(visibleTasks);
           setTotalTasks(total);
         } else {
           setTasks([]);
@@ -130,7 +158,6 @@ const TasksPage: React.FC = () => {
 
   // Modified: load both filtered and unfiltered data if no result
   useEffect(() => {
-    // Load filtered data
     load(false).then(() => {
       // Only fetch allTasks if filtered resulted in no tasks and not loading latest already
       if (!tasks.length && !loading) {
@@ -138,7 +165,7 @@ const TasksPage: React.FC = () => {
       }
     });
     // eslint-disable-next-line
-  }, [priorityFilter, statusFilter, userFilter, teamFilter, dateRange, page, pageSize]);
+  }, [priorityFilter, statusFilter, userFilter, teamFilter, dateRange, page, pageSize, userTeams.length, roles.length]);
 
   // Restrict delete to status 'pending' or 'new'
   function canDelete(status: string) {
