@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import {
   fetchRoles,
@@ -245,7 +244,6 @@ const UserRoleManager: React.FC = () => {
         </thead>
         <tbody>
           {filteredUsers.map((user) => {
-            // This returns an array of UserRole {id, user_id, role_id, assigned_by, assigned_at, role}
             const assignedUserRoles = getUserRolesFull(user.id);
 
             return (
@@ -261,70 +259,80 @@ const UserRoleManager: React.FC = () => {
                 {/* Roles col */}
                 <td className="p-2">
                   {assignedUserRoles.length > 0 ? (
-                    assignedUserRoles.map((ur) => (
-                      <span
-                        key={ur.role.id}
-                        className="inline-flex items-center gap-1 px-2 py-1 rounded bg-accent mr-2 mb-1"
-                      >
-                        {/* If in edit mode for this user+role */}
-                        {editState &&
-                        editState.userId === user.id &&
-                        editState.roleId === ur.role.id ? (
-                          <>
-                            <select
-                              className="border rounded p-1 mr-1"
-                              disabled={loading}
-                              value={editNewRole}
-                              onChange={(e) => setEditNewRole(e.target.value)}
-                            >
-                              {roles.map((role) => (
-                                <option key={role.id} value={role.id}>
-                                  {role.name}
-                                </option>
-                              ))}
-                            </select>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="mr-1"
-                              onClick={saveEdit}
-                              disabled={loading}
-                            >
-                              Save
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={cancelEdit}
-                              disabled={loading}
-                            >
-                              Cancel
-                            </Button>
-                          </>
-                        ) : (
-                          <>
-                            {ur.role.name}
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => startEdit(user.id, ur.role.id)}
-                              disabled={loading}
-                              title="Edit role"
-                            >
-                              &#9998;
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleRemoveRole(user.id, ur.role.id)}
-                              disabled={loading}
-                            >
-                              &times;
-                            </Button>
-                          </>
-                        )}
-                      </span>
-                    ))
+                    assignedUserRoles.map((ur) =>
+                      ur.role ? (
+                        <span
+                          key={ur.role.id}
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded bg-accent mr-2 mb-1"
+                        >
+                          {editState &&
+                          editState.userId === user.id &&
+                          editState.roleId === ur.role.id ? (
+                            <>
+                              <select
+                                className="border rounded p-1 mr-1"
+                                disabled={loading}
+                                value={editNewRole}
+                                onChange={(e) => setEditNewRole(e.target.value)}
+                              >
+                                {roles.map((role) => (
+                                  <option key={role.id} value={role.id}>
+                                    {role.name}
+                                  </option>
+                                ))}
+                              </select>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="mr-1"
+                                onClick={saveEdit}
+                                disabled={loading}
+                              >
+                                Save
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={cancelEdit}
+                                disabled={loading}
+                              >
+                                Cancel
+                              </Button>
+                            </>
+                          ) : (
+                            <>
+                              {ur.role.name}
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => startEdit(user.id, ur.role.id)}
+                                disabled={loading}
+                                title="Edit role"
+                              >
+                                &#9998;
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleRemoveRole(user.id, ur.role.id)}
+                                disabled={loading}
+                              >
+                                &times;
+                              </Button>
+                            </>
+                          )}
+                        </span>
+                      ) : (
+                        // `ur.role` is null (possibly data inconsistency), so render fallback
+                        <span
+                          key={ur.id}
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded bg-destructive/10 text-destructive mr-2 mb-1"
+                          title="This role no longer exists"
+                        >
+                          Unknown/Deleted role
+                        </span>
+                      )
+                    )
                   ) : (
                     <span className="text-muted-foreground">none</span>
                   )}
@@ -336,14 +344,14 @@ const UserRoleManager: React.FC = () => {
                         ur.assigned_at
                           ? (
                               <div
-                                key={ur.role.id}
+                                key={ur.role?.id ?? ur.id}
                                 className="text-xs text-muted-foreground ml-0"
                               >
                                 {format(new Date(ur.assigned_at), "yyyy-MM-dd HH:mm")}
                               </div>
                             )
                           : (
-                              <div key={ur.role.id} className="text-xs ml-0 text-gray-500">
+                              <div key={ur.role?.id ?? ur.id} className="text-xs ml-0 text-gray-500">
                                 N/A
                               </div>
                             )
@@ -364,7 +372,7 @@ const UserRoleManager: React.FC = () => {
                     <option value="">Select role</option>
                     {roles
                       .filter(
-                        (role) => !assignedUserRoles.find((ur) => ur.role.id === role.id)
+                        (role) => !assignedUserRoles.find((ur) => ur.role && ur.role.id === role.id)
                       )
                       .map((role) => (
                         <option key={role.id} value={role.id}>
