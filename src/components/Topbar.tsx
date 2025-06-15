@@ -8,6 +8,8 @@ import { Settings } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import useSupabaseSession from "@/hooks/useSupabaseSession";
 import { useRole } from "@/contexts/RoleProvider";
+import Logo from "./Logo";
+import { useSidebar } from "@/components/ui/sidebar";
 
 const USER_PLACEHOLDER = {
   name: "Jane Doe",
@@ -26,6 +28,7 @@ const Topbar: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useSupabaseSession();
   const { userName, highestRole, loading } = useRole();
+  const { state: sidebarState } = useSidebar();
 
   const displayName = userName || user?.user_metadata?.user_name || user?.email || USER_PLACEHOLDER.name;
   const displayEmail = user?.email || USER_PLACEHOLDER.email;
@@ -39,7 +42,11 @@ const Topbar: React.FC = () => {
     <header className="flex items-center justify-between border-b bg-background h-14 px-6 gap-4">
       {/* Left: Logo/Title only */}
       <div className="flex flex-col">
-        <span className="text-lg font-semibold tracking-tight">Admin Dashboard</span>
+        {sidebarState === "collapsed" ? (
+          <Logo collapsed />
+        ) : (
+          <span className="text-lg font-semibold tracking-tight">Admin Dashboard</span>
+        )}
       </div>
       {/* Right: Welcome/role text, then settings, avatar, menu */}
       <div className="flex items-center gap-4 ml-auto">
@@ -81,4 +88,3 @@ const Topbar: React.FC = () => {
 };
 
 export default Topbar;
-

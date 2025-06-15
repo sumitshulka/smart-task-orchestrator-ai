@@ -1,3 +1,4 @@
+
 import React from "react";
 import { useLocation, NavLink } from "react-router-dom";
 import {
@@ -10,7 +11,7 @@ import {
   SidebarMenuItem,
   SidebarMenuButton,
   SidebarTrigger,
-  SidebarProvider,
+  useSidebar
 } from "@/components/ui/sidebar";
 import { 
   LayoutDashboard, 
@@ -18,7 +19,8 @@ import {
   Users,         
   ShieldCheck, 
   ClipboardList, 
-  ListTodo, 
+  FolderKanban, // Use for Task Groups
+  UserCheck,    // Use for My Tasks
   History,
   FileText,
   ChartBar
@@ -29,6 +31,8 @@ import { useCurrentUserRoleAndTeams } from "@/hooks/useCurrentUserRoleAndTeams";
 export default function AppSidebar() {
   const location = useLocation();
   const { roles, teams, loading } = useCurrentUserRoleAndTeams();
+  const { state: sidebarState } = useSidebar();
+  const collapsed = sidebarState === "collapsed";
 
   // Simple role helpers
   const isAdmin = roles.includes("admin");
@@ -40,13 +44,18 @@ export default function AppSidebar() {
   const hasTeams = teams.length > 0;
 
   return (
-    <Sidebar className="w-64 min-w-14">
+    <Sidebar
+      className={collapsed ? "w-14" : "w-64 min-w-14"}
+      collapsible
+      data-collapsible="icon"
+    >
+      {/* SidebarTrigger inside sidebar for accessibility */}
       <SidebarTrigger className="m-2 self-end" />
       <SidebarContent>
-        <div className="border-b pb-2 mb-2">
-          <Logo />
+        {/* App name/logo should always be visible, with size depending on collapse */}
+        <div className="border-b pb-2 mb-2 flex items-center justify-center">
+          <Logo collapsed={collapsed} />
         </div>
-        {/* Dashboard - ungrouped */}
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
@@ -61,11 +70,11 @@ export default function AppSidebar() {
                     }
                   >
                     <LayoutDashboard className="w-5 h-5" />
-                    <span className="hidden md:inline">Dashboard</span>
+                    {/* Only show text when not collapsed */}
+                    {!collapsed && <span>Dashboard</span>}
                   </NavLink>
                 </SidebarMenuButton>
               </SidebarMenuItem>
-              {/* Show My Teams for plain users */}
               {isUserOnly && (
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={location.pathname.startsWith("/my-teams")}>
@@ -78,7 +87,7 @@ export default function AppSidebar() {
                       }
                     >
                       <Users2 className="w-5 h-5" />
-                      <span className="hidden md:inline">My Teams</span>
+                      {!collapsed && <span>My Teams</span>}
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -103,11 +112,11 @@ export default function AppSidebar() {
                     }
                   >
                     <ClipboardList className="w-5 h-5" />
-                    <span className="hidden md:inline">Tasks</span>
+                    {!collapsed && <span>Tasks</span>}
                   </NavLink>
                 </SidebarMenuButton>
               </SidebarMenuItem>
-              {/* Add Task Groups as submenu */}
+              {/* DIFFERENT ICON FOR TASK GROUPS */}
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={location.pathname.startsWith("/admin/task-groups")}>
                   <NavLink
@@ -118,11 +127,12 @@ export default function AppSidebar() {
                       (isActive ? "bg-muted text-primary font-semibold" : "hover:bg-muted/50")
                     }
                   >
-                    <ListTodo className="w-5 h-5" />
-                    <span className="hidden md:inline">Task Groups</span>
+                    <FolderKanban className="w-5 h-5" />
+                    {!collapsed && <span>Task Groups</span>}
                   </NavLink>
                 </SidebarMenuButton>
               </SidebarMenuItem>
+              {/* DIFFERENT ICON FOR MY TASKS */}
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={location.pathname.startsWith("/admin/my-tasks")}>
                   <NavLink
@@ -133,8 +143,8 @@ export default function AppSidebar() {
                       (isActive ? "bg-muted text-primary font-semibold" : "hover:bg-muted/50")
                     }
                   >
-                    <ListTodo className="w-5 h-5" />
-                    <span className="hidden md:inline">My Tasks</span>
+                    <UserCheck className="w-5 h-5" />
+                    {!collapsed && <span>My Tasks</span>}
                   </NavLink>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -149,14 +159,13 @@ export default function AppSidebar() {
                     }
                   >
                     <History className="w-5 h-5" />
-                    <span className="hidden md:inline">Historical Tasks</span>
+                    {!collapsed && <span>Historical Tasks</span>}
                   </NavLink>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
-
         {/* Management Section */}
         {(isAdmin || isManager) && (
           <SidebarGroup>
@@ -175,7 +184,7 @@ export default function AppSidebar() {
                         }
                       >
                         <Users2 className="w-5 h-5" />
-                        <span className="hidden md:inline">User Management</span>
+                        {!collapsed && <span>User Management</span>}
                       </NavLink>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -192,7 +201,7 @@ export default function AppSidebar() {
                       }
                     >
                       <Users className="w-5 h-5" />
-                      <span className="hidden md:inline">Team Management</span>
+                      {!collapsed && <span>Team Management</span>}
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -208,7 +217,7 @@ export default function AppSidebar() {
                         }
                       >
                         <ShieldCheck className="w-5 h-5" />
-                        <span className="hidden md:inline">Roles and Privileges</span>
+                        {!collapsed && <span>Roles and Privileges</span>}
                       </NavLink>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -242,10 +251,11 @@ export default function AppSidebar() {
                     }
                   >
                     <FileText className="w-5 h-5" />
-                    <span className="hidden md:inline">
-                      {/* Indicate user context if wanted */}
-                      {isUserOnly ? "My Task Report" : "Task Report"}
-                    </span>
+                    {!collapsed && (
+                      <span>
+                        {isUserOnly ? "My Task Report" : "Task Report"}
+                      </span>
+                    )}
                   </NavLink>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -261,7 +271,7 @@ export default function AppSidebar() {
                     }
                   >
                     <ChartBar className="w-5 h-5" />
-                    <span className="hidden md:inline">Analytics Report</span>
+                    {!collapsed && <span>Analytics Report</span>}
                   </NavLink>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -273,4 +283,5 @@ export default function AppSidebar() {
   );
 }
 
-// NOTE: src/components/AppSidebar.tsx is now 259 lines long. Consider splitting out menu logic if you want maintainability.
+// NOTE: src/components/AppSidebar.tsx is now over 277 lines and getting lengthy. Please consider refactoring for maintainability.
+
