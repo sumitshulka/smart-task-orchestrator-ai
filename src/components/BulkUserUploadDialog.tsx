@@ -1,3 +1,4 @@
+
 import React from "react";
 import {
   Dialog,
@@ -10,7 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import * as XLSX from "xlsx";
-import * as Papa from "papaparse";
+import Papa from "papaparse";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
@@ -21,7 +22,8 @@ interface BulkUserUploadDialogProps {
   onUsersUploaded?: () => void;
 }
 
-const BulkUserUploadDialog = ({ open, onOpenChange, onUsersUploaded }) => {
+const BulkUserUploadDialog = (props: BulkUserUploadDialogProps) => {
+  const { open, onOpenChange, onUsersUploaded } = props;
   const { toast } = useToast();
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = React.useState(false);
@@ -32,7 +34,7 @@ const BulkUserUploadDialog = ({ open, onOpenChange, onUsersUploaded }) => {
   React.useEffect(() => {
     if (open) {
       supabase.from("users").select("email").then(({ data, error }) => {
-        if (!error && data) setExistingEmails(data.map(u => u.email.toLowerCase()));
+        if (!error && data) setExistingEmails(data.map(u => (u.email || "").toLowerCase()));
       });
     }
   }, [open]);
@@ -44,11 +46,11 @@ const BulkUserUploadDialog = ({ open, onOpenChange, onUsersUploaded }) => {
   };
 
   const parseFile = async (file: File): Promise<any[]> => {
+    const fileType = file.name.split(".").pop()?.toLowerCase();
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = (e: any) => {
         const data = e.target.result;
-        const fileType = file.name.split(".").pop()?.toLowerCase();
 
         let parsedData: any[] = [];
 
@@ -56,7 +58,6 @@ const BulkUserUploadDialog = ({ open, onOpenChange, onUsersUploaded }) => {
           if (fileType === "csv") {
             const result = Papa.parse(data, { header: true, skipEmptyLines: true });
             if (result.errors.length > 0) {
-              console.error("CSV Parsing Errors:", result.errors);
               toast({
                 title: "CSV Parsing Error",
                 description: "There was an error parsing the CSV file. Please check the format.",
@@ -69,12 +70,12 @@ const BulkUserUploadDialog = ({ open, onOpenChange, onUsersUploaded }) => {
             const workbook = XLSX.read(data, { type: "buffer" });
             const sheetName = workbook.SheetNames[0];
             const worksheet = workbook.Sheets[sheetName];
-            parsedData = XLSX.utils.sheet_to_json(worksheet, { header: "1" });
+            parsedData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
 
             // If the first row is headers, use them as keys
             if (parsedData.length > 0) {
               const headers = parsedData[0] as string[];
-              parsedData = parsedData.slice(1).map((row: any[]) => {
+              parsedData = (parsedData as any[]).slice(1).map((row: any[]) => {
                 const obj: any = {};
                 headers.forEach((header, index) => {
                   obj[header] = row[index];
@@ -118,7 +119,7 @@ const BulkUserUploadDialog = ({ open, onOpenChange, onUsersUploaded }) => {
   };
 
   // Add validation before uploading
-  async function handleFile(file) {
+  async function handleFile(file: File) {
     let parsedRows: any[] = [];
     try {
       parsedRows = await parseFile(file);
@@ -128,19 +129,26 @@ const BulkUserUploadDialog = ({ open, onOpenChange, onUsersUploaded }) => {
 
     // Email uniqueness check (within upload)
     const seen = new Set();
-    const duplicateEmailsSelf = parsedRows
-      .map(row => row.email && row.email.toLowerCase())
-      .filter(email => {
-        if (!email) return false;
-        if (seen.has(email)) return true;
+    const duplicateEmailsSelf: string[] = [];
+    parsedRows.forEach(row => {
+      const email = row.email && row.email.toLowerCase && row.email.toLowerCase();
+      if (!email) return;
+      if (seen.has(email)) {
+        duplicateEmailsSelf.push(email);
+      } else {
         seen.add(email);
-        return false;
-      });
+      }
+    });
 
     // Email uniqueness check (against system)
-    const duplicateEmailsSystem = parsedRows
-      .map(row => row.email && row.email.toLowerCase())
-      .filter(email => existingEmails.includes(email));
+    const duplicateEmailsSystem: string[] = [];
+    parsedRows.forEach(row => {
+      const email = row.email && row.email.toLowerCase && row.email.toLowerCase();
+      if (!email) return;
+      if (existingEmails.includes(email)) {
+        duplicateEmailsSystem.push(email);
+      }
+    });
 
     if (duplicateEmailsSelf.length > 0 || duplicateEmailsSystem.length > 0) {
       setErrorRows([...new Set([...duplicateEmailsSelf, ...duplicateEmailsSystem])]);
@@ -154,6 +162,7 @@ const BulkUserUploadDialog = ({ open, onOpenChange, onUsersUploaded }) => {
             ? `These emails already exist in the system: ${duplicateEmailsSystem.join(", ")}. `
             : "")
       });
+      resetFileInput();
       return;
     }
 
@@ -232,7 +241,7 @@ const BulkUserUploadDialog = ({ open, onOpenChange, onUsersUploaded }) => {
           <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button type="submit" disabled={uploading} onClick={() => fileInputRef.current?.click()}>
+          <Button type="button" disabled={uploading} onClick={() => fileInputRef.current?.click()}>
             {uploading ? "Uploading..." : "Upload"}
           </Button>
         </DialogFooter>

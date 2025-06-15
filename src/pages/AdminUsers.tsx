@@ -1,3 +1,4 @@
+
 import React from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,7 +15,7 @@ import { toast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import UserTableActions from "@/components/UserTableActions";
 import EditUserDialog from "@/components/EditUserDialog";
-import BulkUserUploadDialog from "@/components/BulkUserUploadDialog"; // Import the dialog
+import BulkUserUploadDialog from "@/components/BulkUserUploadDialog";
 import { useQuery } from "@tanstack/react-query";
 
 interface User {
@@ -31,11 +32,11 @@ const AdminUsers: React.FC = () => {
   const [search, setSearch] = React.useState("");
   const [createDialogOpen, setCreateDialogOpen] = React.useState(false);
   const [editDialogOpen, setEditDialogOpen] = React.useState(false);
-  const [bulkUploadOpen, setBulkUploadOpen] = React.useState(false); // State for bulk upload dialog
+  const [bulkUploadOpen, setBulkUploadOpen] = React.useState(false);
   const [editUser, setEditUser] = React.useState<User | null>(null);
   const [users, setUsers] = React.useState<User[]>([]);
 
-  // Fetch users using react-query
+  // Fetch users using react-query (React Query v5 format)
   const { isLoading, refetch } = useQuery({
     queryKey: ["users"],
     queryFn: async () => {
@@ -49,17 +50,17 @@ const AdminUsers: React.FC = () => {
       }
       return data || [];
     },
-    onSuccess: (data) => {
-      setUsers(data);
+    meta: {
+      onSuccess: (data: User[]) => {
+        setUsers(data);
+      },
     },
   });
 
-  // Function to trigger refetch
   const fetchUsersAndUpdate = () => {
     refetch();
   };
 
-  // Filtered users
   const filteredUsers = React.useMemo(() => {
     return users.filter((user) => {
       const searchTerm = search.toLowerCase();
@@ -70,39 +71,12 @@ const AdminUsers: React.FC = () => {
     });
   }, [users, search]);
 
-  // Handlers
   function handleCreateUser() {
     setCreateDialogOpen(true);
   }
   function handleEditUser(user: User) {
     setEditUser(user);
     setEditDialogOpen(true);
-  }
-
-  // Assume there is a handler for bulk upload response
-  function handleBulkUploadResponse(response: any) {
-    if (response.error) {
-      // The backend returns a per-row error list or generic error for duplicates
-      toast({
-        title: "Bulk upload failed",
-        description:
-          typeof response.error === "string"
-            ? response.error
-            : response.error.details || "A duplicate email was found or another error occurred."
-      });
-    } else if (response.partialErrors && response.partialErrors.length > 0) {
-      toast({
-        title: "Partial Upload: some users not added",
-        description: "These emails could not be saved: " + response.partialErrors.join(", ")
-      });
-    } else {
-      toast({
-        title: "Bulk upload successful",
-        description: response.message || "All users added."
-      });
-      // reload user list
-      fetchUsersAndUpdate();
-    }
   }
 
   return (
@@ -112,6 +86,7 @@ const AdminUsers: React.FC = () => {
         open={createDialogOpen}
         onOpenChange={setCreateDialogOpen}
         onUserUpdated={fetchUsersAndUpdate}
+        user={undefined} // Supply undefined for user prop
       />
       <EditUserDialog
         open={editDialogOpen}
@@ -124,7 +99,6 @@ const AdminUsers: React.FC = () => {
         open={bulkUploadOpen}
         onOpenChange={setBulkUploadOpen}
         onUsersUploaded={fetchUsersAndUpdate}
-        onResponse={handleBulkUploadResponse}
       />
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
