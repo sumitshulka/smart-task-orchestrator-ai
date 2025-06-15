@@ -4,6 +4,8 @@ import { format, startOfMonth, endOfMonth } from "date-fns";
 import { CalendarIcon } from "lucide-react";
 import { fetchTasksPaginated } from "@/integrations/supabase/tasks";
 import { useQuery } from "@tanstack/react-query";
+import Papa from "papaparse";
+import { Download } from "lucide-react";
 import {
   Form, FormLabel, FormControl, FormField, FormItem, FormMessage,
 } from "@/components/ui/form";
@@ -226,80 +228,128 @@ export default function TaskReport() {
     });
   }, [taskData, statusNames]);
 
+  // --- CSV EXPORT HANDLER ---
+  const handleExportCSV = React.useCallback(() => {
+    // The columns we use for export (with headers)
+    const exportHeaders = [
+      "Employee Name",
+      "Employee Email",
+      "Total Tasks Assigned",
+      ...statusNames,
+      "Completion Ratio"
+    ];
+
+    // Prepare data rows: each row in order, including status fields
+    const dataRows = report.map(row => {
+      const statusCounts: Record<string, number|string> = {};
+      statusNames.forEach(status => {
+        statusCounts[status] = row[status] ?? 0;
+      });
+      return {
+        "Employee Name": row.employeeName,
+        "Employee Email": row.employeeEmail,
+        "Total Tasks Assigned": row.totalAssigned,
+        ...statusCounts,
+        "Completion Ratio": row.completionRatio
+      };
+    });
+
+    const csv = Papa.unparse({ fields: exportHeaders, data: dataRows });
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `task_report_${Date.now()}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }, [report, statusNames]);
+
   return (
     <div className="max-w-5xl mx-auto p-4">
       <h1 className="text-2xl font-semibold mb-4">Task Report</h1>
-      <div className="bg-muted rounded p-4 mb-4">
-        <Form {...form}>
-          <form className="flex flex-col md:flex-row gap-4 items-center w-full md:justify-start">
-            <FormField
-              control={form.control}
-              name="fromDate"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Start Date</FormLabel>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <FormControl>
-                        <Button
-                          variant={"outline"}
-                          className="min-w-[140px] justify-start text-left font-normal"
-                        >
-                          {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
-                          <CalendarIcon className="ml-2 h-4 w-4 opacity-50" />
-                        </Button>
-                      </FormControl>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={field.value}
-                        onSelect={field.onChange}
-                        disabled={date => date > toDate}
-                        initialFocus
-                        className="p-3 pointer-events-auto"
-                      />
-                    </PopoverContent>
-                  </Popover>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="toDate"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>End Date</FormLabel>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <FormControl>
-                        <Button
-                          variant={"outline"}
-                          className="min-w-[140px] justify-start text-left font-normal"
-                        >
-                          {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
-                          <CalendarIcon className="ml-2 h-4 w-4 opacity-50" />
-                        </Button>
-                      </FormControl>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={field.value}
-                        onSelect={field.onChange}
-                        disabled={date => date < fromDate}
-                        initialFocus
-                        className="p-3 pointer-events-auto"
-                      />
-                    </PopoverContent>
-                  </Popover>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </form>
-        </Form>
+      <div className="flex flex-col md:flex-row gap-2 justify-between items-start mb-2">
+        <div className="bg-muted rounded p-4 mb-4 md:mb-0 w-full md:w-auto">
+          <Form {...form}>
+            <form className="flex flex-col md:flex-row gap-4 items-center w-full md:justify-start">
+              <FormField
+                control={form.control}
+                name="fromDate"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Start Date</FormLabel>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <FormControl>
+                          <Button
+                            variant={"outline"}
+                            className="min-w-[140px] justify-start text-left font-normal"
+                          >
+                            {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
+                            <CalendarIcon className="ml-2 h-4 w-4 opacity-50" />
+                          </Button>
+                        </FormControl>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={field.value}
+                          onSelect={field.onChange}
+                          disabled={date => date > toDate}
+                          initialFocus
+                          className="p-3 pointer-events-auto"
+                        />
+                      </PopoverContent>
+                    </Popover>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="toDate"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>End Date</FormLabel>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <FormControl>
+                          <Button
+                            variant={"outline"}
+                            className="min-w-[140px] justify-start text-left font-normal"
+                          >
+                            {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
+                            <CalendarIcon className="ml-2 h-4 w-4 opacity-50" />
+                          </Button>
+                        </FormControl>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={field.value}
+                          onSelect={field.onChange}
+                          disabled={date => date < fromDate}
+                          initialFocus
+                          className="p-3 pointer-events-auto"
+                        />
+                      </PopoverContent>
+                    </Popover>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </form>
+          </Form>
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          className="flex items-center gap-2"
+          onClick={handleExportCSV}
+          disabled={isLoading || report.length === 0}
+        >
+          <Download className="w-4 h-4" />
+          Export CSV
+        </Button>
       </div>
       <div className="rounded border overflow-x-auto">
         <Table>
