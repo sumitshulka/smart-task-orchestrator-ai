@@ -7,6 +7,7 @@ import {
   SheetDescription,
   SheetFooter,
   SheetClose,
+  SheetTrigger,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,13 +31,26 @@ const statusOptions = [
 type Props = {
   task: Task | null;
   onUpdated: () => void;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
+  // For controlled usage
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  // For trigger-as-child pattern
+  children?: React.ReactNode;
 };
 
-const EditTaskSheet: React.FC<Props> = ({ task, onUpdated, open, onOpenChange }) => {
+const EditTaskSheet: React.FC<Props> = ({
+  task,
+  onUpdated,
+  open: controlledOpen,
+  onOpenChange: controlledOnOpenChange,
+  children,
+}) => {
+  // Use controlled or uncontrolled open state
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = controlledOpen !== undefined ? controlledOpen : internalOpen;
+  const onOpenChange = controlledOnOpenChange !== undefined ? controlledOnOpenChange : setInternalOpen;
+
   const [newAssignee, setNewAssignee] = useState(task?.assigned_to || "");
-  const [openInternal, setOpenInternal] = useState(false);
   const [form, setForm] = useState({
     title: task?.title || "",
     description: task?.description || "",
@@ -243,6 +257,7 @@ const EditTaskSheet: React.FC<Props> = ({ task, onUpdated, open, onOpenChange })
   // For users: only allow status, comment, and assigning to their manager (not due_date or general assignment)
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
+      {children && <SheetTrigger asChild>{children}</SheetTrigger>}
       <SheetContent side="right" className="max-w-4xl w-[75vw]">
         <form className="p-2 space-y-6" onSubmit={handleSubmit}>
           <SheetHeader>
