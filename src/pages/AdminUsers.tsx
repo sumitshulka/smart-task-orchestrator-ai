@@ -4,20 +4,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import DownloadSampleExcel from "@/components/DownloadSampleExcel";
 import BulkUserUploadDialog from "@/components/BulkUserUploadDialog";
-import {
-  Table,
-  TableHeader,
-  TableBody,
-  TableHead,
-  TableRow,
-  TableCell,
-} from "@/components/ui/table";
-import { Plus, Filter, Info } from "lucide-react";
+import { Plus, Filter } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import UserTableActions from "@/components/UserTableActions";
 import EditUserDialog from "@/components/EditUserDialog";
-import { useQuery } from "@tanstack/react-query";
 import useSupabaseSession from "@/hooks/useSupabaseSession";
 
 interface User {
@@ -122,49 +113,50 @@ const AdminUsers: React.FC = () => {
           />
         </div>
       </div>
-      {/* Table */}
+      {/* Table - now matches the styles in AdminRoles */}
       <div className="border rounded shadow bg-background overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Email</TableHead>
-              <TableHead>Department</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
+        <table className="w-full border text-sm rounded-md shadow bg-background">
+          <thead>
+            <tr className="bg-muted">
+              <th className="p-2 text-left">Name</th>
+              <th className="p-2 text-left">Email</th>
+              <th className="p-2 text-left">Department</th>
+              <th className="p-2 text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
             {loading ? (
-              <TableRow>
-                <TableCell colSpan={4}>
+              <tr>
+                <td colSpan={4} className="p-4">
                   <span className="text-muted-foreground">Loading users...</span>
-                </TableCell>
-              </TableRow>
+                </td>
+              </tr>
             ) : filteredUsers.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={4}>
+              <tr>
+                <td colSpan={4} className="p-4">
                   <span className="text-muted-foreground">
                     No users found in the system.
                   </span>
-                </TableCell>
-              </TableRow>
+                </td>
+              </tr>
             ) : (
               filteredUsers.map((user) => (
-                <TableRow key={user.id}>
-                  <TableCell>{user.user_name || "--"}</TableCell>
-                  <TableCell>{user.email}</TableCell>
-                  <TableCell>{user.department || "--"}</TableCell>
-                  <TableCell className="text-right">
+                <tr key={user.id} className="border-b last:border-b-0">
+                  <td className="p-2">{user.user_name || "--"}</td>
+                  <td className="p-2">{user.email}</td>
+                  <td className="p-2">{user.department || "--"}</td>
+                  <td className="p-2 text-right">
                     <UserTableActions user={user} onEdit={handleEditUser} />
-                  </TableCell>
-                </TableRow>
+                  </td>
+                </tr>
               ))
             )}
-          </TableBody>
-        </Table>
+          </tbody>
+        </table>
       </div>
     </div>
   );
 };
 
 export default AdminUsers;
+
