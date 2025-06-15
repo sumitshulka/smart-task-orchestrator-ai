@@ -28,6 +28,25 @@ function defaultFilterDates() {
   };
 }
 
+// New helper: fetch report data from the view for admins
+async function fetchTaskReportView(fromDate: Date, toDate: Date, limit = 1000) {
+  const { supabase } = await import("@/integrations/supabase/client");
+  const { format } = await import("date-fns");
+  const fromStr = format(fromDate, "yyyy-MM-dd");
+  const toStr = format(toDate, "yyyy-MM-dd");
+  const { data, error } = await supabase
+    .from("tasks_report_view")
+    .select("*")
+    .gte("created_at", fromStr)
+    .lte("created_at", toStr)
+    .limit(limit);
+  if (error) {
+    console.error("Error fetching from tasks_report_view:", error);
+    return [];
+  }
+  return data || [];
+}
+
 // Edit columns as before; do not expose systemId, append email under employee name.
 const columns = [
   "Employee Name",
@@ -111,9 +130,24 @@ export default function TaskReport() {
     data: taskData,
     isLoading
   } = useQuery({
-    queryKey: ["task-report", fromDate, toDate, reportUserIds.join(",")],
+    queryKey: ["task-report", fromDate, toDate, reportUserIds.join(","), roles.join(",")],
     queryFn: async () => {
       if (!user?.id) return [];
+      // ----- Admin: use the new view -----
+      if (roles.includes("admin")) {
+        // Fetch from view
+        const rows = await fetchTaskReportView(fromDate, toDate, 1000);
+        // Map result to mimic previous "taskData" but with explicit user fields
+        return (rows as any[]).map((r) => ({
+          ...r,
+          assigned_to: r.assignee_email ? r.assignee_email : null,
+          assigned_user: {
+            user_name: r.assignee_name,
+            email: r.assignee_email
+          },
+        }));
+      }
+
       let filters: any = {
         fromDate: format(fromDate, "yyyy-MM-dd"),
         toDate: format(toDate, "yyyy-MM-dd"),
