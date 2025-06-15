@@ -184,20 +184,31 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
     } else if (name === "priority") {
       setForm((f) => ({ ...f, [name]: Number(value) }));
     } else if (name === "status") {
-      // Prevent completed if dependency is not complete
       if (value === "completed" && !canCompleteDependent()) {
         return;
       }
       setForm((f) => ({ ...f, status: value }));
     } else if (name === "start_date") {
-      // Prevent setting before dependencyDueDate
       if (isInvalidStartDate(value)) {
-        // Optionally, show a toast or feedback here
         toast({
           title: "Invalid Start Date",
           description: dependencyDueDate
             ? `Start date must be on or after ${dependencyDueDate}.`
             : "Invalid dependency.",
+          variant: "destructive",
+        });
+        return;
+      }
+      setForm((f) => ({
+        ...f,
+        [name]: value,
+        due_date: f.due_date && value && f.due_date < value ? "" : f.due_date,
+      }));
+    } else if (name === "due_date") {
+      if (form.start_date && value && value < form.start_date) {
+        toast({
+          title: "Invalid End Date",
+          description: "End date must be on or after the start date.",
           variant: "destructive",
         });
         return;
@@ -211,6 +222,14 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
   // In handleSubmit: assign to group if set and not empty
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isDueDateBeforeStartDate()) {
+      toast({
+        title: "Invalid End Date",
+        description: "End date cannot be before the start date.",
+        variant: "destructive",
+      });
+      return;
+    }
     setCreating(true);
     try {
       const myUserId = user?.id;
@@ -345,6 +364,12 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
     loading: dependencyLoading,
   } = useDependencyConstraintValidation(form.isDependent ? form.dependencyTaskId : undefined);
 
+  // --- NEW: Validate due_date >= start_date ---
+  function isDueDateBeforeStartDate() {
+    if (!form.start_date || !form.due_date) return false;
+    return form.due_date < form.start_date;
+  }
+
   // --- (dependency selection) ---
   // When dependency selected via dialog, update dependencyTaskId and remember the selected full task
   function handleDependencySelect(task: Task) {
@@ -443,7 +468,6 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
                     : ""
                 }
               />
-              {/* Show real-time validation feedback if needed */}
               {form.isDependent && form.dependencyTaskId && isInvalidStartDate(form.start_date) && (
                 <div className="text-xs text-red-600 mt-1">
                   Start date must be on or after the dependency's due date ({dependencyDueDate})
@@ -457,7 +481,18 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
                 type="date"
                 value={form.due_date}
                 onChange={handleChange}
+                min={form.start_date || undefined}
+                className={
+                  form.start_date && form.due_date && form.due_date < form.start_date
+                    ? "border-red-500"
+                    : ""
+                }
               />
+              {form.start_date && form.due_date && form.due_date < form.start_date && (
+                <div className="text-xs text-red-600 mt-1">
+                  End date must be on or after start date
+                </div>
+              )}
             </div>
             {/* Row 5: Assign Type (left) and Assigned To (right) */}
             <div>

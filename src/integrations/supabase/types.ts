@@ -527,6 +527,7 @@ export type Database = {
           assigned_to: string | null
           created_at: string
           created_by: string
+          dependencyTaskId: string | null
           description: string | null
           due_date: string | null
           estimated_hours: number | null
@@ -544,6 +545,7 @@ export type Database = {
           assigned_to?: string | null
           created_at?: string
           created_by: string
+          dependencyTaskId?: string | null
           description?: string | null
           due_date?: string | null
           estimated_hours?: number | null
@@ -561,6 +563,7 @@ export type Database = {
           assigned_to?: string | null
           created_at?: string
           created_by?: string
+          dependencyTaskId?: string | null
           description?: string | null
           due_date?: string | null
           estimated_hours?: number | null
