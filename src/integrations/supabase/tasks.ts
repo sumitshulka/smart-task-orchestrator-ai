@@ -20,6 +20,9 @@ export type Task = {
     user_name: string | null;
   } | null;
   actual_completion_date: string | null;
+  // NEW FIELDS from tasks_with_extras
+  group_ids?: string[];           // array of group_ids this task belongs to (subtasks)
+  is_dependent?: boolean;         // true if this task is a dependent
 };
 
 // -------- CRUD Functions --------
@@ -27,7 +30,7 @@ export type Task = {
 // Fetch all tasks visible to current user, including assigned user's email and name
 export async function fetchTasks(): Promise<Task[]> {
   const { data, error } = await supabase
-    .from("tasks")
+    .from("tasks_with_extras")
     .select(`
       *,
       assigned_user:assigned_to (
@@ -41,11 +44,14 @@ export async function fetchTasks(): Promise<Task[]> {
     ...task,
     assigned_user: task.assigned_user || null,
     actual_completion_date: task.actual_completion_date ?? null,
+    group_ids: task.group_ids || [],
+    is_dependent: !!task.is_dependent,
   })) as Task[];
 }
 
 // Update: require created_by in new task input
 export async function createTask(task: Omit<Task, "id" | "created_at" | "updated_at">) {
+  // Uses normal "tasks" table for writing
   const { data, error } = await supabase
     .from("tasks")
     .insert([task])
@@ -57,6 +63,7 @@ export async function createTask(task: Omit<Task, "id" | "created_at" | "updated
 
 // Update a task
 export async function updateTask(id: string, updates: Partial<Task>) {
+  // Uses normal "tasks" table for updates
   const { data, error } = await supabase
     .from("tasks")
     .update(updates)
@@ -69,6 +76,7 @@ export async function updateTask(id: string, updates: Partial<Task>) {
 
 // Delete a task
 export async function deleteTask(id: string) {
+  // Uses normal "tasks" table for deletes
   const { error } = await supabase
     .from("tasks")
     .delete()
@@ -96,7 +104,7 @@ export type FetchTasksResult = {
 
 export async function fetchTasksPaginated(input: FetchTasksInput = {}): Promise<FetchTasksResult> {
   let query = supabase
-    .from("tasks")
+    .from("tasks_with_extras")
     .select(`
       *,
       assigned_user:assigned_to (
@@ -134,6 +142,8 @@ export async function fetchTasksPaginated(input: FetchTasksInput = {}): Promise<
       ...task,
       assigned_user: task.assigned_user || null,
       actual_completion_date: task.actual_completion_date ?? null,
+      group_ids: task.group_ids || [],
+      is_dependent: !!task.is_dependent,
     })) as Task[],
     total: count ?? 0,
   };
