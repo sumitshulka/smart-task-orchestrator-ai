@@ -1,26 +1,18 @@
+
 import React from "react";
 import { useForm } from "react-hook-form";
 import { format, startOfMonth, endOfMonth } from "date-fns";
-import { CalendarIcon } from "lucide-react";
 import { fetchTasksPaginated } from "@/integrations/supabase/tasks";
 import { useQuery } from "@tanstack/react-query";
-import Papa from "papaparse";
-import { Download } from "lucide-react";
-import {
-  Form, FormLabel, FormControl, FormField, FormItem, FormMessage,
-} from "@/components/ui/form";
-import {
-  Popover, PopoverTrigger, PopoverContent,
-} from "@/components/ui/popover";
-import { Button } from "@/components/ui/button";
-import { Calendar } from "@/components/ui/calendar";
-import {
-  Table, TableHeader, TableRow, TableHead, TableBody, TableCell,
-} from "@/components/ui/table";
 import useSupabaseSession from "@/hooks/useSupabaseSession";
 import { useCurrentUserRoleAndTeams } from "@/hooks/useCurrentUserRoleAndTeams";
 import { useTaskStatuses } from "@/hooks/useTaskStatuses";
 import { supabase } from "@/integrations/supabase/client";
+
+// Refactored UI
+import TaskReportFilters from "@/components/report/TaskReportFilters";
+import TaskReportTable from "@/components/report/TaskReportTable";
+import TaskReportExportButton from "@/components/report/TaskReportExportButton";
 
 function defaultFilterDates() {
   const now = new Date();
@@ -30,7 +22,6 @@ function defaultFilterDates() {
   };
 }
 
-// New helper: fetch report data from the view for admins
 async function fetchTaskReportView(fromDate: Date, toDate: Date, limit = 1000) {
   const { supabase } = await import("@/integrations/supabase/client");
   const { format } = await import("date-fns");
@@ -49,12 +40,9 @@ async function fetchTaskReportView(fromDate: Date, toDate: Date, limit = 1000) {
   return data || [];
 }
 
-// Edit columns as before; do not expose systemId, append email under employee name.
 const columns = [
   "Employee Name",
   "Total Tasks Assigned",
-  // Dynamically fill in statuses from DB
-  // "Completed", etc, will be generated after fetching
   "Completion Ratio"
 ];
 
@@ -63,7 +51,7 @@ type EmployeeReport = {
   employeeName: string;
   employeeEmail: string;
   totalAssigned: number;
-  [status: string]: string | number; // Dynamic status counts, also include systemId/email/name/assigned/ratio
+  [status: string]: string | number;
   completionRatio?: string;
 };
 
@@ -80,29 +68,22 @@ export default function TaskReport() {
   const { statuses, loading: statusesLoading } = useTaskStatuses();
   const statusNames = statuses.map(s => s.name);
 
-  // Helper: get uuids of users team
   const userTeamIds = React.useMemo(() => userTeams?.map(t => t.id) ?? [], [userTeams]);
 
-  // --- NEW: For manager/team_manager, get users in their teams ---
   const [reportUserIds, setReportUserIds] = React.useState<string[]>([]);
 
   React.useEffect(() => {
-    // For admin: show all tasks/users (don't restrict), for user: just self, for manager: only those assigned to any in reportUserIds
     const resolveReportUsers = async () => {
       if (!user?.id || rolesLoading) return;
-
       if (roles.includes("admin")) {
-        setReportUserIds([]); // Empty array means include all
+        setReportUserIds([]);
         return;
       }
       if (roles.includes("manager") || roles.includes("team_manager")) {
-        // Get all user ids where user's manager is self OR in their teams
-        // 1. Users with manager = my user_name
         const { data: managedByMe } = await supabase
           .from("users")
           .select("id")
           .eq("manager", userRow?.user_name ?? "");
-        // 2. Users who share my team memberships
         let teamMembers: any[] = [];
         if (userTeamIds.length) {
           const { data: teamMems } = await supabase
@@ -111,12 +92,11 @@ export default function TaskReport() {
             .in("team_id", userTeamIds);
           teamMembers = teamMems?.map((m: any) => m.user_id) ?? [];
         }
-        // No duplicates, exclude self
         const allReportUsers = [
           ...(managedByMe?.map((u: any) => u.id) ?? []),
           ...teamMembers
         ].filter((uid, i, arr) => uid && arr.indexOf(uid) === i && uid !== user.id);
-        setReportUserIds([user.id, ...allReportUsers]); // Include self
+        setReportUserIds([user.id, ...allReportUsers]);
       } else if (roles.includes("user")) {
         setReportUserIds([user.id]);
       } else {
@@ -127,7 +107,6 @@ export default function TaskReport() {
     // eslint-disable-next-line
   }, [user?.id, roles, userRow?.user_name, userTeamIds.join(".")]);
 
-  // 2. Fetch tasks for the date filter
   const {
     data: taskData,
     isLoading
@@ -135,11 +114,8 @@ export default function TaskReport() {
     queryKey: ["task-report", fromDate, toDate, reportUserIds.join(","), roles.join(",")],
     queryFn: async () => {
       if (!user?.id) return [];
-      // ----- Admin: use the new view -----
       if (roles.includes("admin")) {
-        // Fetch from view
         const rows = await fetchTaskReportView(fromDate, toDate, 1000);
-        // Map result to mimic previous "taskData" but with explicit user fields
         return (rows as any[]).map((r) => ({
           ...r,
           assigned_to: r.assignee_email ? r.assignee_email : null,
@@ -149,41 +125,25 @@ export default function TaskReport() {
           },
         }));
       }
-
       let filters: any = {
         fromDate: format(fromDate, "yyyy-MM-dd"),
         toDate: format(toDate, "yyyy-MM-dd"),
         limit: 1000
       };
-      // For user: only assigned to self or created by self
-      // For manager: only those assigned to any in reportUserIds
       if (reportUserIds.length === 1) {
         filters.assignedTo = reportUserIds[0];
-      } else if (reportUserIds.length > 1) {
-        // For manager/team_manager, fetch all and filter after
-        // (no assignedTo set, will filter after fetch)
       }
-      // For admin (reportUserIds.length === 0), do NOT set assignedTo
-      // console.log the filters for debugging
-      // Remove this log if not needed after patch
-      // console.log("Fetching with filters:", filters);
-
       const { tasks } = await fetchTasksPaginated(filters);
-
-      // For user: just own tasks
       if (reportUserIds.length === 1) {
         return tasks.filter(t => t.assigned_to === reportUserIds[0] || t.created_by === reportUserIds[0]);
       }
-      // For manager/team, only count if assigned_to is in reportUserIds
       if (reportUserIds.length > 1) {
         return tasks.filter(t => reportUserIds.includes(t.assigned_to ?? ""));
       }
-      // For admin (reportUserIds.length === 0), return all
       return tasks;
     }
   });
 
-  // 3. Build reporting columns with all statuses dynamically
   const reportingColumns = [
     columns[0],
     columns[1],
@@ -191,7 +151,6 @@ export default function TaskReport() {
     columns[columns.length - 1]
   ];
 
-  // 4. Group and calculate stats per assigned employee
   const report = React.useMemo<EmployeeReport[]>(() => {
     if (!taskData) return [];
     const userMap: Record<string, EmployeeReport> = {};
@@ -216,7 +175,6 @@ export default function TaskReport() {
         (userMap[assignedId][task.status] as number) += 1;
       }
     });
-    // Add completion ratio
     return Object.values(userMap).map(u => {
       const completed = u["Completed"] as number || 0;
       return {
@@ -228,175 +186,26 @@ export default function TaskReport() {
     });
   }, [taskData, statusNames]);
 
-  // --- CSV EXPORT HANDLER ---
-  const handleExportCSV = React.useCallback(() => {
-    // The columns we use for export (with headers)
-    const exportHeaders = [
-      "Employee Name",
-      "Employee Email",
-      "Total Tasks Assigned",
-      ...statusNames,
-      "Completion Ratio"
-    ];
-
-    // Prepare data rows: each row in order, including status fields
-    const dataRows = report.map(row => {
-      const statusCounts: Record<string, number|string> = {};
-      statusNames.forEach(status => {
-        statusCounts[status] = row[status] ?? 0;
-      });
-      return {
-        "Employee Name": row.employeeName,
-        "Employee Email": row.employeeEmail,
-        "Total Tasks Assigned": row.totalAssigned,
-        ...statusCounts,
-        "Completion Ratio": row.completionRatio
-      };
-    });
-
-    const csv = Papa.unparse({ fields: exportHeaders, data: dataRows });
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = `task_report_${Date.now()}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-  }, [report, statusNames]);
-
   return (
     <div className="max-w-5xl mx-auto p-4">
       <h1 className="text-2xl font-semibold mb-4">Task Report</h1>
       <div className="flex flex-col md:flex-row gap-2 justify-between items-start mb-2">
         <div className="bg-muted rounded p-4 mb-4 md:mb-0 w-full md:w-auto">
-          <Form {...form}>
-            <form className="flex flex-col md:flex-row gap-4 items-center w-full md:justify-start">
-              <FormField
-                control={form.control}
-                name="fromDate"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Start Date</FormLabel>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <FormControl>
-                          <Button
-                            variant={"outline"}
-                            className="min-w-[140px] justify-start text-left font-normal"
-                          >
-                            {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
-                            <CalendarIcon className="ml-2 h-4 w-4 opacity-50" />
-                          </Button>
-                        </FormControl>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={field.value}
-                          onSelect={field.onChange}
-                          disabled={date => date > toDate}
-                          initialFocus
-                          className="p-3 pointer-events-auto"
-                        />
-                      </PopoverContent>
-                    </Popover>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="toDate"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>End Date</FormLabel>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <FormControl>
-                          <Button
-                            variant={"outline"}
-                            className="min-w-[140px] justify-start text-left font-normal"
-                          >
-                            {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
-                            <CalendarIcon className="ml-2 h-4 w-4 opacity-50" />
-                          </Button>
-                        </FormControl>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={field.value}
-                          onSelect={field.onChange}
-                          disabled={date => date < fromDate}
-                          initialFocus
-                          className="p-3 pointer-events-auto"
-                        />
-                      </PopoverContent>
-                    </Popover>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </form>
-          </Form>
+          <TaskReportFilters fromDate={fromDate} toDate={toDate} form={form} />
         </div>
-        <Button
-          type="button"
-          variant="outline"
-          className="flex items-center gap-2"
-          onClick={handleExportCSV}
+        <TaskReportExportButton
           disabled={isLoading || report.length === 0}
-        >
-          <Download className="w-4 h-4" />
-          Export CSV
-        </Button>
+          report={report}
+          statusNames={statusNames}
+        />
       </div>
-      <div className="rounded border overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              {reportingColumns.map(col => (
-                <TableHead
-                  key={col}
-                  className="bg-gray-100 font-bold text-black"
-                >
-                  {col}
-                </TableHead>
-              ))}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading || statusesLoading ? (
-              <TableRow>
-                <TableCell colSpan={reportingColumns.length}>Loading...</TableCell>
-              </TableRow>
-            ) : report.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={reportingColumns.length}>No data found.</TableCell>
-              </TableRow>
-            ) : (
-              report.map((row: EmployeeReport) => (
-                <TableRow key={row.systemId}>
-                  {/* Employee Name + Email */}
-                  <TableCell>
-                    <span>{row.employeeName}</span>
-                    <span className="text-muted-foreground text-xs block">
-                      {row.employeeEmail}
-                    </span>
-                  </TableCell>
-                  <TableCell>{row.totalAssigned}</TableCell>
-                  {statusNames.map(status => (
-                    <TableCell key={status}>{row[status] as number}</TableCell>
-                  ))}
-                  <TableCell>{row.completionRatio}</TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
+      <TaskReportTable
+        reportingColumns={reportingColumns}
+        statusNames={statusNames}
+        report={report}
+        isLoading={isLoading}
+        statusesLoading={statusesLoading}
+      />
     </div>
   );
 }
-
-// src/pages/TaskReport.tsx is getting long. After you confirm the build is fixed, consider asking me to refactor this page into smaller components for maintainability!
