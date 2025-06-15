@@ -18,13 +18,14 @@ interface OrgStats {
   teams: number;
   totalTasks: number;
   completedTasks: number;
-  pendingTasks: number;
+  newTasks: number;
 }
 
 interface UserStats {
   assignedTasks: number;
   completed: number;
   pending: number;
+  new: number;
 }
 
 interface StatusStat {
@@ -195,20 +196,20 @@ const AdminDashboard = () => {
           teamCountResult,
           taskCountResult,
           completedTasksResult,
-          pendingTasksResult,
+          newTasksResult,
         ]: any = await Promise.all([
           supabase.from("users").select("id", { count: "exact" }),
           supabase.from("teams").select("id", { count: "exact" }),
           supabase.from("tasks").select("id", { count: "exact" }),
           supabase.from("tasks").select("id").eq("status", "completed"),
-          supabase.from("tasks").select("id").eq("status", "pending"),
+          supabase.from("tasks").select("id").eq("status", "new"),
         ]);
         setOrgStats({
           users: userCountResult?.count || 0,
           teams: teamCountResult?.count || 0,
           totalTasks: taskCountResult?.count || 0,
           completedTasks: completedTasksResult?.data?.length || 0,
-          pendingTasks: pendingTasksResult?.data?.length || 0,
+          newTasks: newTasksResult?.data?.length || 0,
         });
       } else if (filteredRole === "manager" || filteredRole === "team_manager") {
         // Teams user is a member of
@@ -219,23 +220,21 @@ const AdminDashboard = () => {
         const memberships: any[] = membershipsResult?.data ?? [];
         const teamIds = memberships?.map((m: any) => m.team_id) || [];
         if (teamIds.length) {
-          const teamTaskCountResult: any = await supabase
-            .from("tasks")
-            .select("id", { count: "exact" })
-            .in("team_id", teamIds);
-          const completedTeamTasksResult: any = await supabase
-            .from("tasks")
-            .select("id", { count: "exact" })
-            .in("team_id", teamIds)
-            .eq("status", "completed");
+          const [
+            teamTaskCountResult,
+            completedTeamTasksResult,
+            newTeamTasksResult,
+          ]: any = await Promise.all([
+            supabase.from("tasks").select("id", { count: "exact" }).in("team_id", teamIds),
+            supabase.from("tasks").select("id", { count: "exact" }).in("team_id", teamIds).eq("status", "completed"),
+            supabase.from("tasks").select("id", { count: "exact" }).in("team_id", teamIds).eq("status", "new"),
+          ]);
           setOrgStats({
             users: users.length || 0,
             teams: teamIds.length,
             totalTasks: teamTaskCountResult?.count || 0,
             completedTasks: completedTeamTasksResult?.count || 0,
-            pendingTasks:
-              (teamTaskCountResult?.count || 0) -
-              (completedTeamTasksResult?.count || 0),
+            newTasks: newTeamTasksResult?.count || 0,
           });
         }
       } else if (filteredRole === "user") {
@@ -243,6 +242,7 @@ const AdminDashboard = () => {
           assignedResult,
           completedResult,
           pendingResult,
+          newResult,
         ]: any = await Promise.all([
           supabase
             .from("tasks")
@@ -258,11 +258,17 @@ const AdminDashboard = () => {
             .select("id", { count: "exact" })
             .eq("assigned_to", localUser.id)
             .eq("status", "pending"),
+          supabase
+            .from("tasks")
+            .select("id", { count: "exact" })
+            .eq("assigned_to", localUser.id)
+            .eq("status", "new"),
         ]);
         setUserStats({
           assignedTasks: assignedResult?.count || 0,
           completed: completedResult?.count || 0,
           pending: pendingResult?.count || 0,
+          new: newResult?.count || 0,
         });
       }
 
@@ -462,7 +468,7 @@ const AdminDashboard = () => {
               <StatCard label="Teams" value={orgStats.teams} />
               <StatCard label="Total Tasks" value={orgStats.totalTasks} />
               <StatCard label="Completed Tasks" value={orgStats.completedTasks} />
-              <StatCard label="Pending Tasks" value={orgStats.pendingTasks} />
+              <StatCard label="New Tasks" value={orgStats.newTasks} />
             </div>
           )}
 
@@ -613,6 +619,7 @@ const AdminDashboard = () => {
             <StatCard label="Assigned Tasks" value={userStats.assignedTasks} />
             <StatCard label="Completed" value={userStats.completed} />
             <StatCard label="Pending" value={userStats.pending} />
+            <StatCard label="New Tasks" value={userStats.new} />
           </div>
           <div className="grid md:grid-cols-2 gap-7">
             {/* Status Breakdown Pie */}
