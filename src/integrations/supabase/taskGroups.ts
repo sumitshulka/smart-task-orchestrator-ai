@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 
 // Types
@@ -87,7 +88,7 @@ export async function fetchTaskGroupDetails(groupId: string) {
     .eq("group_id", groupId);
 
   let tasks: any[] = [];
-  if (links && links.length > 0) {
+  if (Array.isArray(links) && links.length > 0) {
     const ids = links.map((l: any) => l.task_id);
     const { data: taskData } = await supabase
       .from("tasks")
@@ -96,7 +97,11 @@ export async function fetchTaskGroupDetails(groupId: string) {
     tasks = taskData ?? [];
   }
 
-  return { ...(group || {}), tasks: Array.isArray(tasks) ? tasks.map(t => ({ task: t })) : [] };
+  // Only spread group if it's a valid object
+  return {
+    ...(group && typeof group === "object" ? group : {}),
+    tasks: Array.isArray(tasks) ? tasks.map(t => ({ task: t })) : [],
+  };
 }
 
 // For use in Create task/subtask dropdown (with filtering on visibility if needed)
@@ -115,3 +120,4 @@ export async function assignTaskToGroup({ group_id, task_id }: { group_id: strin
   if (error) throw error;
   return data;
 }
+
