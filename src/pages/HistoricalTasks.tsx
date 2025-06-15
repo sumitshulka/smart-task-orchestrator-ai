@@ -1,5 +1,4 @@
-
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { fetchTasksPaginated, FetchTasksInput, Task } from "@/integrations/supabase/tasks";
 import TaskCard from "@/components/TaskCard";
 import { useUsersAndTeams } from "@/hooks/useUsersAndTeams";
@@ -7,6 +6,8 @@ import TaskFiltersSidebar from "@/components/TaskFiltersSidebar";
 import { Button } from "@/components/ui/button";
 import TasksPagination from "@/components/TasksPagination";
 import { useTaskStatuses } from "@/hooks/useTaskStatuses";
+import useSupabaseSession from "@/hooks/useSupabaseSession";
+import { useCurrentUserRoleAndTeams } from "@/hooks/useCurrentUserRoleAndTeams";
 
 const pageSizeOptions = [25, 50, 75, 100];
 
@@ -16,6 +17,10 @@ export default function HistoricalTasksPage() {
   const [totalTasks, setTotalTasks] = useState(0);
   const [loading, setLoading] = useState(false);
 
+  // Role/context
+  const { user } = useSupabaseSession();
+  const { roles, teams: userTeams, loading: roleTeamsLoading } = useCurrentUserRoleAndTeams();
+
   // Filters
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -23,13 +28,36 @@ export default function HistoricalTasksPage() {
   const [teamFilter, setTeamFilter] = useState<string>("all");
   const [dateRange, setDateRange] = useState<{ from: Date | null; to: Date | null }>({ from: null, to: null });
 
-  const { statuses, loading: statusesLoading } = useTaskStatuses(); // <--- NEW
+  const { statuses, loading: statusesLoading } = useTaskStatuses();
 
   // Pagination
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [showTooManyWarning, setShowTooManyWarning] = useState(false);
   const [searched, setSearched] = useState(false);
+
+  // Get user team_ids
+  const userTeamIds = useMemo(() => {
+    return (userTeams ?? []).map((t: any) => t.id);
+  }, [userTeams]);
+
+  // Helper: restrict visibility for "user" so they only see personal tasks assigned to them, any assigned tasks, or team tasks of their team(s).
+  function filterUserVisibleHistoricalTasks(tasksArr: Task[]) {
+    if (!user || !roles?.length) return [];
+    if (roles.includes("user") && !roles.some(r => ["admin", "manager", "team_manager"].includes(r))) {
+      return tasksArr.filter(
+        (task) =>
+          // personal tasks assigned to me
+          (task.type === "personal" && task.assigned_to === user.id)
+          // OR any tasks (of any type) assigned directly to me
+          || (task.assigned_to === user.id)
+          // OR team tasks for my team(s)
+          || (task.type === "team" && userTeamIds.includes(task.team_id ?? ""))
+      );
+    }
+    // Otherwise, all tasks
+    return tasksArr;
+  }
 
   const handleSearch = async () => {
     setSearched(true);
@@ -62,14 +90,11 @@ export default function HistoricalTasksPage() {
 
     // Date range logic: restrict to only tasks older than 30 days
     if (dateRange.from && dateRange.to) {
-      // But only for tasks until up to 30 days ago
-      // Clamp to max end as 30 days ago
       const maxHistoricalEnd = thirtyDaysAgo.toISOString().slice(0, 10);
       const toDateStr = dateRange.to.toISOString().slice(0, 10);
       input.fromDate = dateRange.from.toISOString().slice(0, 10);
       input.toDate = toDateStr > maxHistoricalEnd ? maxHistoricalEnd : toDateStr;
     } else {
-      // If no custom range filled, limit to any task created before 30 days ago
       input.toDate = thirtyDaysAgo.toISOString().slice(0, 10);
     }
 
@@ -79,14 +104,20 @@ export default function HistoricalTasksPage() {
     if (teamFilter !== "all") input.teamId = teamFilter;
 
     try {
-      const { tasks, total } = await fetchTasksPaginated(input);
+      const { tasks: fetchedTasks, total } = await fetchTasksPaginated(input);
+      let visibleTasks: Task[];
+      if (roles && roles.includes("user") && !roles.some(r => ["admin", "manager", "team_manager"].includes(r))) {
+        visibleTasks = filterUserVisibleHistoricalTasks(fetchedTasks);
+      } else {
+        visibleTasks = fetchedTasks;
+      }
       if (total > 100) {
         setShowTooManyWarning(true);
         setTasks([]);
         setTotalTasks(total);
       } else {
-        setTasks(tasks);
-        setTotalTasks(total);
+        setTasks(visibleTasks);
+        setTotalTasks(visibleTasks.length);
       }
     } catch (err) {
       setTasks([]);
@@ -99,7 +130,7 @@ export default function HistoricalTasksPage() {
   React.useEffect(() => {
     if (searched) handleSearch();
     // eslint-disable-next-line
-  }, [page, pageSize]);
+  }, [page, pageSize /*, roles, userTeams*/]);
 
   return (
     <div className="flex w-full max-w-7xl mx-auto px-4 py-8">
