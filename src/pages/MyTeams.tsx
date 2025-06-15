@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { useCurrentUserRoleAndTeams } from "@/hooks/useCurrentUserRoleAndTeams";
 import { Card } from "@/components/ui/card";
@@ -49,13 +48,10 @@ const MyTeams = () => {
         if (membershipsError) {
           console.error("[MyTeams] team_memberships fetch error", membershipsError);
         }
-        console.log(`[MyTeams] Fetched memberships for team ${team.name}:`, memberships);
-
         // 2. Now get all user_ids from memberships
         const userIds = memberships?.map((m: any) => m.user_id).filter(Boolean) || [];
         let members: TeamExtended["members"] = [];
         if (userIds.length > 0) {
-          // 3. Fetch users by user_id (uuid)
           const { data: usersForTeam, error: usersFetchError } = await supabase
             .from("users")
             .select("id, email, user_name")
@@ -63,11 +59,7 @@ const MyTeams = () => {
 
           if (usersFetchError) {
             console.error(`[MyTeams] Error fetching users for team ${team.name}`, usersFetchError);
-          } else {
-            console.log(`[MyTeams] Users fetched for team ${team.name}:`, usersForTeam);
           }
-
-          // Map memberships to include user data
           members =
             memberships.map((m: any) => {
               const matchedUser = usersForTeam?.find((u: any) => u.id === m.user_id);
@@ -81,14 +73,13 @@ const MyTeams = () => {
             }) ?? [];
         }
 
-        // 4. Manager: identify by memberships (role_within_team=manager) or team.created_by
+        // 3. Manager: identify by memberships (role_within_team=manager) or team.created_by
         let manager = members.find(
           (m) => String(m.role_within_team || "").toLowerCase() === "manager"
         );
         let managerName = "-";
         let managerEmail = "-";
         if (!manager && team.created_by) {
-          // If manager not present by role, fallback to user with id == created_by
           manager = members.find((m) => m.id === team.created_by);
         }
         if (manager && manager.user_name && manager.email) {
@@ -110,25 +101,25 @@ const MyTeams = () => {
           }
         }
 
-        // 5. Fetch all tasks for this team
-        const { data: tasks, error: tasksError } = await supabase
-          .from("tasks")
-          .select("id,status,team_id")
-          .eq("team_id", team.id);
-
-        if (tasksError) {
-          console.error(`[MyTeams] tasks fetch error for team ${team.name}`, tasksError);
-        }
-        console.log(`[MyTeams] Fetched tasks for team ${team.name}:`, tasks);
-
+        // 4. Fetch all tasks for this team assigned to members (not type 'personal')
         let totalTasks = 0;
         let completedTasks = 0;
-        if (!tasksError && tasks) {
-          totalTasks = tasks.length;
-          completedTasks =
-            tasks.filter(
+        if (userIds.length > 0) {
+          const { data: tasks, error: tasksError } = await supabase
+            .from("tasks")
+            .select("id,status,type,team_id,assigned_to")
+            .eq("team_id", team.id)
+            .in("assigned_to", userIds)
+            .neq("type", "personal");
+
+          if (tasksError) {
+            console.error(`[MyTeams] tasks fetch error for team ${team.name}`, tasksError);
+          } else {
+            totalTasks = tasks.length;
+            completedTasks = tasks.filter(
               (t: any) => String(t.status || "").toLowerCase() === "completed"
             ).length;
+          }
         }
 
         return {
@@ -143,7 +134,6 @@ const MyTeams = () => {
       });
 
       const extendedTeams = await Promise.all(promises);
-      console.log("[MyTeams] Final teamsExtended:", extendedTeams);
       setTeamsExtended(extendedTeams);
     }
 
@@ -170,41 +160,43 @@ const MyTeams = () => {
       <div className="flex flex-col gap-5 w-full">
         {teamsExtended.map((team) => (
           <Card key={team.id} className="p-5 w-full">
-            <div className="flex flex-col gap-2">
+            {/* HEADER ROW: name, manager */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 justify-between">
               <div className="flex items-center gap-3">
                 <span className="font-semibold text-base sm:text-lg">{team.name}</span>
                 <Badge variant="secondary">ID: {team.id.slice(0, 6)}…</Badge>
               </div>
-              {team.description && (
-                <span className="text-muted-foreground">{team.description}</span>
-              )}
-              <div className="text-sm mt-2 flex flex-wrap gap-y-1 gap-x-8">
-                <div>
-                  <b>Team Manager:</b>{" "}
-                  <span>
-                    {team.managerName}{" "}
-                    <span className="text-muted-foreground">({team.managerEmail})</span>
-                  </span>
-                </div>
-                <div>
-                  <b>Total Members:</b> {team.totalMembers}
-                </div>
-                <div>
-                  <b>Total Tasks:</b> {team.totalTasks}
-                </div>
-                <div>
-                  <b>Tasks Completed:</b> {team.completedTasks}
-                </div>
+              <div className="text-sm">
+                <b>Team Manager:</b>{" "}
+                <span>
+                  {team.managerName}{" "}
+                  <span className="text-muted-foreground">({team.managerEmail})</span>
+                </span>
               </div>
-              <div className="mt-4">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowModalForTeamId(team.id)}
-                >
-                  Show Members
-                </Button>
+            </div>
+            {team.description && (
+              <span className="text-muted-foreground">{team.description}</span>
+            )}
+            {/* STATS ROW */}
+            <div className="text-sm mt-2 flex flex-wrap gap-y-1 gap-x-8">
+              <div>
+                <b>Total Members:</b> {team.totalMembers}
               </div>
+              <div>
+                <b>Total Tasks:</b> {team.totalTasks}
+              </div>
+              <div>
+                <b>Tasks Completed:</b> {team.completedTasks}
+              </div>
+            </div>
+            <div className="mt-4">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowModalForTeamId(team.id)}
+              >
+                Show Members
+              </Button>
             </div>
             {showModalForTeamId === team.id && (
               <TeamMembersModal
@@ -222,4 +214,3 @@ const MyTeams = () => {
 };
 
 export default MyTeams;
-
