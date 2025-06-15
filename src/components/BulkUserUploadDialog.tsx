@@ -170,8 +170,8 @@ const BulkUserUploadDialog = (props: BulkUserUploadDialogProps) => {
     }
 
     setErrorRows([]);
-
     setUploading(true);
+
     try {
       const response = await fetch("/api/admin/bulk-upload", {
         method: "POST",
@@ -181,7 +181,35 @@ const BulkUserUploadDialog = (props: BulkUserUploadDialogProps) => {
         body: JSON.stringify({ users: parsedRows }),
       });
 
-      const data = await response.json();
+      // New: robust response handling!
+      if (!response.ok) {
+        let errorDescription: string;
+        if (response.status === 404) {
+          errorDescription = "Bulk upload API endpoint not found. Please contact your admin or developer.";
+        } else {
+          try {
+            const data = await response.json();
+            errorDescription = data?.error || `Upload failed with status ${response.status}`;
+          } catch (_) {
+            errorDescription = `Upload failed with status ${response.status}`;
+          }
+        }
+        toast({
+          title: "Bulk upload failed",
+          description: errorDescription,
+        });
+        setUploading(false);
+        resetFileInput();
+        return;
+      }
+
+      let data: any = {};
+      try {
+        data = await response.json();
+      } catch (e) {
+        // Defensive: If response is not JSON (should not happen)
+        data = {};
+      }
       if (data.error) {
         toast({
           title: "Bulk upload failed",
@@ -198,7 +226,7 @@ const BulkUserUploadDialog = (props: BulkUserUploadDialogProps) => {
     } catch (error: any) {
       toast({
         title: "Bulk upload failed",
-        description: error.message || "An unexpected error occurred.",
+        description: error && error.message ? error.message : "An unexpected error occurred.",
       });
     } finally {
       setUploading(false);
