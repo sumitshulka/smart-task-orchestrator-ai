@@ -49,12 +49,15 @@ const BulkUserUploadDialog = (props: BulkUserUploadDialogProps) => {
   // FILE PARSE LOGIC PATCHED (ESP. XLSX)
   const parseFile = async (file: File): Promise<any[]> => {
     const fileType = file.name.split(".").pop()?.toLowerCase();
+    toast({
+      title: "Parsing file",
+      description: `Reading your ${fileType?.toUpperCase()} file and validating format...`,
+    });
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = (e: any) => {
         const data = e.target.result;
         let parsedData: any[] = [];
-
         try {
           if (fileType === "csv") {
             const result = Papa.parse(data, { header: true, skipEmptyLines: true });
@@ -62,14 +65,13 @@ const BulkUserUploadDialog = (props: BulkUserUploadDialogProps) => {
               toast({
                 title: "CSV Parsing Error",
                 description: "There was an error parsing the CSV file. Please check the format.",
+                variant: "destructive",
               });
               reject("CSV parsing error");
               return;
             }
             parsedData = result.data as any[];
           } else if (fileType === "xlsx") {
-            // PATCH: Use "array" type for browser (not "buffer")
-            // See: https://docs.sheetjs.com/#parsing-workbooks
             const workbook = XLSX.read(data, { type: "array" });
             const sheetName = workbook.SheetNames[0];
             const worksheet = workbook.Sheets[sheetName];
@@ -90,6 +92,7 @@ const BulkUserUploadDialog = (props: BulkUserUploadDialogProps) => {
             toast({
               title: "Unsupported File Type",
               description: "Only CSV and XLSX files are supported.",
+              variant: "destructive",
             });
             reject("Unsupported file type");
             return;
@@ -100,6 +103,7 @@ const BulkUserUploadDialog = (props: BulkUserUploadDialogProps) => {
           toast({
             title: "File Parsing Error",
             description: "There was an error parsing the file. Please check the format.",
+            variant: "destructive",
           });
           reject(error);
         }
@@ -109,14 +113,15 @@ const BulkUserUploadDialog = (props: BulkUserUploadDialogProps) => {
         toast({
           title: "File Reading Error",
           description: "There was an error reading the file.",
+          variant: "destructive",
         });
         reject("File reading error");
       };
 
       if (fileType === "xlsx") {
-        reader.readAsArrayBuffer(file); // PATCH: keep as ArrayBuffer for XLSX (browser)
+        reader.readAsArrayBuffer(file);
       } else {
-        reader.readAsText(file); // CSV
+        reader.readAsText(file);
       }
     });
   };
@@ -126,8 +131,13 @@ const BulkUserUploadDialog = (props: BulkUserUploadDialogProps) => {
     let parsedRows: any[] = [];
     try {
       parsedRows = await parseFile(file);
+      toast({
+        title: "File loaded",
+        description: `Loaded ${parsedRows.length} user${parsedRows.length !== 1 ? "s" : ""} from the file.`,
+      });
     } catch (e) {
-      return; // error already handled in parseFile
+      // Parsing error already handled by parseFile toasts.
+      return;
     }
 
     // Email uniqueness check (within upload)
@@ -163,7 +173,8 @@ const BulkUserUploadDialog = (props: BulkUserUploadDialogProps) => {
             : "") +
           (duplicateEmailsSystem.length > 0
             ? `These emails already exist in the system: ${duplicateEmailsSystem.join(", ")}. `
-            : "")
+            : ""),
+        variant: "destructive",
       });
       resetFileInput();
       return;
@@ -171,6 +182,10 @@ const BulkUserUploadDialog = (props: BulkUserUploadDialogProps) => {
 
     setErrorRows([]);
     setUploading(true);
+    toast({
+      title: "Uploading users",
+      description: `Uploading ${parsedRows.length} user${parsedRows.length !== 1 ? "s" : ""} to the server...`,
+    });
 
     try {
       const response = await fetch("/api/admin/bulk-upload", {
@@ -181,7 +196,6 @@ const BulkUserUploadDialog = (props: BulkUserUploadDialogProps) => {
         body: JSON.stringify({ users: parsedRows }),
       });
 
-      // New: robust response handling!
       if (!response.ok) {
         let errorDescription: string;
         if (response.status === 404) {
@@ -197,6 +211,7 @@ const BulkUserUploadDialog = (props: BulkUserUploadDialogProps) => {
         toast({
           title: "Bulk upload failed",
           description: errorDescription,
+          variant: "destructive",
         });
         setUploading(false);
         resetFileInput();
@@ -207,18 +222,18 @@ const BulkUserUploadDialog = (props: BulkUserUploadDialogProps) => {
       try {
         data = await response.json();
       } catch (e) {
-        // Defensive: If response is not JSON (should not happen)
         data = {};
       }
       if (data.error) {
         toast({
           title: "Bulk upload failed",
           description: data.error,
+          variant: "destructive",
         });
       } else {
         toast({
           title: "Bulk upload successful",
-          description: "Users added successfully.",
+          description: `Successfully added ${parsedRows.length} user${parsedRows.length !== 1 ? "s" : ""}.`,
         });
         onUsersUploaded?.();
         onOpenChange(false);
@@ -226,7 +241,8 @@ const BulkUserUploadDialog = (props: BulkUserUploadDialogProps) => {
     } catch (error: any) {
       toast({
         title: "Bulk upload failed",
-        description: error && error.message ? error.message : "An unexpected error occurred.",
+        description: error && error.message ? error.message : "An unexpected error occurred (could not reach server).",
+        variant: "destructive",
       });
     } finally {
       setUploading(false);
@@ -273,7 +289,7 @@ const BulkUserUploadDialog = (props: BulkUserUploadDialogProps) => {
           </div>
         )}
         <DialogFooter>
-          <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>
+          <Button type="button" variant="secondary" onClick={() => onOpenChange(false)} disabled={uploading}>
             Cancel
           </Button>
           <Button type="button" disabled={uploading} onClick={() => fileInputRef.current?.click()}>
@@ -286,3 +302,4 @@ const BulkUserUploadDialog = (props: BulkUserUploadDialogProps) => {
 };
 
 export default BulkUserUploadDialog;
+
