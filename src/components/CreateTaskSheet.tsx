@@ -192,23 +192,21 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
       const myUserId = user?.id;
       if (!myUserId) throw new Error("No current user!");
 
-      // Always use the status that is in the form (selected by user, or defaulted to first in statuses)
       if (!form.status) {
         throw new Error("Status is required.");
       }
 
-      // Additional validation: For personal tasks, must be subtask and assigned to a private group
-      if (form.type === "personal") {
+      // Only require subtask+group validation if checkbox is set
+      if (form.type === "personal" && form.isSubTask) {
         const group = taskGroups.find(g => g.id === selectedTaskGroup && g.visibility === "private");
-        if (!group) throw new Error("Personal tasks must be added as a subtask in a Private Task Group.");
-        if (!form.isSubTask) throw new Error("Personal tasks must be created as a subtask (check 'Is Subtask?').");
+        if (!group) throw new Error("Personal tasks marked as subtask must be added to a Private Task Group.");
       }
 
       // Build task (do not include superTaskId)
       const taskInput: any = {
         title: form.title,
         description: form.description,
-        status: form.status, // ALWAYS take from form, NOT hardcoded
+        status: form.status,
         priority: form.priority,
         due_date: form.due_date || null,
         start_date: form.start_date || null,
@@ -216,7 +214,7 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
         created_by: myUserId,
         assigned_to: form.assigned_to ? form.assigned_to : null,
         estimated_hours: form.estimated_hours ? Number(form.estimated_hours) : null,
-        team_id: null, // Extend if you want team-assignment logic
+        team_id: null,
         actual_completion_date: null,
       };
 
@@ -228,8 +226,8 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
       // Create the task
       const newTask = await createTask(taskInput);
 
-      // Assign to group if selected
-      if (selectedTaskGroup) {
+      // Only assign to group if group selected and Is Subtask checked
+      if (form.isSubTask && selectedTaskGroup) {
         await assignTaskToGroup({ group_id: selectedTaskGroup, task_id: newTask.id });
       }
 
