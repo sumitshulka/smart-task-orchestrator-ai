@@ -37,16 +37,18 @@ const Topbar: React.FC = () => {
 
   return (
     <header className="flex items-center justify-between border-b bg-background h-14 px-6 gap-4">
+      {/* Left: Logo/Title only */}
       <div className="flex flex-col">
         <span className="text-lg font-semibold tracking-tight">Admin Dashboard</span>
-        {/* Show welcome and role info */}
+      </div>
+      {/* Right: Welcome/role text, then settings, avatar, menu */}
+      <div className="flex items-center gap-4 ml-auto">
+        {/* Welcome text (always display if logged in, and not loading) */}
         {user && !loading && (
-          <span className="text-xs text-muted-foreground">
+          <span className="text-xs text-muted-foreground whitespace-nowrap mr-2">
             Welcome {displayName}, you are logged in with role as: <span className="font-semibold">{highestRole || "unknown"}</span>
           </span>
         )}
-      </div>
-      <div className="flex items-center gap-2">
         <button
           aria-label="Settings"
           onClick={() => navigate("/admin/settings")}
@@ -79,3 +81,4 @@ const Topbar: React.FC = () => {
 };
 
 export default Topbar;
+
