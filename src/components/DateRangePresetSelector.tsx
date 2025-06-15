@@ -1,6 +1,5 @@
-
 import React from "react";
-import { addDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subDays, subWeeks, subMonths } from "date-fns";
+import { addDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subDays, subWeeks, subMonths, startOfDay, endOfDay } from "date-fns";
 
 const presets = [
   { key: "today", label: "Today" },
@@ -18,6 +17,7 @@ type DateRangePresetSelectorProps = {
   onChange: (range: { from: Date | null; to: Date | null }, preset: string) => void;
 };
 
+// Ensure date ranges are always [00:00:00, 23:59:59.999]
 function computeRange(key: string): { from: Date; to: Date } {
   const now = new Date();
   switch (key) {
@@ -27,18 +27,18 @@ function computeRange(key: string): { from: Date; to: Date } {
       const yd = subDays(now, 1);
       return { from: startOfDay(yd), to: endOfDay(yd) };
     case "this_week":
-      return { from: startOfWeek(now, { weekStartsOn: 1 }), to: endOfWeek(now, { weekStartsOn: 1 }) };
+      return { from: startOfDay(startOfWeek(now, { weekStartsOn: 1 })), to: endOfDay(endOfWeek(now, { weekStartsOn: 1 })) };
     case "last_week":
       const prevW = subWeeks(now, 1);
       return {
-        from: startOfWeek(prevW, { weekStartsOn: 1 }),
-        to: endOfWeek(prevW, { weekStartsOn: 1 }),
+        from: startOfDay(startOfWeek(prevW, { weekStartsOn: 1 })),
+        to: endOfDay(endOfWeek(prevW, { weekStartsOn: 1 })),
       };
     case "this_month":
-      return { from: startOfMonth(now), to: endOfMonth(now) };
+      return { from: startOfDay(startOfMonth(now)), to: endOfDay(endOfMonth(now)) };
     case "last_month":
       const prevM = subMonths(now, 1);
-      return { from: startOfMonth(prevM), to: endOfMonth(prevM) };
+      return { from: startOfDay(startOfMonth(prevM)), to: endOfDay(endOfMonth(prevM)) };
     default:
       // Custom, just pass-through
       return { from: null, to: null };

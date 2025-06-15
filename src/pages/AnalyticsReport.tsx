@@ -1,8 +1,7 @@
-
 import React from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchTasksPaginated } from "@/integrations/supabase/tasks";
-import { startOfMonth, format, endOfDay, parseISO, isAfter, subDays } from "date-fns";
+import { startOfDay, endOfDay, format, subDays } from "date-fns";
 import {
   PieChart, Pie, Cell, Tooltip, Legend, LineChart, Line, BarChart, Bar, XAxis, YAxis, ResponsiveContainer,
 } from "recharts";
@@ -17,12 +16,12 @@ import { cn } from "@/lib/utils";
 
 // Date range preset (last 30 days, month to date, etc)
 const presetRanges = [
-  { label: "Last 30 Days", get: () => ({ from: subDays(new Date(), 29), to: new Date() }) },
-  { label: "This Month", get: () => ({ from: startOfMonth(new Date()), to: new Date() }) },
+  { label: "Last 30 Days", get: () => ({ from: startOfDay(subDays(new Date(), 29)), to: endOfDay(new Date()) }) },
+  { label: "This Month", get: () => ({ from: startOfDay(startOfMonth(new Date())), to: endOfDay(new Date()) }) },
 ];
 
 function getDefaultRange() {
-  return { from: startOfMonth(new Date()), to: new Date() };
+  return { from: startOfDay(startOfMonth(new Date())), to: endOfDay(new Date()) };
 }
 
 function SummaryInsight({
@@ -47,16 +46,19 @@ export default function AnalyticsReport() {
     if (presetObj) setDateRange(presetObj.get());
   }
   function handleCalendarChange(v: any) {
-    if (v?.from && v?.to) setDateRange({ from: v.from, to: v.to });
+    if (v?.from && v?.to) setDateRange({ from: startOfDay(v.from), to: endOfDay(v.to) });
     setPreset("Custom");
   }
 
-  const fromDateStr = format(dateRange.from, "yyyy-MM-dd");
-  const toDateStr = format(dateRange.to, "yyyy-MM-dd");
+  // Always use `fromDateStr` as 00:00:00, and `toDateStr` as 23:59:59
+  const fromDateStr = format(startOfDay(dateRange.from), "yyyy-MM-dd HH:mm:ss");
+  const toDateStr = format(endOfDay(dateRange.to), "yyyy-MM-dd HH:mm:ss");
 
+  // Query fetch uses the full from-to with time
   const { data: taskData, isLoading } = useQuery({
     queryKey: ["analytics-report", fromDateStr, toDateStr],
     queryFn: async () => {
+      // Use string with time for accurate boundaries
       const { tasks } = await fetchTasksPaginated({
         fromDate: fromDateStr,
         toDate: toDateStr,
@@ -66,15 +68,20 @@ export default function AnalyticsReport() {
     }
   });
 
-  // Last period comparison
-  const compareFrom = subDays(dateRange.from, (dateRange.to.getTime() - dateRange.from.getTime()) / (1000 * 60 * 60 * 24) + 1);
-  const compareTo = subDays(dateRange.from, 1);
+  // Update comparison period for previous analysis (also covering full days)
+  const numDays =
+    Math.floor(
+      (endOfDay(dateRange.to).getTime() - startOfDay(dateRange.from).getTime()) /
+        (1000 * 60 * 60 * 24)
+    ) + 1;
+  const compareFrom = startOfDay(subDays(dateRange.from, numDays));
+  const compareTo = endOfDay(subDays(dateRange.from, 1));
   const { data: prevTaskData } = useQuery({
-    queryKey: ["analytics-report-prev", format(compareFrom, "yyyy-MM-dd"), format(compareTo, "yyyy-MM-dd")],
+    queryKey: ["analytics-report-prev", format(compareFrom, "yyyy-MM-dd HH:mm:ss"), format(compareTo, "yyyy-MM-dd HH:mm:ss")],
     queryFn: async () => {
       const { tasks } = await fetchTasksPaginated({
-        fromDate: format(compareFrom, "yyyy-MM-dd"),
-        toDate: format(compareTo, "yyyy-MM-dd"),
+        fromDate: format(compareFrom, "yyyy-MM-dd HH:mm:ss"),
+        toDate: format(compareTo, "yyyy-MM-dd HH:mm:ss"),
         limit: 2000,
       });
       return tasks;
