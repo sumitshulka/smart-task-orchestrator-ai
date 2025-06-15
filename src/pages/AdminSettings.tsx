@@ -14,7 +14,7 @@ const AdminSettings: React.FC = () => {
   const [tab, setTab] = useState("departments");
 
   return (
-    <div className="py-10 pl-8 pr-4 w-full">
+    <div className="py-10 px-0 pl-8 w-full max-w-5xl mx-auto"> {/* Left align: px-0, add pl-8 and max-w-5xl */}
       <h2 className="text-2xl font-semibold mb-6">Settings</h2>
       <Tabs value={tab} onValueChange={setTab} className="w-full">
         <TabsList className="w-full flex flex-row bg-background border rounded-md mb-6 p-0 gap-2">
@@ -52,3 +52,4 @@ const AdminSettings: React.FC = () => {
 };
 
 export default AdminSettings;
+

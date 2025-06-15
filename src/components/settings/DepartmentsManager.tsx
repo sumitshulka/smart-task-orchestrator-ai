@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
@@ -84,38 +83,37 @@ const DepartmentsManager: React.FC = () => {
     <Card className="max-w-3xl mx-auto">
       <CardHeader className="flex flex-row items-center justify-between pb-2">
         <CardTitle className="text-lg font-semibold">Departments</CardTitle>
-        {/* Only admin can add */}
         {highestRole === "admin" && (
           <Button size="sm" onClick={() => setOpenForm(true)}>+ Add Department</Button>
         )}
       </CardHeader>
       <CardContent>
         <div className="border rounded bg-background overflow-x-auto shadow-sm">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-1/4">Name</TableHead>
-                <TableHead className="w-2/4">Description</TableHead>
-                <TableHead className="w-1/4 text-center">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-muted">
+                <th className="w-1/4 p-2 text-left font-medium text-muted-foreground">Name</th>
+                <th className="w-2/4 p-2 text-left font-medium text-muted-foreground">Description</th>
+                <th className="w-1/4 p-2 text-center font-medium text-muted-foreground">
                   {highestRole === "admin" ? "Actions" : ""}
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
               {loading ? (
-                <TableRow>
-                  <TableCell colSpan={3}><span className="text-muted-foreground">Loading...</span></TableCell>
-                </TableRow>
+                <tr>
+                  <td colSpan={3}><span className="text-muted-foreground">Loading...</span></td>
+                </tr>
               ) : departments.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={3}><span className="text-muted-foreground">No departments found.</span></TableCell>
-                </TableRow>
+                <tr>
+                  <td colSpan={3}><span className="text-muted-foreground">No departments found.</span></td>
+                </tr>
               ) : (
                 departments.map((d) => (
-                  <TableRow key={d.id}>
-                    <TableCell>{d.name}</TableCell>
-                    <TableCell>{d.description || "--"}</TableCell>
-                    <TableCell>
+                  <tr key={d.id} className="border-b transition-colors hover:bg-muted/50">
+                    <td className="p-4">{d.name}</td>
+                    <td className="p-4">{d.description || "--"}</td>
+                    <td className="p-4">
                       {highestRole === "admin" && (
                         <div className="flex items-center justify-center gap-2">
                           <Button size="icon" variant="ghost" aria-label="Edit" onClick={() => { setEditDep(d); setOpenForm(true); }}>
@@ -126,15 +124,14 @@ const DepartmentsManager: React.FC = () => {
                           </Button>
                         </div>
                       )}
-                    </TableCell>
-                  </TableRow>
+                    </td>
+                  </tr>
                 ))
               )}
-            </TableBody>
-          </Table>
+            </tbody>
+          </table>
         </div>
       </CardContent>
-      {/* Show form only if admin */}
       {highestRole === "admin" &&
         <Dialog open={openForm} onOpenChange={o => { setOpenForm(o); if (!o) setEditDep(null); }}>
           <DialogContent>
@@ -154,4 +151,3 @@ const DepartmentsManager: React.FC = () => {
 };
 
 export default DepartmentsManager;
-

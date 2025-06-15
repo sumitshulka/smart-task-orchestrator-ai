@@ -125,52 +125,51 @@ const OfficeLocationsManager: React.FC = () => {
     <Card className="max-w-3xl mx-auto">
       <CardHeader className="flex flex-row items-center justify-between pb-2">
         <CardTitle className="text-lg font-semibold">Office Locations</CardTitle>
-        {/* Only admin can add */}
         {highestRole === "admin" && (
           <Button size="sm" onClick={() => setOpenForm(true)}>+ Add Location</Button>
         )}
       </CardHeader>
       <CardContent>
         <div className="border rounded bg-background overflow-x-auto shadow-sm">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-10">S No</TableHead>
-                <TableHead className="w-1/6">Location Name</TableHead>
-                <TableHead className="w-1/4">Address</TableHead>
-                <TableHead className="w-1/6">Location Manager</TableHead>
-                <TableHead className="w-1/6">Creation Date</TableHead>
-                <TableHead className="w-20 text-center">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-muted">
+                <th className="w-10 p-2">S No</th>
+                <th className="w-1/6 p-2 text-left font-medium text-muted-foreground">Location Name</th>
+                <th className="w-1/4 p-2 text-left font-medium text-muted-foreground">Address</th>
+                <th className="w-1/6 p-2 text-left font-medium text-muted-foreground">Location Manager</th>
+                <th className="w-1/6 p-2 text-left font-medium text-muted-foreground">Creation Date</th>
+                <th className="w-20 p-2 text-center font-medium text-muted-foreground">
                   {highestRole === "admin" ? "Actions" : ""}
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
               {loading ? (
-                <TableRow>
-                  <TableCell colSpan={6}><span className="text-muted-foreground">Loading...</span></TableCell>
-                </TableRow>
+                <tr>
+                  <td colSpan={6}><span className="text-muted-foreground">Loading...</span></td>
+                </tr>
               ) : locations.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={6}><span className="text-muted-foreground">No office locations found.</span></TableCell>
-                </TableRow>
+                <tr>
+                  <td colSpan={6}><span className="text-muted-foreground">No office locations found.</span></td>
+                </tr>
               ) : (
                 locations.map((loc, idx) => (
-                  <TableRow key={loc.id}>
-                    <TableCell>{idx + 1}</TableCell>
-                    <TableCell>{loc.location_name}</TableCell>
-                    <TableCell>{loc.address}</TableCell>
-                    <TableCell>
+                  <tr key={loc.id} className="border-b transition-colors hover:bg-muted/50">
+                    <td className="p-4">{idx + 1}</td>
+                    <td className="p-4">{loc.location_name}</td>
+                    <td className="p-4">{loc.address}</td>
+                    <td className="p-4">
                       {
                         loc.location_manager
                           ? getUserDisplayName(loc.location_manager)
                           : "--"
                       }
-                    </TableCell>
-                    <TableCell>
+                    </td>
+                    <td className="p-4">
                       {loc.created_at ? new Date(loc.created_at).toLocaleString() : "--"}
-                    </TableCell>
-                    <TableCell>
+                    </td>
+                    <td className="p-4">
                       {highestRole === "admin" && (
                         <div className="flex items-center justify-center gap-2">
                           <Button size="icon" variant="ghost" aria-label="Edit" onClick={() => { setEditLocation(loc); setOpenForm(true); }}>
@@ -181,12 +180,12 @@ const OfficeLocationsManager: React.FC = () => {
                           </Button>
                         </div>
                       )}
-                    </TableCell>
-                  </TableRow>
+                    </td>
+                  </tr>
                 ))
               )}
-            </TableBody>
-          </Table>
+            </tbody>
+          </table>
         </div>
       </CardContent>
       {/* Show form only if admin */}
