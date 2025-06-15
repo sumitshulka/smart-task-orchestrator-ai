@@ -15,8 +15,8 @@ const AuthGraphic: React.FC = () => (
     />
     <div className="absolute inset-0 bg-primary/80 bg-blend-multiply" />
     <div className="relative z-10 p-12 flex flex-col items-center text-center">
-      <h2 className="text-3xl md:text-4xl font-bold text-card-foreground drop-shadow mb-4 tracking-tight">
-        Welcome to Your Enterprise Portal
+      <h2 className="text-3xl md:text-4xl font-bold text-gray-100 drop-shadow mb-4 tracking-tight">
+        Welcome to the world of Smart Task Management <span className="text-primary-foreground">#smartask</span>
       </h2>
       <p className="text-base md:text-lg text-card-foreground/80 max-w-md leading-relaxed">
         Secure, powerful access for your team. <br />
@@ -27,3 +27,4 @@ const AuthGraphic: React.FC = () => (
 );
 
 export default AuthGraphic;
+
