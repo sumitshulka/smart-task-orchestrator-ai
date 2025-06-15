@@ -128,7 +128,7 @@ export default function TaskGroupsPage() {
       {loading ? (
         <div className="text-muted-foreground">Loading groups...</div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="flex flex-col gap-6">
           {groups.map(group => (
             <TaskGroupCard
               key={group.id}
