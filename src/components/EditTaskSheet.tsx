@@ -61,21 +61,26 @@ const EditTaskSheet: React.FC<Props> = ({ task, onUpdated, children }) => {
     else setUserRole("user");
   }, [user]);
 
-  // Assignment options logic
+  // --- Assignment logic matching Create Task ---
   function getAssignableUsersEdit() {
     if (!user) return [];
-    if (userRole === "admin") return users;
-    if (userRole === "manager") return users;
-    // User: can assign only to their manager
-    if (userRole === "user") {
-      const myManager = users.find(
-        (u) => u.user_name === user?.user_metadata?.manager
+    if (!users.length) return [];
+    let list: typeof users = [];
+    if (userRole === "admin") {
+      list = users;
+    } else if (userRole === "manager") {
+      list = users.filter(
+        (u) => u.user_name === user.user_name && u.id !== user.id
       );
-      return myManager ? [myManager] : [];
+    } else if (userRole === "user") {
+      const myManagerName = user.user_metadata?.manager || null;
+      const myManager = users.find((u) => u.user_name === myManagerName);
+      list = myManager ? [myManager] : [];
     }
-    return [];
+    return list;
   }
 
+  // Assignment options logic
   const canAssign =
     userRole === "admin" ||
     userRole === "manager" ||
@@ -111,6 +116,34 @@ const EditTaskSheet: React.FC<Props> = ({ task, onUpdated, children }) => {
     }
   };
 
+  // --- Utility: get changed fields for activity log (returns array of {name, old, new}) ---
+  function getChangedFields(oldObj: any, newObj: any) {
+    const CHK_KEYS = [
+      "title",
+      "description",
+      "priority",
+      "due_date",
+      "status",
+      "estimated_hours",
+      "actual_completion_date",
+    ];
+    const changes = [];
+    for (const k of CHK_KEYS) {
+      const oldVal = oldObj[k] ?? "";
+      const newVal = newObj[k] ?? "";
+      // Loose comparison (dates might be strings/null etc)
+      if (String(oldVal) !== String(newVal)) {
+        changes.push({ name: k, old: oldVal, new: newVal });
+      }
+    }
+    return changes;
+  }
+
+  // Assignment section now always shows if user can assign *anyone* (getAssignableUsersEdit().length > 0)
+  const canShowAssign =
+    getAssignableUsersEdit().length > 0;
+
+  // --- New: Log assignment change ---
   const handleAssignment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (newAssignee === task.assigned_to) {
@@ -120,13 +153,11 @@ const EditTaskSheet: React.FC<Props> = ({ task, onUpdated, children }) => {
     }
     setLoading(true);
     try {
-      // Update task with new assignee
       const updatePayload: any = {
         ...form,
         assigned_to: newAssignee,
       };
       await updateTask(task.id, updatePayload);
-      // Log in activity
       await createTaskActivity({
         task_id: task.id,
         action_type: "assigned",
@@ -143,6 +174,7 @@ const EditTaskSheet: React.FC<Props> = ({ task, onUpdated, children }) => {
     setLoading(false);
   };
 
+  // --- New: log edits of any field (except assignee), each field as its own activity entry ---
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -158,7 +190,31 @@ const EditTaskSheet: React.FC<Props> = ({ task, onUpdated, children }) => {
           ? (form.actual_completion_date || new Date().toISOString().slice(0, 10))
           : null,
       };
+
+      // 1. Identify changed fields:
+      const prevVals: any = {
+        title: task.title,
+        description: task.description || "",
+        priority: task.priority || 2,
+        due_date: task.due_date ? task.due_date.slice(0, 10) : "",
+        status: task.status || "",
+        estimated_hours: task.estimated_hours || "",
+        actual_completion_date: task.actual_completion_date || "",
+      };
+      const changedFields = getChangedFields(prevVals, form);
+
       await updateTask(task.id, updatePayload);
+
+      // 2. Log in activity for *all* changed fields
+      for (const { name, old, new: nw } of changedFields) {
+        await createTaskActivity({
+          task_id: task.id,
+          action_type: "edit",
+          old_value: String(old),
+          new_value: String(nw),
+          acted_by: user?.id
+        });
+      }
       toast({ title: "Task updated" });
       setOpen(false);
       onUpdated();
@@ -265,8 +321,8 @@ const EditTaskSheet: React.FC<Props> = ({ task, onUpdated, children }) => {
               </div>
             )}
           </div>
-          {/* Assignment section (only show if canAssign) */}
-          {canAssign && (
+          {/* Assignment section: always show if possible per assignment logic */}
+          {canShowAssign && (
             <div className="my-6">
               <label className="block mb-1 font-medium">Assign To</label>
               <select

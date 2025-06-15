@@ -213,7 +213,18 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
         taskInput.dependencyTaskId = form.dependencyTaskId;
       }
 
-      await createTask(taskInput);
+      // Create the task
+      const newTask = await createTask(taskInput);
+
+      // Log creation!
+      await (await import("@/integrations/supabase/taskActivity")).createTaskActivity({
+        task_id: newTask.id,
+        action_type: "created",
+        old_value: null,
+        new_value: null,
+        acted_by: myUserId,
+      });
+
       toast({ title: "Task Created", description: form.title });
       resetForm();
       setOpen(false);

@@ -19,6 +19,26 @@ const actionLabel = (action: TaskActivity) => {
       return `Status changed from "${action.old_value}" to "${action.new_value}"`;
     case "assigned":
       return `Assigned from "${action.old_value || "-"}" to "${action.new_value || "-"}"`;
+    case "edit":
+      // For edit, we expect field name to be prepended to old_value in some way
+      // Example: use format: old_value: "<field>:<old>", new_value: "<field>:<new>"
+      // To avoid ambiguity, treat as: old_value = "<field>:<old>" new_value = "<field>:<new>"
+      {
+        const fieldMatch = action.old_value?.split(":")[0] || "Field";
+        const oldV = action.old_value?.split(":")[1] ?? "";
+        const newV = action.new_value?.split(":")[1] ?? "";
+        const pretty = (
+          fieldMatch === "title" ? "Title"
+          : fieldMatch === "description" ? "Description"
+          : fieldMatch === "priority" ? "Priority"
+          : fieldMatch === "due_date" ? "Due Date"
+          : fieldMatch === "status" ? "Status"
+          : fieldMatch === "estimated_hours" ? "Estimated Hours"
+          : fieldMatch === "actual_completion_date" ? "Completion Date"
+          : fieldMatch
+        );
+        return `${pretty} changed from "${oldV}" to "${newV}"`;
+      }
     case "comment":
       return action.new_value ? `Comment: "${action.new_value}"` : "Comment added";
     default:
