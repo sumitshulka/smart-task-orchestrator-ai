@@ -1,4 +1,3 @@
-
 import React from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -66,10 +65,10 @@ const AdminUsers: React.FC = () => {
     setEditDialogOpen(true);
   }
 
-  // Helper: Given the user's manager string (user_name), find their manager's full user object
-  function getManagerInfo(managerName?: string) {
-    if (!managerName) return null;
-    const found = users.find((u) => u.user_name && u.user_name.toLowerCase() === managerName.toLowerCase());
+  // Helper: Given the user's managerId (manager is now a UUID), find their manager's full user object
+  function getManagerInfo(managerId?: string) {
+    if (!managerId) return null;
+    const found = users.find((u) => u.id === managerId);
     return found || null;
   }
 
