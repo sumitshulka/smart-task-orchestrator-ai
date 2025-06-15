@@ -13,9 +13,6 @@ import TaskCard from "@/components/TaskCard";
 import CreateTaskSheet from "@/components/CreateTaskSheet";
 import KanbanColumn from "./MyTasks/KanbanColumn";
 import KanbanTaskCard from "./MyTasks/KanbanTaskCard";
-import TaskCardClickable from "./MyTasks/TaskCardClickable";
-import TasksPagination from "@/components/TasksPagination";
-import { fetchTasksPaginated, FetchTasksInput } from "@/integrations/supabase/tasks";
 import EditTaskSheet from "@/components/EditTaskSheet";
 
 // Pastel color classes for Kanban columns
@@ -264,7 +261,6 @@ export default function MyTasksPage() {
               onOpen={() => openDetailsForTask(task)}
               canDelete={canDelete}
               onTaskUpdated={load}
-              onEdit={() => openEditForTask(task)}
             />
           ))}
         </div>

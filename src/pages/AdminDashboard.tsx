@@ -101,6 +101,12 @@ function AssignedVsCompletedChart({ data }: { data: { month: string; assigned: n
   );
 }
 
+function priorityLabel(priority: number) {
+  if (priority === 1) return <span className="text-xs text-red-700 font-bold">High</span>;
+  if (priority === 2) return <span className="text-xs text-yellow-700 font-bold">Medium</span>;
+  return <span className="text-xs text-green-700 font-bold">Low</span>;
+}
+
 const AdminDashboard = () => {
   const { users, teams: allTeams } = useUsersAndTeams();
   const [loading, setLoading] = useState(true);
