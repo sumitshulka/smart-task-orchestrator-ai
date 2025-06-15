@@ -1,4 +1,3 @@
-
 import React from "react";
 import { useLocation, NavLink } from "react-router-dom";
 import {
@@ -46,8 +45,7 @@ export default function AppSidebar() {
   return (
     <Sidebar
       className={collapsed ? "w-14" : "w-64 min-w-14"}
-      collapsible
-      data-collapsible="icon"
+      collapsible="icon"
     >
       {/* SidebarTrigger inside sidebar for accessibility */}
       <SidebarTrigger className="m-2 self-end" />
@@ -284,4 +282,3 @@ export default function AppSidebar() {
 }
 
 // NOTE: src/components/AppSidebar.tsx is now over 277 lines and getting lengthy. Please consider refactoring for maintainability.
-
