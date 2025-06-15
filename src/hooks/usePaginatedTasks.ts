@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { fetchTasksPaginated, Task, FetchTasksInput } from "@/integrations/supabase/tasks";
 import { useUsersAndTeams } from "@/hooks/useUsersAndTeams";
 import useSupabaseSession from "@/hooks/useSupabaseSession";
@@ -205,6 +205,12 @@ export function usePaginatedTasks(options: {
     pageSize,
     roles
   ]);
+
+  // NEW: Always call handleSearch on mount and when relevant deps change
+  useEffect(() => {
+    handleSearch();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, pageSize, priorityFilter, statusFilter, userFilter, teamFilter, dateRange, roles]);
 
   return {
     tasks,
