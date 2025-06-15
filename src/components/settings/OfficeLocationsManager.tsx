@@ -134,12 +134,12 @@ const OfficeLocationsManager: React.FC = () => {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-muted">
-                <th className="w-10 p-2">S No</th>
-                <th className="w-1/6 p-2 text-left font-medium text-muted-foreground">Location Name</th>
-                <th className="w-1/4 p-2 text-left font-medium text-muted-foreground">Address</th>
-                <th className="w-1/6 p-2 text-left font-medium text-muted-foreground">Location Manager</th>
-                <th className="w-1/6 p-2 text-left font-medium text-muted-foreground">Creation Date</th>
-                <th className="w-20 p-2 text-center font-medium text-muted-foreground">
+                <th className="w-10 p-2 font-semibold text-black">S No</th>
+                <th className="w-1/6 p-2 text-left font-semibold text-black">Location Name</th>
+                <th className="w-1/4 p-2 text-left font-semibold text-black">Address</th>
+                <th className="w-1/6 p-2 text-left font-semibold text-black">Location Manager</th>
+                <th className="w-1/6 p-2 text-left font-semibold text-black">Creation Date</th>
+                <th className="w-20 p-2 text-center font-semibold text-black">
                   {highestRole === "admin" ? "Actions" : ""}
                 </th>
               </tr>

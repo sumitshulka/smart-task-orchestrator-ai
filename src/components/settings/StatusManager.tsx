@@ -127,10 +127,10 @@ const StatusManager: React.FC = () => {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-muted">
-                  <th className="w-12 p-2">#</th>
-                  <th className="w-1/6 p-2">Status Name</th>
-                  <th className="w-1/2 p-2">Description</th>
-                  <th className="w-1/4 p-2 text-center">
+                  <th className="w-12 p-2 font-semibold text-black">#</th>
+                  <th className="w-1/6 p-2 font-semibold text-black">Status Name</th>
+                  <th className="w-1/2 p-2 font-semibold text-black">Description</th>
+                  <th className="w-1/4 p-2 text-center font-semibold text-black">
                     {highestRole === "admin" ? "Actions" : ""}
                   </th>
                 </tr>

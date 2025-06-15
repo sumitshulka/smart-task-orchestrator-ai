@@ -92,9 +92,9 @@ const DepartmentsManager: React.FC = () => {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-muted">
-                <th className="w-1/4 p-2 text-left font-medium text-muted-foreground">Name</th>
-                <th className="w-2/4 p-2 text-left font-medium text-muted-foreground">Description</th>
-                <th className="w-1/4 p-2 text-center font-medium text-muted-foreground">
+                <th className="w-1/4 p-2 text-left font-semibold text-black">Name</th>
+                <th className="w-2/4 p-2 text-left font-semibold text-black">Description</th>
+                <th className="w-1/4 p-2 text-center font-semibold text-black">
                   {highestRole === "admin" ? "Actions" : ""}
                 </th>
               </tr>
