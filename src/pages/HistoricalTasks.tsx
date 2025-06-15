@@ -6,6 +6,7 @@ import { useUsersAndTeams } from "@/hooks/useUsersAndTeams";
 import TaskFiltersSidebar from "@/components/TaskFiltersSidebar";
 import { Button } from "@/components/ui/button";
 import TasksPagination from "@/components/TasksPagination";
+import { useTaskStatuses } from "@/hooks/useTaskStatuses";
 
 const pageSizeOptions = [25, 50, 75, 100];
 
@@ -21,6 +22,8 @@ export default function HistoricalTasksPage() {
   const [userFilter, setUserFilter] = useState<string>("all");
   const [teamFilter, setTeamFilter] = useState<string>("all");
   const [dateRange, setDateRange] = useState<{ from: Date | null; to: Date | null }>({ from: null, to: null });
+
+  const { statuses, loading: statusesLoading } = useTaskStatuses(); // <--- NEW
 
   // Pagination
   const [page, setPage] = useState(1);
@@ -113,6 +116,8 @@ export default function HistoricalTasksPage() {
         onDateRangeChange={setDateRange}
         users={users}
         teams={teams}
+        statuses={statuses}
+        statusesLoading={statusesLoading}
       />
       <div className="flex-1">
         <div className="flex items-center gap-4 mb-6">
@@ -159,5 +164,3 @@ export default function HistoricalTasksPage() {
     </div>
   );
 }
-
-// Note: This file is getting quite large. You should consider refactoring it for easier maintenance!

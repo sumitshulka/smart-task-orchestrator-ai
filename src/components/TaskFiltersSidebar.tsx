@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
@@ -77,7 +76,7 @@ export default function TaskFiltersSidebar({
           <SelectContent>
             <SelectItem value="all">All</SelectItem>
             {statusesLoading ? (
-              <SelectItem value="" disabled>Loading...</SelectItem>
+              <SelectItem value="loading" disabled>Loading...</SelectItem>
             ) : (
               statuses.map((s) => (
                 <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>
