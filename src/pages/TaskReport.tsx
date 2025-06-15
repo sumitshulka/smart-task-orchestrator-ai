@@ -355,7 +355,14 @@ export default function TaskReport() {
         <Table>
           <TableHeader>
             <TableRow>
-              {reportingColumns.map(col => (<TableHead key={col}>{col}</TableHead>))}
+              {reportingColumns.map(col => (
+                <TableHead
+                  key={col}
+                  className="bg-gray-100 font-bold text-black"
+                >
+                  {col}
+                </TableHead>
+              ))}
             </TableRow>
           </TableHeader>
           <TableBody>
