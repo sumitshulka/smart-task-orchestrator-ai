@@ -533,6 +533,18 @@ export type Database = {
         Args: { _user_id: string }
         Returns: boolean
       }
+      is_manager: {
+        Args: { _user_id: string }
+        Returns: boolean
+      }
+      manages_user: {
+        Args: { manager_id: string; target_user_id: string }
+        Returns: boolean
+      }
+      team_manager_of_user: {
+        Args: { manager_id: string; target_user_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
       [_ in never]: never
