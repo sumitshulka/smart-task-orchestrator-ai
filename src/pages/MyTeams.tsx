@@ -40,10 +40,10 @@ const MyTeams = () => {
     async function enrichTeams() {
       console.log("[MyTeams] Teams input:", teams);
       const promises = teams.map(async (team: any) => {
-        // Members (with role and allocation date)
+        // 1. Fetch team memberships for this team
         const { data: memberships, error: membershipsError } = await supabase
           .from("team_memberships")
-          .select("user_id, role_within_team, joined_at, user:users(id,email,user_name)")
+          .select("user_id, role_within_team, joined_at")
           .eq("team_id", team.id);
 
         if (membershipsError) {
@@ -51,37 +51,54 @@ const MyTeams = () => {
         }
         console.log(`[MyTeams] Fetched memberships for team ${team.name}:`, memberships);
 
+        // 2. Now get all user_ids from memberships
+        const userIds = memberships?.map((m: any) => m.user_id).filter(Boolean) || [];
         let members: TeamExtended["members"] = [];
-        if (!membershipsError && memberships) {
+        if (userIds.length > 0) {
+          // 3. Fetch users by user_id (uuid)
+          const { data: usersForTeam, error: usersFetchError } = await supabase
+            .from("users")
+            .select("id, email, user_name")
+            .in("id", userIds);
+
+          if (usersFetchError) {
+            console.error(`[MyTeams] Error fetching users for team ${team.name}`, usersFetchError);
+          } else {
+            console.log(`[MyTeams] Users fetched for team ${team.name}:`, usersForTeam);
+          }
+
+          // Map memberships to include user data
           members =
-            memberships.map((m: any) => ({
-              id: m.user?.id,
-              email: m.user?.email ?? "-",
-              user_name: m.user?.user_name ?? "-",
-              allocationDate: m.joined_at,
-              role_within_team: m.role_within_team,
-            })) ?? [];
+            memberships.map((m: any) => {
+              const matchedUser = usersForTeam?.find((u: any) => u.id === m.user_id);
+              return {
+                id: m.user_id,
+                email: matchedUser?.email ?? "-",
+                user_name: matchedUser?.user_name ?? "-",
+                allocationDate: m.joined_at,
+                role_within_team: m.role_within_team,
+              };
+            }) ?? [];
         }
 
-        // Manager: pick member where role_within_team is manager. Fallback to created_by user in users table if needed.
+        // 4. Manager: identify by memberships (role_within_team=manager) or team.created_by
         let manager = members.find(
           (m) => String(m.role_within_team || "").toLowerCase() === "manager"
         );
-        if (!manager && team.created_by) {
-          // Try to find the created_by user
-          manager = members.find((m) => m.id === team.created_by);
-        }
-
-        // Fallback: fetch manager by ID directly from users table if needed.
         let managerName = "-";
         let managerEmail = "-";
+        if (!manager && team.created_by) {
+          // If manager not present by role, fallback to user with id == created_by
+          manager = members.find((m) => m.id === team.created_by);
+        }
         if (manager && manager.user_name && manager.email) {
           managerName = manager.user_name;
           managerEmail = manager.email;
         } else if (team.created_by) {
+          // If no manager found in members, fetch directly
           const { data: managerUser, error: managerFetchError } = await supabase
             .from("users")
-            .select("id,user_name,email")
+            .select("id, user_name, email")
             .eq("id", team.created_by)
             .maybeSingle();
           if (managerFetchError) {
@@ -93,7 +110,7 @@ const MyTeams = () => {
           }
         }
 
-        // Tasks: all with this team_id
+        // 5. Fetch all tasks for this team
         const { data: tasks, error: tasksError } = await supabase
           .from("tasks")
           .select("id,status,team_id")
@@ -205,3 +222,4 @@ const MyTeams = () => {
 };
 
 export default MyTeams;
+
