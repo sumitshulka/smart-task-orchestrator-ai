@@ -10,6 +10,7 @@ import dayjs from "dayjs";
 import { useStatusStats } from "@/hooks/useStatusStats";
 import TaskDetailsSheet from "@/components/TaskDetailsSheet";
 import { useCurrentUserRoleAndTeams } from "@/hooks/useCurrentUserRoleAndTeams";
+import AnalyticsKPICards from "@/components/analytics/AnalyticsKPICards";
 
 type Role = "admin" | "manager" | "team_manager" | "user" | "unknown";
 
@@ -144,6 +145,28 @@ const AdminDashboard = () => {
 
   // Check team assignment
   const isUserAndNoTeams = currentRole === "user" && teams.length === 0;
+
+  // --- Add: Function to fetch oldest open tasks from tasks_manager_report_view ---
+  async function fetchManagerOldestOpenTasks(nextTaskFilter: any) {
+    let query: any = supabase
+      .from("tasks_manager_report_view")
+      .select("*")
+      .neq("status", "completed")
+      .order("due_date", { ascending: true, nullsFirst: true })
+      .order("created_at", { ascending: true })
+      .limit(5);
+
+    // In the manager view, sometimes nextTaskFilter is an IN or EQ filter for team_id, assigned_to, etc
+    if (nextTaskFilter.column) {
+      if (nextTaskFilter.op === "in") {
+        query = query.in(nextTaskFilter.column, nextTaskFilter.value);
+      } else if (nextTaskFilter.op === "eq") {
+        query = query.eq(nextTaskFilter.column, nextTaskFilter.value);
+      }
+    }
+    const result: any = await query;
+    return result?.data || [];
+  }
 
   useEffect(() => {
     async function setup() {
@@ -379,30 +402,37 @@ const AdminDashboard = () => {
           : "0%"
       );
 
-      // --- Get 5 oldest open (non-completed) tasks for this user/role ---
-      let oldestOpenTasksQuery: any = supabase
-        .from("tasks")
-        .select("*")
-        .neq("status", "completed")
-        .order("due_date", { ascending: true, nullsFirst: true })
-        .order("created_at", { ascending: true })
-        .limit(5);
+      // --- Refactor: Use view for oldest open tasks for managers/team managers ---
+      let oldestOpenTasksData = [];
+      if (filteredRole === "manager" || filteredRole === "team_manager") {
+        oldestOpenTasksData = await fetchManagerOldestOpenTasks(nextTaskFilter);
+      } else {
+        // Default: users/admins
+        let oldestOpenTasksQuery: any = supabase
+          .from("tasks")
+          .select("*")
+          .neq("status", "completed")
+          .order("due_date", { ascending: true, nullsFirst: true })
+          .order("created_at", { ascending: true })
+          .limit(5);
 
-      if (nextTaskFilter.column) {
-        if (nextTaskFilter.op === "in") {
-          oldestOpenTasksQuery = oldestOpenTasksQuery.in(
-            nextTaskFilter.column,
-            nextTaskFilter.value
-          );
-        } else if (nextTaskFilter.op === "eq") {
-          oldestOpenTasksQuery = oldestOpenTasksQuery.eq(
-            nextTaskFilter.column,
-            nextTaskFilter.value
-          );
+        if (nextTaskFilter.column) {
+          if (nextTaskFilter.op === "in") {
+            oldestOpenTasksQuery = oldestOpenTasksQuery.in(
+              nextTaskFilter.column,
+              nextTaskFilter.value
+            );
+          } else if (nextTaskFilter.op === "eq") {
+            oldestOpenTasksQuery = oldestOpenTasksQuery.eq(
+              nextTaskFilter.column,
+              nextTaskFilter.value
+            );
+          }
         }
+        const oldestOpenTasksResult: any = await oldestOpenTasksQuery;
+        oldestOpenTasksData = oldestOpenTasksResult?.data || [];
       }
-      const oldestOpenTasksResult: any = await oldestOpenTasksQuery;
-      setOldestOpenTasks(oldestOpenTasksResult?.data || []);
+      setOldestOpenTasks(oldestOpenTasksData);
 
       setLoading(false);
     }
@@ -461,15 +491,14 @@ const AdminDashboard = () => {
       {/* ADMIN/MANAGER/TEAM_MANAGER */}
       {(currentRole === "admin" || currentRole === "manager" || currentRole === "team_manager") && (
         <>
-          {/* Main Stats */}
+          {/* --- ADD KPI CARDS: Use AnalyticsKPICards for all privileged roles --- */}
           {orgStats && (
-            <div className="flex flex-wrap gap-4 mb-7">
-              <StatCard label="Total Users" value={orgStats.users} />
-              <StatCard label="Teams" value={orgStats.teams} />
-              <StatCard label="Total Tasks" value={orgStats.totalTasks} />
-              <StatCard label="Completed Tasks" value={orgStats.completedTasks} />
-              <StatCard label="New Tasks" value={orgStats.newTasks} />
-            </div>
+            <AnalyticsKPICards
+              totalTasks={orgStats.totalTasks}
+              completedTasks={orgStats.completedTasks}
+              overdueTasks={overdueTasks.length}
+              activeUsers={orgStats.users}
+            />
           )}
 
           {/* Analytics/Graphs */}
