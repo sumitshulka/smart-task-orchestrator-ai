@@ -37,6 +37,25 @@ async function fetchTaskReportView(fromDate: Date, toDate: Date, limit = 1000) {
   return data || [];
 }
 
+// NEW: Manager/Team Manager view fetcher
+async function fetchManagerTaskReportView(fromDate: Date, toDate: Date, limit = 1000) {
+  const { supabase } = await import("@/integrations/supabase/client");
+  const { format } = await import("date-fns");
+  const fromStr = format(fromDate, "yyyy-MM-dd");
+  const toStr = format(toDate, "yyyy-MM-dd");
+  const { data, error } = await supabase
+    .from("tasks_manager_report_view")
+    .select("*")
+    .gte("created_at", fromStr)
+    .lte("created_at", toStr)
+    .limit(limit);
+  if (error) {
+    console.error("Error fetching from tasks_manager_report_view:", error);
+    return [];
+  }
+  return data || [];
+}
+
 const columns = ["Employee Name", "Total Tasks Assigned", "Completion Ratio"];
 
 type EmployeeReport = {
@@ -62,6 +81,7 @@ export default function TaskReport() {
   const { statuses, loading: statusesLoading } = useTaskStatuses();
   const statusNames = statuses.map((s) => s.name);
 
+  // Keep userTeamIds and reportUserIds for possible filtering
   const userTeamIds = React.useMemo(() => userTeams?.map((t) => t.id) ?? [], [userTeams]);
   const [reportUserIds, setReportUserIds] = React.useState<string[]>([]);
 
@@ -107,6 +127,7 @@ export default function TaskReport() {
     queryKey: ["task-report", fromDate, toDate, reportUserIds.join(","), roles.join(",")],
     queryFn: async () => {
       if (!user?.id || !fromDate || !toDate) return [];
+      // Admins see all using the admin view
       if (roles.includes("admin")) {
         const rows = await fetchTaskReportView(fromDate, toDate, 1000);
         return (rows as any[]).map((r) => ({
@@ -118,6 +139,19 @@ export default function TaskReport() {
           },
         }));
       }
+      // Manager/Team manager see only their managed users using new view
+      if (roles.includes("manager") || roles.includes("team_manager")) {
+        const rows = await fetchManagerTaskReportView(fromDate, toDate, 1000);
+        return (rows as any[]).map((r) => ({
+          ...r,
+          assigned_to: r.assignee_email ? r.assignee_email : null,
+          assigned_user: {
+            user_name: r.assignee_name,
+            email: r.assignee_email,
+          },
+        }));
+      }
+      // For individual users (self)
       let filters: any = {
         fromDate: format(fromDate, "yyyy-MM-dd"),
         toDate: format(toDate, "yyyy-MM-dd"),
