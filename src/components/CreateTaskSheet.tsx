@@ -190,6 +190,14 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
     try {
       const myUserId = user?.id;
       if (!myUserId) throw new Error("No current user!");
+
+      // Additional validation: For personal tasks, must be subtask and assigned to a private group
+      if (form.type === "personal") {
+        const group = taskGroups.find(g => g.id === selectedTaskGroup && g.visibility === "private");
+        if (!group) throw new Error("Personal tasks must be added as a subtask in a Private Task Group.");
+        if (!form.isSubTask) throw new Error("Personal tasks must be created as a subtask (check 'Is Subtask?').");
+      }
+
       // Build task
       const taskInput: any = {
         title: form.title,
@@ -289,14 +297,22 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
     if (!open) return;
     async function loadGroups() {
       const groups = await fetchAssignableTaskGroups();
-      // Enforce private group rules: on personal only show all, else filter for non-private
-      let filtered = groups;
-      if (form.type === "team") {
+      let filtered: TaskGroup[] = [];
+      if (form.type === "personal") {
+        // Only show private groups for personal tasks
+        filtered = groups.filter(g => g.visibility === "private");
+      } else if (form.type === "team") {
+        // Only show non-private groups for team tasks
         filtered = groups.filter(g => g.visibility !== "private");
       }
       setTaskGroups(filtered);
+      // Reset selection if invalid
+      if (filtered.every(g => g.id !== selectedTaskGroup)) {
+        setSelectedTaskGroup("");
+      }
     }
     loadGroups();
+    // eslint-disable-next-line
   }, [open, form.type]);
 
   // --- UI ---
@@ -311,7 +327,7 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
           </Button>
         )}
       </SheetTrigger>
-      <SheetContent side="right" className="max-w-5xl w-[60vw] overflow-y-auto">
+      <SheetContent side="right" className="max-w-6xl w-[78vw] overflow-y-auto">
         <form className="p-2 space-y-6" onSubmit={handleSubmit}>
           <SheetHeader>
             <SheetTitle>Create Task</SheetTitle>
@@ -414,8 +430,11 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
                 value={selectedTaskGroup}
                 onChange={e => setSelectedTaskGroup(e.target.value)}
                 className="w-full border rounded p-2 bg-white z-50"
+                // Only required for "personal"
+                required={form.type === "personal"}
+                disabled={taskGroups.length === 0}
               >
-                <option value="">No Task Group</option>
+                <option value="">{form.type === "personal" ? "Select Private Task Group" : "No Task Group"}</option>
                 {taskGroups.map((g) => (
                   <option key={g.id} value={g.id}>{g.name} ({g.visibility})</option>
                 ))}
