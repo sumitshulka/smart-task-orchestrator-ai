@@ -102,93 +102,84 @@ function AssignedVsCompletedChart({ data }: { data: { month: string; assigned: n
 }
 
 export default function AdminDashboard() {
-  const { users, teams } = useUsersAndTeams();
+  const { users, teams: allTeams } = useUsersAndTeams();
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState<Role>("unknown");
   const [userId, setUserId] = useState<string | null>(null);
-  const [orgStats, setOrgStats] = useState<OrgStats | null>(null);
-  const [userStats, setUserStats] = useState<UserStats | null>(null);
-
-  // New: For Analytics
+  const [orgStats, setOrgStats] = useState<any>(null);
+  const [userStats, setUserStats] = useState<any>(null);
   const [overdueTasks, setOverdueTasks] = useState<any[]>([]);
   const [highPriorityTasks, setHighPriorityTasks] = useState<any[]>([]);
   const [taskMonthlyStats, setTaskMonthlyStats] = useState<{ month: string; assigned: number; completed: number }[]>([]);
   const [overdueRatio, setOverdueRatio] = useState<string>("0%");
   const [oldestOpenTasks, setOldestOpenTasks] = useState<any[]>([]);
-
-  // --- NEW: Task details drawer state
   const [detailsTask, setDetailsTask] = useState<any | null>(null);
   const [detailsOpen, setDetailsOpen] = useState<boolean>(false);
-
-  const navigate = useNavigate();
-
-  // Keep this in state so hooks can use the params
   const [taskFilter, setTaskFilter] = useState<any>({});
 
-  // --- NEW: Use status stats hook
-  const { statusStats, loading: statusLoading } = useStatusStats(taskFilter);
-
+  // Use the custom hook to get roles and teams for the current user
   const { roles, teams, user, loading: rolesLoading } = useCurrentUserRoleAndTeams();
 
-  // Set role from real role table (support multiple roles; choose priority)
-  let role: Role = "unknown";
-  if (roles.includes("admin")) role = "admin";
-  else if (roles.includes("manager")) role = "manager";
-  else if (roles.includes("team_manager")) role = "team_manager";
-  else if (roles.includes("user")) role = "user";
+  // Derive role info only ONCE based on roles array (do NOT redeclare or assign 'role' as const within render)
+  const currentRole: Role = roles.includes("admin")
+    ? "admin"
+    : roles.includes("manager")
+    ? "manager"
+    : roles.includes("team_manager")
+    ? "team_manager"
+    : roles.includes("user")
+    ? "user"
+    : "unknown";
 
   // Check team assignment
-  const isUserAndNoTeams = role === "user" && teams.length === 0;
+  const isUserAndNoTeams = currentRole === "user" && teams.length === 0;
 
   useEffect(() => {
     async function setup() {
       setLoading(true);
-      // 1: Get current user
-      const sessionDataResult: any = await supabase.auth.getUser();
-      const user = sessionDataResult?.data?.user;
-      if (!user) {
-        navigate("/auth");
+
+      // Get user and id (single source)
+      let localUser = user;
+      if (!localUser) {
+        const sessionDataResult: any = await supabase.auth.getUser();
+        localUser = sessionDataResult?.data?.user;
+      }
+      if (!localUser) {
+        setUserId(null);
+        setLoading(false);
         return;
       }
-      setUserId(user.id);
+      setUserId(localUser.id);
 
-      // 2: Get roles
-      // Avoid deep inference by casting
-      const roleRowsResult: any = await supabase
-        .from("user_roles")
-        .select("*, role:roles(name)")
-        .eq("user_id", user.id);
-      const roleRows: any[] = roleRowsResult?.data ?? [];
-      const roleNames: string[] =
-        roleRows?.map((r: any) => r.role?.name || "").filter(Boolean) || [];
-      let _role: Role = "user";
-      if (roleNames.includes("admin")) _role = "admin";
-      else if (roleNames.includes("manager")) _role = "manager";
-      else if (roleNames.includes("team_manager")) _role = "team_manager";
-      else if (roleNames.length === 0) _role = "unknown";
-      setRole(_role);
+      // roles already loaded by hook (roles: string[])
+      let filteredRole: Role = "unknown";
+      if (roles.includes("admin")) filteredRole = "admin";
+      else if (roles.includes("manager")) filteredRole = "manager";
+      else if (roles.includes("team_manager")) filteredRole = "team_manager";
+      else if (roles.includes("user")) filteredRole = "user";
+      setRole(filteredRole);
 
-      // Universal filters
+      // Generate task filter
       let nextTaskFilter: any = {};
-      if (_role === "admin") {
+      if (filteredRole === "admin") {
         nextTaskFilter = {};
-      } else if (_role === "manager" || _role === "team_manager") {
+      } else if (filteredRole === "manager" || filteredRole === "team_manager") {
         const membershipsResult: any = await supabase
           .from("team_memberships")
           .select("team_id")
-          .eq("user_id", user.id);
+          .eq("user_id", localUser.id);
         const memberships: any[] = membershipsResult?.data ?? [];
         const teamIds = memberships?.map((m: any) => m.team_id) || [];
         if (teamIds.length) {
           nextTaskFilter = { column: "team_id", op: "in", value: teamIds };
         }
-      } else if (_role === "user") {
-        nextTaskFilter = { column: "assigned_to", op: "eq", value: user.id };
+      } else if (filteredRole === "user") {
+        nextTaskFilter = { column: "assigned_to", op: "eq", value: localUser.id };
       }
       setTaskFilter(nextTaskFilter);
 
       // 1. Org or user stats
-      if (_role === "admin") {
+      if (filteredRole === "admin") {
         const [
           userCountResult,
           teamCountResult,
@@ -209,12 +200,12 @@ export default function AdminDashboard() {
           completedTasks: completedTasksResult?.data?.length || 0,
           pendingTasks: pendingTasksResult?.data?.length || 0,
         });
-      } else if (_role === "manager" || _role === "team_manager") {
+      } else if (filteredRole === "manager" || filteredRole === "team_manager") {
         // Teams user is a member of
         const membershipsResult: any = await supabase
           .from("team_memberships")
           .select("team_id")
-          .eq("user_id", user.id);
+          .eq("user_id", localUser.id);
         const memberships: any[] = membershipsResult?.data ?? [];
         const teamIds = memberships?.map((m: any) => m.team_id) || [];
         if (teamIds.length) {
@@ -237,7 +228,7 @@ export default function AdminDashboard() {
               (completedTeamTasksResult?.count || 0),
           });
         }
-      } else if (_role === "user") {
+      } else if (filteredRole === "user") {
         const [
           assignedResult,
           completedResult,
@@ -246,16 +237,16 @@ export default function AdminDashboard() {
           supabase
             .from("tasks")
             .select("id", { count: "exact" })
-            .eq("assigned_to", user.id),
+            .eq("assigned_to", localUser.id),
           supabase
             .from("tasks")
             .select("id", { count: "exact" })
-            .eq("assigned_to", user.id)
+            .eq("assigned_to", localUser.id)
             .eq("status", "completed"),
           supabase
             .from("tasks")
             .select("id", { count: "exact" })
-            .eq("assigned_to", user.id)
+            .eq("assigned_to", localUser.id)
             .eq("status", "pending"),
         ]);
         setUserStats({
@@ -362,7 +353,7 @@ export default function AdminDashboard() {
 
       // 6. Overdue ratio
       const totalTasks =
-        _role === "user" && userStats
+        currentRole === "user" && userStats
           ? userStats.assignedTasks
           : orgStats?.totalTasks || 0;
       const overdueCount = (overdueResult?.data || []).length;
@@ -401,9 +392,9 @@ export default function AdminDashboard() {
     }
     setup();
     // eslint-disable-next-line
-  }, []);
-  
-  if (loading) {
+  }, [user, roles, teams]);
+
+  if (loading || rolesLoading) {
     return (
       <div className="flex flex-col items-center justify-center h-80">
         <Loader2 className="animate-spin mb-2 w-10 h-10 text-primary" />
@@ -412,16 +403,7 @@ export default function AdminDashboard() {
     );
   }
 
-  if (rolesLoading) {
-    return (
-      <div className="flex flex-col items-center justify-center h-80">
-        <Loader2 className="animate-spin mb-2 w-10 h-10 text-primary" />
-        <div className="text-muted-foreground">Loading dashboard...</div>
-      </div>
-    );
-  }
-
-  if (role === "unknown" || !role) {
+  if (currentRole === "unknown" || !currentRole) {
     return (
       <div className="max-w-2xl mx-auto text-center mt-16">
         <div className="text-xl font-bold mb-2">No Role Assigned</div>
@@ -434,7 +416,7 @@ export default function AdminDashboard() {
     );
   }
 
-  if (role === "user" && isUserAndNoTeams) {
+  if (currentRole === "user" && isUserAndNoTeams) {
     return (
       <div className="max-w-xl mx-auto text-center mt-16">
         <div className="text-xl font-bold mb-2">Not Assigned to Any Team</div>
@@ -474,7 +456,7 @@ export default function AdminDashboard() {
       </h1>
 
       {/* ADMIN/MANAGER/TEAM_MANAGER */}
-      {(role === "admin" || role === "manager" || role === "team_manager") && (
+      {(currentRole === "admin" || currentRole === "manager" || currentRole === "team_manager") && (
         <>
           {/* Main Stats */}
           {orgStats && (
@@ -628,7 +610,7 @@ export default function AdminDashboard() {
       )}
 
       {/* USER VIEW */}
-      {role === "user" && userStats && (
+      {currentRole === "user" && userStats && (
         <>
           <div className="flex flex-wrap gap-4 mb-7">
             <StatCard label="Assigned Tasks" value={userStats.assignedTasks} />
@@ -753,7 +735,7 @@ export default function AdminDashboard() {
         task={detailsTask}
         open={detailsOpen}
         onOpenChange={(open: boolean) => setDetailsOpen(open)}
-        currentUser={{ id: userId, role }}
+        currentUser={{ id: userId, role: currentRole }}
         onUpdated={() => {
           // When details update, re-fetch oldest open tasks etc
           // Optionally: could refetch all stats, but for now just reload all
