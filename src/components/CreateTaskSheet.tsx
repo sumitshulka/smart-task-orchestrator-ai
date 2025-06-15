@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import {
   Sheet,
@@ -125,12 +124,13 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
     return [];
   }
 
-  // Handle form changes
+  // Handle form changes (typed fix)
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) => {
-    const { name, value, type, checked } = e.target;
-    if (type === "checkbox") {
+    const { name, value, type } = e.target;
+    if (type === "checkbox" && "checked" in e.target) {
+      const checked = (e.target as HTMLInputElement).checked;
       setForm((f) => ({
         ...f,
         [name]: checked,
@@ -441,4 +441,3 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
 };
 
 export default CreateTaskSheet;
-
