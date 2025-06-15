@@ -22,6 +22,8 @@ import TasksList from "@/components/TasksList";
 import TasksNoResults from "@/components/TasksNoResults";
 import TasksPagination from "@/components/TasksPagination";
 import { useCurrentUserRoleAndTeams } from "@/hooks/useCurrentUserRoleAndTeams";
+import { usePaginatedTasks } from "@/hooks/usePaginatedTasks"; // NEW HOOK
+import TasksFiltersPanel from "@/components/TasksFiltersPanel"; // NEW COMPONENT
 
 // Priorities filter dropdown
 const priorities = [
@@ -47,192 +49,53 @@ const fallbackImage =
 const pageSizeOptions = [25, 50, 75, 100];
 
 const TasksPage: React.FC = () => {
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [totalTasks, setTotalTasks] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const { user, loading: sessionLoading } = useSupabaseSession();
-  const { roles, teams: userTeams, loading: roleTeamsLoading } = useCurrentUserRoleAndTeams();
-  // filters
-  const [priorityFilter, setPriorityFilter] = useState<string>("all");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [userFilter, setUserFilter] = useState<string>("all");
-  const [teamFilter, setTeamFilter] = useState<string>("all");
-  const [dateRange, setDateRange] = useState<{ from: Date | null; to: Date | null }>({ from: null, to: null });
-  const { users, teams } = useUsersAndTeams();
+  // Use new hook for all main interactions
+  const {
+    tasks,
+    totalTasks,
+    loading,
+    page,
+    setPage,
+    pageSize,
+    setPageSize,
+    showTooManyWarning,
+    searched,
+    handleSearch,
+    filters,
+    users,
+    teams,
+    roles,
+    user,
+  } = usePaginatedTasks({ isHistorical: false, initialPageSize: 25 });
   const { statuses, loading: statusesLoading } = useTaskStatuses();
-
-  // Pagination state
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(25);
-
-  const [showTooManyWarning, setShowTooManyWarning] = useState(false);
 
   // New: allTasks for "latest" fallback
   const [allTasks, setAllTasks] = useState<Task[]>([]);
-
-  // Get user team_ids
-  const userTeamIds = useMemo(() => {
-    return (userTeams ?? []).map((t: any) => t.id);
-  }, [userTeams]);
-
-  // Helper: filter tasks for 'user' role (strict), used for both fallback and main
-  function tasksVisibleToUser(tasksArr: Task[]) {
-    // If roles not known or user not loaded, return empty
-    if (!user || !roles?.length) return [];
-    // Only show for "user" if not also admin/manager/team_manager
-    if (roles.includes("user") && !roles.some(r => ["admin", "manager", "team_manager"].includes(r))) {
-      return tasksArr.filter(
-        (task) =>
-          // personal tasks assigned to me
-          (task.type === "personal" && task.assigned_to === user.id)
-          // OR any tasks (of any type) assigned directly to me
-          || (task.assigned_to === user.id)
-          // OR team tasks for my team(s)
-          || (task.type === "team" && userTeamIds.includes(task.team_id ?? ""))
-      );
-    }
-    // Otherwise (admin/manager/team_manager), return all
-    return tasksArr;
-  }
-
-  async function load(fetchAll: boolean = false) {
-    setLoading(true);
-    setShowTooManyWarning(false);
-
-    // Prepare fetch input: default view only tasks from last 30 days
-    const today = new Date();
-    const fromDateObj = new Date(today);
-    fromDateObj.setDate(today.getDate() - 30);
-
-    // Set toDateObj as tomorrow for inclusive today
-    const toDateObj = new Date(today);
-    toDateObj.setDate(today.getDate() + 1); // tomorrow
-    const fromDateStr = fromDateObj.toISOString().slice(0, 10);
-    const toDateStr = toDateObj.toISOString().slice(0, 10);
-
-    let input: FetchTasksInput = {
-      fromDate: (fetchAll ? fromDateStr : fromDateStr),
-      toDate: (fetchAll ? toDateStr : toDateStr),
-      // ... other filters for admin/manager
-      offset: (page - 1) * pageSize,
-      limit: pageSize,
-    };
-
-    // Role-based filtering: restrict for "user"
-    if (!fetchAll && user && roles && roles.length > 0 && roles.includes("user") && !roles.some(r => ["admin", "manager", "team_manager"].includes(r))) {
-      // We'll filter below (prevent leaking tasks)
-    } else {
-      input = {
-        ...input,
-        priority: (fetchAll || priorityFilter === "all") ? undefined : Number(priorityFilter),
-        status: (fetchAll || statusFilter === "all") ? undefined : statusFilter,
-        assignedTo: (fetchAll || userFilter === "all") ? undefined : userFilter,
-        teamId: (fetchAll || teamFilter === "all") ? undefined : teamFilter,
-      };
-    }
-
-    console.log("[TASKS] Calling fetchTasksPaginated with input:", input);
-    try {
-      const { tasks: fetchedTasks, total } = await fetchTasksPaginated(input);
-
-      if (fetchAll) {
-        // Apply same user-only filtering to allTasks
-        setAllTasks(tasksVisibleToUser(fetchedTasks));
-      } else {
-        let visibleTasks: Task[];
-        if (user && roles && roles.includes("user") && !roles.some(r => ["admin", "manager", "team_manager"].includes(r))) {
-          visibleTasks = tasksVisibleToUser(fetchedTasks);
-        } else {
-          visibleTasks = fetchedTasks;
-        }
-
-        if (visibleTasks.length) {
-          setTasks(visibleTasks);
-          setTotalTasks(total);
-        } else {
-          setTasks([]);
-          setTotalTasks(total);
-        }
-        if (total > 100) {
-          setShowTooManyWarning(true);
-          setTasks([]);
-          setTotalTasks(total);
-        }
-      }
-    } catch (err: any) {
-      toast({ title: "Failed to load tasks", description: err.message });
-      if (fetchAll) setAllTasks([]);
-    }
-    setLoading(false);
-  }
-
-  // Modified: load both filtered and unfiltered data if no result
-  useEffect(() => {
-    load(false).then(() => {
-      // Only fetch allTasks if filtered resulted in no tasks and not loading latest already
-      if (!tasks.length && !loading) {
-        load(true); // load latest tasks for fallback
-      }
-    });
-    // eslint-disable-next-line
-  }, [priorityFilter, statusFilter, userFilter, teamFilter, dateRange, page, pageSize, userTeams.length, roles.length]);
 
   // Restrict delete to status 'pending' or 'new'
   function canDelete(status: string) {
     return status === "pending" || status === "new";
   }
 
-  // Filtering logic
-  const filteredTasks = useMemo(() => {
-    // Log all status filter values and all unique task.status values
-    console.log("[DEBUG] Status filter available options:", statuses.map(s => s.name));
-    console.log("[DEBUG] All statuses in fetched tasks:", Array.from(new Set(tasks.map(t => t.status))));
+  React.useEffect(() => {
+    handleSearch();
+    // eslint-disable-next-line
+  }, [page, pageSize, filters.priorityFilter, filters.statusFilter, filters.userFilter, filters.teamFilter, filters.dateRange]);
 
-    // Only filter by dateRange if the user selected a range
-    const result = tasks.filter((task) => {
-      // Priority filter
-      const priorityPass =
-        !priorityFilter || priorityFilter === "all" || String(task.priority) === priorityFilter;
-      // Status filter: compare case-insensitive, trimmed
-      const statusPass =
-        !statusFilter ||
-        statusFilter === "all" ||
-        (task.status && task.status.toLowerCase().trim() === statusFilter.toLowerCase().trim());
-      // User filter
-      const userPass =
-        !userFilter || userFilter === "all" || (task.assigned_to && task.assigned_to === userFilter);
-      // Team filter
-      const teamPass =
-        !teamFilter || teamFilter === "all" || (task.team_id && task.team_id === teamFilter);
-
-      // Date filter: only if the user selected a custom range
-      let datePass = true;
-      if (dateRange.from && dateRange.to) {
-        // task.created_at is string (ISO date)
-        const createdDate = new Date(task.created_at);
-        // To make the date range inclusive, compare using timestamp
-        datePass = createdDate >= dateRange.from && createdDate <= dateRange.to;
-      }
-      return priorityPass && statusPass && userPass && teamPass && datePass;
-    });
-    console.log("[LOVABLE DEBUG][Tasks.tsx] Filtered Tasks:", result);
-    return result;
-  }, [tasks, priorityFilter, statusFilter, userFilter, teamFilter, dateRange, statuses]);
-  
   return (
     <div className="flex w-full max-w-6xl mx-auto px-4 py-8">
       {/* Sidebar filters */}
-      <TaskFiltersSidebar
-        priorityFilter={priorityFilter}
-        statusFilter={statusFilter}
-        userFilter={userFilter}
-        teamFilter={teamFilter}
-        dateRange={dateRange}
-        onPriorityChange={setPriorityFilter}
-        onStatusChange={setStatusFilter}
-        onUserChange={setUserFilter}
-        onTeamChange={setTeamFilter}
-        onDateRangeChange={setDateRange}
+      <TasksFiltersPanel
+        priorityFilter={filters.priorityFilter}
+        setPriorityFilter={filters.setPriorityFilter}
+        statusFilter={filters.statusFilter}
+        setStatusFilter={filters.setStatusFilter}
+        userFilter={filters.userFilter}
+        setUserFilter={filters.setUserFilter}
+        teamFilter={filters.teamFilter}
+        setTeamFilter={filters.setTeamFilter}
+        dateRange={filters.dateRange}
+        setDateRange={filters.setDateRange}
         users={users}
         teams={teams}
         statuses={statuses}
@@ -246,7 +109,7 @@ const TasksPage: React.FC = () => {
           <h1 className="text-2xl font-bold flex-shrink-0">Tasks</h1>
           {/* Add Task button */}
           <div className="ml-auto flex-shrink-0">
-            <CreateTaskSheet onTaskCreated={load}>
+            <CreateTaskSheet onTaskCreated={handleSearch}>
               <Button className="h-11 px-8 rounded-xl text-lg font-semibold bg-[#0c1221] text-white hover:bg-[#202942] flex items-center">
                 Add Task
               </Button>
@@ -266,12 +129,12 @@ const TasksPage: React.FC = () => {
           <div className="text-muted-foreground mb-4 text-center">Loading...</div>
         )}
 
-        {!loading && !showTooManyWarning && filteredTasks.length === 0 && (
-          <TasksNoResults allTasks={allTasks} onTaskUpdated={load} canDelete={canDelete} />
+        {!loading && !showTooManyWarning && tasks.length === 0 && (
+          <TasksNoResults allTasks={allTasks} onTaskUpdated={handleSearch} canDelete={canDelete} />
         )}
 
-        {!showTooManyWarning && filteredTasks.length > 0 && (
-          <TasksList tasks={filteredTasks} onTaskUpdated={load} canDelete={canDelete} />
+        {!showTooManyWarning && tasks.length > 0 && (
+          <TasksList tasks={tasks} onTaskUpdated={handleSearch} canDelete={canDelete} />
         )}
 
         {!showTooManyWarning && (
@@ -290,5 +153,3 @@ const TasksPage: React.FC = () => {
 };
 
 export default TasksPage;
-
-// Note: The main page is now much shorter! Core card logic is refactored to TaskCard.tsx.
