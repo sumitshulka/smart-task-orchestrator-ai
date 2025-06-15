@@ -1,6 +1,7 @@
+
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import useSupabaseSession from "@/hooks/useSupabaseSession";
-import { fetchTasks, Task, updateTask } from "@/integrations/supabase/tasks";
+import { fetchTasks, Task, updateTask, fetchTasksPaginated, FetchTasksInput } from "@/integrations/supabase/tasks";
 import { useUsersAndTeams } from "@/hooks/useUsersAndTeams";
 import { Button } from "@/components/ui/button";
 import { Image, Kanban, List, Plus } from "lucide-react";
@@ -13,6 +14,8 @@ import TaskCard from "@/components/TaskCard";
 import CreateTaskSheet from "@/components/CreateTaskSheet";
 import KanbanColumn from "./MyTasks/KanbanColumn";
 import KanbanTaskCard from "./MyTasks/KanbanTaskCard";
+import TaskCardClickable from "./MyTasks/TaskCardClickable";
+import TasksPagination from "@/components/TasksPagination";
 import EditTaskSheet from "@/components/EditTaskSheet";
 
 // Pastel color classes for Kanban columns

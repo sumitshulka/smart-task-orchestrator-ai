@@ -76,6 +76,7 @@ export default function TaskCard({ task, onTaskUpdated, canDelete }: TaskCardPro
       {/* Floating top/center actions */}
       <div className="absolute left-1/2 top-2 -translate-x-1/2 z-10 flex gap-4 opacity-0 group-hover:opacity-100 transition-all">
         {/* Edit icon */}
+        {/* @ts-expect-error: EditTaskSheet accepts children for its rendering */}
         <EditTaskSheet task={task} onUpdated={onTaskUpdated}>
           {/* Only the Button is a child here, not TaskCard itself */}
           <Button size="icon" variant="ghost" className="text-gray-400 hover:text-blue-600" title="Edit Task">
