@@ -1,4 +1,3 @@
-
 import React from "react";
 import {
   Table,
@@ -91,19 +90,19 @@ export const BulkUserUploadPreviewEditableTable: React.FC<BulkUserUploadPreviewE
         className={cn(
           // Container: always fits the parent modal, never overflows
           "relative border rounded-xl shadow-inner bg-white",
-          "w-full max-w-full",
-          "max-h-[360px]",
-          "overflow-x-auto overflow-y-auto",
+          "w-full max-w-full",         // never exceeds modal
+          "max-h-[360px]",             // vertical scroll cap
+          "overflow-x-auto overflow-y-auto", // <--- core fix!
           "mt-2 mb-2",
           "ring-1 ring-border/40"
         )}
         style={{
-          // For edge-case modals, prevent grid from wasting side space
-          minWidth: 0,
+          minWidth: 0,                  // allow child to shrink if needed
+          maxWidth: "100%",             // restrict width to parent/modal
         }}
         tabIndex={-1}
       >
-        <Table className="w-full min-w-[570px] border-collapse">
+        <Table className="w-full border-collapse table-fixed">
           <TableHeader>
             <TableRow
               className={cn(
@@ -163,13 +162,20 @@ export const BulkUserUploadPreviewEditableTable: React.FC<BulkUserUploadPreviewE
                         key={h}
                         className={cn(
                           "px-4 py-2 align-middle border-b border-border relative",
-                          "min-w-[120px] max-w-[200px] truncate",
+                          // ↓↓↓ Remove min-w, max-w that cause overflow, let cell fit content!
+                          "truncate",
                           "transition-all",
                           cellWithError
                             ? "bg-red-50 border-red-300"
                             : "bg-white border-border",
                           "focus-within:outline focus-within:outline-2 focus-within:outline-primary"
                         )}
+                        style={{
+                          minWidth: 0,
+                          maxWidth: 240, // Let columns shrink but not overflow
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                        }}
                       >
                         {(h === "email" ||
                           h.toLowerCase().includes("name") ||
@@ -189,6 +195,7 @@ export const BulkUserUploadPreviewEditableTable: React.FC<BulkUserUploadPreviewE
                             placeholder={`Enter ${h}`}
                             aria-invalid={!!cellWithError}
                             aria-label={h}
+                            style={{ minWidth: 0, maxWidth: 210 }}
                           />
                         ) : (
                           <span className="truncate block overflow-hidden text-foreground">
