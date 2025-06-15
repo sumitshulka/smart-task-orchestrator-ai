@@ -117,6 +117,9 @@ export default function AdminDashboard() {
   const [detailsOpen, setDetailsOpen] = useState<boolean>(false);
   const [taskFilter, setTaskFilter] = useState<any>({});
 
+  // Use Status Stats Hook (fix for missing variables)
+  const { statusStats, loading: statusLoading } = useStatusStats(taskFilter);
+
   // Use the custom hook to get roles and teams for the current user
   const { roles, teams, user, loading: rolesLoading } = useCurrentUserRoleAndTeams();
 
@@ -448,6 +451,8 @@ export default function AdminDashboard() {
       </Card>
     );
   }
+
+  const { statusStats, loading: statusLoading } = useStatusStats(taskFilter);
 
   return (
     <div className="w-full max-w-7xl mx-auto px-4 py-8">
