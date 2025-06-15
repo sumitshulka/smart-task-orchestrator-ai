@@ -18,7 +18,7 @@ import useSupabaseSession from "@/hooks/useSupabaseSession";
 import { useTaskStatuses } from "@/hooks/useTaskStatuses";
 
 // Simulated quick user record
-type User = { id: string; email: string; user_name: string | null };
+type User = { id: string; email: string; user_name: string | null; manager: string | null };
 
 // Helper function to fetch users (now using Supabase)
 async function fetchUsersSupabase(): Promise<User[]> {
