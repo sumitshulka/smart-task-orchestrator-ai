@@ -18,6 +18,7 @@ import useSupabaseSession from "@/hooks/useSupabaseSession";
 import { useTaskStatuses } from "@/hooks/useTaskStatuses";
 import { fetchAssignableTaskGroups, assignTaskToGroup, TaskGroup } from "@/integrations/supabase/taskGroups";
 import TaskSearchDialog from "./TaskSearchDialog";
+import { useDependencyConstraintValidation } from "@/hooks/useDependencyConstraintValidation";
 
 // Simulated quick user record
 type User = { id: string; email: string; user_name: string | null; manager: string | null };
@@ -183,7 +184,25 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
     } else if (name === "priority") {
       setForm((f) => ({ ...f, [name]: Number(value) }));
     } else if (name === "status") {
+      // Prevent completed if dependency is not complete
+      if (value === "completed" && !canCompleteDependent()) {
+        return;
+      }
       setForm((f) => ({ ...f, status: value }));
+    } else if (name === "start_date") {
+      // Prevent setting before dependencyDueDate
+      if (isInvalidStartDate(value)) {
+        // Optionally, show a toast or feedback here
+        toast({
+          title: "Invalid Start Date",
+          description: dependencyDueDate
+            ? `Start date must be on or after ${dependencyDueDate}.`
+            : "Invalid dependency.",
+          variant: "destructive",
+        });
+        return;
+      }
+      setForm((f) => ({ ...f, [name]: value }));
     } else {
       setForm((f) => ({ ...f, [name]: value }));
     }
@@ -408,7 +427,20 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
                 type="date"
                 value={form.start_date}
                 onChange={handleChange}
+                min={dependencyDueDate || undefined}
+                disabled={dependencyLoading}
+                className={
+                  isInvalidStartDate(form.start_date)
+                    ? "border-red-500"
+                    : ""
+                }
               />
+              {/* Show real-time validation feedback if needed */}
+              {form.isDependent && form.dependencyTaskId && isInvalidStartDate(form.start_date) && (
+                <div className="text-xs text-red-600 mt-1">
+                  Start date must be on or after the dependency's due date ({dependencyDueDate})
+                </div>
+              )}
             </div>
             <div>
               <label className="block mb-1 font-medium">Expected End Date</label>
@@ -488,7 +520,7 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
                 </div>
               )}
             </div>
-            {/* Dependency Section (unchanged) */}
+            {/* Dependency Section (unchanged except status feedback) */}
             <div>
               <label className="inline-flex items-center">
                 <input
@@ -538,12 +570,18 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
                     open={dependencyDialogOpen}
                     onOpenChange={setDependencyDialogOpen}
                     onSelect={handleDependencySelect}
-                    excludeTaskId={undefined} // (Optionally: if editing, exclude current task)
+                    excludeTaskId={undefined}
                   />
                   {/* Optionally, display a small summary below */}
                   {selectedDependencyTask && (
                     <div className="mt-1 text-xs text-muted-foreground">
                       Description: {selectedDependencyTask.description || "—"}
+                    </div>
+                  )}
+                  {/* Dependency status warning */}
+                  {form.status === "completed" && !canCompleteDependent() && (
+                    <div className="text-xs text-red-600 mt-1">
+                      Cannot complete this task until the dependency task is completed.
                     </div>
                   )}
                 </div>
