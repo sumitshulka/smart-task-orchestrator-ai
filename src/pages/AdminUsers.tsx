@@ -27,13 +27,10 @@ const AdminUsers: React.FC = () => {
   const [users, setUsers] = React.useState<User[]>([]);
   const [loading, setLoading] = React.useState(true);
 
-  // Setup for dialog
-  // Removed BulkUserUploadDialog
-
   // For checking session info and admin status
   const { user } = useSupabaseSession();
 
-  // utility for loading users
+  // Fetch users from Supabase
   const fetchUsers = React.useCallback(async () => {
     setLoading(true);
     const { data, error } = await supabase
@@ -46,7 +43,6 @@ const AdminUsers: React.FC = () => {
     setLoading(false);
   }, []);
 
-  // Fetch users from Supabase
   React.useEffect(() => {
     fetchUsers();
   }, [fetchUsers]);
@@ -70,26 +66,32 @@ const AdminUsers: React.FC = () => {
     setEditDialogOpen(true);
   }
 
+  // Helper: Given the user's manager string (user_name), find their manager's full user object
+  function getManagerInfo(managerName?: string) {
+    if (!managerName) return null;
+    const found = users.find((u) => u.user_name && u.user_name.toLowerCase() === managerName.toLowerCase());
+    return found || null;
+  }
+
   return (
     <div className="p-6 max-w-6xl w-full">
       {/* Dialogs */}
       <EditUserDialog
         open={createDialogOpen}
         onOpenChange={setCreateDialogOpen}
-        onUserUpdated={fetchUsers}  // typical reload after create
+        onUserUpdated={fetchUsers}
         user={undefined}
       />
       <EditUserDialog
         open={editDialogOpen}
         onOpenChange={setEditDialogOpen}
         user={editUser}
-        onUserUpdated={fetchUsers} // typical reload after edit
+        onUserUpdated={fetchUsers}
       />
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
         <h1 className="text-2xl font-bold">User Management</h1>
         <div className="flex gap-3 flex-wrap">
-          {/* DownloadSampleExcel and Bulk Upload button removed */}
           <Button onClick={handleCreateUser}>
             <Plus className="w-4 h-4 mr-2" />
             Create User
@@ -108,7 +110,7 @@ const AdminUsers: React.FC = () => {
           />
         </div>
       </div>
-      {/* Table - now matches the styles in AdminRoles */}
+      {/* Table */}
       <div className="border rounded shadow bg-background overflow-x-auto">
         <table className="w-full border text-sm rounded-md shadow bg-background">
           <thead>
@@ -116,35 +118,51 @@ const AdminUsers: React.FC = () => {
               <th className="p-2 text-left">Name</th>
               <th className="p-2 text-left">Email</th>
               <th className="p-2 text-left">Department</th>
+              <th className="p-2 text-left">Manager</th>
               <th className="p-2 text-right">Actions</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={4} className="p-4">
+                <td colSpan={5} className="p-4">
                   <span className="text-muted-foreground">Loading users...</span>
                 </td>
               </tr>
             ) : filteredUsers.length === 0 ? (
               <tr>
-                <td colSpan={4} className="p-4">
+                <td colSpan={5} className="p-4">
                   <span className="text-muted-foreground">
                     No users found in the system.
                   </span>
                 </td>
               </tr>
             ) : (
-              filteredUsers.map((user) => (
-                <tr key={user.id} className="border-b last:border-b-0">
-                  <td className="p-2">{user.user_name || "--"}</td>
-                  <td className="p-2">{user.email}</td>
-                  <td className="p-2">{user.department || "--"}</td>
-                  <td className="p-2 text-right">
-                    <UserTableActions user={user} onEdit={handleEditUser} />
-                  </td>
-                </tr>
-              ))
+              filteredUsers.map((user) => {
+                const managerObj = getManagerInfo(user.manager);
+                return (
+                  <tr key={user.id} className="border-b last:border-b-0">
+                    <td className="p-2">{user.user_name || "--"}</td>
+                    <td className="p-2">{user.email}</td>
+                    <td className="p-2">{user.department || "--"}</td>
+                    <td className="p-2">
+                      {managerObj
+                        ? (
+                          <div>
+                            <div className="font-medium">{managerObj.user_name}</div>
+                            <div className="text-xs text-muted-foreground">{managerObj.email}</div>
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )
+                      }
+                    </td>
+                    <td className="p-2 text-right">
+                      <UserTableActions user={user} onEdit={handleEditUser} />
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>
@@ -154,4 +172,3 @@ const AdminUsers: React.FC = () => {
 };
 
 export default AdminUsers;
-
