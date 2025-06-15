@@ -1,0 +1,115 @@
+
+-- Drop the views if they exist
+DROP VIEW IF EXISTS public.tasks_with_extras CASCADE;
+DROP VIEW IF EXISTS public.tasks_manager_report_view CASCADE;
+DROP VIEW IF EXISTS public.tasks_report_view CASCADE;
+
+-- Re-create tasks_with_extras view (no SECURITY DEFINER)
+CREATE OR REPLACE VIEW public.tasks_with_extras AS
+SELECT
+  t.*,
+  -- array of task group ids (empty if not in any group)
+  COALESCE(ARRAY(
+    SELECT tgt.group_id
+    FROM public.task_group_tasks tgt
+    WHERE tgt.task_id = t.id
+  ), '{}') AS group_ids,
+  -- is_dependent: true if task appears as a dependent in task_dependencies
+  EXISTS (
+    SELECT 1 FROM public.task_dependencies td
+    WHERE td.task_id = t.id
+  ) AS is_dependent
+FROM public.tasks t;
+
+GRANT SELECT ON public.tasks_with_extras TO anon, authenticated;
+
+-- Re-create tasks_report_view (no SECURITY DEFINER)
+CREATE OR REPLACE VIEW public.tasks_report_view AS
+SELECT
+  t.id,
+  t.title,
+  t.description,
+  t.priority,
+  t.due_date,
+  t.estimated_hours,
+  t.status,
+  t.type,
+  t.created_at,
+  t.updated_at,
+  t.actual_completion_date,
+  t.start_date,
+
+  -- Created By (creator)
+  creator.user_name AS creator_name,
+  creator.email AS creator_email,
+  creator.department AS creator_department,
+  creator.manager AS creator_manager,
+
+  -- Assigned To (assignee)
+  assignee.user_name AS assignee_name,
+  assignee.email AS assignee_email,
+  assignee.department AS assignee_department,
+  assignee.manager AS assignee_manager,
+
+  -- Team Info (optional, only id exposed)
+  t.team_id
+
+FROM public.tasks t
+LEFT JOIN public.users AS creator ON t.created_by = creator.id
+LEFT JOIN public.users AS assignee ON t.assigned_to = assignee.id;
+
+-- Re-create tasks_manager_report_view (no SECURITY DEFINER)
+CREATE OR REPLACE VIEW public.tasks_manager_report_view AS
+SELECT
+  t.id,
+  t.title,
+  t.description,
+  t.priority,
+  t.due_date,
+  t.estimated_hours,
+  t.status,
+  t.type,
+  t.created_at,
+  t.updated_at,
+  t.actual_completion_date,
+  t.start_date,
+
+  -- Created By (creator)
+  creator.user_name AS creator_name,
+  creator.email AS creator_email,
+  creator.department AS creator_department,
+  creator.manager AS creator_manager,
+
+  -- Assigned To (assignee)
+  assignee.user_name AS assignee_name,
+  assignee.email AS assignee_email,
+  assignee.department AS assignee_department,
+  assignee.manager AS assignee_manager,
+
+  -- Team Info (optional, only id exposed)
+  t.team_id
+
+FROM public.tasks t
+LEFT JOIN public.users AS creator ON t.created_by = creator.id
+LEFT JOIN public.users AS assignee ON t.assigned_to = assignee.id
+WHERE (
+  -- The current user is a manager...
+  public.is_manager(auth.uid())
+  AND (
+    -- ...and manages the assigned user (direct report)
+    public.manages_user(auth.uid(), t.assigned_to)
+    -- ...or manages the assigned user's team (team manager role)
+    OR public.team_manager_of_user(auth.uid(), t.assigned_to)
+    -- ...or manages the creator (creator direct report)
+    OR public.manages_user(auth.uid(), t.created_by)
+    -- ...or manages the creator's team (creator team manager role)
+    OR public.team_manager_of_user(auth.uid(), t.created_by)
+  )
+)
+OR (
+  -- Always allow the manager to see their own tasks
+  t.assigned_to = auth.uid() OR t.created_by = auth.uid()
+);
+
+GRANT SELECT ON public.tasks_manager_report_view TO authenticated;
+ALTER VIEW public.tasks_manager_report_view OWNER TO postgres;
