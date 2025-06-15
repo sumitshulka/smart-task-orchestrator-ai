@@ -1,6 +1,7 @@
 import React from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import DownloadSampleExcel from "@/components/DownloadSampleExcel";
+import BulkUserUploadDialog from "@/components/BulkUserUploadDialog";
 import {
   Table,
   TableHeader,
@@ -14,8 +15,6 @@ import { toast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import UserTableActions from "@/components/UserTableActions";
 import EditUserDialog from "@/components/EditUserDialog";
-import BulkUserUploadDialog from "@/components/BulkUserUploadDialog";
-import DownloadSampleExcel from "@/components/DownloadSampleExcel";
 import { useQuery } from "@tanstack/react-query";
 import useSupabaseSession from "@/hooks/useSupabaseSession";
 
@@ -36,6 +35,9 @@ const AdminUsers: React.FC = () => {
   const [editUser, setEditUser] = React.useState<User | null>(null);
   const [users, setUsers] = React.useState<User[]>([]);
   const [loading, setLoading] = React.useState(true);
+
+  // Setup for dialog
+  const [bulkDialogOpen, setBulkDialogOpen] = React.useState(false);
 
   // For checking session info and admin status
   const { user } = useSupabaseSession();
@@ -77,6 +79,8 @@ const AdminUsers: React.FC = () => {
 
   return (
     <div className="p-6 max-w-6xl w-full">
+      {/* Bulk Upload Dialog */}
+      <BulkUserUploadDialog open={bulkDialogOpen} onOpenChange={setBulkDialogOpen} />
       {/* Dialogs */}
       <EditUserDialog
         open={createDialogOpen}
@@ -95,6 +99,9 @@ const AdminUsers: React.FC = () => {
         <h1 className="text-2xl font-bold">User Management</h1>
         <div className="flex gap-3 flex-wrap">
           <DownloadSampleExcel />
+          <Button onClick={() => setBulkDialogOpen(true)}>
+            Bulk Upload
+          </Button>
           <Button onClick={handleCreateUser}>
             <Plus className="w-4 h-4 mr-2" />
             Create User
