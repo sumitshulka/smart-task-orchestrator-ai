@@ -7,7 +7,7 @@ import { Filter } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/components/ui/use-toast";
 import TeamManagerDialog from "@/components/TeamManagerDialog";
-import { useUserList } from "@/hooks/useUserList"; // new import
+import { useUserList } from "@/hooks/useUserList";
 
 interface Team {
   id: string;
@@ -161,58 +161,51 @@ const AdminTeams: React.FC = () => {
           />
         </div>
       </div>
-      {/* Table */}
+      {/* Table - match UserRoleManager styles */}
       <div className="border rounded shadow bg-background overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Team Name</TableHead>
-              <TableHead>Description</TableHead>
-              <TableHead>Members</TableHead>
-              <TableHead>Manager</TableHead>
-              <TableHead>Created By</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
+        <table className="w-full border text-sm rounded-md shadow bg-background">
+          <thead>
+            <tr className="bg-muted">
+              <th className="p-2 text-left">Team Name</th>
+              <th className="p-2 text-left">Description</th>
+              <th className="p-2 text-left">Members</th>
+              <th className="p-2 text-left">Manager</th>
+              <th className="p-2 text-left">Created By</th>
+              <th className="p-2 text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
             {loading ? (
-              <TableRow>
-                <TableCell colSpan={6}>
+              <tr>
+                <td colSpan={6} className="p-4">
                   <span className="text-muted-foreground">Loading teams...</span>
-                </TableCell>
-              </TableRow>
+                </td>
+              </tr>
             ) : filteredTeams.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={6}>
+              <tr>
+                <td colSpan={6} className="p-4">
                   <span className="text-muted-foreground">No teams found.</span>
-                </TableCell>
-              </TableRow>
+                </td>
+              </tr>
             ) : (
               filteredTeams.map((team) => (
-                <TableRow key={team.id}>
-                  <TableCell>{team.name}</TableCell>
-                  <TableCell>{team.description || "--"}</TableCell>
-                  <TableCell>
-                    {(membersMap[team.id] || []).join(", ") || "--"}
-                  </TableCell>
-                  <TableCell>
-                    {managersMap[team.id] || "--"}
-                  </TableCell>
-                  <TableCell>
-                    {getUserDisplay(team.created_by)}
-                  </TableCell>
-                  <TableCell className="text-right">
+                <tr key={team.id} className="border-b last:border-b-0">
+                  <td className="p-2">{team.name}</td>
+                  <td className="p-2">{team.description || "--"}</td>
+                  <td className="p-2">{(membersMap[team.id] || []).join(", ") || "--"}</td>
+                  <td className="p-2">{managersMap[team.id] || "--"}</td>
+                  <td className="p-2">{getUserDisplay(team.created_by)}</td>
+                  <td className="p-2 text-right">
                     <Button variant="ghost" size="sm" onClick={() => handleEditTeam(team)}>Edit</Button>
-                  </TableCell>
-                </TableRow>
+                  </td>
+                </tr>
               ))
             )}
-          </TableBody>
-        </Table>
+          </tbody>
+        </table>
       </div>
     </div>
   );
 };
 
 export default AdminTeams;
-
