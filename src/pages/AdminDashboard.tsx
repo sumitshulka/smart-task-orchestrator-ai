@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import dayjs from "dayjs";
 import { useStatusStats } from "@/hooks/useStatusStats";
 import TaskDetailsSheet from "@/components/TaskDetailsSheet";
+import { useCurrentUserRoleAndTeams } from "@/hooks/useCurrentUserRoleAndTeams";
 
 type Role = "admin" | "manager" | "team_manager" | "user" | "unknown";
 
@@ -126,6 +127,18 @@ export default function AdminDashboard() {
 
   // --- NEW: Use status stats hook
   const { statusStats, loading: statusLoading } = useStatusStats(taskFilter);
+
+  const { roles, teams, user, loading: rolesLoading } = useCurrentUserRoleAndTeams();
+
+  // Set role from real role table (support multiple roles; choose priority)
+  let role: Role = "unknown";
+  if (roles.includes("admin")) role = "admin";
+  else if (roles.includes("manager")) role = "manager";
+  else if (roles.includes("team_manager")) role = "team_manager";
+  else if (roles.includes("user")) role = "user";
+
+  // Check team assignment
+  const isUserAndNoTeams = role === "user" && teams.length === 0;
 
   useEffect(() => {
     async function setup() {
@@ -399,7 +412,16 @@ export default function AdminDashboard() {
     );
   }
 
-  if (role === "unknown") {
+  if (rolesLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-80">
+        <Loader2 className="animate-spin mb-2 w-10 h-10 text-primary" />
+        <div className="text-muted-foreground">Loading dashboard...</div>
+      </div>
+    );
+  }
+
+  if (role === "unknown" || !role) {
     return (
       <div className="max-w-2xl mx-auto text-center mt-16">
         <div className="text-xl font-bold mb-2">No Role Assigned</div>
@@ -408,6 +430,18 @@ export default function AdminDashboard() {
           Please contact your administrator.
         </div>
         <Button onClick={() => window.location.reload()}>Retry</Button>
+      </div>
+    );
+  }
+
+  if (role === "user" && isUserAndNoTeams) {
+    return (
+      <div className="max-w-xl mx-auto text-center mt-16">
+        <div className="text-xl font-bold mb-2">Not Assigned to Any Team</div>
+        <div className="text-muted-foreground mb-4">
+          You are not assigned to any team.<br />
+          Please contact your admin to get assigned to a team.
+        </div>
       </div>
     );
   }

@@ -1,4 +1,3 @@
-
 import React from "react";
 import { useForm, Controller } from "react-hook-form";
 import { format, startOfMonth, endOfMonth } from "date-fns";
@@ -28,6 +27,8 @@ import {
   TableBody,
   TableCell,
 } from "@/components/ui/table";
+import useSupabaseSession from "@/hooks/useSupabaseSession";
+import { useCurrentUserRoleAndTeams } from "@/hooks/useCurrentUserRoleAndTeams";
 
 type Filters = {
   fromDate: Date;
@@ -83,17 +84,27 @@ export default function TaskReport() {
   const fromDate = form.watch("fromDate");
   const toDate = form.watch("toDate");
 
+  const { user } = useSupabaseSession();
+  const { roles, loading: rolesLoading } = useCurrentUserRoleAndTeams();
+
   const {
     data: taskData,
     isLoading
   } = useQuery({
-    queryKey: ["task-report", fromDate, toDate],
+    queryKey: ["task-report", fromDate, toDate, user?.id, roles],
     queryFn: async () => {
-      const { tasks } = await fetchTasksPaginated({
+      if (!user?.id) return [];
+      let filters = {
         fromDate: format(fromDate, "yyyy-MM-dd"),
         toDate: format(toDate, "yyyy-MM-dd"),
-        limit: 1000 // Adjust if needed
-      });
+        limit: 1000
+      } as any;
+      // Only admins, managers see all. Others: filter to their user id only
+      const canSeeAll = roles.includes("admin") || roles.includes("manager") || roles.includes("team_manager");
+      if (!canSeeAll) {
+        filters.createdBy = user.id;
+      }
+      const { tasks } = await fetchTasksPaginated(filters);
       return tasks;
     }
   });
