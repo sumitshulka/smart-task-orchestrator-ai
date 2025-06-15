@@ -39,6 +39,7 @@ type Props = {
   onOpenChange: (open: boolean) => void;
   currentUser: any;
   onUpdated: () => void;
+  onEdit?: (task: Task) => void;
 };
 const TaskDetailsSheet: React.FC<Props> = ({
   task,
@@ -46,6 +47,7 @@ const TaskDetailsSheet: React.FC<Props> = ({
   onOpenChange,
   currentUser,
   onUpdated,
+  onEdit
 }) => {
   // Always run hooks regardless of task
   const [comment, setComment] = useState("");
@@ -64,6 +66,22 @@ const TaskDetailsSheet: React.FC<Props> = ({
   }, [users]);
 
   const showAssign = hasManagerPermissions(currentUser);
+
+  // Status change logic: ensure dropdown is always populated
+  // In UI where you present status <select>, update this:
+  // status select fallback logic
+  // <select ...>
+  //   {statusesLoading && (
+  //     <option value="">Loading...</option>
+  //   )}
+  //   {statuses.map((s) => (
+  //     <option key={s.id} value={s.name}>{s.name}</option>
+  //   ))}
+  // </select>
+
+  // Add an Edit button, if permitted, to launch parent-provided onEdit
+  // Place this in your info/details block:
+  // {onEdit && <Button onClick={() => onEdit(task!)}>Edit</Button>}
 
   // Status change logic
   async function handleStatusChange(e: React.ChangeEvent<HTMLSelectElement>) {

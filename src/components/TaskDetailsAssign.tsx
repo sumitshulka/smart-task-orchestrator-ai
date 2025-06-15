@@ -1,7 +1,6 @@
 
 import React from "react";
 import { Button } from "@/components/ui/button";
-
 type User = {
   id: string;
   email: string;
@@ -29,11 +28,18 @@ const TaskDetailsAssign: React.FC<Props> = ({
     <label className="block font-bold mb-1">Assign To</label>
     <div className="flex gap-2 items-center">
       <select
-        className="w-full border rounded p-2"
+        className="w-full border rounded p-2 bg-white"
         value={assignTo}
         onChange={e => setAssignTo(e.target.value)}
+        disabled={users.length === 0}
       >
+        {/* User must see manager if any, otherwise fallback */}
         <option value="">Unassigned</option>
+        {users?.length === 0 && (
+          <option value="" disabled>
+            No manager available
+          </option>
+        )}
         {users?.map(u => (
           <option key={u.id} value={u.id}>
             {u.user_name || u.email}
@@ -43,12 +49,11 @@ const TaskDetailsAssign: React.FC<Props> = ({
       <Button
         type="button"
         onClick={handleAssign}
-        disabled={disabled}
+        disabled={disabled || users.length === 0}
       >
         {loading ? "Assigning..." : "Assign"}
       </Button>
     </div>
   </div>
 );
-
 export default TaskDetailsAssign;

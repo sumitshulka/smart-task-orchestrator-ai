@@ -29,21 +29,24 @@ const statusOptions = [
 ];
 
 type Props = {
-  task: Task;
+  task: Task | null;
   onUpdated: () => void;
-  children: React.ReactNode;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 };
 
-const EditTaskSheet: React.FC<Props> = ({ task, onUpdated, children }) => {
-  const [open, setOpen] = useState(false);
+const EditTaskSheet: React.FC<Props> = ({ task, onUpdated, open, onOpenChange }) => {
+  // ... logic unchanged except assignment/user logic below
+  const [newAssignee, setNewAssignee] = useState(task?.assigned_to || "");
+  const [openInternal, setOpenInternal] = useState(false);
   const [form, setForm] = useState({
-    title: task.title,
-    description: task.description || "",
-    priority: task.priority || 2,
-    due_date: task.due_date ? task.due_date.slice(0, 10) : "",
-    status: task.status || "",
-    estimated_hours: task.estimated_hours || "",
-    actual_completion_date: task.actual_completion_date || "",
+    title: task?.title || "",
+    description: task?.description || "",
+    priority: task?.priority || 2,
+    due_date: task?.due_date ? task?.due_date?.slice(0, 10) : "",
+    status: task?.status || "",
+    estimated_hours: task?.estimated_hours || "",
+    actual_completion_date: task?.actual_completion_date || "",
   });
   const [loading, setLoading] = useState(false);
 
@@ -65,32 +68,34 @@ const EditTaskSheet: React.FC<Props> = ({ task, onUpdated, children }) => {
   function getAssignableUsersEdit() {
     if (!user) return [];
     if (!users.length) return [];
-    let list: typeof users = [];
     if (userRole === "admin") {
-      list = users;
-    } else if (userRole === "manager") {
-      list = users.filter(
-        (u) => u.user_name === user.user_name && u.id !== user.id
-      );
-    } else if (userRole === "user") {
-      const myManagerName = user.user_metadata?.manager || null;
-      const myManager = users.find((u) => u.user_name === myManagerName);
-      list = myManager ? [myManager] : [];
+      return users;
     }
-    return list;
+    if (userRole === "manager") {
+      // Choose users who are subordinates, etc
+      return users.filter((u) => u.user_name === user.user_name && u.id !== user.id);
+    }
+    // USER: show only their manager, if set
+    if (userRole === "user") {
+      const myManagerName = user.user_metadata?.manager || null;
+      // If manager is also admin, preference manager
+      let myManager = users.find((u) => u.user_name === myManagerName);
+      if (myManager && myManager.email !== user.email) return [myManager];
+      // fallback: if for instance manager is admin as well
+      myManager = users.find((u) => u.user_name === myManagerName && u.email !== user.email);
+      return myManager ? [myManager] : [];
+    }
+    return [];
   }
 
   // Assignment options logic
   const canAssign =
-    userRole === "admin" ||
-    userRole === "manager" ||
-    (userRole === "user" && users.some((u) => u.user_name === user?.user_metadata?.manager));
+    getAssignableUsersEdit().length > 0;
 
   // Main: Handle assignment change during edit
-  const [newAssignee, setNewAssignee] = useState(task.assigned_to || "");
 
   useEffect(() => {
-    if (open) {
+    if (open && task) {
       setForm({
         title: task.title,
         description: task.description || "",
@@ -104,7 +109,7 @@ const EditTaskSheet: React.FC<Props> = ({ task, onUpdated, children }) => {
   }, [open, statuses, task]);
 
   useEffect(() => {
-    setNewAssignee(task.assigned_to || "");
+    setNewAssignee(task?.assigned_to || "");
   }, [task, open]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -146,9 +151,9 @@ const EditTaskSheet: React.FC<Props> = ({ task, onUpdated, children }) => {
   // --- New: Log assignment change ---
   const handleAssignment = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (newAssignee === task.assigned_to) {
+    if (newAssignee === task?.assigned_to) {
       toast({ title: "No changes to assignment." });
-      setOpen(false);
+      onOpenChange(false);
       return;
     }
     setLoading(true);
@@ -157,16 +162,16 @@ const EditTaskSheet: React.FC<Props> = ({ task, onUpdated, children }) => {
         ...form,
         assigned_to: newAssignee,
       };
-      await updateTask(task.id, updatePayload);
+      await updateTask(task!.id, updatePayload);
       await createTaskActivity({
-        task_id: task.id,
+        task_id: task!.id,
         action_type: "assigned",
-        old_value: task.assigned_to,
+        old_value: task!.assigned_to,
         new_value: newAssignee,
         acted_by: user?.id,
       });
       toast({ title: "Task assignee updated" });
-      setOpen(false);
+      onOpenChange(false);
       onUpdated();
     } catch (err: any) {
       toast({ title: "Assignment failed", description: err.message });
@@ -193,22 +198,22 @@ const EditTaskSheet: React.FC<Props> = ({ task, onUpdated, children }) => {
 
       // 1. Identify changed fields:
       const prevVals: any = {
-        title: task.title,
-        description: task.description || "",
-        priority: task.priority || 2,
-        due_date: task.due_date ? task.due_date.slice(0, 10) : "",
-        status: task.status || "",
-        estimated_hours: task.estimated_hours || "",
-        actual_completion_date: task.actual_completion_date || "",
+        title: task!.title,
+        description: task!.description || "",
+        priority: task!.priority || 2,
+        due_date: task!.due_date ? task!.due_date.slice(0, 10) : "",
+        status: task!.status || "",
+        estimated_hours: task!.estimated_hours || "",
+        actual_completion_date: task!.actual_completion_date || "",
       };
       const changedFields = getChangedFields(prevVals, form);
 
-      await updateTask(task.id, updatePayload);
+      await updateTask(task!.id, updatePayload);
 
       // 2. Log in activity for *all* changed fields
       for (const { name, old, new: nw } of changedFields) {
         await createTaskActivity({
-          task_id: task.id,
+          task_id: task!.id,
           action_type: "edit",
           old_value: String(old),
           new_value: String(nw),
@@ -216,7 +221,7 @@ const EditTaskSheet: React.FC<Props> = ({ task, onUpdated, children }) => {
         });
       }
       toast({ title: "Task updated" });
-      setOpen(false);
+      onOpenChange(false);
       onUpdated();
     } catch (err: any) {
       toast({ title: "Update failed", description: err.message });
@@ -224,11 +229,9 @@ const EditTaskSheet: React.FC<Props> = ({ task, onUpdated, children }) => {
     setLoading(false);
   };
 
+  // ... main render: open/close via props
   return (
-    <Sheet open={open} onOpenChange={setOpen}>
-      <SheetTrigger asChild>
-        {children}
-      </SheetTrigger>
+    <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="max-w-4xl w-[75vw]">
         <form className="p-2 space-y-6" onSubmit={handleSubmit}>
           <SheetHeader>
@@ -341,7 +344,7 @@ const EditTaskSheet: React.FC<Props> = ({ task, onUpdated, children }) => {
               <Button
                 type="button"
                 className="mt-2"
-                disabled={loading || newAssignee === task.assigned_to}
+                disabled={loading || newAssignee === task?.assigned_to}
                 onClick={handleAssignment}
               >
                 {loading ? "Assigning..." : "Assign"}
@@ -356,7 +359,7 @@ const EditTaskSheet: React.FC<Props> = ({ task, onUpdated, children }) => {
               <Button
                 type="button"
                 variant="ghost"
-                onClick={() => setOpen(false)}
+                onClick={() => onOpenChange(false)}
               >
                 Cancel
               </Button>

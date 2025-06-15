@@ -101,7 +101,7 @@ function AssignedVsCompletedChart({ data }: { data: { month: string; assigned: n
   );
 }
 
-export default function AdminDashboard() {
+const AdminDashboard = () => {
   const { users, teams: allTeams } = useUsersAndTeams();
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState<Role>("unknown");
@@ -123,17 +123,32 @@ export default function AdminDashboard() {
   // Use the custom hook to get roles and teams for the current user
   const { roles, teams, user, loading: rolesLoading } = useCurrentUserRoleAndTeams();
 
-  // Derive role info only ONCE based on roles array (do NOT redeclare or assign 'role' as const within render)
+  // Improved robust role detection
   const currentRole: Role =
-    roles.includes("admin")
+    roles && roles.includes("admin")
       ? "admin"
-      : roles.includes("manager")
+      : roles && roles.includes("manager")
       ? "manager"
-      : roles.includes("team_manager")
+      : roles && roles.includes("team_manager")
       ? "team_manager"
-      : roles.includes("user")
+      : roles && roles.includes("user")
       ? "user"
       : "unknown";
+
+  // Only show "No Role Assigned" if rolesLoading is false AND roles not valid
+  if ((currentRole === "unknown" || !currentRole) && !rolesLoading) {
+    // More explicit debug info:
+    return (
+      <div className="max-w-2xl mx-auto text-center mt-16">
+        <div className="text-xl font-bold mb-2">No Role Assigned</div>
+        <div className="text-muted-foreground mb-4">
+          Unable to find one of: admin, manager, team_manager, user for account <b>{user?.email}</b>.
+          <br />
+          <pre className="text-xs bg-gray-100 rounded p-2 mt-2 text-left">{JSON.stringify({ roles, user }, null, 2)}</pre>
+        </div>
+      </div>
+    );
+  }
 
   // Check team assignment
   const isUserAndNoTeams = currentRole === "user" && teams.length === 0;
@@ -157,10 +172,10 @@ export default function AdminDashboard() {
 
       // roles already loaded by hook (roles: string[])
       let filteredRole: Role = "unknown";
-      if (roles.includes("admin")) filteredRole = "admin";
-      else if (roles.includes("manager")) filteredRole = "manager";
-      else if (roles.includes("team_manager")) filteredRole = "team_manager";
-      else if (roles.includes("user")) filteredRole = "user";
+      if (roles && roles.includes("admin")) filteredRole = "admin";
+      else if (roles && roles.includes("manager")) filteredRole = "manager";
+      else if (roles && roles.includes("team_manager")) filteredRole = "team_manager";
+      else if (roles && roles.includes("user")) filteredRole = "user";
       setRole(filteredRole);
 
       // Generate task filter
@@ -405,41 +420,6 @@ export default function AdminDashboard() {
         <div className="text-muted-foreground">Loading dashboard...</div>
       </div>
     );
-  }
-
-  // Fix #2: Only show No Role Assigned if role is actually unknown AND the rolesLoading has finished
-  if ((currentRole === "unknown" || !currentRole) && !rolesLoading) {
-    return (
-      <div className="max-w-2xl mx-auto text-center mt-16">
-        <div className="text-xl font-bold mb-2">No Role Assigned</div>
-        <div className="text-muted-foreground mb-4">
-          You do not have a role assigned in the system.<br />
-          Please contact your administrator.
-        </div>
-        <Button onClick={() => window.location.reload()}>Retry</Button>
-      </div>
-    );
-  }
-
-  if (currentRole === "user" && isUserAndNoTeams) {
-    return (
-      <div className="max-w-xl mx-auto text-center mt-16">
-        <div className="text-xl font-bold mb-2">Not Assigned to Any Team</div>
-        <div className="text-muted-foreground mb-4">
-          You are not assigned to any team.<br />
-          Please contact your admin to get assigned to a team.
-        </div>
-      </div>
-    );
-  }
-
-  // Helper: Show task priority as label
-  function priorityLabel(priority: number | null) {
-    return priority === 1
-      ? <span className="text-xs px-2 py-1 rounded-full bg-red-100 text-red-700 font-medium">High</span>
-      : priority === 2
-      ? <span className="text-xs px-2 py-1 rounded-full bg-yellow-100 text-yellow-700 font-medium">Medium</span>
-      : <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-700 font-medium">Low</span>;
   }
 
   // CARD/ROW WRAPPERS
@@ -750,4 +730,6 @@ export default function AdminDashboard() {
       />
     </div>
   );
-}
+};
+
+export default AdminDashboard;

@@ -16,6 +16,7 @@ import KanbanTaskCard from "./MyTasks/KanbanTaskCard";
 import TaskCardClickable from "./MyTasks/TaskCardClickable";
 import TasksPagination from "@/components/TasksPagination";
 import { fetchTasksPaginated, FetchTasksInput } from "@/integrations/supabase/tasks";
+import EditTaskSheet from "@/components/EditTaskSheet";
 
 // Pastel color classes for Kanban columns
 const KANBAN_COLORS: Record<string, string> = {
@@ -55,6 +56,8 @@ export default function MyTasksPage() {
   // Sheet (modal) state for Task Details
   const [detailsTask, setDetailsTask] = useState<Task | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [editTask, setEditTask] = useState<Task | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
 
   async function load() {
     if (!user?.id) {
@@ -180,8 +183,17 @@ export default function MyTasksPage() {
 
   // --- Sheet handler for details ---
   const openDetailsForTask = (task: Task) => {
+    setEditOpen(false);
+    setEditTask(null);
     setDetailsTask(task);
     setDetailsOpen(true);
+  };
+  // Handler to trigger edit (direct from "Edit" action)
+  const openEditForTask = (task: Task) => {
+    setDetailsOpen(false);
+    setDetailsTask(null);
+    setEditTask(task);
+    setEditOpen(true);
   };
 
   return (
@@ -252,6 +264,7 @@ export default function MyTasksPage() {
               onOpen={() => openDetailsForTask(task)}
               canDelete={canDelete}
               onTaskUpdated={load}
+              onEdit={() => openEditForTask(task)}
             />
           ))}
         </div>
@@ -298,6 +311,16 @@ export default function MyTasksPage() {
         onOpenChange={setDetailsOpen}
         currentUser={user}
         onUpdated={load}
+        onEdit={openEditForTask}
+      />
+      <EditTaskSheet
+        task={editTask}
+        onUpdated={() => {
+          setEditOpen(false);
+          load();
+        }}
+        open={editOpen}
+        onOpenChange={setEditOpen}
       />
       {!showTooManyWarning && totalTasks > pageSize && view === "list" && (
         <TasksPagination
