@@ -115,32 +115,15 @@ const MyTeams = () => {
             suppliedUserUid: user?.id,
           });
 
-          const taskQuery = supabase
+          // --- FIX: fetch any team task assigned to any member OR unassigned ---
+          const { data: tasks, error: tasksError } = await supabase
             .from("tasks")
-            .select("id,status,type,team_id,assigned_to")
-            .in("assigned_to", userIds)
+            .select("id, status, type, team_id, assigned_to")
             .eq("team_id", team.id)
-            .neq("type", "personal");
-
-          let tasksResponse;
-          try {
-            tasksResponse = await taskQuery;
-            console.log("[MyTeams DEBUG][Supabase Response]", tasksResponse);
-          } catch (err) {
-            console.error("[MyTeams DEBUG][Supabase Exception thrown]", err);
-            setErrorMessage("Exception thrown running tasks query: " + String(err));
-            return {
-              ...team,
-              managerName,
-              managerEmail,
-              members,
-              totalMembers: members.length,
-              totalTasks: 0,
-              completedTasks: 0,
-            } as TeamExtended;
-          }
-
-          const { data: tasks, error: tasksError } = tasksResponse;
+            .neq("type", "personal")
+            .or(
+              `assigned_to.in.(${userIds.join(",")}),assigned_to.is.null`
+            );
 
           if (tasksError) {
             console.error(`[MyTeams] tasks fetch error for team ${team.name}`, tasksError);
