@@ -1,7 +1,7 @@
 import React from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchTasksPaginated } from "@/integrations/supabase/tasks";
-import { startOfDay, endOfDay, format, subDays } from "date-fns";
+import { startOfDay, endOfDay, format, subDays, startOfMonth, endOfMonth } from "date-fns";
 import {
   PieChart, Pie, Cell, Tooltip, Legend, LineChart, Line, BarChart, Bar, XAxis, YAxis, ResponsiveContainer,
 } from "recharts";

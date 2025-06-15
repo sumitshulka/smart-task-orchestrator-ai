@@ -1,5 +1,19 @@
+
+// Fix: Remove local startOfDay/endOfDay and use date-fns version
+
 import React from "react";
-import { addDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subDays, subWeeks, subMonths, startOfDay, endOfDay } from "date-fns";
+import {
+  addDays,
+  startOfWeek,
+  endOfWeek,
+  startOfMonth,
+  endOfMonth,
+  subDays,
+  subWeeks,
+  subMonths,
+  startOfDay,
+  endOfDay,
+} from "date-fns";
 
 const presets = [
   { key: "today", label: "Today" },
@@ -27,7 +41,10 @@ function computeRange(key: string): { from: Date; to: Date } {
       const yd = subDays(now, 1);
       return { from: startOfDay(yd), to: endOfDay(yd) };
     case "this_week":
-      return { from: startOfDay(startOfWeek(now, { weekStartsOn: 1 })), to: endOfDay(endOfWeek(now, { weekStartsOn: 1 })) };
+      return {
+        from: startOfDay(startOfWeek(now, { weekStartsOn: 1 })),
+        to: endOfDay(endOfWeek(now, { weekStartsOn: 1 })),
+      };
     case "last_week":
       const prevW = subWeeks(now, 1);
       return {
@@ -38,28 +55,24 @@ function computeRange(key: string): { from: Date; to: Date } {
       return { from: startOfDay(startOfMonth(now)), to: endOfDay(endOfMonth(now)) };
     case "last_month":
       const prevM = subMonths(now, 1);
-      return { from: startOfDay(startOfMonth(prevM)), to: endOfDay(endOfMonth(prevM)) };
+      return {
+        from: startOfDay(startOfMonth(prevM)),
+        to: endOfDay(endOfMonth(prevM)),
+      };
     default:
       // Custom, just pass-through
       return { from: null, to: null };
   }
 }
 
-function startOfDay(date: Date) {
-  const d = new Date(date);
-  d.setHours(0, 0, 0, 0);
-  return d;
-}
-function endOfDay(date: Date) {
-  const d = new Date(date);
-  d.setHours(23, 59, 59, 999);
-  return d;
-}
-
-export default function DateRangePresetSelector({ dateRange, preset, onChange }: DateRangePresetSelectorProps) {
+export default function DateRangePresetSelector({
+  dateRange,
+  preset,
+  onChange,
+}: DateRangePresetSelectorProps) {
   return (
     <div className="flex flex-wrap gap-2 mb-2">
-      {presets.map(opt => (
+      {presets.map((opt) => (
         <button
           key={opt.key}
           className={`px-2 py-1 rounded text-xs font-medium border 
