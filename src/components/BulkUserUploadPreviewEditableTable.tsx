@@ -3,10 +3,10 @@ import React from "react";
 import {
   Table,
   TableBody,
-  TableCell,
   TableHead,
   TableHeader,
   TableRow,
+  TableCell,
 } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Info, Check, CircleX } from "lucide-react";
@@ -30,11 +30,13 @@ interface BulkUserUploadPreviewEditableTableProps {
   onUpdateRow: (idx: number, newRow: PreviewRow) => void;
 }
 
-const statusDisplay = (status?: string) => {
+// Helper to render the status display cell
+function StatusChip({ status }: { status?: string }) {
+  if (!status) return <span>--</span>;
   switch (status) {
     case "valid":
       return (
-        <span className="flex items-center gap-1 text-green-700">
+        <span className="flex items-center gap-1 text-green-600">
           <Check size={16} className="text-green-600" />
           Valid
         </span>
@@ -61,84 +63,80 @@ const statusDisplay = (status?: string) => {
         </span>
       );
     default:
-      return "--";
+      return <span>--</span>;
   }
-};
+}
 
-export const BulkUserUploadPreviewEditableTable: React.FC<BulkUserUploadPreviewEditableTableProps> = ({
+const EDITABLE_FIELDS = ["email", "user_name", "department", "name"];
+
+const BulkUserUploadPreviewEditableTable: React.FC<BulkUserUploadPreviewEditableTableProps> = ({
   users,
   headers,
   onUpdateRow,
 }) => {
   if (!users || users.length === 0) return null;
 
-  // PURE shadcn Table primitives, no native <table> directly.
-  // Outer wrapper handles ALL scrolling.
   return (
-    <TooltipProvider delayDuration={150}>
+    <TooltipProvider>
       <div
         className={cn(
           "w-full max-w-full border rounded-xl shadow-inner bg-white ring-1 ring-border/40 mt-2 mb-2",
+          // Responsive horizontal and vertical scrolling for large tables
           "overflow-x-auto overflow-y-auto",
-          "max-h-[360px]"
+          "max-h-[370px]"
         )}
-        tabIndex={-1}
-        style={{ boxSizing: "border-box" }}
+        style={{
+          boxSizing: "border-box",
+        }}
       >
-        <Table className={cn("min-w-[800px] w-max bg-white border-collapse")}>
+        <Table className="min-w-[800px] w-max bg-white border-collapse">
           <TableHeader>
             <TableRow className="bg-muted/80 sticky top-0 z-10">
               {headers.map((h) => (
                 <TableHead
                   key={h}
-                  className={cn(
-                    "py-3 px-4 font-semibold border-b border-border text-xs uppercase tracking-wider text-muted-foreground",
-                    "bg-muted/80 whitespace-nowrap",
-                    "min-w-[120px] max-w-[240px]"
-                  )}
+                  className="py-3 px-4 font-semibold border-b border-border text-xs uppercase tracking-wider text-muted-foreground bg-muted/80 whitespace-nowrap min-w-[120px] max-w-[240px]"
                   style={{ background: "inherit" }}
                 >
                   {h.replace(/_/g, " ")}
                 </TableHead>
               ))}
-              <TableHead className="py-3 px-4 border-b border-border text-xs uppercase tracking-wider bg-muted/80 whitespace-nowrap min-w-[90px] max-w-[120px]">Status</TableHead>
-              <TableHead className="py-3 px-4 border-b border-border text-xs uppercase tracking-wider bg-muted/80 whitespace-nowrap min-w-[120px]">Message</TableHead>
+              <TableHead className="py-3 px-4 border-b border-border text-xs uppercase tracking-wider bg-muted/80 whitespace-nowrap min-w-[90px] max-w-[120px]">
+                Status
+              </TableHead>
+              <TableHead className="py-3 px-4 border-b border-border text-xs uppercase tracking-wider bg-muted/80 whitespace-nowrap min-w-[120px]">
+                Message
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {users.map((row, idx) => {
-              const status = row._status;
-              const rowIsInvalid = status === "invalid";
+              const isInvalid = row._status === "invalid";
               const rowClass = cn(
                 idx % 2 === 0 ? "bg-background" : "bg-muted/40",
-                rowIsInvalid ? "bg-red-50/80 ring-1 ring-red-200" : "",
-                "transition-colors group"
+                isInvalid ? "bg-red-50/80 ring-1 ring-red-200" : "",
+                "transition-colors"
               );
               return (
                 <TableRow key={idx} className={cn(rowClass, "hover:bg-accent")}>
                   {headers.map((h, cellIdx) => {
-                    const error =
-                      row._status === "invalid" &&
-                      (!row[h] || row[h] === "");
+                    const isEditable = EDITABLE_FIELDS.includes(h) || h.toLowerCase().includes("name");
+                    // Error highlight
                     const cellWithError =
-                      error ||
-                      (row._status === "invalid" && row._message && cellIdx === 0);
+                      isInvalid &&
+                      ((!row[h] && isEditable) || (row._message && cellIdx === 0));
                     return (
                       <TableCell
                         key={h}
                         className={cn(
-                          "px-4 py-2 align-middle border-b border-border relative whitespace-nowrap",
-                          "transition-all",
+                          "px-4 py-2 align-middle border-b border-border relative whitespace-nowrap transition-all",
                           cellWithError
                             ? "bg-red-50 border-red-300"
                             : "bg-white border-border",
-                          "focus-within:outline focus-within:outline-2 focus-within:outline-primary",
-                          "min-w-[120px] max-w-[240px]"
+                          "min-w-[120px] max-w-[240px] focus-within:outline focus-within:outline-2 focus-within:outline-primary"
                         )}
                       >
-                        {(h === "email" ||
-                          h.toLowerCase().includes("name") ||
-                          h === "department") ? (
+                        {isEditable ? (
                           <Input
                             className={cn(
                               "rounded-md bg-white transition border",
@@ -186,7 +184,7 @@ export const BulkUserUploadPreviewEditableTable: React.FC<BulkUserUploadPreviewE
                     );
                   })}
                   <TableCell className="px-4 py-2 align-middle border-b border-border whitespace-nowrap min-w-[90px]">
-                    {statusDisplay(row._status)}
+                    <StatusChip status={row._status} />
                   </TableCell>
                   <TableCell className="px-4 py-2 align-middle border-b border-border whitespace-nowrap min-w-[120px]">
                     {!!row._message ? (
@@ -196,9 +194,11 @@ export const BulkUserUploadPreviewEditableTable: React.FC<BulkUserUploadPreviewE
                             <span>
                               <Info
                                 size={16}
-                                className={row._status === "invalid"
-                                  ? "text-red-500"
-                                  : "text-yellow-500"}
+                                className={
+                                  row._status === "invalid"
+                                    ? "text-red-500"
+                                    : "text-yellow-500"
+                                }
                               />
                             </span>
                           </TooltipTrigger>
