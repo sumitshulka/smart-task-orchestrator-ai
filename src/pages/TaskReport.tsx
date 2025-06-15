@@ -1,6 +1,5 @@
 
 import React from "react";
-import { useForm } from "react-hook-form";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { fetchTasksPaginated } from "@/integrations/supabase/tasks";
 import { useQuery } from "@tanstack/react-query";
@@ -9,16 +8,15 @@ import { useCurrentUserRoleAndTeams } from "@/hooks/useCurrentUserRoleAndTeams";
 import { useTaskStatuses } from "@/hooks/useTaskStatuses";
 import { supabase } from "@/integrations/supabase/client";
 
-// Refactored UI
 import TaskReportFilters from "@/components/report/TaskReportFilters";
 import TaskReportTable from "@/components/report/TaskReportTable";
 import TaskReportExportButton from "@/components/report/TaskReportExportButton";
 
-function defaultFilterDates() {
+function defaultDateRange() {
   const now = new Date();
   return {
-    fromDate: startOfMonth(now),
-    toDate: endOfMonth(now)
+    from: startOfMonth(now),
+    to: endOfMonth(now),
   };
 }
 
@@ -40,11 +38,7 @@ async function fetchTaskReportView(fromDate: Date, toDate: Date, limit = 1000) {
   return data || [];
 }
 
-const columns = [
-  "Employee Name",
-  "Total Tasks Assigned",
-  "Completion Ratio"
-];
+const columns = ["Employee Name", "Total Tasks Assigned", "Completion Ratio"];
 
 type EmployeeReport = {
   systemId: string;
@@ -56,20 +50,20 @@ type EmployeeReport = {
 };
 
 export default function TaskReport() {
-  const form = useForm<{ fromDate: Date; toDate: Date }>({
-    defaultValues: defaultFilterDates(),
-  });
+  const [dateRange, setDateRange] = React.useState<{ from: Date | null; to: Date | null }>(
+    defaultDateRange()
+  );
 
-  const fromDate = form.watch("fromDate");
-  const toDate = form.watch("toDate");
+  // Make sure we always have valid dates
+  const fromDate = dateRange.from || new Date();
+  const toDate = dateRange.to || new Date();
 
   const { user } = useSupabaseSession();
   const { roles, loading: rolesLoading, teams: userTeams, user: userRow } = useCurrentUserRoleAndTeams();
   const { statuses, loading: statusesLoading } = useTaskStatuses();
-  const statusNames = statuses.map(s => s.name);
+  const statusNames = statuses.map((s) => s.name);
 
-  const userTeamIds = React.useMemo(() => userTeams?.map(t => t.id) ?? [], [userTeams]);
-
+  const userTeamIds = React.useMemo(() => userTeams?.map((t) => t.id) ?? [], [userTeams]);
   const [reportUserIds, setReportUserIds] = React.useState<string[]>([]);
 
   React.useEffect(() => {
@@ -94,7 +88,7 @@ export default function TaskReport() {
         }
         const allReportUsers = [
           ...(managedByMe?.map((u: any) => u.id) ?? []),
-          ...teamMembers
+          ...teamMembers,
         ].filter((uid, i, arr) => uid && arr.indexOf(uid) === i && uid !== user.id);
         setReportUserIds([user.id, ...allReportUsers]);
       } else if (roles.includes("user")) {
@@ -113,7 +107,7 @@ export default function TaskReport() {
   } = useQuery({
     queryKey: ["task-report", fromDate, toDate, reportUserIds.join(","), roles.join(",")],
     queryFn: async () => {
-      if (!user?.id) return [];
+      if (!user?.id || !fromDate || !toDate) return [];
       if (roles.includes("admin")) {
         const rows = await fetchTaskReportView(fromDate, toDate, 1000);
         return (rows as any[]).map((r) => ({
@@ -121,27 +115,27 @@ export default function TaskReport() {
           assigned_to: r.assignee_email ? r.assignee_email : null,
           assigned_user: {
             user_name: r.assignee_name,
-            email: r.assignee_email
+            email: r.assignee_email,
           },
         }));
       }
       let filters: any = {
         fromDate: format(fromDate, "yyyy-MM-dd"),
         toDate: format(toDate, "yyyy-MM-dd"),
-        limit: 1000
+        limit: 1000,
       };
       if (reportUserIds.length === 1) {
         filters.assignedTo = reportUserIds[0];
       }
       const { tasks } = await fetchTasksPaginated(filters);
       if (reportUserIds.length === 1) {
-        return tasks.filter(t => t.assigned_to === reportUserIds[0] || t.created_by === reportUserIds[0]);
+        return tasks.filter((t) => t.assigned_to === reportUserIds[0] || t.created_by === reportUserIds[0]);
       }
       if (reportUserIds.length > 1) {
-        return tasks.filter(t => reportUserIds.includes(t.assigned_to ?? ""));
+        return tasks.filter((t) => reportUserIds.includes(t.assigned_to ?? ""));
       }
       return tasks;
-    }
+    },
   });
 
   const reportingColumns = [
@@ -154,7 +148,7 @@ export default function TaskReport() {
   const report = React.useMemo<EmployeeReport[]>(() => {
     if (!taskData) return [];
     const userMap: Record<string, EmployeeReport> = {};
-    taskData.forEach(task => {
+    taskData.forEach((task) => {
       const assignedId = task.assigned_to || "unassigned";
       const userInfo = task.assigned_user;
       const name = (userInfo && userInfo.user_name) || (userInfo && userInfo.email) || "Unassigned";
@@ -175,7 +169,7 @@ export default function TaskReport() {
         (userMap[assignedId][task.status] as number) += 1;
       }
     });
-    return Object.values(userMap).map(u => {
+    return Object.values(userMap).map((u) => {
       const completed = u["Completed"] as number || 0;
       return {
         ...u,
@@ -191,7 +185,7 @@ export default function TaskReport() {
       <h1 className="text-2xl font-semibold mb-4">Task Report</h1>
       <div className="flex flex-col md:flex-row gap-2 justify-between items-start mb-2">
         <div className="bg-muted rounded p-4 mb-4 md:mb-0 w-full md:w-auto">
-          <TaskReportFilters fromDate={fromDate} toDate={toDate} form={form} />
+          <TaskReportFilters dateRange={dateRange} setDateRange={setDateRange} />
         </div>
         <TaskReportExportButton
           disabled={isLoading || report.length === 0}
