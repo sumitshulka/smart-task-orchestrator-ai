@@ -257,6 +257,8 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
   // Reset form
   const resetForm = () => {
     setForm(initialForm);
+    setSelectedDependencyTask(null);
+    setDependencyDialogOpen(false);
   };
 
   // Assigned To dropdown (unchanged, uses getAssignableUsersForCreate)
