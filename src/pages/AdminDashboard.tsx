@@ -557,6 +557,36 @@ const AdminDashboard = () => {
 
   return (
     <div className="w-full max-w-7xl mx-auto px-4 py-8">
+      {/* --- Admin: show managers/team_managers without team --- */}
+      {currentRole === "admin" &&
+        managersWithoutTeams.length > 0 &&
+        showManagersNoTeamsAlert && (
+          <Alert variant="destructive" className="mb-6 flex items-start relative pr-9">
+            <X
+              className="absolute top-4 right-4 cursor-pointer"
+              size={20}
+              onClick={() => setShowManagersNoTeamsAlert(false)}
+              aria-label="Dismiss"
+            />
+            <div>
+              <AlertTitle>
+                Some managers are not assigned to any team
+              </AlertTitle>
+              <AlertDescription>
+                The following manager(s) and team manager(s) do not belong to any team. Assign them to a team so they can manage tasks and view proper dashboard stats.
+                <ul className="mt-2 ml-4 list-disc text-sm">
+                  {managersWithoutTeams.map((mgr) => (
+                    <li key={mgr.id}>
+                      <Badge variant="secondary" className="mr-2">{mgr.user_name || "Unnamed"}</Badge>
+                      <span className="text-muted-foreground">{mgr.email}</span>
+                    </li>
+                  ))}
+                </ul>
+              </AlertDescription>
+            </div>
+          </Alert>
+      )}
+
       <h1 className="text-2xl font-bold mb-5">
         Dashboard
       </h1>
@@ -849,36 +879,6 @@ const AdminDashboard = () => {
           // Or -- refactor in future for more efficient reload!
         }}
       />
-
-      {/* --- Admin: show managers/team_managers without team --- */}
-      {currentRole === "admin" &&
-        managersWithoutTeams.length > 0 &&
-        showManagersNoTeamsAlert && (
-          <Alert variant="destructive" className="mb-6 flex items-start relative pr-9">
-            <X
-              className="absolute top-4 right-4 cursor-pointer"
-              size={20}
-              onClick={() => setShowManagersNoTeamsAlert(false)}
-              aria-label="Dismiss"
-            />
-            <div>
-              <AlertTitle>
-                Some managers are not assigned to any team
-              </AlertTitle>
-              <AlertDescription>
-                The following manager(s) and team manager(s) do not belong to any team. Assign them to a team so they can manage tasks and view proper dashboard stats.
-                <ul className="mt-2 ml-4 list-disc text-sm">
-                  {managersWithoutTeams.map((mgr) => (
-                    <li key={mgr.id}>
-                      <Badge variant="secondary" className="mr-2">{mgr.user_name || "Unnamed"}</Badge>
-                      <span className="text-muted-foreground">{mgr.email}</span>
-                    </li>
-                  ))}
-                </ul>
-              </AlertDescription>
-            </div>
-          </Alert>
-      )}
     </div>
   );
 };
