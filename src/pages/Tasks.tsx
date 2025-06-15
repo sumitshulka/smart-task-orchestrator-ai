@@ -145,15 +145,20 @@ const TasksPage: React.FC = () => {
 
   // Filtering logic
   const filteredTasks = useMemo(() => {
-    console.log("[LOVABLE DEBUG][Tasks.tsx] Raw Tasks:", tasks);
+    // Log all status filter values and all unique task.status values
+    console.log("[DEBUG] Status filter available options:", statuses.map(s => s.name));
+    console.log("[DEBUG] All statuses in fetched tasks:", Array.from(new Set(tasks.map(t => t.status))));
+
     // Only filter by dateRange if the user selected a range
     const result = tasks.filter((task) => {
       // Priority filter
       const priorityPass =
         !priorityFilter || priorityFilter === "all" || String(task.priority) === priorityFilter;
-      // Status filter
+      // Status filter: compare case-insensitive, trimmed
       const statusPass =
-        !statusFilter || statusFilter === "all" || task.status === statusFilter;
+        !statusFilter ||
+        statusFilter === "all" ||
+        (task.status && task.status.toLowerCase().trim() === statusFilter.toLowerCase().trim());
       // User filter
       const userPass =
         !userFilter || userFilter === "all" || (task.assigned_to && task.assigned_to === userFilter);
@@ -173,8 +178,8 @@ const TasksPage: React.FC = () => {
     });
     console.log("[LOVABLE DEBUG][Tasks.tsx] Filtered Tasks:", result);
     return result;
-  }, [tasks, priorityFilter, statusFilter, userFilter, teamFilter, dateRange]);
-
+  }, [tasks, priorityFilter, statusFilter, userFilter, teamFilter, dateRange, statuses]);
+  
   return (
     <div className="flex w-full max-w-6xl mx-auto px-4 py-8">
       {/* Sidebar filters */}
