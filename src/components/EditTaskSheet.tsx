@@ -1,10 +1,9 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   Sheet,
   SheetContent,
   SheetHeader,
   SheetTitle,
-  SheetTrigger,
   SheetDescription,
   SheetFooter,
   SheetClose,
@@ -36,7 +35,6 @@ type Props = {
 };
 
 const EditTaskSheet: React.FC<Props> = ({ task, onUpdated, open, onOpenChange }) => {
-  // ... logic unchanged except assignment/user logic below
   const [newAssignee, setNewAssignee] = useState(task?.assigned_to || "");
   const [openInternal, setOpenInternal] = useState(false);
   const [form, setForm] = useState({
@@ -50,19 +48,24 @@ const EditTaskSheet: React.FC<Props> = ({ task, onUpdated, open, onOpenChange })
   });
   const [loading, setLoading] = useState(false);
 
-  // New hooks for assignment permissions and users
+  // Permissions logic for admin/manager/user
   const { users } = useUsersAndTeams();
   const { user } = useSupabaseSession();
   const [userRole, setUserRole] = useState<string>("user");
 
-  const { statuses, loading: statusesLoading } = useTaskStatuses();
-
   useEffect(() => {
-    if (!user) return;
+    if (!user) return setUserRole("user");
     if (user?.email?.includes("admin")) setUserRole("admin");
     else if (user?.email?.includes("manager")) setUserRole("manager");
     else setUserRole("user");
   }, [user]);
+
+  // Helper for permission: isAdminOrManager
+  const isAdminOrManager = useMemo(() => userRole === "admin" || userRole === "manager", [userRole]);
+  const isUser = userRole === "user";
+
+  // New hooks for assignment permissions and users
+  const { statuses, loading: statusesLoading } = useTaskStatuses();
 
   // --- Assignment logic matching Create Task ---
   function getAssignableUsersEdit() {
@@ -88,11 +91,21 @@ const EditTaskSheet: React.FC<Props> = ({ task, onUpdated, open, onOpenChange })
     return [];
   }
 
-  // Assignment options logic
-  const canAssign =
-    getAssignableUsersEdit().length > 0;
+  // Assignment options logic:
+  const allowedAssignUsers = useMemo(() => {
+    // If admin/manager, allow all
+    if (isAdminOrManager) return users;
+    // If user, only allow assigning to their manager (logic replicated from prior code)
+    if (isUser) {
+      const myManagerName = user?.user_metadata?.manager || null;
+      const myManager = users.find((u) => u.user_name === myManagerName);
+      return myManager ? [myManager] : [];
+    }
+    return [];
+  }, [users, user, isAdminOrManager, isUser]);
 
-  // Main: Handle assignment change during edit
+  // Used to enable/disable assignment section for UI
+  const canShowAssign = allowedAssignUsers.length > 0;
 
   useEffect(() => {
     if (open && task) {
@@ -143,10 +156,6 @@ const EditTaskSheet: React.FC<Props> = ({ task, onUpdated, open, onOpenChange })
     }
     return changes;
   }
-
-  // Assignment section now always shows if user can assign *anyone* (getAssignableUsersEdit().length > 0)
-  const canShowAssign =
-    getAssignableUsersEdit().length > 0;
 
   // --- New: Log assignment change ---
   const handleAssignment = async (e: React.FormEvent) => {
@@ -229,7 +238,9 @@ const EditTaskSheet: React.FC<Props> = ({ task, onUpdated, open, onOpenChange })
     setLoading(false);
   };
 
-  // ... main render: open/close via props
+  // Only show editable fields allowed by role
+  // For admins/managers: all fields editable
+  // For users: only allow status, comment, and assigning to their manager (not due_date or general assignment)
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="max-w-4xl w-[75vw]">
@@ -241,6 +252,7 @@ const EditTaskSheet: React.FC<Props> = ({ task, onUpdated, open, onOpenChange })
             </SheetDescription>
           </SheetHeader>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Task Title (editable if not restricted to user) */}
             <div>
               <label className="block mb-1 font-medium">Task Title</label>
               <Input
@@ -249,6 +261,7 @@ const EditTaskSheet: React.FC<Props> = ({ task, onUpdated, open, onOpenChange })
                 onChange={handleChange}
                 required
                 placeholder="Enter task title"
+                disabled={isUser}
               />
             </div>
             <div>
@@ -258,6 +271,7 @@ const EditTaskSheet: React.FC<Props> = ({ task, onUpdated, open, onOpenChange })
                 value={form.priority}
                 onChange={handleChange}
                 className="w-full border rounded p-2"
+                disabled={isUser}
               >
                 <option value={1}>High</option>
                 <option value={2}>Medium</option>
@@ -289,8 +303,10 @@ const EditTaskSheet: React.FC<Props> = ({ task, onUpdated, open, onOpenChange })
                 value={form.description}
                 onChange={handleChange}
                 placeholder="Task description"
+                disabled={isUser}
               />
             </div>
+            {/* Due Date (only editable for admin/manager) */}
             <div>
               <label className="block mb-1 font-medium">Due Date</label>
               <Input
@@ -298,6 +314,7 @@ const EditTaskSheet: React.FC<Props> = ({ task, onUpdated, open, onOpenChange })
                 type="date"
                 value={form.due_date}
                 onChange={handleChange}
+                disabled={isUser}
               />
             </div>
             <div>
@@ -309,6 +326,7 @@ const EditTaskSheet: React.FC<Props> = ({ task, onUpdated, open, onOpenChange })
                 type="number"
                 min="0"
                 step="0.1"
+                disabled={isUser}
               />
             </div>
             {/* Show field for completion date only if status is completed */}
@@ -320,6 +338,7 @@ const EditTaskSheet: React.FC<Props> = ({ task, onUpdated, open, onOpenChange })
                   type="date"
                   value={form.actual_completion_date || new Date().toISOString().slice(0, 10)}
                   onChange={handleChange}
+                  disabled={isUser}
                 />
               </div>
             )}
@@ -333,14 +352,16 @@ const EditTaskSheet: React.FC<Props> = ({ task, onUpdated, open, onOpenChange })
                 value={newAssignee}
                 onChange={(e) => setNewAssignee(e.target.value)}
                 className="w-full border rounded p-2"
+                disabled={isUser && allowedAssignUsers.length < 1}
               >
                 <option value="">Unassigned</option>
-                {getAssignableUsersEdit().map((u) => (
+                {allowedAssignUsers.map((u) => (
                   <option key={u.id} value={u.id}>
                     {u.user_name ?? u.email}
                   </option>
                 ))}
               </select>
+              {/* Only show Assign button if allowed (admins/managers or users allowed to assign to their manager) */}
               <Button
                 type="button"
                 className="mt-2"
