@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from "react";
 import {
   fetchRoles,
@@ -14,9 +15,10 @@ import { format } from "date-fns";
 import { Input } from "@/components/ui/input";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 
-// User type now includes optional department
+// User now includes user_name (nullable)
 type User = {
   id: string;
+  user_name?: string | null;
   email: string;
   department?: string;
 };
@@ -56,10 +58,10 @@ const UserRoleManager: React.FC = () => {
         setSessionUserEmail(null);
       }
 
-      // Fetch users from the public.users table, with department if available
+      // Fetch users from the public.users table, include user_name!
       const { data: usersData, error: userError } = await supabase
         .from("users")
-        .select("id, email, department");
+        .select("id, user_name, email, department");
       if (userError) {
         toast({ title: "Error loading users", description: userError.message });
       } else {
@@ -248,8 +250,14 @@ const UserRoleManager: React.FC = () => {
 
             return (
               <tr key={user.id} className="border-b last:border-b-0">
+                {/* USER COL - show user_name, then email, then department */}
                 <td className="p-2">
-                  <div className="font-medium">{user.email}</div>
+                  <div className="font-medium text-base">
+                    {user.user_name ? user.user_name : user.email}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {user.email}
+                  </div>
                   {user.department && (
                     <div className="text-xs text-muted-foreground">
                       Dept: {user.department}
@@ -391,3 +399,4 @@ const UserRoleManager: React.FC = () => {
 };
 
 export default UserRoleManager;
+
