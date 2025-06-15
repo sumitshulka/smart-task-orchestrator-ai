@@ -79,183 +79,91 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
   const { user, loading: sessionLoading } = useSupabaseSession();
   const { statuses, loading: statusLoading } = useTaskStatuses();
 
+  // New: Roles logic
+  // For this demo, assume backend user has optional .role array or .role string
+  const [userRole, setUserRole] = useState<string>("user");
+
+  // Get user role & update state on mount (replace with your real role logic as needed)
   useEffect(() => {
-    if (open && statuses.length > 0) {
-      // Set status to first available DB status if not already set
-      setForm(f => ({
-        ...f,
-        status: f.status && statuses.some(s => s.name === f.status)
-          ? f.status
-          : statuses[0]?.name || ""
-      }));
-    }
-    if (open) {
-      fetchTasks().then(setTasks).catch(() => setTasks([]));
-      fetchUsers()
-        .then(us => {
-          setUsers(us);
-          setUserOptionCount(us.length);
-        })
-        .catch(() => setUsers([]));
-    }
-  }, [open, statuses]);
+    // For demo: set role based on admin/manager/email (use your backend method)
+    if (!user) return;
+    // This is placeholder. Replace with real RBAC logic/loading
+    if (user?.email?.includes("admin")) setUserRole("admin");
+    else if (user?.email?.includes("manager")) setUserRole("manager");
+    else setUserRole("user");
+  }, [user]);
 
+  // NEW LOGIC: Type selection comes BEFORE assignee selection
+  // and, based on type, restrict or autofill assignee
   useEffect(() => {
-    if (open) {
-      setForm(f => ({
-        ...f,
-        assigned_to: defaultAssignedTo && !f.assigned_to ? defaultAssignedTo : f.assigned_to
-      }));
+    // When type or open changes...
+    if (form.type === "personal" && user?.id) {
+      setForm((f) => ({ ...f, assigned_to: user.id }));
+    } else if (form.type === "team") {
+      setForm((f) => ({ ...f, assigned_to: "" }));
     }
-  }, [open, statuses, defaultAssignedTo]);
+  }, [form.type, open, user?.id]);
 
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
-  ) => {
-    const { name, value, type } = e.target as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
-    if (type === "checkbox") {
-      const { checked } = e.target as HTMLInputElement;
-      setForm((f) => ({ ...f, [name]: checked }));
-      // If toggling off subtask/dependency, clear values
-      if (name === "isSubTask" && !checked) setForm((f) => ({ ...f, superTaskId: "" }));
-      if (name === "isDependent" && !checked) setForm((f) => ({ ...f, dependencyTaskId: "" }));
-    } else if (name === "priority") {
-      setForm((f) => ({ ...f, [name]: Number(value) }));
-    } else {
-      setForm((f) => ({ ...f, [name]: value }));
+  // Helpers to determine allowed assignable users
+  function getAssignableUsersForCreate() {
+    if (form.type === "personal" && user?.id) {
+      // Personal task: Can only assign to yourself (user)
+      return usersWithCurrent.filter((u) => u.id === user.id);
     }
-  };
-
-  const resetForm = () => setForm(initialForm);
-
-  // Ensure the current user is included in the users list
-  const usersWithCurrent = React.useMemo(() => {
-    let allUsers = users || [];
-    // If current user does not exist in users, add them
-    if (
-      user?.id &&
-      !allUsers.some((u) => u.id === user.id)
-    ) {
-      allUsers = [
-        ...allUsers,
-        {
-          id: user.id,
-          email: user.email ?? "Unknown",
-          user_name: user.user_metadata?.user_name || user.user_metadata?.name || null,
-        },
-      ];
-    }
-    return allUsers;
-  }, [users, user]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user?.id) {
-      toast({ title: "You must be logged in to create a task." });
-      return;
-    }
-    setCreating(true);
-
-    try {
-      // If "assigned_to" not set, assign to current user
-      const assignedTo = form.assigned_to || user.id;
-      const payload: any = {
-        title: form.title,
-        description: form.description,
-        priority: form.priority,
-        due_date: form.due_date || null,
-        status: form.status, // Now matches the DB value
-        type: form.type,
-        estimated_hours: form.estimated_hours ? Number(form.estimated_hours) : null,
-        assigned_to: assignedTo || null,
-        team_id: null,
-        created_by: user.id,
-        start_date: form.start_date || null,
-      };
-      const newTask = await createTask(payload);
-      if (form.isSubTask && form.superTaskId) {
-        toast({ title: "Subtask link not implemented yet." });
+    if (form.type === "team") {
+      if (userRole === "admin") return usersWithCurrent;
+      // Manager: assign to team or reports
+      if (userRole === "manager") {
+        // For simplicity: allow all users (customize here per your org logic)
+        return usersWithCurrent;
       }
-      if (form.isDependent && form.dependencyTaskId) {
-        toast({ title: "Dependency link not implemented yet." });
+      // Normal user: can only assign to manager
+      if (userRole === "user") {
+        // Show manager (simulate direct report by having "manager" field)
+        const myManager = usersWithCurrent.find(
+          (u) => u.user_name === user?.user_metadata?.manager
+        );
+        return myManager ? [myManager] : [];
       }
-      toast({ title: "Task created" });
-      resetForm();
-      setOpen(false);
-      onTaskCreated();
-    } catch (err: any) {
-      toast({ title: "Create failed", description: err.message });
     }
-    setCreating(false);
-  };
+    return [];
+  }
 
-  // Filter selectable super/dependency tasks: no self, non-empty titles
-  const selectableTasks = tasks.filter((t) => t.title && t.title.length > 0);
-
-  // Render user display
+  // Main render for assigned_to field
   const renderAssignedToInput = () => {
-    if (userOptionCount > 50) {
-      const userDisplay = usersWithCurrent.find(u => u.id === form.assigned_to);
-      const label = userDisplay
-        ? userDisplay.user_name || userDisplay.email
-        : form.assigned_to
-        ? "User Selected"
-        : "Pick a user";
+    // Always assign to self if personal (hidden input)
+    if (form.type === "personal") {
       return (
-        <div>
-          <Button
-            type="button"
-            variant="outline"
-            className="w-full justify-between"
-            onClick={() => setShowUserDialog(true)}
-          >
-            {label}
-          </Button>
-          <Dialog open={showUserDialog} onOpenChange={setShowUserDialog}>
-            <DialogContent className="max-w-lg">
-              <DialogHeader>
-                <DialogTitle>Search and select user</DialogTitle>
-              </DialogHeader>
-              <Command>
-                <CommandInput placeholder="Search users by name or email..." autoFocus />
-                <CommandList>
-                  {usersWithCurrent.map((u) => (
-                    <CommandItem
-                      key={u.id}
-                      onSelect={() => {
-                        setForm(f => ({ ...f, assigned_to: u.id }));
-                        setShowUserDialog(false);
-                      }}
-                    >
-                      {u.user_name || u.email} <span className="ml-2 text-xs text-muted-foreground">{u.email}</span>
-                    </CommandItem>
-                  ))}
-                  <CommandEmpty>No users found.</CommandEmpty>
-                </CommandList>
-              </Command>
-            </DialogContent>
-          </Dialog>
-        </div>
-      );
-    } else {
-      return (
-        <select
-          name="assigned_to"
-          value={form.assigned_to}
-          onChange={handleChange}
-          className="w-full border rounded p-2"
-        >
-          <option value="">Select a user</option>
-          {usersWithCurrent.map((u) => (
-            <option key={u.id} value={u.id}>
-              {u.user_name ?? u.email}
-            </option>
-          ))}
-        </select>
+        <Input
+          type="text"
+          value={user?.user_name || user?.email || user?.id}
+          disabled
+          readOnly
+          className="w-full border rounded p-2 bg-muted/40"
+        />
       );
     }
+    // If team, show appropriate select/dropdown
+    const assignableUsers = getAssignableUsersForCreate();
+    return (
+      <select
+        name="assigned_to"
+        value={form.assigned_to}
+        onChange={handleChange}
+        className="w-full border rounded p-2"
+        required={form.type === "team"}
+      >
+        <option value="">Select a user</option>
+        {assignableUsers.map((u) => (
+          <option key={u.id} value={u.id}>
+            {u.user_name ?? u.email}
+          </option>
+        ))}
+      </select>
+    );
   };
 
+  // --- UI ---
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
@@ -269,7 +177,6 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
         )}
       </SheetTrigger>
       <SheetContent side="right" className="max-w-5xl w-[60vw] overflow-y-auto">
-        {/* Modal widened by 25% */}
         <form className="p-2 space-y-6" onSubmit={handleSubmit}>
           <SheetHeader>
             <SheetTitle>Create Task</SheetTitle>
@@ -279,6 +186,19 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
           </SheetHeader>
           {/* MAIN FIELDS */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block mb-1 font-medium">Type</label>
+              <select
+                name="type"
+                value={form.type}
+                onChange={handleChange}
+                className="w-full border rounded p-2"
+              >
+                {typeOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
             <div>
               <label className="block mb-1 font-medium">Task Title</label>
               <Input
@@ -359,19 +279,6 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
                 )}
                 {statuses.map((opt) => (
                   <option key={opt.id} value={opt.name}>{opt.name}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block mb-1 font-medium">Type</label>
-              <select
-                name="type"
-                value={form.type}
-                onChange={handleChange}
-                className="w-full border rounded p-2"
-              >
-                {typeOptions.map((opt) => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
                 ))}
               </select>
             </div>
@@ -467,5 +374,4 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
     </Sheet>
   );
 };
-
 export default CreateTaskSheet;

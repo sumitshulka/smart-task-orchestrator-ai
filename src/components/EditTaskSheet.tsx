@@ -15,6 +15,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { updateTask, Task } from "@/integrations/supabase/tasks";
 import { toast } from "@/components/ui/use-toast";
 import { useTaskStatuses } from "@/hooks/useTaskStatuses";
+import { createTaskActivity } from "@/integrations/supabase/taskActivity";
+import { useUsersAndTeams } from "@/hooks/useUsersAndTeams";
+import useSupabaseSession from "@/hooks/useSupabaseSession";
 
 // Additional statuses for select
 const statusOptions = [
@@ -44,7 +47,42 @@ const EditTaskSheet: React.FC<Props> = ({ task, onUpdated, children }) => {
   });
   const [loading, setLoading] = useState(false);
 
+  // New hooks for assignment permissions and users
+  const { users } = useUsersAndTeams();
+  const { user } = useSupabaseSession();
+  const [userRole, setUserRole] = useState<string>("user");
+
   const { statuses, loading: statusesLoading } = useTaskStatuses();
+
+  useEffect(() => {
+    if (!user) return;
+    if (user?.email?.includes("admin")) setUserRole("admin");
+    else if (user?.email?.includes("manager")) setUserRole("manager");
+    else setUserRole("user");
+  }, [user]);
+
+  // Assignment options logic
+  function getAssignableUsersEdit() {
+    if (!user) return [];
+    if (userRole === "admin") return users;
+    if (userRole === "manager") return users;
+    // User: can assign only to their manager
+    if (userRole === "user") {
+      const myManager = users.find(
+        (u) => u.user_name === user?.user_metadata?.manager
+      );
+      return myManager ? [myManager] : [];
+    }
+    return [];
+  }
+
+  const canAssign =
+    userRole === "admin" ||
+    userRole === "manager" ||
+    (userRole === "user" && users.some((u) => u.user_name === user?.user_metadata?.manager));
+
+  // Main: Handle assignment change during edit
+  const [newAssignee, setNewAssignee] = useState(task.assigned_to || "");
 
   useEffect(() => {
     if (open) {
@@ -60,6 +98,10 @@ const EditTaskSheet: React.FC<Props> = ({ task, onUpdated, children }) => {
     }
   }, [open, statuses, task]);
 
+  useEffect(() => {
+    setNewAssignee(task.assigned_to || "");
+  }, [task, open]);
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     if (name === "priority") {
@@ -67,6 +109,38 @@ const EditTaskSheet: React.FC<Props> = ({ task, onUpdated, children }) => {
     } else {
       setForm(f => ({ ...f, [name]: value }));
     }
+  };
+
+  const handleAssignment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newAssignee === task.assigned_to) {
+      toast({ title: "No changes to assignment." });
+      setOpen(false);
+      return;
+    }
+    setLoading(true);
+    try {
+      // Update task with new assignee
+      const updatePayload: any = {
+        ...form,
+        assigned_to: newAssignee,
+      };
+      await updateTask(task.id, updatePayload);
+      // Log in activity
+      await createTaskActivity({
+        task_id: task.id,
+        action_type: "assigned",
+        old_value: task.assigned_to,
+        new_value: newAssignee,
+        acted_by: user?.id,
+      });
+      toast({ title: "Task assignee updated" });
+      setOpen(false);
+      onUpdated();
+    } catch (err: any) {
+      toast({ title: "Assignment failed", description: err.message });
+    }
+    setLoading(false);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -191,6 +265,33 @@ const EditTaskSheet: React.FC<Props> = ({ task, onUpdated, children }) => {
               </div>
             )}
           </div>
+          {/* Assignment section (only show if canAssign) */}
+          {canAssign && (
+            <div className="my-6">
+              <label className="block mb-1 font-medium">Assign To</label>
+              <select
+                name="assign_to"
+                value={newAssignee}
+                onChange={(e) => setNewAssignee(e.target.value)}
+                className="w-full border rounded p-2"
+              >
+                <option value="">Unassigned</option>
+                {getAssignableUsersEdit().map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.user_name ?? u.email}
+                  </option>
+                ))}
+              </select>
+              <Button
+                type="button"
+                className="mt-2"
+                disabled={loading || newAssignee === task.assigned_to}
+                onClick={handleAssignment}
+              >
+                {loading ? "Assigning..." : "Assign"}
+              </Button>
+            </div>
+          )}
           <SheetFooter className="mt-8">
             <Button type="submit" disabled={loading || statusesLoading}>
               {loading ? "Updating..." : "Update Task"}
