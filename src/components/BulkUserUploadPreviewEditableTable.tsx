@@ -88,21 +88,25 @@ export const BulkUserUploadPreviewEditableTable: React.FC<BulkUserUploadPreviewE
       <div
         ref={tableWrapperRef}
         className={cn(
-          // Container: always fits the parent modal, never overflows
           "relative border rounded-xl shadow-inner bg-white",
-          "w-full max-w-full",         // never exceeds modal
-          "max-h-[360px]",             // vertical scroll cap
-          "overflow-x-auto overflow-y-auto", // <--- core fix!
+          "w-full max-w-full",
+          "max-h-[360px]",
+          "overflow-x-auto overflow-y-auto",
           "mt-2 mb-2",
           "ring-1 ring-border/40"
         )}
         style={{
-          minWidth: 0,                  // allow child to shrink if needed
-          maxWidth: "100%",             // restrict width to parent/modal
+          minWidth: 0,
+          maxWidth: "100%",
         }}
         tabIndex={-1}
       >
-        <Table className="w-full border-collapse table-fixed">
+        <Table
+          className={cn(
+            "w-full min-w-[900px] border-collapse", // Ensures enough starting width for grid
+            "table-auto" // Let columns adjust naturally
+          )}
+        >
           <TableHeader>
             <TableRow
               className={cn(
@@ -134,7 +138,6 @@ export const BulkUserUploadPreviewEditableTable: React.FC<BulkUserUploadPreviewE
             {users.map((row, idx) => {
               const status = row._status;
               const rowIsInvalid = status === "invalid";
-              // For row-level error highlighting
               const rowClass = cn(
                 idx % 2 === 0
                   ? "bg-background"
@@ -162,7 +165,6 @@ export const BulkUserUploadPreviewEditableTable: React.FC<BulkUserUploadPreviewE
                         key={h}
                         className={cn(
                           "px-4 py-2 align-middle border-b border-border relative",
-                          // ↓↓↓ Remove min-w, max-w that cause overflow, let cell fit content!
                           "truncate",
                           "transition-all",
                           cellWithError
@@ -170,12 +172,7 @@ export const BulkUserUploadPreviewEditableTable: React.FC<BulkUserUploadPreviewE
                             : "bg-white border-border",
                           "focus-within:outline focus-within:outline-2 focus-within:outline-primary"
                         )}
-                        style={{
-                          minWidth: 0,
-                          maxWidth: 240, // Let columns shrink but not overflow
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                        }}
+                        // DO NOT force min/max widths inline here!
                       >
                         {(h === "email" ||
                           h.toLowerCase().includes("name") ||
@@ -187,7 +184,6 @@ export const BulkUserUploadPreviewEditableTable: React.FC<BulkUserUploadPreviewE
                                 ? "border-red-500 focus:ring-red-500 focus:border-red-500"
                                 : "focus:border-primary focus:ring-primary"
                             )}
-                            size={8}
                             value={row[h] ?? ""}
                             onChange={(e) => {
                               onUpdateRow(idx, { ...row, [h]: e.target.value });
@@ -195,7 +191,7 @@ export const BulkUserUploadPreviewEditableTable: React.FC<BulkUserUploadPreviewE
                             placeholder={`Enter ${h}`}
                             aria-invalid={!!cellWithError}
                             aria-label={h}
-                            style={{ minWidth: 0, maxWidth: 210 }}
+                            // Do not force width via style; let flex/grid handle it
                           />
                         ) : (
                           <span className="truncate block overflow-hidden text-foreground">
@@ -278,3 +274,5 @@ export const BulkUserUploadPreviewEditableTable: React.FC<BulkUserUploadPreviewE
 };
 
 export default BulkUserUploadPreviewEditableTable;
+
+// END. This file is now quite long (~280+ lines). Consider refactoring into smaller components/hooks for maintainability.
