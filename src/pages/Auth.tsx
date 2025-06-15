@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -109,6 +108,10 @@ const AuthPage: React.FC = () => {
               <Button type="submit" disabled={loading} className="w-full font-semibold">
                 {loading ? "Processing..." : "Sign in"}
               </Button>
+              {/* New demo login instruction */}
+              <div className="mt-2 text-xs text-muted-foreground text-center">
+                Use demo login <span className="font-semibold">ss@sumits.me / Sumit1209!</span> to explore the system features.
+              </div>
               {error && <div className="text-sm text-destructive">{error}</div>}
             </form>
             {/* Removed: Sign-up line and link */}
