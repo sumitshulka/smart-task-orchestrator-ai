@@ -307,7 +307,7 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
                 placeholder="Task description"
               />
             </div>
-            {/* Row 3: Priority & Status side-by-side */}
+            {/* Row 3: Priority & Status (side-by-side, unchanged) */}
             <div>
               <label className="block mb-1 font-medium">Priority</label>
               <select
@@ -339,7 +339,7 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
                 ))}
               </select>
             </div>
-            {/* Row 4: Start and End Dates */}
+            {/* Row 4: Start and End Dates (side-by-side) */}
             <div>
               <label className="block mb-1 font-medium">Start Date</label>
               <Input
@@ -358,11 +358,7 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
                 onChange={handleChange}
               />
             </div>
-            {/* Row 5: Assigned To (left) and Assign Type (right) */}
-            <div>
-              <label className="block mb-1 font-medium">Assigned To</label>
-              {renderAssignedToInput()}
-            </div>
+            {/* Row 5: Assign Type (left) and Assigned To (right) */}
             <div>
               <label className="block mb-1 font-medium">Assign Type</label>
               <select
@@ -376,7 +372,11 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
                 ))}
               </select>
             </div>
-            {/* Row 6: Estimated Hours as a full-width row */}
+            <div>
+              <label className="block mb-1 font-medium">Assigned To</label>
+              {renderAssignedToInput()}
+            </div>
+            {/* Row 6: Estimated Hours (full width below Assign Type + Assigned To) */}
             <div className="sm:col-span-2">
               <label className="block mb-1 font-medium">Estimated Hours</label>
               <Input
