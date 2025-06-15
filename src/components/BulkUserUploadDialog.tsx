@@ -1,4 +1,3 @@
-
 import React from "react";
 import {
   Dialog,
@@ -126,6 +125,9 @@ const BulkUserUploadDialog = (props: BulkUserUploadDialogProps) => {
     });
   };
 
+  // Replace this with your actual Supabase project ref:
+  const SUPABASE_FUNCTION_URL = "https://hzfwmftpyxjtdohxhcgb.functions.supabase.co/admin-bulk-upload";
+
   // Add validation before uploading
   async function handleFile(file: File) {
     let parsedRows: any[] = [];
@@ -188,7 +190,8 @@ const BulkUserUploadDialog = (props: BulkUserUploadDialogProps) => {
     });
 
     try {
-      const response = await fetch("/api/admin/bulk-upload", {
+      // ----- KEY CHANGE: POST to Supabase Function URL -----
+      const response = await fetch(SUPABASE_FUNCTION_URL, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -198,19 +201,18 @@ const BulkUserUploadDialog = (props: BulkUserUploadDialogProps) => {
 
       if (!response.ok) {
         let errorDescription: string;
-        if (response.status === 404) {
-          errorDescription = "Bulk upload API endpoint not found. Please contact your admin or developer.";
-        } else {
-          try {
-            const data = await response.json();
-            errorDescription = data?.error || `Upload failed with status ${response.status}`;
-          } catch (_) {
-            errorDescription = `Upload failed with status ${response.status}`;
-          }
+        try {
+          const data = await response.json();
+          errorDescription = data?.error || `Upload failed with status ${response.status}`;
+        } catch (_) {
+          errorDescription = `Upload failed with status ${response.status}`;
         }
         toast({
           title: "Bulk upload failed",
-          description: errorDescription,
+          description: errorDescription +
+            (response.status === 404
+              ? " (Check that the Supabase Edge Function is deployed and the project_ref in the URL is correct.)"
+              : ""),
           variant: "destructive",
         });
         setUploading(false);
@@ -232,8 +234,14 @@ const BulkUserUploadDialog = (props: BulkUserUploadDialogProps) => {
         });
       } else {
         toast({
-          title: "Bulk upload successful",
-          description: `Successfully added ${parsedRows.length} user${parsedRows.length !== 1 ? "s" : ""}.`,
+          title: data.status === "partial"
+            ? "Bulk upload partially successful"
+            : "Bulk upload successful",
+          description: data.message ||
+            `Successfully added ${data.inserted} user${data.inserted !== 1 ? "s" : ""}.` +
+            (data.skipped && data.skipped > 0
+              ? ` Skipped ${data.skipped} duplicate${data.skipped !== 1 ? "s" : ""}.`
+              : ""),
         });
         onUsersUploaded?.();
         onOpenChange(false);
@@ -302,4 +310,3 @@ const BulkUserUploadDialog = (props: BulkUserUploadDialogProps) => {
 };
 
 export default BulkUserUploadDialog;
-
