@@ -191,7 +191,7 @@ const AdminDashboard = () => {
 
       // ---------------- NEW TASKS LOGIC ---------------- //
       if (filteredRole === "admin") {
-        // Correct: fetch new tasks count with status = 'new'
+        // Correct: fetch new tasks count with status = 'New' (capital N)
         const [
           userCountResult,
           teamCountResult,
@@ -203,14 +203,14 @@ const AdminDashboard = () => {
           supabase.from("teams").select("id", { count: "exact" }),
           supabase.from("tasks").select("id", { count: "exact" }),
           supabase.from("tasks").select("id").eq("status", "completed"),
-          supabase.from("tasks").select("id").eq("status", "new"),
+          supabase.from("tasks").select("id").eq("status", "New"),
         ]);
         setOrgStats({
           users: userCountResult?.count || 0,
           teams: teamCountResult?.count || 0,
           totalTasks: taskCountResult?.count || 0,
           completedTasks: completedTasksResult?.data?.length || 0,
-          newTasks: newTasksResult?.data?.length || 0, // now truly "new"
+          newTasks: newTasksResult?.data?.length || 0,
         });
       } else if (filteredRole === "manager" || filteredRole === "team_manager") {
         const membershipsResult: any = await supabase
@@ -220,22 +220,21 @@ const AdminDashboard = () => {
         const memberships: any[] = membershipsResult?.data ?? [];
         const teamIds = memberships?.map((m: any) => m.team_id) || [];
         if (teamIds.length) {
-          // Fix: directly get newTasks count for new status only
           const [
             teamTaskCountResult,
             completedTeamTasksResult,
-            newTeamTasksResult, // ← fetch count with status='new'
+            newTeamTasksResult,
           ]: any = await Promise.all([
             supabase.from("tasks").select("id", { count: "exact" }).in("team_id", teamIds),
             supabase.from("tasks").select("id", { count: "exact" }).in("team_id", teamIds).eq("status", "completed"),
-            supabase.from("tasks").select("id").in("team_id", teamIds).eq("status", "new"),
+            supabase.from("tasks").select("id").in("team_id", teamIds).eq("status", "New"),
           ]);
           setOrgStats({
             users: users.length || 0,
             teams: teamIds.length,
             totalTasks: teamTaskCountResult?.count || 0,
             completedTasks: completedTeamTasksResult?.count || 0,
-            newTasks: newTeamTasksResult?.data?.length || 0, // count of only new-status tasks
+            newTasks: newTeamTasksResult?.data?.length || 0,
           });
         }
       } else if (filteredRole === "user") {
@@ -263,13 +262,13 @@ const AdminDashboard = () => {
             .from("tasks")
             .select("id")
             .eq("assigned_to", localUser.id)
-            .eq("status", "new"),
+            .eq("status", "New"),
         ]);
         setUserStats({
           assignedTasks: assignedResult?.count || 0,
           completed: completedResult?.count || 0,
           pending: pendingResult?.count || 0,
-          new: newResult?.data?.length || 0, // count "new" by status properly
+          new: newResult?.data?.length || 0,
         });
       }
 
