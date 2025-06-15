@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 export type TaskActivity = {
   id: string;
   task_id: string;
-  action_type: "created" | "status_changed" | "assigned" | "comment";
+  action_type: "created" | "status_changed" | "assigned" | "comment" | "edit";
   old_value: string | null;
   new_value: string | null;
   acted_by: string | null; // User id

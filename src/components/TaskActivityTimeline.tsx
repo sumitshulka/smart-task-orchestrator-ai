@@ -9,6 +9,8 @@ const typeToColor = (type: string) =>
     ? "bg-blue-100 text-blue-800"
     : type === "assigned"
     ? "bg-violet-100 text-violet-800"
+    : type === "edit"
+    ? "bg-yellow-100 text-yellow-800"
     : "bg-gray-100 text-gray-700";
 
 const actionLabel = (action: TaskActivity) => {
