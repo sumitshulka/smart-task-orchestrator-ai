@@ -85,6 +85,8 @@ const TasksPage: React.FC = () => {
         (task) =>
           // personal tasks assigned to me
           (task.type === "personal" && task.assigned_to === user.id)
+          // OR any tasks (of any type) assigned directly to me
+          || (task.assigned_to === user.id)
           // OR team tasks for my team(s)
           || (task.type === "team" && userTeamIds.includes(task.team_id ?? ""))
       );
