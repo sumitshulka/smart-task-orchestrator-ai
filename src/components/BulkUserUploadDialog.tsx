@@ -212,7 +212,7 @@ const BulkUserUploadDialog = (props: BulkUserUploadDialogProps) => {
             Upload a CSV or XLSX file to add multiple users at once.
           </DialogDescription>
         </DialogHeader>
-        {/* Download sample file button */}
+        {/* Download sample file button restored */}
         <div className="mb-2 flex justify-end">
           <DownloadSampleExcel />
         </div>

@@ -1,4 +1,3 @@
-
 import React from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,12 +37,13 @@ const AdminUsers: React.FC = () => {
   const [editUser, setEditUser] = React.useState<User | null>(null);
   const [users, setUsers] = React.useState<User[]>([]);
   const [debugInfo, setDebugInfo] = React.useState<any>({});
+  const [rawSupabaseData, setRawSupabaseData] = React.useState<any[]>([]);
 
   // For checking session info and admin status
   const { user, loading: sessionLoading } = useSupabaseSession();
 
   // Fetch users using react-query (React Query v5 format)
-  const { isLoading, refetch, error: queryError } = useQuery({
+  const { isLoading, refetch, error: queryError, data: supabaseData } = useQuery({
     queryKey: ["users"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -55,7 +55,8 @@ const AdminUsers: React.FC = () => {
         throw error;
       }
       // Debug: log data for admin
-      console.log("[AdminUsers] Supabase returned users:", data);
+      console.log("[AdminUsers][SUPABASE] users returned from Supabase:", data);
+      setRawSupabaseData(data); // Capture the raw livedata for diagnostics below
       return data || [];
     },
     meta: {
@@ -77,32 +78,47 @@ const AdminUsers: React.FC = () => {
     },
   });
 
-  // Fetch and show admin status based on RLS helper function
+  // Fetch and show admin/manager/roles info using helpers
   React.useEffect(() => {
     const fetchDebug = async () => {
       if (!user) return;
-      // 1. Is admin?
       let adminStatus = false;
-      let respDebug = { };
+      let respDebug: any = {};
       try {
         const { data: resp, error: err } = await supabase.rpc("is_admin", {
           _user_id: user.id,
         });
         if (!err) {
-          adminStatus = resp === true;
+          adminStatus = (resp === true);
         }
-        respDebug = { isAdmin: adminStatus };
+        respDebug.isAdmin = adminStatus;
       } catch (e) {
         respDebug = { isAdmin: false, isAdminCheckError: (e as any).message };
       }
+
+      // User's roles
+      let roleNames: string[] = [];
+      try {
+        const { data: userRoles, error: rolesErr } = await supabase
+          .from("user_roles")
+          .select("role_id,roles(name)")
+          .eq("user_id", user.id);
+        if (!rolesErr && userRoles) {
+          roleNames = userRoles.map((r: any) => r.roles?.name).filter(Boolean);
+        }
+      } catch (e) { /* ignore */ }
+
       setDebugInfo((d: any) => ({
         ...d,
         userEmail: user.email,
         userId: user.id,
         isAdmin: adminStatus,
+        userRoles: roleNames,
+        // Leftover info
         ...respDebug,
       }));
-      // 2. Is manager?
+
+      // 2. Manager status
       try {
         const { data: isManager, error: mErr } = await supabase.rpc("is_manager", {
           _user_id: user.id,
@@ -113,13 +129,9 @@ const AdminUsers: React.FC = () => {
             isManager: isManager === true,
           }));
         }
-      } catch (e) {
-        /* ignore */
-      }
+      } catch (e) { }
     };
-    if (user) {
-      fetchDebug();
-    }
+    if (user) fetchDebug();
   }, [user]);
 
   const fetchUsersAndUpdate = () => {
@@ -157,7 +169,10 @@ const AdminUsers: React.FC = () => {
           <b>Logged-in Email/ID:</b> {debugInfo.userEmail || "(none)"} ({debugInfo.userId?.slice?.(0,8) || ""})
         </div>
         <div>
-          <b>Is Admin:</b> {debugInfo.isAdmin === true ? "YES" : debugInfo.isAdmin === false ? "NO" : "unknown"}
+          <b>Roles from <span className="font-mono">user_roles</span>:</b> {debugInfo.userRoles && debugInfo.userRoles.length > 0 ? debugInfo.userRoles.join(", ") : "(none or not loaded)"}
+        </div>
+        <div>
+          <b>Is Admin (via <span className="font-mono">is_admin</span> RPC):</b> {debugInfo.isAdmin === true ? "YES" : debugInfo.isAdmin === false ? "NO" : "checking..."}
           {debugInfo.isAdminCheckError && (
             <span className="text-red-600 ml-2">[Admin check error: {debugInfo.isAdminCheckError}]</span>
           )}
@@ -166,13 +181,35 @@ const AdminUsers: React.FC = () => {
           <b>Is Manager / Team Manager:</b> {debugInfo.isManager === true ? "YES" : "NO"}
         </div>
         <div>
-          <b>Users loaded:</b> {debugInfo.userCount ?? "(?)"}
+          <b>Users loaded from Supabase:</b> {debugInfo.userCount ?? "(?)"}
           {debugInfo.userSample && (
             <span className="ml-2 text-gray-400">(Sample user: {debugInfo.userSample.email})</span>
           )}
         </div>
+        {rawSupabaseData && rawSupabaseData.length > 0 && (
+          <div>
+            <details>
+              <summary>View <span className="font-mono">users</span> raw data from Supabase ({rawSupabaseData.length} row(s))</summary>
+              <pre style={{ maxHeight: 180, overflowY: "auto" }}>
+                {JSON.stringify(rawSupabaseData, null, 2)}
+              </pre>
+            </details>
+          </div>
+        )}
         {debugInfo.fetchError && (
-          <div className="text-red-600">Fetch Error: {debugInfo.fetchError}</div>
+          <div className="text-red-600">Supabase Fetch Error: {debugInfo.fetchError}</div>
+        )}
+        {(!isLoading && (!rawSupabaseData || rawSupabaseData.length === 0)) && (
+          <div className="text-red-700 font-semibold my-2">
+            No users were loaded from Supabase.<br />
+            Possible causes:
+            <ul className="list-disc ml-4">
+              <li>There are no users in the <span className="font-mono">public.users</span> table.</li>
+              <li>Current RLS policy may be preventing data for your user (even admins).</li>
+              <li>Your admin user may not actually have the correct "admin" role record in <span className="font-mono">user_roles</span>.</li>
+              <li>Check for typos or data inconsistencies.</li>
+            </ul>
+          </div>
         )}
         <div>
           <b>Notes:</b>{" "}
@@ -181,7 +218,7 @@ const AdminUsers: React.FC = () => {
               You only see users you manage or are on your team. Contact an admin to review permissions.
             </span>
           )}
-          {debugInfo.isAdmin === true && users.length === 0 && (
+          {debugInfo.isAdmin === true && (!users || users.length === 0) && (
             <span>
               No users found, even as admin. This may mean there are no users in the database, or a backend/RLS policy error.
             </span>
@@ -298,4 +335,3 @@ const AdminUsers: React.FC = () => {
 };
 
 export default AdminUsers;
-
