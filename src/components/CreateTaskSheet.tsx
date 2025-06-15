@@ -337,6 +337,14 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
     // eslint-disable-next-line
   }, [open, form.type, form.isSubTask]);
 
+  // --- (dependency validation hook) ---
+  const {
+    isInvalidStartDate,
+    canCompleteDependent,
+    dependencyDueDate,
+    loading: dependencyLoading,
+  } = useDependencyConstraintValidation(form.isDependent ? form.dependencyTaskId : undefined);
+
   // --- (dependency selection) ---
   // When dependency selected via dialog, update dependencyTaskId and remember the selected full task
   function handleDependencySelect(task: Task) {
@@ -535,7 +543,6 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
               {form.isDependent && (
                 <div className="mt-2">
                   <label className="block mb-1 text-sm">Dependency Task</label>
-                  {/* --- REPLACE DROPDOWN WITH SEARCH DIALOG BUTTON + DIALOG --- */}
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
@@ -559,7 +566,6 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
                       </button>
                     )}
                   </div>
-                  {/* Hidden input to preserve dependencyTaskId for submit */}
                   <input
                     type="hidden"
                     name="dependencyTaskId"
@@ -572,7 +578,6 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
                     onSelect={handleDependencySelect}
                     excludeTaskId={undefined}
                   />
-                  {/* Optionally, display a small summary below */}
                   {selectedDependencyTask && (
                     <div className="mt-1 text-xs text-muted-foreground">
                       Description: {selectedDependencyTask.description || "—"}
