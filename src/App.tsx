@@ -27,11 +27,12 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <Routes>
+          {/* Make / route go to Dashboard, not User Management */}
           <Route
             path="/"
             element={
               <AdminLayout>
-                <AdminUsers />
+                <AdminDashboard />
               </AdminLayout>
             }
           />

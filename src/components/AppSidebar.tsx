@@ -196,24 +196,25 @@ export default function AppSidebar() {
           <SidebarGroupLabel>Reports</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {/* Only admins and managers can see Task Report for all users */}
-              {(isAdmin || isManager) && (
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={location.pathname.startsWith("/admin/reports/task")}>
-                    <NavLink
-                      to="/admin/reports/task"
-                      end
-                      className={({ isActive }) =>
-                        "flex items-center gap-2 py-1.5 px-2 rounded transition " +
-                        (isActive ? "bg-muted text-primary font-semibold" : "hover:bg-muted/50")
-                      }
-                    >
-                      <FileText className="w-5 h-5" />
-                      <span className="hidden md:inline">Task Report</span>
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              )}
+              {/* Task Report: Now visible to ALL users */}
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={location.pathname.startsWith("/admin/reports/task")}>
+                  <NavLink
+                    to="/admin/reports/task"
+                    end
+                    className={({ isActive }) =>
+                      "flex items-center gap-2 py-1.5 px-2 rounded transition " +
+                      (isActive ? "bg-muted text-primary font-semibold" : "hover:bg-muted/50")
+                    }
+                  >
+                    <FileText className="w-5 h-5" />
+                    <span className="hidden md:inline">
+                      {/* Indicate user context if wanted */}
+                      {isUserOnly ? "My Task Report" : "Task Report"}
+                    </span>
+                  </NavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
               {/* Analytics: visible to everyone */}
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={location.pathname.startsWith("/admin/reports/analytics")}>

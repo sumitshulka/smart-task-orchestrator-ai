@@ -124,15 +124,16 @@ export default function AdminDashboard() {
   const { roles, teams, user, loading: rolesLoading } = useCurrentUserRoleAndTeams();
 
   // Derive role info only ONCE based on roles array (do NOT redeclare or assign 'role' as const within render)
-  const currentRole: Role = roles.includes("admin")
-    ? "admin"
-    : roles.includes("manager")
-    ? "manager"
-    : roles.includes("team_manager")
-    ? "team_manager"
-    : roles.includes("user")
-    ? "user"
-    : "unknown";
+  const currentRole: Role =
+    roles.includes("admin")
+      ? "admin"
+      : roles.includes("manager")
+      ? "manager"
+      : roles.includes("team_manager")
+      ? "team_manager"
+      : roles.includes("user")
+      ? "user"
+      : "unknown";
 
   // Check team assignment
   const isUserAndNoTeams = currentRole === "user" && teams.length === 0;
@@ -406,7 +407,8 @@ export default function AdminDashboard() {
     );
   }
 
-  if (currentRole === "unknown" || !currentRole) {
+  // Fix #2: Only show No Role Assigned if role is actually unknown AND the rolesLoading has finished
+  if ((currentRole === "unknown" || !currentRole) && !rolesLoading) {
     return (
       <div className="max-w-2xl mx-auto text-center mt-16">
         <div className="text-xl font-bold mb-2">No Role Assigned</div>
