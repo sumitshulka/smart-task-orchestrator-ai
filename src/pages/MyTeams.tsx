@@ -105,8 +105,13 @@ const MyTeams = () => {
         let totalTasks = 0;
         let completedTasks = 0;
         if (userIds.length > 0) {
-          // Apply your precise logic as per the SQL shared:
-          // assigned_to IN [userIds], team_id = team.id, type != 'personal'
+          // Debug: log what we are searching for
+          console.log("[MyTeams DEBUG] Querying tasks for team:", {
+            teamId: team.id,
+            teamName: team.name,
+            userIds: userIds,
+          });
+
           const { data: tasks, error: tasksError } = await supabase
             .from("tasks")
             .select("id,status,type,team_id,assigned_to")
@@ -114,13 +119,34 @@ const MyTeams = () => {
             .eq("team_id", team.id)
             .neq("type", "personal");
 
+          // Debug: log exactly what was returned
+          console.log("[MyTeams DEBUG] Received tasks for team:", {
+            teamId: team.id,
+            teamName: team.name,
+            taskCount: tasks?.length,
+            tasks: tasks,
+            queryParams: {
+              assigned_to: userIds,
+              team_id: team.id,
+              type_ne: 'personal'
+            },
+            error: tasksError
+          });
+
           if (tasksError) {
             console.error(`[MyTeams] tasks fetch error for team ${team.name}`, tasksError);
-          } else {
+          } else if (tasks) {
             totalTasks = tasks.length;
             completedTasks = tasks.filter(
               (t: any) => String(t.status || "").toLowerCase() === "completed"
             ).length;
+
+            // Debug: log result calculation
+            console.log("[MyTeams DEBUG] Task calculations for team:", {
+              teamId: team.id,
+              totalTasks,
+              completedTasks
+            });
           }
         }
 
