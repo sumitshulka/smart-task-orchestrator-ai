@@ -140,6 +140,13 @@ export type Database = {
             foreignKeyName: "subtasks_task_id_fkey"
             columns: ["task_id"]
             isOneToOne: false
+            referencedRelation: "tasks_report_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subtasks_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
             referencedRelation: "tasks_with_extras"
             referencedColumns: ["id"]
           },
@@ -192,6 +199,13 @@ export type Database = {
             foreignKeyName: "task_activity_task_id_fkey"
             columns: ["task_id"]
             isOneToOne: false
+            referencedRelation: "tasks_report_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_activity_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
             referencedRelation: "tasks_with_extras"
             referencedColumns: ["id"]
           },
@@ -231,6 +245,13 @@ export type Database = {
             columns: ["task_id"]
             isOneToOne: false
             referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_attachments_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks_report_view"
             referencedColumns: ["id"]
           },
           {
@@ -277,6 +298,13 @@ export type Database = {
             foreignKeyName: "task_dependencies_depends_on_task_id_fkey"
             columns: ["depends_on_task_id"]
             isOneToOne: false
+            referencedRelation: "tasks_report_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_dependencies_depends_on_task_id_fkey"
+            columns: ["depends_on_task_id"]
+            isOneToOne: false
             referencedRelation: "tasks_with_extras"
             referencedColumns: ["id"]
           },
@@ -285,6 +313,13 @@ export type Database = {
             columns: ["task_id"]
             isOneToOne: false
             referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_dependencies_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks_report_view"
             referencedColumns: ["id"]
           },
           {
@@ -328,6 +363,13 @@ export type Database = {
             columns: ["task_id"]
             isOneToOne: false
             referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_group_tasks_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks_report_view"
             referencedColumns: ["id"]
           },
           {
@@ -639,6 +681,40 @@ export type Database = {
       }
     }
     Views: {
+      tasks_report_view: {
+        Row: {
+          actual_completion_date: string | null
+          assignee_department: string | null
+          assignee_email: string | null
+          assignee_manager: string | null
+          assignee_name: string | null
+          created_at: string | null
+          creator_department: string | null
+          creator_email: string | null
+          creator_manager: string | null
+          creator_name: string | null
+          description: string | null
+          due_date: string | null
+          estimated_hours: number | null
+          id: string | null
+          priority: number | null
+          start_date: string | null
+          status: string | null
+          team_id: string | null
+          title: string | null
+          type: string | null
+          updated_at: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tasks_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tasks_with_extras: {
         Row: {
           actual_completion_date: string | null
