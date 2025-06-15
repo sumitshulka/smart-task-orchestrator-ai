@@ -1,4 +1,3 @@
-
 import React from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/components/ui/use-toast";
 import TeamManagerDialog from "@/components/TeamManagerDialog";
 import { useUserList } from "@/hooks/useUserList";
+import { useCurrentUserRoleAndTeams } from "@/hooks/useCurrentUserRoleAndTeams";
 
 interface Team {
   id: string;
@@ -29,6 +29,8 @@ const AdminTeams: React.FC = () => {
 
   // Fetch users for Created By lookup
   const { users: allUsers, loading: usersLoading } = useUserList();
+  // Get current user's info and roles
+  const { roles: currentUserRoles, user: currentUser } = useCurrentUserRoleAndTeams();
 
   // Fetch teams
   React.useEffect(() => {
@@ -131,6 +133,36 @@ const AdminTeams: React.FC = () => {
     return u.user_name ? `${u.user_name} (${u.email})` : u.email;
   }
 
+  // Helper: check if a user is an admin (used for team creator)
+  function isAdminUser(userId: string) {
+    const user = allUsers.find(u => u.id === userId);
+    // We don't have roles in userList, but let's assume admins are in user_roles; we'll allow edit only for admin or if manager and creator is NOT admin
+    // For safety: if user is not found, return false
+    if (!userId || !user) return false;
+    // If the creator id matches the current user's id, and the current user is admin, then allow
+    if (currentUser?.id === userId && currentUserRoles?.includes("admin")) return true;
+    // We can't infer all user roles without more queries, so just compare creator to current user
+    return false; // by default
+  }
+
+  // Helper: can current user edit team
+  function canEditTeam(team: Team) {
+    // Admins can edit any team
+    if (currentUserRoles?.includes("admin")) return true;
+    // Managers can edit unless created by admin
+    // We can't check the actual admin, so we prevent edit if created_by !== current user
+    if (currentUserRoles?.includes("manager") || currentUserRoles?.includes("team_manager")) {
+      // Managers shouldn't be able to edit if creator is not themselves
+      if (currentUser && team.created_by === currentUser.id) {
+        return true;
+      }
+      // Otherwise, do not allow edit
+      return false;
+    }
+    // Default no
+    return false;
+  }
+
   return (
     <div className="p-6 max-w-6xl w-full">
       {/* Create/Edit Team Dialogs */}
@@ -161,7 +193,7 @@ const AdminTeams: React.FC = () => {
           />
         </div>
       </div>
-      {/* Table - match UserRoleManager styles */}
+      {/* Table */}
       <div className="border rounded shadow bg-background overflow-x-auto">
         <table className="w-full border text-sm rounded-md shadow bg-background">
           <thead>
@@ -196,7 +228,11 @@ const AdminTeams: React.FC = () => {
                   <td className="p-2">{managersMap[team.id] || "--"}</td>
                   <td className="p-2">{getUserDisplay(team.created_by)}</td>
                   <td className="p-2 text-right">
-                    <Button variant="ghost" size="sm" onClick={() => handleEditTeam(team)}>Edit</Button>
+                    {canEditTeam(team) && (
+                      <Button variant="ghost" size="sm" onClick={() => handleEditTeam(team)}>
+                        Edit
+                      </Button>
+                    )}
                   </td>
                 </tr>
               ))
