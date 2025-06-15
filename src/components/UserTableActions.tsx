@@ -1,6 +1,7 @@
 import React from "react";
 import { MoreVertical, User, Edit, UserCheck, UserX } from "lucide-react";
 import EditUserDialog from "./EditUserDialog";
+import ResetUserPasswordDialog from "./ResetUserPasswordDialog";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -25,7 +26,9 @@ interface UserTableActionsProps {
 }
 
 const UserTableActions: React.FC<UserTableActionsProps> = ({ user, onEdit }) => {
-  // Handlers: just alert for now; you can implement modals per need
+  // Dialog open state for password reset
+  const [resetDialogOpen, setResetDialogOpen] = React.useState(false);
+
   function handleEditUser() {
     onEdit(user);
   }
@@ -36,39 +39,59 @@ const UserTableActions: React.FC<UserTableActionsProps> = ({ user, onEdit }) => 
     alert(`${user.is_active ? "Deactivate" : "Activate"}: ${user.user_name || user.id}`);
   }
 
+  function handleResetPassword() {
+    setResetDialogOpen(true);
+  }
+
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="h-7 w-7 px-0">
-          <MoreVertical className="w-4 h-4" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" sideOffset={8} className="min-w-[160px]">
-        <DropdownMenuLabel>Actions</DropdownMenuLabel>
-        <DropdownMenuItem onClick={handleEditUser}>
-          <Edit className="w-4 h-4 mr-2" />
-          Edit User
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={handleEditRole}>
-          <User className="w-4 h-4 mr-2" />
-          Edit Role
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={handleToggleActive} className={user.is_active ? "text-destructive" : "text-green-600"}>
-          {user.is_active ? (
-            <>
-              <UserX className="w-4 h-4 mr-2" />
-              Deactivate
-            </>
-          ) : (
-            <>
-              <UserCheck className="w-4 h-4 mr-2" />
-              Activate
-            </>
-          )}
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="icon" className="h-7 w-7 px-0">
+            <MoreVertical className="w-4 h-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" sideOffset={8} className="min-w-[180px]">
+          <DropdownMenuLabel>Actions</DropdownMenuLabel>
+          <DropdownMenuItem onClick={handleEditUser}>
+            <Edit className="w-4 h-4 mr-2" />
+            Edit User
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={handleEditRole}>
+            <User className="w-4 h-4 mr-2" />
+            Edit Role
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={handleToggleActive} className={user.is_active ? "text-destructive" : "text-green-600"}>
+            {user.is_active ? (
+              <>
+                <UserX className="w-4 h-4 mr-2" />
+                Deactivate
+              </>
+            ) : (
+              <>
+                <UserCheck className="w-4 h-4 mr-2" />
+                Activate
+              </>
+            )}
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={handleResetPassword}>
+            <span className="inline-flex items-center">
+              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path d="M12 15v2m0 4v-2m6.364-1.636A9 9 0 103 12.055M21 12a8.966 8.966 0 01-1.636 5.364"></path></svg>
+              Reset Password
+            </span>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      {/* Dialog for reset password */}
+      <ResetUserPasswordDialog
+        open={resetDialogOpen}
+        onOpenChange={setResetDialogOpen}
+        userId={user.id}
+        userEmail={user.email}
+      />
+    </>
   );
 };
 
