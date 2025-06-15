@@ -79,7 +79,11 @@ export async function fetchTaskGroupDetails(groupId: string) {
     .select("*")
     .eq("id", groupId)
     .maybeSingle();
+
   if (error) throw error;
+  if (!group || typeof group !== "object") {
+    throw new Error("Group not found or invalid group data.");
+  }
 
   // get all attached tasks with details
   const { data: links } = await supabase
