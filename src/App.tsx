@@ -18,6 +18,7 @@ import AdminDashboard from "./pages/AdminDashboard";
 import TaskReport from "@/pages/TaskReport";
 import AnalyticsReport from "@/pages/AnalyticsReport";
 import TaskGroupsPage from "./pages/TaskGroups";
+import MyTeams from "./pages/MyTeams";
 
 const queryClient = new QueryClient();
 
@@ -124,6 +125,15 @@ const App = () => (
             element={
               <AdminLayout>
                 <AnalyticsReport />
+              </AdminLayout>
+            }
+          />
+          {/* My Teams page for plain users */}
+          <Route
+            path="/my-teams"
+            element={
+              <AdminLayout>
+                <MyTeams />
               </AdminLayout>
             }
           />

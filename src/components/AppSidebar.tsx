@@ -65,6 +65,24 @@ export default function AppSidebar() {
                   </NavLink>
                 </SidebarMenuButton>
               </SidebarMenuItem>
+              {/* Show My Teams for plain users */}
+              {isUserOnly && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={location.pathname.startsWith("/my-teams")}>
+                    <NavLink
+                      to="/my-teams"
+                      end
+                      className={({ isActive }) =>
+                        "flex items-center gap-2 py-1.5 px-2 rounded transition " +
+                        (isActive ? "bg-muted text-primary font-semibold" : "hover:bg-muted/50")
+                      }
+                    >
+                      <Users2 className="w-5 h-5" />
+                      <span className="hidden md:inline">My Teams</span>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
@@ -255,4 +273,4 @@ export default function AppSidebar() {
   );
 }
 
-// NOTE: src/components/AppSidebar.tsx is now 211+ lines long; consider splitting out menu logic if you want maintainability.
+// NOTE: src/components/AppSidebar.tsx is now 259 lines long. Consider splitting out menu logic if you want maintainability.
