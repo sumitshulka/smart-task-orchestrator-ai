@@ -97,9 +97,20 @@ export async function fetchTaskGroupDetails(groupId: string) {
     tasks = taskData ?? [];
   }
 
-  // Only spread group if it's a valid object
+  // Defensive guard: check group has required TaskGroup shape before spreading
+  const validGroup =
+    group &&
+    typeof group === "object" &&
+    "id" in group &&
+    "name" in group &&
+    "visibility" in group &&
+    "owner_id" in group &&
+    "created_at" in group
+      ? group
+      : {};
+
   return {
-    ...(group && typeof group === "object" ? group : {}),
+    ...validGroup,
     tasks: Array.isArray(tasks) ? tasks.map(t => ({ task: t })) : [],
   };
 }
