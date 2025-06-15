@@ -562,12 +562,18 @@ const AdminDashboard = () => {
         managersWithoutTeams.length > 0 &&
         showManagersNoTeamsAlert && (
           <Alert variant="destructive" className="mb-6 flex items-start relative pr-9">
-            <X
-              className="absolute top-4 right-4 cursor-pointer"
-              size={20}
-              onClick={() => setShowManagersNoTeamsAlert(false)}
+            <button
+              type="button"
+              className="absolute top-3.5 right-4 cursor-pointer rounded-full p-1 hover:bg-red-100 focus:bg-red-200 focus:outline-none transition"
               aria-label="Dismiss"
-            />
+              tabIndex={0}
+              onClick={() => {
+                console.log("Dismiss managers alert clicked");
+                setShowManagersNoTeamsAlert(false);
+              }}
+            >
+              <X size={20} />
+            </button>
             <div>
               <AlertTitle>
                 Some managers are not assigned to any team
