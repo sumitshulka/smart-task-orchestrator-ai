@@ -286,6 +286,28 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
           </SheetHeader>
           {/* MAIN FIELDS */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Row 1: Task Title - full width */}
+            <div className="sm:col-span-2">
+              <label className="block mb-1 font-medium">Task Title</label>
+              <Input
+                name="title"
+                value={form.title}
+                onChange={handleChange}
+                required
+                placeholder="Enter task title"
+              />
+            </div>
+            {/* Row 2: Description - full width */}
+            <div className="sm:col-span-2">
+              <label className="block mb-1 font-medium">Description</label>
+              <Textarea
+                name="description"
+                value={form.description}
+                onChange={handleChange}
+                placeholder="Task description"
+              />
+            </div>
+            {/* Row 3: Type & Priority - side by side */}
             <div>
               <label className="block mb-1 font-medium">Type</label>
               <select
@@ -300,16 +322,6 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
               </select>
             </div>
             <div>
-              <label className="block mb-1 font-medium">Task Title</label>
-              <Input
-                name="title"
-                value={form.title}
-                onChange={handleChange}
-                required
-                placeholder="Enter task title"
-              />
-            </div>
-            <div>
               <label className="block mb-1 font-medium">Priority</label>
               <select
                 name="priority"
@@ -322,15 +334,7 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
                 ))}
               </select>
             </div>
-            <div className="sm:col-span-2">
-              <label className="block mb-1 font-medium">Description</label>
-              <Textarea
-                name="description"
-                value={form.description}
-                onChange={handleChange}
-                placeholder="Task description"
-              />
-            </div>
+            {/* Rest of the form fields as before */}
             <div>
               <label className="block mb-1 font-medium">Start Date</label>
               <Input
