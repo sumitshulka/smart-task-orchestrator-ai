@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import DownloadSampleExcel from "@/components/DownloadSampleExcel";
+import BulkUserUploadPreviewTable from "@/components/BulkUserUploadPreviewTable";
 
 interface BulkUserUploadDialogProps {
   open: boolean;
@@ -28,6 +29,9 @@ const BulkUserUploadDialog = (props: BulkUserUploadDialogProps) => {
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = React.useState(false);
   const [errorRows, setErrorRows] = React.useState<string[]>([]);
+  const [parsedUsers, setParsedUsers] = React.useState<any[]>([]);
+  const [previewHeaders, setPreviewHeaders] = React.useState<string[]>([]);
+  const [readyToUpload, setReadyToUpload] = React.useState(false);
 
   // Fetch all emails in the system when dialog opens
   const [existingEmails, setExistingEmails] = React.useState<string[]>([]);
@@ -130,148 +134,151 @@ const BulkUserUploadDialog = (props: BulkUserUploadDialogProps) => {
 
   // Add validation before uploading
   async function handleFile(file: File) {
+    setParsedUsers([]);
+    setPreviewHeaders([]);
+    setErrorRows([]);
+    setReadyToUpload(false);
+
     let parsedRows: any[] = [];
     try {
       parsedRows = await parseFile(file);
-      toast({
-        title: "File loaded",
-        description: `Loaded ${parsedRows.length} user${parsedRows.length !== 1 ? "s" : ""} from the file.`,
-      });
+      if (!Array.isArray(parsedRows) || parsedRows.length === 0) {
+        toast({ title: "No data", description: "The file appears empty." });
+        resetFileInput();
+        return;
+      }
+      const headers = Object.keys(parsedRows[0]);
+      setPreviewHeaders(headers);
     } catch (e) {
       // Parsing error already handled by parseFile toasts.
       return;
     }
 
-    // Email uniqueness check (within upload)
+    // Validate each row: check email validity, duplication (self), duplication (system)
     const seen = new Set();
-    const duplicateEmailsSelf: string[] = [];
-    parsedRows.forEach(row => {
-      const email = row.email && row.email.toLowerCase && row.email.toLowerCase();
-      if (!email) return;
-      if (seen.has(email)) {
-        duplicateEmailsSelf.push(email);
-      } else {
-        seen.add(email);
+    const sysDup = new Set(existingEmails);
+    const emailRegex = /^[\w.-]+@[\w.-]+\.\w+$/;
+    const email2Rows = new Map();
+
+    // Map for marking row status
+    const previewRows = parsedRows.map((row, idx) => {
+      let msg = "";
+      let status = "valid";
+      let email = row.email && row.email.toLowerCase && row.email.toLowerCase();
+      if (!email) {
+        status = "invalid"; msg = "Missing email";
+      } else if (!emailRegex.test(email)) {
+        status = "invalid"; msg = "Invalid email format";
+      } else if (sysDup.has(email)) {
+        status = "exists"; msg = "Already exists in system";
+      } else if (seen.has(email)) {
+        status = "duplicate"; msg = "Duplicate in file";
       }
+      if (email) {
+        email2Rows.has(email) ? email2Rows.get(email).push(idx) : email2Rows.set(email, [idx]);
+      }
+      seen.add(email);
+      return { ...row, _status: status, _message: msg };
     });
 
-    // Email uniqueness check (against system)
-    const duplicateEmailsSystem: string[] = [];
-    parsedRows.forEach(row => {
-      const email = row.email && row.email.toLowerCase && row.email.toLowerCase();
-      if (!email) return;
-      if (existingEmails.includes(email)) {
-        duplicateEmailsSystem.push(email);
-      }
+    setParsedUsers(previewRows);
+    setReadyToUpload(previewRows.some(r => r._status === "valid")); // Only enable upload if at least one valid
+    toast({
+      title: "File loaded",
+      description: `Loaded ${previewRows.length} record${previewRows.length !== 1 ? "s" : ""}.`,
     });
+  }
 
-    if (duplicateEmailsSelf.length > 0 || duplicateEmailsSystem.length > 0) {
-      setErrorRows([...new Set([...duplicateEmailsSelf, ...duplicateEmailsSystem])]);
-      toast({
-        title: "Duplicate Emails Detected",
-        description:
-          (duplicateEmailsSelf.length > 0
-            ? `The following emails are duplicated in your file: ${duplicateEmailsSelf.join(", ")}. `
-            : "") +
-          (duplicateEmailsSystem.length > 0
-            ? `These emails already exist in the system: ${duplicateEmailsSystem.join(", ")}. `
-            : ""),
-        variant: "destructive",
-      });
-      resetFileInput();
+  // Only upload after user confirms
+  const tryUpload = async () => {
+    setUploading(true);
+    const toUpload = parsedUsers.filter(row => row._status === "valid");
+    if (toUpload.length === 0) {
+      toast({ title: "Nothing to upload", description: "Fix errors before uploading.", variant: "destructive" });
+      setUploading(false);
       return;
     }
 
-    setErrorRows([]);
-    setUploading(true);
     toast({
       title: "Uploading users",
-      description: `Uploading ${parsedRows.length} user${parsedRows.length !== 1 ? "s" : ""} to the server...`,
+      description: `Uploading ${toUpload.length} user${toUpload.length !== 1 ? "s" : ""} to the server...`,
     });
 
     try {
-      // ----- KEY CHANGE: POST to Supabase Function URL -----
       const response = await fetch(SUPABASE_FUNCTION_URL, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ users: parsedRows }),
+        body: JSON.stringify({ users: toUpload }),
       });
 
+      let serverResp: any = {};
+      try {
+        serverResp = await response.json();
+      } catch (_) {
+        serverResp = {};
+      }
+
+      let errorDescription: string | undefined;
       if (!response.ok) {
-        let errorDescription: string;
-        try {
-          const data = await response.json();
-          errorDescription = data?.error || `Upload failed with status ${response.status}`;
-        } catch (_) {
-          errorDescription = `Upload failed with status ${response.status}`;
+        errorDescription = serverResp?.error || `Upload failed with status ${response.status}`;
+        if (response.status === 401) {
+          errorDescription += " (Unauthorized. Check your Supabase Service Role Key and function deployment.)";
         }
         toast({
           title: "Bulk upload failed",
-          description: errorDescription +
-            (response.status === 404
-              ? " (Check that the Supabase Edge Function is deployed and the project_ref in the URL is correct.)"
-              : ""),
+          description: `Status ${response.status}: ${errorDescription}`,
           variant: "destructive",
         });
         setUploading(false);
-        resetFileInput();
         return;
       }
 
-      let data: any = {};
-      try {
-        data = await response.json();
-      } catch (e) {
-        data = {};
-      }
-      if (data.error) {
-        toast({
-          title: "Bulk upload failed",
-          description: data.error,
-          variant: "destructive",
-        });
-      } else {
-        toast({
-          title: data.status === "partial"
+      // Success or partial
+      toast({
+        title:
+          serverResp.status === "partial"
             ? "Bulk upload partially successful"
             : "Bulk upload successful",
-          description: data.message ||
-            `Successfully added ${data.inserted} user${data.inserted !== 1 ? "s" : ""}.` +
-            (data.skipped && data.skipped > 0
-              ? ` Skipped ${data.skipped} duplicate${data.skipped !== 1 ? "s" : ""}.`
+        description:
+          serverResp.message ||
+          `Successfully added ${serverResp.inserted} user${serverResp.inserted !== 1 ? "s" : ""}.` +
+            (serverResp.skipped && serverResp.skipped > 0
+              ? ` Skipped ${serverResp.skipped} duplicate${serverResp.skipped !== 1 ? "s" : ""}.`
               : ""),
-        });
-        onUsersUploaded?.();
-        onOpenChange(false);
-      }
+      });
+      setParsedUsers([]);
+      setReadyToUpload(false);
+      setPreviewHeaders([]);
+      onUsersUploaded?.();
+      onOpenChange(false);
     } catch (error: any) {
       toast({
         title: "Bulk upload failed",
-        description: error && error.message ? error.message : "An unexpected error occurred (could not reach server).",
+        description: error?.message ? error.message : "An unexpected error occurred.",
         variant: "destructive",
       });
     } finally {
       setUploading(false);
       resetFileInput();
     }
-  }
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[650px]">
         <DialogHeader>
           <DialogTitle>Bulk User Upload</DialogTitle>
           <DialogDescription>
-            Upload a CSV or XLSX file to add multiple users at once.
+            Upload a CSV or XLSX file to add multiple users. You can review and confirm before uploading.
           </DialogDescription>
         </DialogHeader>
         {/* Download sample file button restored */}
         <div className="mb-2 flex justify-end">
           <DownloadSampleExcel />
         </div>
-        <div className="grid gap-4 py-4">
+        <div className="grid gap-2 py-4">
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="file" className="text-right">
               File
@@ -291,6 +298,14 @@ const BulkUserUploadDialog = (props: BulkUserUploadDialogProps) => {
             />
           </div>
         </div>
+        {parsedUsers && parsedUsers.length > 0 && (
+          <div>
+            <p className="text-sm mb-1">
+              Review parsed records (only <span className="font-bold">"Valid"</span> records will be uploaded):
+            </p>
+            <BulkUserUploadPreviewTable users={parsedUsers} headers={previewHeaders} />
+          </div>
+        )}
         {errorRows.length > 0 && (
           <div className="bg-destructive/10 text-destructive px-3 py-2 rounded my-2 text-sm">
             Duplicate emails: {errorRows.join(", ")}
@@ -300,7 +315,11 @@ const BulkUserUploadDialog = (props: BulkUserUploadDialogProps) => {
           <Button type="button" variant="secondary" onClick={() => onOpenChange(false)} disabled={uploading}>
             Cancel
           </Button>
-          <Button type="button" disabled={uploading} onClick={() => fileInputRef.current?.click()}>
+          <Button
+            type="button"
+            disabled={uploading || !readyToUpload}
+            onClick={tryUpload}
+          >
             {uploading ? "Uploading..." : "Upload"}
           </Button>
         </DialogFooter>
