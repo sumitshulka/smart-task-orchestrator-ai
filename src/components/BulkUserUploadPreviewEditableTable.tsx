@@ -71,35 +71,30 @@ export const BulkUserUploadPreviewEditableTable: React.FC<BulkUserUploadPreviewE
 }) => {
   if (!users || users.length === 0) return null;
 
-  // Refined scroll approach: 
-  // We want the scroll *inside* the modal boundaries.
-  // So we enforce the outer container to fit modal, and table min-width for content.
+  // "Classic" scroll pattern for modals: scroll inside container, table grows with content
   return (
     <TooltipProvider delayDuration={150}>
-      {/* RESPONSIVE SCROLLABLE CONTAINER */}
+      {/* SCROLLABLE TABLE CONTAINER, NEVER OVERFLOW MODAL */}
       <div
         className="
-          w-full 
+          w-full
           max-w-full
-          overflow-x-auto          /* <-- outer horizontal scroll if needed */
+          overflow-x-auto
           overflow-y-auto
           border rounded-xl shadow-inner bg-white ring-1 ring-border/40
           mt-2 mb-2
         "
         style={{
-          // Make sure we never overflow modal (650px = dialog default)
           maxHeight: 360,
-          // if modal max-w is 650px, we keep slightly less, let dialog padding provide rest
-          maxWidth: '100%',
-          minWidth: 0,
+          maxWidth: "100%",
         }}
         tabIndex={-1}
       >
         <table
           className="
-            border-collapse 
-            min-w-[900px]           /* Table itself has minimum width for full columns */
-            w-full                  /* Table will always fill container horizontally */
+            border-collapse
+            min-w-[900px]    /* Table wants at least this width */
+            w-max            /* Grow wider than viewport, but scroll not squish */
             bg-white
           "
         >
@@ -158,7 +153,6 @@ export const BulkUserUploadPreviewEditableTable: React.FC<BulkUserUploadPreviewE
                             : "bg-white border-border",
                           "focus-within:outline focus-within:outline-2 focus-within:outline-primary"
                         )}
-                        // Let the content drive width. No forced col widths.
                       >
                         {(h === "email" ||
                           h.toLowerCase().includes("name") ||
