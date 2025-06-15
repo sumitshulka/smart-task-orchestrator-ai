@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 
 // Types
@@ -54,13 +53,12 @@ export async function fetchTaskGroups(): Promise<TaskGroup[]> {
 export async function createTaskGroup(
   input: Pick<TaskGroup, "name" | "description" | "visibility">
 ): Promise<TaskGroup> {
-  // Get user id for owner_id, fallback null for SSR
-  let user_id = null;
-  if (typeof window !== "undefined" && (window as any).supabase) {
-    const { data: sessionData } = await (window as any).supabase.auth.getSession();
-    user_id = sessionData.session?.user?.id ?? null;
+  // Always use supabase client to get the logged-in user
+  const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+  if (sessionError || !sessionData.session?.user?.id) {
+    throw new Error("You must be signed in to create a task group.");
   }
-  // If user_id not found, just insert as is (frontend will catch error) -- real logic should set owner_id
+  const user_id = sessionData.session.user.id;
   const insertObj: any = {
     ...input,
     visibility: parseVisibility(input.visibility as string),
@@ -135,4 +133,3 @@ export async function assignTaskToGroup({ group_id, task_id }: { group_id: strin
   if (error) throw error;
   return data;
 }
-
