@@ -1,3 +1,4 @@
+
 import React from "react";
 import {
   Table,
@@ -71,7 +72,7 @@ export const BulkUserUploadPreviewEditableTable: React.FC<BulkUserUploadPreviewE
 }) => {
   if (!users || users.length === 0) return null;
 
-  // Controls to add subtle shadow on the table head when scrolling vertically
+  // Scroll shadow effect for modal table head
   const tableWrapperRef = React.useRef<HTMLDivElement>(null);
   const [scrolled, setScrolled] = React.useState(false);
 
@@ -85,56 +86,56 @@ export const BulkUserUploadPreviewEditableTable: React.FC<BulkUserUploadPreviewE
 
   return (
     <TooltipProvider delayDuration={150}>
+      {/* OUTER SCROLL CONTAINER: scrolls on X if table is wide, fits modal */}
       <div
         ref={tableWrapperRef}
         className={cn(
-          "relative border rounded-xl shadow-inner bg-white",
-          "w-full max-w-full",
-          "max-h-[360px]",
-          "overflow-x-auto overflow-y-auto",
+          "border rounded-xl shadow-inner bg-white ring-1 ring-border/40",
           "mt-2 mb-2",
-          "ring-1 ring-border/40"
+          "max-h-[360px]", // vertical scroll, capped for modal
+          "overflow-x-auto overflow-y-auto", // enable both scrolls
         )}
         style={{
-          minWidth: 0,
+          width: "100%",
           maxWidth: "100%",
+          minWidth: 0,
         }}
         tabIndex={-1}
       >
-        <Table
+        <table
           className={cn(
-            "w-full min-w-[900px] border-collapse", // Ensures enough starting width for grid
-            "table-auto" // Let columns adjust naturally
+            // Set the min-width to ensure **all columns visible**.
+            "min-w-[900px] w-max border-collapse",
+            "table-auto"
           )}
         >
-          <TableHeader>
-            <TableRow
+          <thead>
+            <tr
               className={cn(
                 "bg-muted/80 sticky top-0 z-10",
                 scrolled ? "shadow-md shadow-muted/30" : ""
               )}
             >
               {headers.map((h) => (
-                <TableHead
+                <th
                   key={h}
                   className={cn(
-                    "py-3 px-4 font-semibold border-b border-border text-xs uppercase tracking-wider text-muted-foreground bg-muted/80",
-                    "whitespace-nowrap"
+                    "py-3 px-4 font-semibold border-b border-border text-xs uppercase tracking-wider text-muted-foreground bg-muted/80 whitespace-nowrap",
                   )}
                   style={{ background: "inherit" }}
                 >
                   {h.replace(/_/g, " ")}
-                </TableHead>
+                </th>
               ))}
-              <TableHead className="py-3 px-4 border-b border-border text-xs uppercase tracking-wider bg-muted/80">
+              <th className="py-3 px-4 border-b border-border text-xs uppercase tracking-wider bg-muted/80 whitespace-nowrap">
                 Status
-              </TableHead>
-              <TableHead className="py-3 px-4 border-b border-border text-xs uppercase tracking-wider bg-muted/80">
+              </th>
+              <th className="py-3 px-4 border-b border-border text-xs uppercase tracking-wider bg-muted/80 whitespace-nowrap">
                 Message
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
             {users.map((row, idx) => {
               const status = row._status;
               const rowIsInvalid = status === "invalid";
@@ -149,7 +150,7 @@ export const BulkUserUploadPreviewEditableTable: React.FC<BulkUserUploadPreviewE
                 "group"
               );
               return (
-                <TableRow
+                <tr
                   key={idx}
                   className={cn(rowClass, "hover:bg-accent")}
                 >
@@ -161,7 +162,7 @@ export const BulkUserUploadPreviewEditableTable: React.FC<BulkUserUploadPreviewE
                       error || (row._status === "invalid" && row._message && cellIdx === 0);
 
                     return (
-                      <TableCell
+                      <td
                         key={h}
                         className={cn(
                           "px-4 py-2 align-middle border-b border-border relative",
@@ -172,7 +173,7 @@ export const BulkUserUploadPreviewEditableTable: React.FC<BulkUserUploadPreviewE
                             : "bg-white border-border",
                           "focus-within:outline focus-within:outline-2 focus-within:outline-primary"
                         )}
-                        // DO NOT force min/max widths inline here!
+                        // No forced widths, let table and scroll handle
                       >
                         {(h === "email" ||
                           h.toLowerCase().includes("name") ||
@@ -182,7 +183,8 @@ export const BulkUserUploadPreviewEditableTable: React.FC<BulkUserUploadPreviewE
                               "rounded-md bg-white transition border",
                               cellWithError
                                 ? "border-red-500 focus:ring-red-500 focus:border-red-500"
-                                : "focus:border-primary focus:ring-primary"
+                                : "focus:border-primary focus:ring-primary",
+                              "w-full min-w-[160px]" // Ensure input not squished
                             )}
                             value={row[h] ?? ""}
                             onChange={(e) => {
@@ -191,7 +193,6 @@ export const BulkUserUploadPreviewEditableTable: React.FC<BulkUserUploadPreviewE
                             placeholder={`Enter ${h}`}
                             aria-invalid={!!cellWithError}
                             aria-label={h}
-                            // Do not force width via style; let flex/grid handle it
                           />
                         ) : (
                           <span className="truncate block overflow-hidden text-foreground">
@@ -221,17 +222,17 @@ export const BulkUserUploadPreviewEditableTable: React.FC<BulkUserUploadPreviewE
                             </Tooltip>
                           </span>
                         )}
-                      </TableCell>
+                      </td>
                     );
                   })}
                   {/* Status cell */}
-                  <TableCell
+                  <td
                     className="px-4 py-2 align-middle border-b border-border whitespace-nowrap"
                   >
                     {statusDisplay(row._status)}
-                  </TableCell>
+                  </td>
                   {/* Message cell: icon + tooltip for errors */}
-                  <TableCell className="px-4 py-2 align-middle border-b border-border">
+                  <td className="px-4 py-2 align-middle border-b border-border whitespace-nowrap">
                     {!!row._message ? (
                       <div className="flex items-center gap-1">
                         <Tooltip>
@@ -262,12 +263,12 @@ export const BulkUserUploadPreviewEditableTable: React.FC<BulkUserUploadPreviewE
                     ) : (
                       <span className="text-muted-foreground">--</span>
                     )}
-                  </TableCell>
-                </TableRow>
+                  </td>
+                </tr>
               );
             })}
-          </TableBody>
-        </Table>
+          </tbody>
+        </table>
       </div>
     </TooltipProvider>
   );
@@ -276,3 +277,4 @@ export const BulkUserUploadPreviewEditableTable: React.FC<BulkUserUploadPreviewE
 export default BulkUserUploadPreviewEditableTable;
 
 // END. This file is now quite long (~280+ lines). Consider refactoring into smaller components/hooks for maintainability.
+
