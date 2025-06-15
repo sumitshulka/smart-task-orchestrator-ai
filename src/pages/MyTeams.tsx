@@ -105,11 +105,13 @@ const MyTeams = () => {
         let totalTasks = 0;
         let completedTasks = 0;
         if (userIds.length > 0) {
+          // Apply your precise logic as per the SQL shared:
+          // assigned_to IN [userIds], team_id = team.id, type != 'personal'
           const { data: tasks, error: tasksError } = await supabase
             .from("tasks")
             .select("id,status,type,team_id,assigned_to")
-            .eq("team_id", team.id)
             .in("assigned_to", userIds)
+            .eq("team_id", team.id)
             .neq("type", "personal");
 
           if (tasksError) {
