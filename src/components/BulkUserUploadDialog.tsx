@@ -65,9 +65,16 @@ const BulkUserUploadDialog = (props: BulkUserUploadDialogProps) => {
     return { ...row, _status: status, _message: msg };
   }
 
+  // Add the missing resetFileInput function
+  function resetFileInput() {
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  }
+
   // Update a row and revalidate it, then update setParsedUsers/reactive state
   const handleUpdateRow = (idx: number, newRow: any) => {
-    const seen = new Set();
+    const seen = new Set<string>();
     const lowerExisting = existingEmails.map(e => e.toLowerCase());
     const updated = parsedUsers.map((row, i) => {
       if (i === idx) {
@@ -186,7 +193,7 @@ const BulkUserUploadDialog = (props: BulkUserUploadDialogProps) => {
       return;
     }
 
-    const seen = new Set();
+    const seen = new Set<string>();
     const lowerExisting = existingEmails.map(e => e.toLowerCase());
     const previewRows = parsedRows.map((row) => {
       const validated = validateRow(row, lowerExisting, seen);
