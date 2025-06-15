@@ -94,6 +94,10 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
   const [taskGroups, setTaskGroups] = useState<TaskGroup[]>([]);
   const [selectedTaskGroup, setSelectedTaskGroup] = useState<string>("");
 
+  // Add these two lines for dependency dialog and task selection state:
+  const [selectedDependencyTask, setSelectedDependencyTask] = useState<Task | null>(null);
+  const [dependencyDialogOpen, setDependencyDialogOpen] = useState(false);
+
   // Get user role: use fetched roles, fallback to email only if missing
   const [userRole, setUserRole] = useState<string>("user");
 
