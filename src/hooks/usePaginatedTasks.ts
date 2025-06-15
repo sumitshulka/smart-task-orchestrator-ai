@@ -4,6 +4,57 @@ import { useUsersAndTeams } from "@/hooks/useUsersAndTeams";
 import useSupabaseSession from "@/hooks/useSupabaseSession";
 import { useCurrentUserRoleAndTeams } from "@/hooks/useCurrentUserRoleAndTeams";
 
+async function fetchManagerTasksPaginated(input: FetchTasksInput = {}): Promise<{ tasks: Task[]; total: number }> {
+  // Fetch from the manager report view only!
+  const { supabase } = await import("@/integrations/supabase/client");
+  let query = supabase
+    .from("tasks_manager_report_view")
+    .select("*", { count: "exact" })
+    .order("created_at", { ascending: false });
+
+  // Filtering: created_at
+  if (input.fromDate || input.toDate) {
+    if (input.fromDate && input.toDate) {
+      query = query.gte("created_at", input.fromDate).lte("created_at", input.toDate);
+    } else if (input.fromDate) {
+      query = query.gte("created_at", input.fromDate);
+    } else if (input.toDate) {
+      query = query.lte("created_at", input.toDate);
+    }
+  }
+  // Other filters
+  if (input.assignedTo) query = query.eq("assignee_email", input.assignedTo); // Use email as proxy if desired, or adapt
+  if (input.teamId) query = query.eq("team_id", input.teamId);
+  if (input.status && input.status !== "all") query = query.eq("status", input.status);
+  if (input.priority && input.priority !== -1) query = query.eq("priority", input.priority);
+
+  // Limiting
+  if (typeof input.offset === "number" && typeof input.limit === "number") {
+    query = query.range(input.offset, input.offset + input.limit - 1);
+  }
+
+  const { data, count, error } = await query;
+  if (error) throw error;
+  // Remap to Task[]
+  const tasks = (data as any[]).map(row => ({
+    ...row,
+    assigned_user: {
+      user_name: row.assignee_name,
+      email: row.assignee_email
+    },
+    assigned_to: row.assignee_email || null,
+    actual_completion_date: row.actual_completion_date || null,
+    group_ids: [],
+    is_dependent: false,
+    created_by: row.creator_email || null
+  })) as Task[];
+
+  return {
+    tasks,
+    total: count ?? 0,
+  };
+}
+
 /**
  * Versatile paginated/queryable tasks logic (used for Tasks + HistoricalTasks)
  */
@@ -54,7 +105,6 @@ export function usePaginatedTasks(options: {
   const handleSearch = useCallback(async () => {
     setSearched(true);
 
-    // For historical: block search if no filters set
     if (
       options.isHistorical &&
       priorityFilter === "all" &&
@@ -80,11 +130,9 @@ export function usePaginatedTasks(options: {
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(today.getDate() - 30);
 
-    // --- Fix: use endOfDay for filter boundaries ---
     if (options.isHistorical) {
       if (dateRange.from && dateRange.to) {
         input.fromDate = dateRange.from.toISOString().slice(0, 10);
-        // Always use endOfDay for filter upper bound
         const endBoundary = new Date(dateRange.to);
         endBoundary.setHours(23, 59, 59, 999);
         input.toDate = endBoundary.toISOString().slice(0, 10);
@@ -118,15 +166,28 @@ export function usePaginatedTasks(options: {
     if (teamFilter !== "all") input.teamId = teamFilter;
 
     try {
-      const { tasks: fetchedTasks, total } = await fetchTasksPaginated(input);
-      // No frontend role filtering now.
-      if (total > 100) {
-        setShowTooManyWarning(true);
-        setTasks([]);
-        setTotalTasks(total);
+      // MANAGERS/TEAM_MANAGERS use the new view!
+      if (roles.includes("manager") || roles.includes("team_manager")) {
+        const { tasks: fetchedTasks, total } = await fetchManagerTasksPaginated(input);
+        if (total > 100) {
+          setShowTooManyWarning(true);
+          setTasks([]);
+          setTotalTasks(total);
+        } else {
+          setTasks(fetchedTasks);
+          setTotalTasks(fetchedTasks.length);
+        }
       } else {
-        setTasks(fetchedTasks);
-        setTotalTasks(fetchedTasks.length);
+        // Normal logic for admins/users
+        const { tasks: fetchedTasks, total } = await fetchTasksPaginated(input);
+        if (total > 100) {
+          setShowTooManyWarning(true);
+          setTasks([]);
+          setTotalTasks(total);
+        } else {
+          setTasks(fetchedTasks);
+          setTotalTasks(fetchedTasks.length);
+        }
       }
     } catch (err) {
       setTasks([]);
@@ -142,6 +203,7 @@ export function usePaginatedTasks(options: {
     dateRange,
     page,
     pageSize,
+    roles
   ]);
 
   return {
