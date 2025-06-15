@@ -72,71 +72,50 @@ export const BulkUserUploadPreviewEditableTable: React.FC<BulkUserUploadPreviewE
 }) => {
   if (!users || users.length === 0) return null;
 
-  // Industry-standard pattern:
-  // - The wrapper handles overflow/scroll.
-  // - The table has a min-width and w-max, never w-full (avoids squishing).
-  // - Let cells content decide their width, optionally set min-w on headers/cells if needed.
-
+  // PURE shadcn Table primitives, no native <table> directly.
+  // Outer wrapper handles ALL scrolling.
   return (
     <TooltipProvider delayDuration={150}>
       <div
-        className="
-          w-full
-          max-w-full
-          max-h-[360px]
-          overflow-x-auto
-          overflow-y-auto
-          border
-          rounded-xl
-          shadow-inner
-          bg-white
-          ring-1 ring-border/40
-          mt-2 mb-2
-        "
-        style={{
-          // Leave container sizing to parent modal, do NOT force minWidth on wrapper
-        }}
+        className={cn(
+          "w-full max-w-full border rounded-xl shadow-inner bg-white ring-1 ring-border/40 mt-2 mb-2",
+          "overflow-x-auto overflow-y-auto",
+          "max-h-[360px]"
+        )}
         tabIndex={-1}
+        style={{ boxSizing: "border-box" }}
       >
-        <table
-          className={cn(
-            "border-collapse min-w-[900px] w-max bg-white"
-          )}
-        >
-          <thead>
-            <tr className="bg-muted/80 sticky top-0 z-10">
+        <Table className={cn("min-w-[800px] w-max bg-white border-collapse")}>
+          <TableHeader>
+            <TableRow className="bg-muted/80 sticky top-0 z-10">
               {headers.map((h) => (
-                <th
+                <TableHead
                   key={h}
-                  className="py-3 px-4 font-semibold border-b border-border text-xs uppercase tracking-wider text-muted-foreground bg-muted/80 whitespace-nowrap"
+                  className={cn(
+                    "py-3 px-4 font-semibold border-b border-border text-xs uppercase tracking-wider text-muted-foreground",
+                    "bg-muted/80 whitespace-nowrap",
+                    "min-w-[120px] max-w-[240px]"
+                  )}
                   style={{ background: "inherit" }}
                 >
                   {h.replace(/_/g, " ")}
-                </th>
+                </TableHead>
               ))}
-              <th className="py-3 px-4 border-b border-border text-xs uppercase tracking-wider bg-muted/80 whitespace-nowrap">
-                Status
-              </th>
-              <th className="py-3 px-4 border-b border-border text-xs uppercase tracking-wider bg-muted/80 whitespace-nowrap">
-                Message
-              </th>
-            </tr>
-          </thead>
-          <tbody>
+              <TableHead className="py-3 px-4 border-b border-border text-xs uppercase tracking-wider bg-muted/80 whitespace-nowrap min-w-[90px] max-w-[120px]">Status</TableHead>
+              <TableHead className="py-3 px-4 border-b border-border text-xs uppercase tracking-wider bg-muted/80 whitespace-nowrap min-w-[120px]">Message</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {users.map((row, idx) => {
               const status = row._status;
               const rowIsInvalid = status === "invalid";
               const rowClass = cn(
                 idx % 2 === 0 ? "bg-background" : "bg-muted/40",
                 rowIsInvalid ? "bg-red-50/80 ring-1 ring-red-200" : "",
-                "transition-colors",
-                "group"
+                "transition-colors group"
               );
               return (
-                <tr
-                  key={idx}
-                  className={cn(rowClass, "hover:bg-accent")}
-                >
+                <TableRow key={idx} className={cn(rowClass, "hover:bg-accent")}>
                   {headers.map((h, cellIdx) => {
                     const error =
                       row._status === "invalid" &&
@@ -145,7 +124,7 @@ export const BulkUserUploadPreviewEditableTable: React.FC<BulkUserUploadPreviewE
                       error ||
                       (row._status === "invalid" && row._message && cellIdx === 0);
                     return (
-                      <td
+                      <TableCell
                         key={h}
                         className={cn(
                           "px-4 py-2 align-middle border-b border-border relative whitespace-nowrap",
@@ -153,7 +132,8 @@ export const BulkUserUploadPreviewEditableTable: React.FC<BulkUserUploadPreviewE
                           cellWithError
                             ? "bg-red-50 border-red-300"
                             : "bg-white border-border",
-                          "focus-within:outline focus-within:outline-2 focus-within:outline-primary"
+                          "focus-within:outline focus-within:outline-2 focus-within:outline-primary",
+                          "min-w-[120px] max-w-[240px]"
                         )}
                       >
                         {(h === "email" ||
@@ -165,7 +145,7 @@ export const BulkUserUploadPreviewEditableTable: React.FC<BulkUserUploadPreviewE
                               cellWithError
                                 ? "border-red-500 focus:ring-red-500 focus:border-red-500"
                                 : "focus:border-primary focus:ring-primary",
-                              "w-full min-w-[140px] max-w-[220px]"
+                              "w-full min-w-[120px] max-w-[220px]"
                             )}
                             value={row[h] ?? ""}
                             onChange={(e) => {
@@ -202,13 +182,13 @@ export const BulkUserUploadPreviewEditableTable: React.FC<BulkUserUploadPreviewE
                             </Tooltip>
                           </span>
                         )}
-                      </td>
+                      </TableCell>
                     );
                   })}
-                  <td className="px-4 py-2 align-middle border-b border-border whitespace-nowrap">
+                  <TableCell className="px-4 py-2 align-middle border-b border-border whitespace-nowrap min-w-[90px]">
                     {statusDisplay(row._status)}
-                  </td>
-                  <td className="px-4 py-2 align-middle border-b border-border whitespace-nowrap">
+                  </TableCell>
+                  <TableCell className="px-4 py-2 align-middle border-b border-border whitespace-nowrap min-w-[120px]">
                     {!!row._message ? (
                       <div className="flex items-center gap-1">
                         <Tooltip>
@@ -239,12 +219,12 @@ export const BulkUserUploadPreviewEditableTable: React.FC<BulkUserUploadPreviewE
                     ) : (
                       <span className="text-muted-foreground">--</span>
                     )}
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               );
             })}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
     </TooltipProvider>
   );
