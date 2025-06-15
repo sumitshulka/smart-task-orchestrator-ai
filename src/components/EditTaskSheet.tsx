@@ -18,6 +18,7 @@ import { useTaskStatuses } from "@/hooks/useTaskStatuses";
 import { createTaskActivity } from "@/integrations/supabase/taskActivity";
 import { useUsersAndTeams } from "@/hooks/useUsersAndTeams";
 import useSupabaseSession from "@/hooks/useSupabaseSession";
+import { useCurrentUserRoleAndTeams } from "@/hooks/useCurrentUserRoleAndTeams";
 
 // Additional statuses for select
 const statusOptions = [
@@ -62,44 +63,37 @@ const EditTaskSheet: React.FC<Props> = ({
   });
   const [loading, setLoading] = useState(false);
 
-  // Permissions logic for admin/manager/user
+  // Permissions: Use real roles via hook
   const { users } = useUsersAndTeams();
-  const { user } = useSupabaseSession();
-  const [userRole, setUserRole] = useState<string>("user");
+  // NEW: Use the current user's roles from Supabase
+  const { roles: currentRoles, user: currentUser } = useCurrentUserRoleAndTeams();
 
-  useEffect(() => {
-    if (!user) return setUserRole("user");
-    if (user?.email?.includes("admin")) setUserRole("admin");
-    else if (user?.email?.includes("manager")) setUserRole("manager");
-    else setUserRole("user");
-  }, [user]);
-
-  // Helper for permission: isAdminOrManager
-  const isAdminOrManager = useMemo(() => userRole === "admin" || userRole === "manager", [userRole]);
-  const isUser = userRole === "user";
+  // Memoized role checks
+  const isAdmin = useMemo(() => currentRoles.includes("admin"), [currentRoles]);
+  const isManager = useMemo(() => currentRoles.some(r => r === "manager" || r === "team manager"), [currentRoles]);
+  const isAdminOrManager = isAdmin || isManager;
+  const isUser = !isAdmin && !isManager;
 
   // New hooks for assignment permissions and users
   const { statuses, loading: statusesLoading } = useTaskStatuses();
 
   // --- Assignment logic matching Create Task ---
   function getAssignableUsersEdit() {
-    if (!user) return [];
+    if (!currentUser) return [];
     if (!users.length) return [];
-    if (userRole === "admin") {
+    if (isAdmin) {
       return users;
     }
-    if (userRole === "manager") {
-      // Choose users who are subordinates, etc
-      return users.filter((u) => u.user_name === user.user_name && u.id !== user.id);
+    if (isManager) {
+      // Show all users except self (optionally filter for direct reports, etc)
+      return users.filter((u) => u.id !== currentUser.id);
     }
     // USER: show only their manager, if set
-    if (userRole === "user") {
-      const myManagerName = user.user_metadata?.manager || null;
-      // If manager is also admin, preference manager
+    if (isUser) {
+      const myManagerName = currentUser.user_metadata?.manager || null;
       let myManager = users.find((u) => u.user_name === myManagerName);
-      if (myManager && myManager.email !== user.email) return [myManager];
-      // fallback: if for instance manager is admin as well
-      myManager = users.find((u) => u.user_name === myManagerName && u.email !== user.email);
+      if (myManager && myManager.email !== currentUser.email) return [myManager];
+      myManager = users.find((u) => u.user_name === myManagerName && u.email !== currentUser.email);
       return myManager ? [myManager] : [];
     }
     return [];
@@ -107,16 +101,16 @@ const EditTaskSheet: React.FC<Props> = ({
 
   // Assignment options logic:
   const allowedAssignUsers = useMemo(() => {
-    // If admin/manager, allow all
-    if (isAdminOrManager) return users;
-    // If user, only allow assigning to their manager (logic replicated from prior code)
+    if (isAdminOrManager) {
+      return users;
+    }
     if (isUser) {
-      const myManagerName = user?.user_metadata?.manager || null;
+      const myManagerName = currentUser?.user_metadata?.manager || null;
       const myManager = users.find((u) => u.user_name === myManagerName);
       return myManager ? [myManager] : [];
     }
     return [];
-  }, [users, user, isAdminOrManager, isUser]);
+  }, [users, currentUser, isAdminOrManager, isUser]);
 
   // Used to enable/disable assignment section for UI
   const canShowAssign = (
@@ -379,7 +373,6 @@ const EditTaskSheet: React.FC<Props> = ({
                   </option>
                 ))}
               </select>
-              {/* Only show Assign button if allowed (admins/managers or users allowed to assign to their manager) */}
               <Button
                 type="button"
                 className="mt-2"
