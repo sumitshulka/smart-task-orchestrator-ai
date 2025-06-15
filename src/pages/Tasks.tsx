@@ -75,6 +75,24 @@ const TasksPage: React.FC = () => {
     return (userTeams ?? []).map((t: any) => t.id);
   }, [userTeams]);
 
+  // Helper: filter tasks for 'user' role (strict), used for both fallback and main
+  function tasksVisibleToUser(tasksArr: Task[]) {
+    // If roles not known or user not loaded, return empty
+    if (!user || !roles?.length) return [];
+    // Only show for "user" if not also admin/manager/team_manager
+    if (roles.includes("user") && !roles.some(r => ["admin", "manager", "team_manager"].includes(r))) {
+      return tasksArr.filter(
+        (task) =>
+          // personal tasks assigned to me
+          (task.type === "personal" && task.assigned_to === user.id)
+          // OR team tasks for my team(s)
+          || (task.type === "team" && userTeamIds.includes(task.team_id ?? ""))
+      );
+    }
+    // Otherwise (admin/manager/team_manager), return all
+    return tasksArr;
+  }
+
   async function load(fetchAll: boolean = false) {
     setLoading(true);
     setShowTooManyWarning(false);
@@ -100,15 +118,8 @@ const TasksPage: React.FC = () => {
 
     // Role-based filtering: restrict for "user"
     if (!fetchAll && user && roles && roles.length > 0 && roles.includes("user") && !roles.some(r => ["admin", "manager", "team_manager"].includes(r))) {
-      // Only show:
-      // 1. Their personal tasks
-      // 2. Their team tasks (no other users' personal tasks)
-      input = {
-        ...input,
-        // We'll filter in code after fetch to return only the relevant tasks
-      };
+      // We'll filter below (prevent leaking tasks)
     } else {
-      // Original input for admin/manager/others
       input = {
         ...input,
         priority: (fetchAll || priorityFilter === "all") ? undefined : Number(priorityFilter),
@@ -121,21 +132,18 @@ const TasksPage: React.FC = () => {
     console.log("[TASKS] Calling fetchTasksPaginated with input:", input);
     try {
       const { tasks: fetchedTasks, total } = await fetchTasksPaginated(input);
-      let visibleTasks: Task[] = fetchedTasks;
-      
-      // If "user" role only, apply stricter filtering
-      if (!fetchAll && user && roles && roles.includes("user") && !roles.some(r => ["admin", "manager", "team_manager"].includes(r))) {
-        visibleTasks = fetchedTasks.filter(task =>
-          // They can see their own personal tasks
-          (task.type === "personal" && task.assigned_to === user.id)
-          // ...and team tasks from teams they are a member of
-          || (task.type === "team" && userTeamIds.includes(task.team_id ?? ""))
-        );
-      }
 
       if (fetchAll) {
-        setAllTasks(visibleTasks);
+        // Apply same user-only filtering to allTasks
+        setAllTasks(tasksVisibleToUser(fetchedTasks));
       } else {
+        let visibleTasks: Task[];
+        if (user && roles && roles.includes("user") && !roles.some(r => ["admin", "manager", "team_manager"].includes(r))) {
+          visibleTasks = tasksVisibleToUser(fetchedTasks);
+        } else {
+          visibleTasks = fetchedTasks;
+        }
+
         if (visibleTasks.length) {
           setTasks(visibleTasks);
           setTotalTasks(total);
