@@ -29,6 +29,7 @@ const MyTeams = () => {
   const { teams, user, loading } = useCurrentUserRoleAndTeams();
   const [teamsExtended, setTeamsExtended] = React.useState<TeamExtended[]>([]);
   const [showModalForTeamId, setShowModalForTeamId] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   React.useEffect(() => {
     if (!teams?.length) {
@@ -37,7 +38,9 @@ const MyTeams = () => {
     }
 
     async function enrichTeams() {
-      console.log("[MyTeams] Teams input:", teams);
+      setErrorMessage(null);
+      console.log("[MyTeams DEBUG][Session] Current authenticated user:", user);
+
       const promises = teams.map(async (team: any) => {
         // 1. Fetch team memberships for this team
         const { data: memberships, error: membershipsError } = await supabase
@@ -105,47 +108,74 @@ const MyTeams = () => {
         let totalTasks = 0;
         let completedTasks = 0;
         if (userIds.length > 0) {
-          // Debug: log what we are searching for
           console.log("[MyTeams DEBUG] Querying tasks for team:", {
             teamId: team.id,
             teamName: team.name,
             userIds: userIds,
+            suppliedUserUid: user?.id,
           });
 
-          const { data: tasks, error: tasksError } = await supabase
+          const taskQuery = supabase
             .from("tasks")
             .select("id,status,type,team_id,assigned_to")
             .in("assigned_to", userIds)
             .eq("team_id", team.id)
             .neq("type", "personal");
 
-          // Debug: log exactly what was returned
+          let tasksResponse;
+          try {
+            tasksResponse = await taskQuery;
+            console.log("[MyTeams DEBUG][Supabase Response]", tasksResponse);
+          } catch (err) {
+            console.error("[MyTeams DEBUG][Supabase Exception thrown]", err);
+            setErrorMessage("Exception thrown running tasks query: " + String(err));
+            return {
+              ...team,
+              managerName,
+              managerEmail,
+              members,
+              totalMembers: members.length,
+              totalTasks: 0,
+              completedTasks: 0,
+            } as TeamExtended;
+          }
+
+          const { data: tasks, error: tasksError } = tasksResponse;
+
+          if (tasksError) {
+            console.error(`[MyTeams] tasks fetch error for team ${team.name}`, tasksError);
+            setErrorMessage(`Supabase error for tasks (team "${team.name}"): ${tasksError.message}`);
+          } else if (!tasks || tasks.length === 0) {
+            setErrorMessage(
+              prev =>
+                prev ||
+                `[MyTeams] No tasks were found from Supabase for team "${team.name}", even though query ran without error.`
+            );
+          }
+
           console.log("[MyTeams DEBUG] Received tasks for team:", {
             teamId: team.id,
             teamName: team.name,
+            suppliedUserUid: user?.id,
             taskCount: tasks?.length,
             tasks: tasks,
             queryParams: {
               assigned_to: userIds,
               team_id: team.id,
-              type_ne: 'personal'
+              type_ne: "personal",
             },
-            error: tasksError
+            error: tasksError,
           });
 
-          if (tasksError) {
-            console.error(`[MyTeams] tasks fetch error for team ${team.name}`, tasksError);
-          } else if (tasks) {
+          if (tasks) {
             totalTasks = tasks.length;
             completedTasks = tasks.filter(
               (t: any) => String(t.status || "").toLowerCase() === "completed"
             ).length;
-
-            // Debug: log result calculation
             console.log("[MyTeams DEBUG] Task calculations for team:", {
               teamId: team.id,
               totalTasks,
-              completedTasks
+              completedTasks,
             });
           }
         }
@@ -166,7 +196,7 @@ const MyTeams = () => {
     }
 
     enrichTeams();
-  }, [teams]);
+  }, [teams, user]);
 
   if (loading) {
     return (
@@ -185,6 +215,11 @@ const MyTeams = () => {
   return (
     <div className="w-full max-w-5xl px-2 py-6">
       <h1 className="text-2xl font-bold mb-6 text-left">My Teams</h1>
+      {errorMessage && (
+        <div className="mb-4 p-3 bg-red-50 text-red-700 border border-red-200 rounded">
+          <b>Error / Warning (Dev Only):</b> {errorMessage}
+        </div>
+      )}
       <div className="flex flex-col gap-5 w-full">
         {teamsExtended.map((team) => (
           <Card key={team.id} className="p-5 w-full">
