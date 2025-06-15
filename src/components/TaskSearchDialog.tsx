@@ -58,13 +58,10 @@ const TaskSearchDialog: React.FC<TaskSearchDialogProps> = ({
     if (statusFilter && statusFilter !== "all") {
       filters.status = statusFilter;
     }
-    // If query is non-empty, use as full-text (title/desc) search (lowercase includes)
     if (debouncedQuery) {
       filters.query = debouncedQuery;
     }
-    // NOTE: If the codebase or Supabase API supports direct text search, use that. Otherwise, filter client-side below.
     let { tasks: allFound, total: foundTotal } = await fetchTasksPaginated(filters);
-    // If query provided, filter on title/desc on client if needed
     if (debouncedQuery) {
       const keyword = debouncedQuery.toLowerCase();
       allFound = allFound.filter(
@@ -74,7 +71,6 @@ const TaskSearchDialog: React.FC<TaskSearchDialogProps> = ({
       );
       foundTotal = allFound.length;
     }
-    // Exclude current (new) task if excludeTaskId is given
     let filtered = excludeTaskId
       ? allFound.filter(t => t.id !== excludeTaskId)
       : allFound;
@@ -83,7 +79,6 @@ const TaskSearchDialog: React.FC<TaskSearchDialogProps> = ({
     setLoading(false);
   }, [debouncedQuery, statusFilter, page, excludeTaskId]);
 
-  // Run search when filters/query/etc change
   React.useEffect(() => {
     if (open) {
       doSearch();
@@ -91,7 +86,6 @@ const TaskSearchDialog: React.FC<TaskSearchDialogProps> = ({
     // eslint-disable-next-line
   }, [debouncedQuery, statusFilter, page, open]);
 
-  // Reset state when closed
   React.useEffect(() => {
     if (!open) {
       setQuery("");
@@ -112,7 +106,7 @@ const TaskSearchDialog: React.FC<TaskSearchDialogProps> = ({
 
   return (
     <CommandDialog open={open} onOpenChange={onOpenChange}>
-      <div className="flex p-2 gap-2 border-b items-center">
+      <div className="flex flex-col gap-2 p-2 border-b">
         <CommandInput
           placeholder="Search tasks by title or description..."
           value={query}
@@ -120,7 +114,7 @@ const TaskSearchDialog: React.FC<TaskSearchDialogProps> = ({
           autoFocus
         />
         <select
-          className="ml-2 border rounded px-2 py-1 bg-white text-sm"
+          className="border rounded px-2 py-1 bg-white text-sm"
           value={statusFilter}
           onChange={e => setStatusFilter(e.target.value)}
         >
