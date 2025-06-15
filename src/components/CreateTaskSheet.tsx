@@ -66,7 +66,6 @@ const initialForm = {
   estimated_hours: "",
   assigned_to: "",
   isSubTask: false,
-  superTaskId: "",
   isDependent: false,
   dependencyTaskId: "",
 };
@@ -173,7 +172,7 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
       setForm((f) => ({
         ...f,
         [name]: checked,
-        ...(name === "isSubTask" && !checked ? { superTaskId: "" } : {}),
+        ...(name === "isSubTask" && !checked ? {} : {}), // nothing special now
         ...(name === "isDependent" && !checked ? { dependencyTaskId: "" } : {}),
       }));
     } else if (name === "priority") {
@@ -198,7 +197,7 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
         if (!form.isSubTask) throw new Error("Personal tasks must be created as a subtask (check 'Is Subtask?').");
       }
 
-      // Build task
+      // Build task (do not include superTaskId)
       const taskInput: any = {
         title: form.title,
         description: form.description,
@@ -213,11 +212,6 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
         team_id: null, // Extend if you want team-assignment logic
         actual_completion_date: null,
       };
-
-      // SubTask support
-      if (form.isSubTask && form.superTaskId) {
-        taskInput.superTaskId = form.superTaskId;
-      }
 
       // Dependency support
       if (form.isDependent && form.dependencyTaskId) {
@@ -471,23 +465,7 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
                       <option key={g.id} value={g.id}>{g.name} ({g.visibility})</option>
                     ))}
                   </select>
-                  <label className="block mb-1 text-sm mt-3">Super Task</label>
-                  <select
-                    name="superTaskId"
-                    value={form.superTaskId}
-                    onChange={handleChange}
-                    className="w-full border rounded p-2"
-                    required
-                  >
-                    <option value="">Select Super Task</option>
-                    {selectableTasks
-                      .filter((t) => t.id !== undefined && t.id !== form.superTaskId)
-                      .map((t) => (
-                        <option key={t.id} value={t.id}>
-                          {t.title}
-                        </option>
-                      ))}
-                  </select>
+                  {/* Super Task select has been fully removed */}
                 </div>
               )}
             </div>
