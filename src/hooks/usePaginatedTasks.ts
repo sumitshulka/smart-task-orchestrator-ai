@@ -1,4 +1,3 @@
-
 import { useState, useMemo, useCallback } from "react";
 import { fetchTasksPaginated, Task, FetchTasksInput } from "@/integrations/supabase/tasks";
 import { useUsersAndTeams } from "@/hooks/useUsersAndTeams";
@@ -51,7 +50,7 @@ export function usePaginatedTasks(options: {
     return tasksArr;
   }
 
-  // Paginated search
+  // Modified paginated search
   const handleSearch = useCallback(async () => {
     setSearched(true);
 
@@ -120,19 +119,14 @@ export function usePaginatedTasks(options: {
 
     try {
       const { tasks: fetchedTasks, total } = await fetchTasksPaginated(input);
-      let visibleTasks: Task[];
-      if (roles && roles.includes("user") && !roles.some(r => ["admin", "manager", "team_manager"].includes(r))) {
-        visibleTasks = tasksVisibleToUser(fetchedTasks);
-      } else {
-        visibleTasks = fetchedTasks;
-      }
+      // No frontend role filtering now.
       if (total > 100) {
         setShowTooManyWarning(true);
         setTasks([]);
         setTotalTasks(total);
       } else {
-        setTasks(visibleTasks);
-        setTotalTasks(visibleTasks.length);
+        setTasks(fetchedTasks);
+        setTotalTasks(fetchedTasks.length);
       }
     } catch (err) {
       setTasks([]);
@@ -148,15 +142,8 @@ export function usePaginatedTasks(options: {
     dateRange,
     page,
     pageSize,
-    roles,
-    user,
-    userTeamIds,
   ]);
 
-  // Auto re-search on paginate/filter change once search done
-  // New search pattern: run search when a dependency changes, if "searched"
-  // Not for first render
-  // The page can control when handleSearch is run
   return {
     tasks,
     totalTasks,

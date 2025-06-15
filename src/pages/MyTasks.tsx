@@ -58,6 +58,21 @@ export default function MyTasksPage() {
   const [editTask, setEditTask] = useState<Task | null>(null);
   const [editOpen, setEditOpen] = useState(false);
 
+  // PATCH: If tasks returns 0 and loading is false, display a special message if user is a manager/team_manager.
+  // This requires determining the user's roles.
+  const [roles, setRoles] = useState<string[]>([]);
+  useEffect(() => {
+    // Fetch user roles (simple, duplicating useCurrentUserRoleAndTeams for light async here)
+    (async () => {
+      if (!user?.id) return setRoles([]);
+      const { data, error } = await import("@/integrations/supabase/client").then(mod =>
+        mod.supabase.from("user_roles").select("role:roles(name)").eq("user_id", user.id)
+      );
+      if (error) setRoles([]);
+      else setRoles((data ?? []).map((r: any) => r.role?.name).filter(Boolean));
+    })();
+  }, [user?.id]);
+
   async function load() {
     if (!user?.id) {
       console.log("[DEBUG][MyTasksPage] No user or user.id present in session state!", user);
@@ -249,7 +264,14 @@ export default function MyTasksPage() {
           />
           <div className="text-muted-foreground text-lg mb-2 flex items-center gap-2">
             <Image className="w-5 h-5" />
-            You have no tasks assigned.
+            {roles.includes("manager") || roles.includes("team_manager") ? (
+              <>
+                You do not currently have access to any tasks as a manager or team manager. <br />
+                This may mean you do not manage any users, or none of your team members have tasks assigned.
+              </>
+            ) : (
+              <>You have no tasks assigned.</>
+            )}
           </div>
         </div>
       )}

@@ -82,6 +82,19 @@ const TasksPage: React.FC = () => {
     // eslint-disable-next-line
   }, [page, pageSize, filters.priorityFilter, filters.statusFilter, filters.userFilter, filters.teamFilter, filters.dateRange]);
 
+  const [roles, setRoles] = useState<string[]>([]);
+  useEffect(() => {
+    // Fetch user roles for empty-state permission error, as above
+    (async () => {
+      if (!user?.id) return setRoles([]);
+      const { data, error } = await import("@/integrations/supabase/client").then(mod =>
+        mod.supabase.from("user_roles").select("role:roles(name)").eq("user_id", user.id)
+      );
+      if (error) setRoles([]);
+      else setRoles((data ?? []).map((r: any) => r.role?.name).filter(Boolean));
+    })();
+  }, [user?.id]);
+
   return (
     <div className="flex w-full max-w-6xl mx-auto px-4 py-8">
       {/* Sidebar filters */}
@@ -130,7 +143,24 @@ const TasksPage: React.FC = () => {
         )}
 
         {!loading && !showTooManyWarning && tasks.length === 0 && (
-          <TasksNoResults allTasks={allTasks} onTaskUpdated={handleSearch} canDelete={canDelete} />
+          <div className="flex flex-col items-center justify-center mt-16">
+            <img
+              src={fallbackImage}
+              alt="No tasks found"
+              className="w-40 h-40 object-cover rounded-lg mb-4 shadow"
+            />
+            <div className="text-muted-foreground text-lg mb-2 flex items-center gap-2">
+              <Image className="w-5 h-5" />
+              {roles.includes("manager") || roles.includes("team_manager") ? (
+                <>
+                  No tasks are currently visible to you as a manager/team manager. <br />
+                  You may not manage any users or teams with tasks right now.
+                </>
+              ) : (
+                <>No tasks found.</>
+              )}
+            </div>
+          </div>
         )}
 
         {!showTooManyWarning && tasks.length > 0 && (
