@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import {
   Sheet,
@@ -15,24 +16,24 @@ import { Textarea } from "@/components/ui/textarea";
 import { fetchTasks, createTask, Task } from "@/integrations/supabase/tasks";
 import { toast } from "@/components/ui/use-toast";
 import useSupabaseSession from "@/hooks/useSupabaseSession";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Command, CommandInput, CommandList, CommandItem, CommandEmpty } from "@/components/ui/command";
 import { useTaskStatuses } from "@/hooks/useTaskStatuses";
 
 // Simulated quick user record
 type User = { id: string; email: string; user_name: string | null };
 
-// Helper function to fetch users (simulate limit, you’ll want to extend to use paginated REST or similar)
+// Helper function to fetch users
 async function fetchUsers(): Promise<User[]> {
   // This should be replaced with a proper Supabase call to your users table
-  const res = await fetch("/rest/v1/users?select=id,email,user_name", { headers: { apikey: "anon", "Authorization": "" } });
+  const res = await fetch("/rest/v1/users?select=id,email,user_name", {
+    headers: { apikey: "anon", Authorization: "" },
+  });
   return await res.json();
 }
 
 interface Props {
   onTaskCreated: () => void;
   children?: React.ReactNode;
-  defaultAssignedTo?: string; // Add new prop for default assigned user
+  defaultAssignedTo?: string;
 }
 
 const initialForm = {
@@ -51,12 +52,6 @@ const initialForm = {
   dependencyTaskId: "",
 };
 
-const statusOptions = [
-  { value: "pending", label: "Pending" },
-  { value: "in_progress", label: "In Progress" },
-  { value: "complete", label: "Complete" },
-];
-
 const priorityOptions = [
   { value: 1, label: "High" },
   { value: 2, label: "Medium" },
@@ -73,28 +68,29 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
   const [form, setForm] = useState(initialForm);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [users, setUsers] = useState<User[]>([]);
-  const [showUserDialog, setShowUserDialog] = useState(false);
-  const [userOptionCount, setUserOptionCount] = useState(0);
   const [creating, setCreating] = useState(false);
   const { user, loading: sessionLoading } = useSupabaseSession();
   const { statuses, loading: statusLoading } = useTaskStatuses();
 
   // New: Roles logic
-  // For this demo, assume backend user has optional .role array or .role string
   const [userRole, setUserRole] = useState<string>("user");
 
-  // Get user role & update state on mount (replace with your real role logic as needed)
+  // Get user role & update state on mount
   useEffect(() => {
-    // For demo: set role based on admin/manager/email (use your backend method)
     if (!user) return;
-    // This is placeholder. Replace with real RBAC logic/loading
     if (user?.email?.includes("admin")) setUserRole("admin");
     else if (user?.email?.includes("manager")) setUserRole("manager");
     else setUserRole("user");
   }, [user]);
 
+  // Load users when drawer opens
+  useEffect(() => {
+    if (!open) return;
+    fetchUsers().then(setUsers);
+    fetchTasks().then(setTasks);
+  }, [open]);
+
   // NEW LOGIC: Type selection comes BEFORE assignee selection
-  // and, based on type, restrict or autofill assignee
   useEffect(() => {
     // When type or open changes...
     if (form.type === "personal" && user?.id) {
@@ -104,23 +100,23 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
     }
   }, [form.type, open, user?.id]);
 
-  // Helpers to determine allowed assignable users
+  // Compute assignable users for create view
   function getAssignableUsersForCreate() {
+    if (!user) return [];
     if (form.type === "personal" && user?.id) {
-      // Personal task: Can only assign to yourself (user)
-      return usersWithCurrent.filter((u) => u.id === user.id);
+      // Personal task: Can only assign to yourself
+      return users.filter((u) => u.id === user.id);
     }
     if (form.type === "team") {
-      if (userRole === "admin") return usersWithCurrent;
-      // Manager: assign to team or reports
+      if (userRole === "admin") return users;
       if (userRole === "manager") {
-        // For simplicity: allow all users (customize here per your org logic)
-        return usersWithCurrent;
+        // In a real app, this should be restricted to team and reports
+        return users;
       }
-      // Normal user: can only assign to manager
       if (userRole === "user") {
-        // Show manager (simulate direct report by having "manager" field)
-        const myManager = usersWithCurrent.find(
+        // Only assignable to your manager
+        // Simulate via the manager field if present
+        const myManager = users.find(
           (u) => u.user_name === user?.user_metadata?.manager
         );
         return myManager ? [myManager] : [];
@@ -129,10 +125,80 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
     return [];
   }
 
-  // Main render for assigned_to field
+  // Handle form changes
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
+  ) => {
+    const { name, value, type, checked } = e.target;
+    if (type === "checkbox") {
+      setForm((f) => ({
+        ...f,
+        [name]: checked,
+        ...(name === "isSubTask" && !checked ? { superTaskId: "" } : {}),
+        ...(name === "isDependent" && !checked ? { dependencyTaskId: "" } : {}),
+      }));
+    } else if (name === "priority") {
+      setForm((f) => ({ ...f, [name]: Number(value) }));
+    } else {
+      setForm((f) => ({ ...f, [name]: value }));
+    }
+  };
+
+  // Handle submit
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCreating(true);
+    try {
+      const myUserId = user?.id;
+      if (!myUserId) throw new Error("No current user!");
+      // Build task
+      const taskInput: any = {
+        title: form.title,
+        description: form.description,
+        status: form.status,
+        priority: form.priority,
+        due_date: form.due_date || null,
+        start_date: form.start_date || null,
+        type: form.type,
+        created_by: myUserId,
+        assigned_to: form.assigned_to ? form.assigned_to : null,
+        estimated_hours: form.estimated_hours ? Number(form.estimated_hours) : null,
+        team_id: null, // Extend if you want team-assignment logic
+        actual_completion_date: null,
+      };
+
+      // SubTask support
+      if (form.isSubTask && form.superTaskId) {
+        taskInput.superTaskId = form.superTaskId;
+      }
+
+      // Dependency support
+      if (form.isDependent && form.dependencyTaskId) {
+        taskInput.dependencyTaskId = form.dependencyTaskId;
+      }
+
+      await createTask(taskInput);
+      toast({ title: "Task Created", description: form.title });
+      resetForm();
+      setOpen(false);
+      onTaskCreated();
+    } catch (err: any) {
+      toast({ title: "Failed to create task", description: err.message });
+    }
+    setCreating(false);
+  };
+
+  // Compute selectable tasks for subtasks/dependencies
+  const selectableTasks = tasks;
+
+  // Reset form
+  const resetForm = () => {
+    setForm(initialForm);
+  };
+
+  // Assign to input renders
   const renderAssignedToInput = () => {
-    // Always assign to self if personal (hidden input)
-    if (form.type === "personal") {
+    if (form.type === "personal" && user?.id) {
       return (
         <Input
           type="text"
@@ -167,7 +233,6 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
-        {/* If children is provided, use it as the trigger. Otherwise, show the default button */}
         {children ? (
           children
         ) : (
@@ -283,7 +348,7 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
               </select>
             </div>
           </div>
-          {/* ADVANCED FIELDS ~ GROUPED VERTICALLY */}
+          {/* ADVANCED FIELDS */}
           <div className="space-y-6 pt-2">
             <div>
               <label className="inline-flex items-center">
@@ -374,4 +439,6 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
     </Sheet>
   );
 };
+
 export default CreateTaskSheet;
+
