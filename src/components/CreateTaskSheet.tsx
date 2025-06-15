@@ -291,18 +291,15 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
     );
   };
 
-  // Insert group selection into the form (below Assign Type)
-  // Fetch eligible task groups on open/type change
+  // Fetch eligible task groups when subtask mode is toggled or type changes
   useEffect(() => {
-    if (!open) return;
+    if (!open || !form.isSubTask) return;
     async function loadGroups() {
       const groups = await fetchAssignableTaskGroups();
       let filtered: TaskGroup[] = [];
       if (form.type === "personal") {
-        // Only show private groups for personal tasks
         filtered = groups.filter(g => g.visibility === "private");
       } else if (form.type === "team") {
-        // Only show non-private groups for team tasks
         filtered = groups.filter(g => g.visibility !== "private");
       }
       setTaskGroups(filtered);
@@ -313,7 +310,7 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
     }
     loadGroups();
     // eslint-disable-next-line
-  }, [open, form.type]);
+  }, [open, form.type, form.isSubTask]);
 
   // --- UI ---
   return (
@@ -358,7 +355,7 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
                 placeholder="Task description"
               />
             </div>
-            {/* Row 3: Priority & Status (side-by-side, unchanged) */}
+            {/* Row 3: Priority & Status */}
             <div>
               <label className="block mb-1 font-medium">Priority</label>
               <select
@@ -424,28 +421,10 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
               </select>
             </div>
             <div>
-              <label className="block mb-1 font-medium">Task Group</label>
-              <select
-                name="task_group"
-                value={selectedTaskGroup}
-                onChange={e => setSelectedTaskGroup(e.target.value)}
-                className="w-full border rounded p-2 bg-white z-50"
-                // Only required for "personal"
-                required={form.type === "personal"}
-                disabled={taskGroups.length === 0}
-              >
-                <option value="">{form.type === "personal" ? "Select Private Task Group" : "No Task Group"}</option>
-                {taskGroups.map((g) => (
-                  <option key={g.id} value={g.id}>{g.name} ({g.visibility})</option>
-                ))}
-              </select>
-            </div>
-            {/* Row 6: Assigned To (conditionally rendered) */}
-            <div>
               <label className="block mb-1 font-medium">Assigned To</label>
               {renderAssignedToInput()}
             </div>
-            {/* Row 7: Estimated Hours (full width below Assign Type + Assigned To) */}
+            {/* Row 6: Estimated Hours (full width below Assign Type + Assigned To) */}
             <div className="sm:col-span-2">
               <label className="block mb-1 font-medium">Estimated Hours</label>
               <Input
@@ -473,7 +452,26 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
               </label>
               {form.isSubTask && (
                 <div className="mt-2">
-                  <label className="block mb-1 text-sm">Super Task</label>
+                  {/* Show TASK GROUP selection here, filtered */}
+                  <label className="block mb-1 text-sm">Task Group</label>
+                  <select
+                    name="task_group"
+                    value={selectedTaskGroup}
+                    onChange={e => setSelectedTaskGroup(e.target.value)}
+                    className="w-full border rounded p-2 bg-white z-50"
+                    required={form.isSubTask}
+                    disabled={taskGroups.length === 0}
+                  >
+                    <option value="">
+                      {form.type === "personal"
+                        ? "Select Private Task Group"
+                        : "Select Team Task Group"}
+                    </option>
+                    {taskGroups.map((g) => (
+                      <option key={g.id} value={g.id}>{g.name} ({g.visibility})</option>
+                    ))}
+                  </select>
+                  <label className="block mb-1 text-sm mt-3">Super Task</label>
                   <select
                     name="superTaskId"
                     value={form.superTaskId}
@@ -493,6 +491,7 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
                 </div>
               )}
             </div>
+            {/* Dependency Section (unchanged) */}
             <div>
               <label className="inline-flex items-center">
                 <input
