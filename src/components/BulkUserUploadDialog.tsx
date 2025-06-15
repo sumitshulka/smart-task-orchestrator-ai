@@ -1,3 +1,4 @@
+
 import React from "react";
 import {
   Dialog,
@@ -45,13 +46,13 @@ const BulkUserUploadDialog = (props: BulkUserUploadDialogProps) => {
     }
   };
 
+  // FILE PARSE LOGIC PATCHED (ESP. XLSX)
   const parseFile = async (file: File): Promise<any[]> => {
     const fileType = file.name.split(".").pop()?.toLowerCase();
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = (e: any) => {
         const data = e.target.result;
-
         let parsedData: any[] = [];
 
         try {
@@ -67,7 +68,9 @@ const BulkUserUploadDialog = (props: BulkUserUploadDialogProps) => {
             }
             parsedData = result.data as any[];
           } else if (fileType === "xlsx") {
-            const workbook = XLSX.read(data, { type: "buffer" });
+            // PATCH: Use "array" type for browser (not "buffer")
+            // See: https://docs.sheetjs.com/#parsing-workbooks
+            const workbook = XLSX.read(data, { type: "array" });
             const sheetName = workbook.SheetNames[0];
             const worksheet = workbook.Sheets[sheetName];
             parsedData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
@@ -111,9 +114,9 @@ const BulkUserUploadDialog = (props: BulkUserUploadDialogProps) => {
       };
 
       if (fileType === "xlsx") {
-        reader.readAsArrayBuffer(file);
+        reader.readAsArrayBuffer(file); // PATCH: keep as ArrayBuffer for XLSX (browser)
       } else {
-        reader.readAsText(file);
+        reader.readAsText(file); // CSV
       }
     });
   };
