@@ -11,6 +11,9 @@ import { useStatusStats } from "@/hooks/useStatusStats";
 import TaskDetailsSheet from "@/components/TaskDetailsSheet";
 import { useCurrentUserRoleAndTeams } from "@/hooks/useCurrentUserRoleAndTeams";
 import AnalyticsKPICards from "@/components/analytics/AnalyticsKPICards";
+import { Badge } from "@/components/ui/badge";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { X } from "lucide-react";
 
 type Role = "admin" | "manager" | "team_manager" | "user" | "unknown";
 
@@ -124,6 +127,8 @@ const AdminDashboard = () => {
   const [detailsTask, setDetailsTask] = useState<any | null>(null);
   const [detailsOpen, setDetailsOpen] = useState<boolean>(false);
   const [taskFilter, setTaskFilter] = useState<any>({});
+  const [managersWithoutTeams, setManagersWithoutTeams] = useState<any[]>([]);
+  const [showManagersNoTeamsAlert, setShowManagersNoTeamsAlert] = useState(true);
 
   // Use Status Stats Hook (only declare ONCE at the top)
   const { statusStats, loading: statusLoading } = useStatusStats(taskFilter);
@@ -433,6 +438,47 @@ const AdminDashboard = () => {
         oldestOpenTasksData = oldestOpenTasksResult?.data || [];
       }
       setOldestOpenTasks(oldestOpenTasksData);
+
+      // ---------- FETCH MANAGERS/TEAM_MANAGERS WITHOUT TEAMS (For ADMIN) ----------
+      if (filteredRole === "admin") {
+        // 1. Get all users with manager or team_manager roles
+        const { data: allUserRoles } = await supabase
+          .from("user_roles")
+          .select("user_id, roles:role:roles(name), id");
+
+        const managerIds =
+          allUserRoles
+            ?.filter(
+              (ur: any) =>
+                ur.roles?.name === "manager" || ur.roles?.name === "team_manager"
+            )
+            .map((ur: any) => ur.user_id) || [];
+
+        // 2. Get all users assigned to at least one team
+        const { data: membershipsData } = await supabase
+          .from("team_memberships")
+          .select("user_id");
+
+        const usersWithTeams =
+          membershipsData?.map((m: any) => m.user_id) || [];
+
+        // 3. Filter: Managers not in usersWithTeams
+        const managerIdsWithoutTeam = managerIds.filter(
+          (id: string) => !usersWithTeams.includes(id)
+        );
+
+        // 4. If there are any, fetch their user info
+        if (managerIdsWithoutTeam.length) {
+          const { data: managerUsers } = await supabase
+            .from("users")
+            .select("id, email, user_name")
+            .in("id", managerIdsWithoutTeam);
+
+          setManagersWithoutTeams(managerUsers || []);
+        } else {
+          setManagersWithoutTeams([]);
+        }
+      }
 
       setLoading(false);
     }
@@ -776,6 +822,36 @@ const AdminDashboard = () => {
           // Or -- refactor in future for more efficient reload!
         }}
       />
+
+      {/* --- Admin: show managers/team_managers without team --- */}
+      {currentRole === "admin" &&
+        managersWithoutTeams.length > 0 &&
+        showManagersNoTeamsAlert && (
+          <Alert variant="destructive" className="mb-6 flex items-start relative pr-9">
+            <X
+              className="absolute top-4 right-4 cursor-pointer"
+              size={20}
+              onClick={() => setShowManagersNoTeamsAlert(false)}
+              aria-label="Dismiss"
+            />
+            <div>
+              <AlertTitle>
+                Some managers are not assigned to any team
+              </AlertTitle>
+              <AlertDescription>
+                The following manager(s) and team manager(s) do not belong to any team. Assign them to a team so they can manage tasks and view proper dashboard stats.
+                <ul className="mt-2 ml-4 list-disc text-sm">
+                  {managersWithoutTeams.map((mgr) => (
+                    <li key={mgr.id}>
+                      <Badge variant="secondary" className="mr-2">{mgr.user_name || "Unnamed"}</Badge>
+                      <span className="text-muted-foreground">{mgr.email}</span>
+                    </li>
+                  ))}
+                </ul>
+              </AlertDescription>
+            </div>
+          </Alert>
+      )}
     </div>
   );
 };
