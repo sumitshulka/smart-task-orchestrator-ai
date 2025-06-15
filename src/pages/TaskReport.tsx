@@ -1,4 +1,3 @@
-
 import React from "react";
 import { useForm, Controller } from "react-hook-form";
 import { format, startOfMonth, endOfMonth } from "date-fns";
@@ -30,28 +29,7 @@ import {
 } from "@/components/ui/table";
 import useSupabaseSession from "@/hooks/useSupabaseSession";
 import { useCurrentUserRoleAndTeams } from "@/hooks/useCurrentUserRoleAndTeams";
-
-// ----------------- EDITED COLUMNS HERE -------------------
-const columns = [
-  "Employee Name",
-  "Total Tasks Created",
-  "Assigned",
-  "Pending",
-  "In Progress",
-  "Completed",
-  "Completion Ratio"
-];
-// ---------------------------------------------------------
-
-const statusKeys = ["assigned", "pending", "In Progress", "completed"];
-
-const getStatus = (status: string) => {
-  // Normalize status for comparison, fallback
-  if (!status) return "pending";
-  if (["assigned", "pending", "In Progress", "completed"].includes(status)) return status;
-  if (status.toLowerCase() === "in progress") return "In Progress";
-  return status;
-};
+import { useTaskStatuses } from "@/hooks/useTaskStatuses";
 
 function defaultFilterDates() {
   const now = new Date();
@@ -61,16 +39,21 @@ function defaultFilterDates() {
   };
 }
 
-// Updated EmployeeReport type for strict typing, storing systemId (hidden) and email for display
+// Edit columns as before; do not expose systemId, append email under employee name.
+const columns = [
+  "Employee Name",
+  "Total Tasks Assigned",
+  // Dynamically fill in statuses from DB
+  // "Completed", etc, will be generated after fetching
+  "Completion Ratio"
+];
+
 type EmployeeReport = {
-  systemId: string; // used internally, not shown
+  systemId: string;
   employeeName: string;
   employeeEmail: string;
-  totalCreated: number;
-  assigned: number;
-  pending: number;
-  inProgress: number;
-  completed: number;
+  totalAssigned: number;
+  [status: string]: string | number; // Dynamic status counts, also include systemId/email/name/assigned/ratio
   completionRatio?: string;
 };
 
@@ -85,6 +68,11 @@ export default function TaskReport() {
   const { user } = useSupabaseSession();
   const { roles, loading: rolesLoading } = useCurrentUserRoleAndTeams();
 
+  // 1. Load allowed statuses from the DB
+  const { statuses, loading: statusesLoading } = useTaskStatuses();
+  const statusNames = statuses.map(s => s.name);
+
+  // 2. Fetch tasks for the date filter
   const {
     data: taskData,
     isLoading
@@ -92,12 +80,11 @@ export default function TaskReport() {
     queryKey: ["task-report", fromDate, toDate, user?.id, roles],
     queryFn: async () => {
       if (!user?.id) return [];
-      let filters = {
+      let filters: any = {
         fromDate: format(fromDate, "yyyy-MM-dd"),
         toDate: format(toDate, "yyyy-MM-dd"),
         limit: 1000
-      } as any;
-      // Only admins, managers see all. Others: filter to their user id only
+      };
       const canSeeAll = roles.includes("admin") || roles.includes("manager") || roles.includes("team_manager");
       if (!canSeeAll) {
         filters.createdBy = user.id;
@@ -107,45 +94,53 @@ export default function TaskReport() {
     }
   });
 
-  // Group and calculate stats per employee
+  // 3. Build reporting columns with all statuses dynamically
+  const reportingColumns = [
+    columns[0],
+    columns[1],
+    ...statusNames,
+    columns[columns.length - 1]
+  ];
+
+  // 4. Group and calculate stats per assigned employee
   const report = React.useMemo<EmployeeReport[]>(() => {
     if (!taskData) return [];
     const userMap: Record<string, EmployeeReport> = {};
+    // Group by assigned_to!
     taskData.forEach(task => {
-      if (!task.created_by) return;
-      const uid = task.created_by;
-      // Get name and email for display
-      const name = task.assigned_user?.user_name || task.assigned_user?.email || "N/A";
-      const email = task.assigned_user?.email || "N/A";
-      // Store based on created_by (internal "systemId"), but display assigned_user details (for reporting clarity)
-      if (!userMap[uid]) {
-        userMap[uid] = {
-          systemId: uid,
+      const assignedId = task.assigned_to || "unassigned";
+      const userInfo = task.assigned_user;
+      const name = (userInfo && userInfo.user_name) || (userInfo && userInfo.email) || "Unassigned";
+      const email = (userInfo && userInfo.email) || "N/A";
+      if (!userMap[assignedId]) {
+        // Prepare status counts for each allowed DB status
+        const initialStatusObj: Record<string, number> = {};
+        for (const stat of statusNames) initialStatusObj[stat] = 0;
+        userMap[assignedId] = {
+          systemId: assignedId,
           employeeName: name,
           employeeEmail: email,
-          totalCreated: 0,
-          assigned: 0,
-          pending: 0,
-          inProgress: 0,
-          completed: 0
+          totalAssigned: 0,
+          ...initialStatusObj,
         };
       }
-      userMap[uid].totalCreated += 1;
-      const status = getStatus(task.status);
-      if (status === "assigned") userMap[uid].assigned += 1;
-      else if (status === "pending") userMap[uid].pending += 1;
-      else if (status === "In Progress") userMap[uid].inProgress += 1;
-      else if (status === "completed") userMap[uid].completed += 1;
+      userMap[assignedId].totalAssigned += 1;
+      // Only increment if the status from the db is known
+      if (statusNames.includes(task.status)) {
+        (userMap[assignedId][task.status] as number) += 1;
+      }
     });
-    // Calculate completion ratio
-    return Object.values(userMap).map((u) => ({
-      ...u,
-      completionRatio:
-        u.totalCreated > 0
-          ? ((u.completed / u.totalCreated) * 100).toFixed(2) + "%"
+    // Add completion ratio
+    return Object.values(userMap).map(u => {
+      const completed = u["Completed"] as number || 0;
+      return {
+        ...u,
+        completionRatio: u.totalAssigned > 0
+          ? ((completed / u.totalAssigned) * 100).toFixed(2) + "%"
           : "-"
-    })) as EmployeeReport[];
-  }, [taskData]);
+      };
+    });
+  }, [taskData, statusNames]);
 
   return (
     <div className="max-w-5xl mx-auto p-4">
@@ -226,17 +221,17 @@ export default function TaskReport() {
         <Table>
           <TableHeader>
             <TableRow>
-              {columns.map(col => (<TableHead key={col}>{col}</TableHead>))}
+              {reportingColumns.map(col => (<TableHead key={col}>{col}</TableHead>))}
             </TableRow>
           </TableHeader>
           <TableBody>
-            {isLoading ? (
+            {isLoading || statusesLoading ? (
               <TableRow>
-                <TableCell colSpan={columns.length}>Loading...</TableCell>
+                <TableCell colSpan={reportingColumns.length}>Loading...</TableCell>
               </TableRow>
             ) : report.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={columns.length}>No data found.</TableCell>
+                <TableCell colSpan={reportingColumns.length}>No data found.</TableCell>
               </TableRow>
             ) : (
               report.map((row: EmployeeReport) => (
@@ -248,11 +243,10 @@ export default function TaskReport() {
                       {row.employeeEmail}
                     </span>
                   </TableCell>
-                  <TableCell>{row.totalCreated}</TableCell>
-                  <TableCell>{row.assigned}</TableCell>
-                  <TableCell>{row.pending}</TableCell>
-                  <TableCell>{row.inProgress}</TableCell>
-                  <TableCell>{row.completed}</TableCell>
+                  <TableCell>{row.totalAssigned}</TableCell>
+                  {statusNames.map(status => (
+                    <TableCell key={status}>{row[status] as number}</TableCell>
+                  ))}
                   <TableCell>{row.completionRatio}</TableCell>
                 </TableRow>
               ))
@@ -265,4 +259,3 @@ export default function TaskReport() {
 }
 
 // src/pages/TaskReport.tsx is getting long. After you confirm the build is fixed, consider asking me to refactor this page into smaller components for maintainability!
-
