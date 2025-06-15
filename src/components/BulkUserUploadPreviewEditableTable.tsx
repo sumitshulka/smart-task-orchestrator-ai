@@ -69,8 +69,18 @@ export const BulkUserUploadPreviewEditableTable: React.FC<BulkUserUploadPreviewE
 
   return (
     <TooltipProvider delayDuration={150}>
-      <div className="overflow-x-auto max-h-96 border rounded-lg shadow-sm relative">
-        <Table>
+      {/* Added scrollable box constraints here */}
+      <div
+        className={cn(
+          "relative border rounded-lg shadow-sm",
+          "max-h-[360px]",            // Restricts vertical expansion
+          "max-w-full",               // Ensures never exceeds modal width
+          "overflow-x-auto overflow-y-auto" // Both axes scroll automatically
+        )}
+        style={{ minWidth: 0 }}
+        tabIndex={-1}
+      >
+        <Table className="min-w-[600px]"> {/* Ensures table doesn't get too compressed */}
           <TableHeader>
             <TableRow className="bg-muted/80 sticky top-0 z-10">
               {headers.map((h) => (
@@ -206,4 +216,3 @@ export const BulkUserUploadPreviewEditableTable: React.FC<BulkUserUploadPreviewE
 };
 
 export default BulkUserUploadPreviewEditableTable;
-
