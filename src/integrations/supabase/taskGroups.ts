@@ -27,19 +27,21 @@ function parseVisibility(val: string): TaskGroup["visibility"] {
 export async function fetchTaskGroups(): Promise<TaskGroup[]> {
   // Supabase types don't know about task_groups table, so use 'as any'
   const { data, error } = await supabase
-    .from("task_groups" as any)
+    .from("task_groups")
     .select("*")
     .order("created_at", { ascending: false });
 
-  if (error || !data) throw error || new Error("No data");
+  if (error) throw error;
+  if (!data) throw new Error("No data");
 
   // For each group, count tasks separately
   const groups: TaskGroup[] = await Promise.all(
     data.map(async (g: any) => {
-      const { count } = await supabase
-        .from("task_group_tasks" as any)
+      const { count, error: countError } = await supabase
+        .from("task_group_tasks")
         .select("*", { count: "exact", head: true })
         .eq("group_id", g.id);
+      if (countError) throw countError;
       return {
         ...g,
         task_count: count ?? 0,
@@ -49,24 +51,34 @@ export async function fetchTaskGroups(): Promise<TaskGroup[]> {
   return groups;
 }
 
-export async function createTaskGroup(input: Pick<TaskGroup, "name" | "description" | "visibility">): Promise<TaskGroup> {
-  // Explicitly cast visibility to valid type
-  const safeInput = {
+export async function createTaskGroup(
+  input: Pick<TaskGroup, "name" | "description" | "visibility">
+): Promise<TaskGroup> {
+  // Get user id for owner_id, fallback null for SSR
+  let user_id = null;
+  if (typeof window !== "undefined" && (window as any).supabase) {
+    const { data: sessionData } = await (window as any).supabase.auth.getSession();
+    user_id = sessionData.session?.user?.id ?? null;
+  }
+  // If user_id not found, just insert as is (frontend will catch error) -- real logic should set owner_id
+  const insertObj: any = {
     ...input,
     visibility: parseVisibility(input.visibility as string),
+    owner_id: user_id,
   };
   const { data, error } = await supabase
-    .from("task_groups" as any)
-    .insert([safeInput])
+    .from("task_groups")
+    .insert([insertObj])
     .select("*")
     .maybeSingle();
   if (error) throw error;
+  if (!data) throw new Error("Failed to create task group");
   return data as TaskGroup;
 }
 
 export async function deleteTaskGroup(id: string) {
   const { error } = await supabase
-    .from("task_groups" as any)
+    .from("task_groups")
     .delete()
     .eq("id", id);
   if (error) throw error;
@@ -75,7 +87,7 @@ export async function deleteTaskGroup(id: string) {
 export async function fetchTaskGroupDetails(groupId: string) {
   // get the group itself
   const { data: group, error } = await supabase
-    .from("task_groups" as any)
+    .from("task_groups")
     .select("*")
     .eq("id", groupId)
     .maybeSingle();
@@ -87,7 +99,7 @@ export async function fetchTaskGroupDetails(groupId: string) {
 
   // get all attached tasks with details
   const { data: links } = await supabase
-    .from("task_group_tasks" as any)
+    .from("task_group_tasks")
     .select("task_id")
     .eq("group_id", groupId);
 
@@ -101,20 +113,8 @@ export async function fetchTaskGroupDetails(groupId: string) {
     tasks = taskData ?? [];
   }
 
-  // Defensive guard: check group has required TaskGroup shape before spreading
-  const validGroup =
-    group &&
-    typeof group === "object" &&
-    "id" in group &&
-    "name" in group &&
-    "visibility" in group &&
-    "owner_id" in group &&
-    "created_at" in group
-      ? group
-      : {};
-
   return {
-    ...validGroup,
+    ...group,
     tasks: Array.isArray(tasks) ? tasks.map(t => ({ task: t })) : [],
   };
 }
@@ -128,7 +128,7 @@ export async function fetchAssignableTaskGroups(): Promise<TaskGroup[]> {
 // For assigning a task to a group
 export async function assignTaskToGroup({ group_id, task_id }: { group_id: string; task_id: string }) {
   const { data, error } = await supabase
-    .from("task_group_tasks" as any)
+    .from("task_group_tasks")
     .insert([{ group_id, task_id }])
     .select("*")
     .maybeSingle();

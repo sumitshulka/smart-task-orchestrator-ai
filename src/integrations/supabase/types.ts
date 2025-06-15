@@ -261,6 +261,77 @@ export type Database = {
           },
         ]
       }
+      task_group_tasks: {
+        Row: {
+          created_at: string
+          group_id: string
+          id: string
+          task_id: string
+        }
+        Insert: {
+          created_at?: string
+          group_id: string
+          id?: string
+          task_id: string
+        }
+        Update: {
+          created_at?: string
+          group_id?: string
+          id?: string
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_group_tasks_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "task_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_group_tasks_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      task_groups: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          owner_id: string
+          visibility: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          owner_id: string
+          visibility?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          owner_id?: string
+          visibility?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_groups_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       task_status_transitions: {
         Row: {
           created_at: string
