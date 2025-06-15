@@ -35,21 +35,23 @@ const AdminUsers: React.FC = () => {
   // For checking session info and admin status
   const { user } = useSupabaseSession();
 
+  // utility for loading users
+  const fetchUsers = React.useCallback(async () => {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from("users")
+      .select("*")
+      .order("created_at", { ascending: false });
+    if (data) {
+      setUsers(data as User[]);
+    }
+    setLoading(false);
+  }, []);
+
   // Fetch users from Supabase
   React.useEffect(() => {
-    async function fetchUsers() {
-      setLoading(true);
-      const { data, error } = await supabase
-        .from("users")
-        .select("*")
-        .order("created_at", { ascending: false });
-      if (data) {
-        setUsers(data as User[]);
-      }
-      setLoading(false);
-    }
     fetchUsers();
-  }, []);
+  }, [fetchUsers]);
 
   const filteredUsers = React.useMemo(() => {
     if (!search) return users;
@@ -73,19 +75,23 @@ const AdminUsers: React.FC = () => {
   return (
     <div className="p-6 max-w-6xl w-full">
       {/* Bulk Upload Dialog */}
-      <BulkUserUploadDialog open={bulkDialogOpen} onOpenChange={setBulkDialogOpen} />
+      <BulkUserUploadDialog
+        open={bulkDialogOpen}
+        onOpenChange={setBulkDialogOpen}
+        onUsersUploaded={fetchUsers}
+      />
       {/* Dialogs */}
       <EditUserDialog
         open={createDialogOpen}
         onOpenChange={setCreateDialogOpen}
-        onUserUpdated={() => {}}  // typical reload
+        onUserUpdated={fetchUsers}  // typical reload after create
         user={undefined}
       />
       <EditUserDialog
         open={editDialogOpen}
         onOpenChange={setEditDialogOpen}
         user={editUser}
-        onUserUpdated={() => {}}  // typical reload
+        onUserUpdated={fetchUsers} // typical reload after edit
       />
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
