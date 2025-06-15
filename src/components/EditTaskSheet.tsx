@@ -255,8 +255,8 @@ const EditTaskSheet: React.FC<Props> = ({
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       {children && <SheetTrigger asChild>{children}</SheetTrigger>}
-      <SheetContent side="right" className="max-w-4xl w-[75vw]">
-        <form className="p-2 space-y-6" onSubmit={handleSubmit}>
+      <SheetContent side="right" className="max-w-4xl w-[75vw] flex flex-col p-0">
+        <form className="flex-1 flex flex-col p-2 space-y-6 overflow-y-auto" onSubmit={handleSubmit} style={{ minHeight: 0 }}>
           <SheetHeader>
             <SheetTitle>Edit Task</SheetTitle>
             <SheetDescription>

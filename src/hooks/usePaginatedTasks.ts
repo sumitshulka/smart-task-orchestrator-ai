@@ -72,7 +72,6 @@ export function usePaginatedTasks(options: {
     setLoading(true);
     setShowTooManyWarning(false);
 
-    // Historical: restrict to before 30 days ago
     let input: FetchTasksInput = {
       offset: (page - 1) * pageSize,
       limit: pageSize,
@@ -82,27 +81,35 @@ export function usePaginatedTasks(options: {
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(today.getDate() - 30);
 
+    // --- Fix: use endOfDay for filter boundaries ---
     if (options.isHistorical) {
       if (dateRange.from && dateRange.to) {
-        const maxHistEnd = thirtyDaysAgo.toISOString().slice(0, 10);
-        const toDateStr = dateRange.to.toISOString().slice(0, 10);
         input.fromDate = dateRange.from.toISOString().slice(0, 10);
-        input.toDate = toDateStr > maxHistEnd ? maxHistEnd : toDateStr;
+        // Always use endOfDay for filter upper bound
+        const endBoundary = new Date(dateRange.to);
+        endBoundary.setHours(23, 59, 59, 999);
+        input.toDate = endBoundary.toISOString().slice(0, 10);
       } else {
-        input.toDate = thirtyDaysAgo.toISOString().slice(0, 10);
+        const endBoundary = new Date(thirtyDaysAgo);
+        endBoundary.setHours(23, 59, 59, 999);
+        input.toDate = endBoundary.toISOString().slice(0, 10);
       }
     } else {
-      // Current Tasks: from 30 days ago to tomorrow by default
       if (!dateRange.from && !dateRange.to) {
         const fromDateObj = new Date(today);
         fromDateObj.setDate(today.getDate() - 30);
+        fromDateObj.setHours(0, 0, 0, 0);
         const toDateObj = new Date(today);
-        toDateObj.setDate(today.getDate() + 1);
+        toDateObj.setHours(23, 59, 59, 999);
         input.fromDate = fromDateObj.toISOString().slice(0, 10);
         input.toDate = toDateObj.toISOString().slice(0, 10);
       } else if (dateRange.from && dateRange.to) {
-        input.fromDate = dateRange.from.toISOString().slice(0, 10);
-        input.toDate = dateRange.to.toISOString().slice(0, 10);
+        const fromDateObj = new Date(dateRange.from);
+        fromDateObj.setHours(0, 0, 0, 0);
+        const toDateObj = new Date(dateRange.to);
+        toDateObj.setHours(23, 59, 59, 999);
+        input.fromDate = fromDateObj.toISOString().slice(0, 10);
+        input.toDate = toDateObj.toISOString().slice(0, 10);
       }
     }
 

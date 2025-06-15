@@ -1,4 +1,3 @@
-
 // Fix: Remove local startOfDay/endOfDay and use date-fns version
 
 import React from "react";
@@ -31,15 +30,21 @@ type DateRangePresetSelectorProps = {
   onChange: (range: { from: Date | null; to: Date | null }, preset: string) => void;
 };
 
-// Ensure date ranges are always [00:00:00, 23:59:59.999]
-function computeRange(key: string): { from: Date; to: Date } {
+// Fix: today/yesterday preset correctly returns [00:00:00, 23:59:59.999]
+function computeRange(key: string): { from: Date | null; to: Date | null } {
   const now = new Date();
   switch (key) {
-    case "today":
-      return { from: startOfDay(now), to: endOfDay(now) };
-    case "yesterday":
+    case "today": {
+      const from = startOfDay(now);
+      const to = endOfDay(now);
+      return { from, to };
+    }
+    case "yesterday": {
       const yd = subDays(now, 1);
-      return { from: startOfDay(yd), to: endOfDay(yd) };
+      const from = startOfDay(yd);
+      const to = endOfDay(yd);
+      return { from, to };
+    }
     case "this_week":
       return {
         from: startOfDay(startOfWeek(now, { weekStartsOn: 1 })),

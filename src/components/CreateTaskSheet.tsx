@@ -61,7 +61,7 @@ const initialForm = {
   start_date: "",
   due_date: "",
   priority: 2,
-  status: "pending",
+  status: "", // Do NOT default; will pick from statuses as soon as loaded
   type: "personal",
   estimated_hours: "",
   assigned_to: "",
@@ -172,11 +172,13 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
       setForm((f) => ({
         ...f,
         [name]: checked,
-        ...(name === "isSubTask" && !checked ? {} : {}), // nothing special now
+        ...(name === "isSubTask" && !checked ? {} : {}),
         ...(name === "isDependent" && !checked ? { dependencyTaskId: "" } : {}),
       }));
     } else if (name === "priority") {
       setForm((f) => ({ ...f, [name]: Number(value) }));
+    } else if (name === "status") {
+      setForm((f) => ({ ...f, status: value }));
     } else {
       setForm((f) => ({ ...f, [name]: value }));
     }
@@ -190,6 +192,11 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
       const myUserId = user?.id;
       if (!myUserId) throw new Error("No current user!");
 
+      // Always use the status that is in the form (selected by user, or defaulted to first in statuses)
+      if (!form.status) {
+        throw new Error("Status is required.");
+      }
+
       // Additional validation: For personal tasks, must be subtask and assigned to a private group
       if (form.type === "personal") {
         const group = taskGroups.find(g => g.id === selectedTaskGroup && g.visibility === "private");
@@ -201,7 +208,7 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
       const taskInput: any = {
         title: form.title,
         description: form.description,
-        status: form.status,
+        status: form.status, // ALWAYS take from form, NOT hardcoded
         priority: form.priority,
         due_date: form.due_date || null,
         start_date: form.start_date || null,
