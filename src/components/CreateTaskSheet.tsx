@@ -17,6 +17,7 @@ import { toast } from "@/components/ui/use-toast";
 import useSupabaseSession from "@/hooks/useSupabaseSession";
 import { useTaskStatuses } from "@/hooks/useTaskStatuses";
 import { fetchAssignableTaskGroups, assignTaskToGroup, TaskGroup } from "@/integrations/supabase/taskGroups";
+import TaskSearchDialog from "./TaskSearchDialog";
 
 // Simulated quick user record
 type User = { id: string; email: string; user_name: string | null; manager: string | null };
@@ -311,6 +312,13 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
     // eslint-disable-next-line
   }, [open, form.type, form.isSubTask]);
 
+  // --- (dependency selection) ---
+  // When dependency selected via dialog, update dependencyTaskId and remember the selected full task
+  function handleDependencySelect(task: Task) {
+    setSelectedDependencyTask(task);
+    setForm(f => ({ ...f, dependencyTaskId: task.id }));
+  }
+
   // --- UI ---
   return (
     <Sheet open={open} onOpenChange={setOpen}>
@@ -489,22 +497,49 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
               {form.isDependent && (
                 <div className="mt-2">
                   <label className="block mb-1 text-sm">Dependency Task</label>
-                  <select
+                  {/* --- REPLACE DROPDOWN WITH SEARCH DIALOG BUTTON + DIALOG --- */}
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      className="border rounded px-3 py-2 bg-muted/50 hover:bg-muted/70 transition"
+                      onClick={() => setDependencyDialogOpen(true)}
+                    >
+                      {selectedDependencyTask
+                        ? <>Selected: <span className="font-semibold">{selectedDependencyTask.title}</span> (Change)</>
+                        : "Search & Select Task"}
+                    </button>
+                    {selectedDependencyTask && (
+                      <button
+                        type="button"
+                        className="text-xs text-danger-600 underline ml-2"
+                        onClick={() => {
+                          setSelectedDependencyTask(null);
+                          setForm(f => ({ ...f, dependencyTaskId: "" }));
+                        }}
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                  {/* Hidden input to preserve dependencyTaskId for submit */}
+                  <input
+                    type="hidden"
                     name="dependencyTaskId"
                     value={form.dependencyTaskId}
-                    onChange={handleChange}
-                    className="w-full border rounded p-2"
-                    required
-                  >
-                    <option value="">Select Dependency Task</option>
-                    {selectableTasks
-                      .filter((t) => t.id !== undefined && t.id !== form.dependencyTaskId)
-                      .map((t) => (
-                        <option key={t.id} value={t.id}>
-                          {t.title}
-                        </option>
-                      ))}
-                  </select>
+                    readOnly
+                  />
+                  <TaskSearchDialog
+                    open={dependencyDialogOpen}
+                    onOpenChange={setDependencyDialogOpen}
+                    onSelect={handleDependencySelect}
+                    excludeTaskId={undefined} // (Optionally: if editing, exclude current task)
+                  />
+                  {/* Optionally, display a small summary below */}
+                  {selectedDependencyTask && (
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      Description: {selectedDependencyTask.description || "—"}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
