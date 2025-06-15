@@ -38,6 +38,8 @@ const statuses = [
   { label: "Completed", value: "completed" },
 ];
 
+// Add logic to filter/group by Task Group if needed (future extension)
+
 const fallbackImage =
   "https://images.unsplash.com/photo-1582562124811-c09040d0a901?auto=format&fit=crop&w=400&q=80";
 

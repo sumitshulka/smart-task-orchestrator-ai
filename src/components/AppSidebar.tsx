@@ -89,6 +89,22 @@ export default function AppSidebar() {
                   </NavLink>
                 </SidebarMenuButton>
               </SidebarMenuItem>
+              {/* Add Task Groups as submenu */}
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={location.pathname.startsWith("/admin/task-groups")}>
+                  <NavLink
+                    to="/admin/task-groups"
+                    end
+                    className={({ isActive }) =>
+                      "flex items-center gap-2 py-1.5 px-2 rounded transition " +
+                      (isActive ? "bg-muted text-primary font-semibold" : "hover:bg-muted/50")
+                    }
+                  >
+                    <ListTodo className="w-5 h-5" />
+                    <span className="hidden md:inline">Task Groups</span>
+                  </NavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={location.pathname.startsWith("/admin/my-tasks")}>
                   <NavLink

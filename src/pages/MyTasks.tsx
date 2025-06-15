@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import useSupabaseSession from "@/hooks/useSupabaseSession";
 import { fetchTasks, Task, updateTask, fetchTasksPaginated, FetchTasksInput } from "@/integrations/supabase/tasks";

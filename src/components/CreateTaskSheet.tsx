@@ -16,6 +16,7 @@ import { fetchTasks, createTask, Task } from "@/integrations/supabase/tasks";
 import { toast } from "@/components/ui/use-toast";
 import useSupabaseSession from "@/hooks/useSupabaseSession";
 import { useTaskStatuses } from "@/hooks/useTaskStatuses";
+import { fetchAssignableTaskGroups, assignTaskToGroup, TaskGroup } from "@/integrations/supabase/taskGroups";
 
 // Simulated quick user record
 type User = { id: string; email: string; user_name: string | null; manager: string | null };
@@ -90,6 +91,8 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
   const [userRoles, setUserRoles] = useState<string[]>([]);
   const { user, loading: sessionLoading } = useSupabaseSession();
   const { statuses, loading: statusLoading } = useTaskStatuses();
+  const [taskGroups, setTaskGroups] = useState<TaskGroup[]>([]);
+  const [selectedTaskGroup, setSelectedTaskGroup] = useState<string>("");
 
   // Get user role: use fetched roles, fallback to email only if missing
   const [userRole, setUserRole] = useState<string>("user");
@@ -180,7 +183,7 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
     }
   };
 
-  // Handle submit
+  // In handleSubmit: assign to group if set and not empty
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setCreating(true);
@@ -215,6 +218,11 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
 
       // Create the task
       const newTask = await createTask(taskInput);
+
+      // Assign to group if selected
+      if (selectedTaskGroup) {
+        await assignTaskToGroup({ group_id: selectedTaskGroup, task_id: newTask.id });
+      }
 
       // Log creation!
       await (await import("@/integrations/supabase/taskActivity")).createTaskActivity({
@@ -274,6 +282,22 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
       </select>
     );
   };
+
+  // Insert group selection into the form (below Assign Type)
+  // Fetch eligible task groups on open/type change
+  useEffect(() => {
+    if (!open) return;
+    async function loadGroups() {
+      const groups = await fetchAssignableTaskGroups();
+      // Enforce private group rules: on personal only show all, else filter for non-private
+      let filtered = groups;
+      if (form.type === "team") {
+        filtered = groups.filter(g => g.visibility !== "private");
+      }
+      setTaskGroups(filtered);
+    }
+    loadGroups();
+  }, [open, form.type]);
 
   // --- UI ---
   return (
@@ -384,10 +408,25 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
               </select>
             </div>
             <div>
+              <label className="block mb-1 font-medium">Task Group</label>
+              <select
+                name="task_group"
+                value={selectedTaskGroup}
+                onChange={e => setSelectedTaskGroup(e.target.value)}
+                className="w-full border rounded p-2 bg-white z-50"
+              >
+                <option value="">No Task Group</option>
+                {taskGroups.map((g) => (
+                  <option key={g.id} value={g.id}>{g.name} ({g.visibility})</option>
+                ))}
+              </select>
+            </div>
+            {/* Row 6: Assigned To (conditionally rendered) */}
+            <div>
               <label className="block mb-1 font-medium">Assigned To</label>
               {renderAssignedToInput()}
             </div>
-            {/* Row 6: Estimated Hours (full width below Assign Type + Assigned To) */}
+            {/* Row 7: Estimated Hours (full width below Assign Type + Assigned To) */}
             <div className="sm:col-span-2">
               <label className="block mb-1 font-medium">Estimated Hours</label>
               <Input
