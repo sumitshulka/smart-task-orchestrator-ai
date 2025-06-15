@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 
 // Types
@@ -25,19 +24,20 @@ function parseVisibility(val: string): TaskGroup["visibility"] {
 }
 
 export async function fetchTaskGroups(): Promise<TaskGroup[]> {
-  // Fetch groups (ignore join, just get groups, then fetch task counts)
+  // Supabase types don't know about task_groups table, so use 'as any'
   const { data, error } = await supabase
     .from("task_groups" as any)
     .select("*")
     .order("created_at", { ascending: false });
 
   if (error || !data) throw error || new Error("No data");
-  // For each group, count tasks in separate query
+
+  // For each group, count tasks separately
   const groups: TaskGroup[] = await Promise.all(
     data.map(async (g: any) => {
       const { count } = await supabase
         .from("task_group_tasks" as any)
-        .select("id", { count: "exact", head: true })
+        .select("*", { count: "exact", head: true })
         .eq("group_id", g.id);
       return {
         ...g,
@@ -49,10 +49,10 @@ export async function fetchTaskGroups(): Promise<TaskGroup[]> {
 }
 
 export async function createTaskGroup(input: Pick<TaskGroup, "name" | "description" | "visibility">): Promise<TaskGroup> {
-  // Explicitly cast visibility
+  // Explicitly cast visibility to valid type
   const safeInput = {
     ...input,
-    visibility: parseVisibility(input.visibility as string)
+    visibility: parseVisibility(input.visibility as string),
   };
   const { data, error } = await supabase
     .from("task_groups" as any)
@@ -96,7 +96,7 @@ export async function fetchTaskGroupDetails(groupId: string) {
     tasks = taskData ?? [];
   }
 
-  return { ...group, tasks: tasks.map(t => ({ task: t })) };
+  return { ...(group || {}), tasks: Array.isArray(tasks) ? tasks.map(t => ({ task: t })) : [] };
 }
 
 // For use in Create task/subtask dropdown (with filtering on visibility if needed)

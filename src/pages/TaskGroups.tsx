@@ -21,7 +21,7 @@ export default function TaskGroupsPage() {
   const [form, setForm] = useState<{
     name: string;
     description: string;
-    visibility: TaskGroup["visibility"];
+    visibility: "private" | "managers_admin_only" | "all_team_members";
   }>({ name: "", description: "", visibility: "private" });
   const [detailsGroup, setDetailsGroup] = useState<any>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -110,7 +110,10 @@ export default function TaskGroupsPage() {
             <label className="block font-medium mb-1">Visibility</label>
             <select
               value={form.visibility}
-              onChange={e => setForm(f => ({ ...f, visibility: e.target.value }))}
+              onChange={e => setForm(f => ({
+                ...f,
+                visibility: e.target.value as "private" | "managers_admin_only" | "all_team_members"
+              }))}
               className="w-full border rounded p-2"
               required
             >
