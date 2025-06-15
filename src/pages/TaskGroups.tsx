@@ -81,7 +81,7 @@ export default function TaskGroupsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-4xl w-full p-4">
+    <div className="max-w-4xl w-full p-4 mx-0">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">Task Groups</h1>
         <Button onClick={() => setCreateOpen(v => !v)}>
