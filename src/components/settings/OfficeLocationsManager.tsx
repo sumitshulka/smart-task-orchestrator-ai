@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
@@ -8,6 +7,7 @@ import { toast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import OfficeLocationForm from "./OfficeLocationForm";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { useRole } from "@/contexts/RoleProvider";
 
 // Add User type for local mapping
 type User = {
@@ -25,6 +25,7 @@ interface OfficeLocation {
 }
 
 const OfficeLocationsManager: React.FC = () => {
+  const { highestRole } = useRole();
   const [locations, setLocations] = useState<OfficeLocation[]>([]);
   const [loading, setLoading] = useState(true);
   const [openForm, setOpenForm] = useState(false);
@@ -124,7 +125,10 @@ const OfficeLocationsManager: React.FC = () => {
     <Card className="max-w-3xl mx-auto">
       <CardHeader className="flex flex-row items-center justify-between pb-2">
         <CardTitle className="text-lg font-semibold">Office Locations</CardTitle>
-        <Button size="sm" onClick={() => setOpenForm(true)}>+ Add Location</Button>
+        {/* Only admin can add */}
+        {highestRole === "admin" && (
+          <Button size="sm" onClick={() => setOpenForm(true)}>+ Add Location</Button>
+        )}
       </CardHeader>
       <CardContent>
         <div className="border rounded bg-background overflow-x-auto shadow-sm">
@@ -136,7 +140,9 @@ const OfficeLocationsManager: React.FC = () => {
                 <TableHead className="w-1/4">Address</TableHead>
                 <TableHead className="w-1/6">Location Manager</TableHead>
                 <TableHead className="w-1/6">Creation Date</TableHead>
-                <TableHead className="w-20 text-center">Actions</TableHead>
+                <TableHead className="w-20 text-center">
+                  {highestRole === "admin" ? "Actions" : ""}
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -165,14 +171,16 @@ const OfficeLocationsManager: React.FC = () => {
                       {loc.created_at ? new Date(loc.created_at).toLocaleString() : "--"}
                     </TableCell>
                     <TableCell>
-                      <div className="flex items-center justify-center gap-2">
-                        <Button size="icon" variant="ghost" aria-label="Edit" onClick={() => { setEditLocation(loc); setOpenForm(true); }}>
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                        <Button size="icon" variant="ghost" aria-label="Delete" onClick={() => handleDelete(loc.id)}>
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
+                      {highestRole === "admin" && (
+                        <div className="flex items-center justify-center gap-2">
+                          <Button size="icon" variant="ghost" aria-label="Edit" onClick={() => { setEditLocation(loc); setOpenForm(true); }}>
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                          <Button size="icon" variant="ghost" aria-label="Delete" onClick={() => handleDelete(loc.id)}>
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))
@@ -181,21 +189,23 @@ const OfficeLocationsManager: React.FC = () => {
           </Table>
         </div>
       </CardContent>
-      <Dialog open={openForm} onOpenChange={o => { setOpenForm(o); if (!o) setEditLocation(null); }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{editLocation ? "Edit Office Location" : "Add Office Location"}</DialogTitle>
-          </DialogHeader>
-          <OfficeLocationForm
-            initialValues={editLocation}
-            onSubmit={v => handleCreateOrUpdate(v, editLocation?.id)}
-            onCancel={() => { setOpenForm(false); setEditLocation(null); }}
-          />
-        </DialogContent>
-      </Dialog>
+      {/* Show form only if admin */}
+      {highestRole === "admin" &&
+        <Dialog open={openForm} onOpenChange={o => { setOpenForm(o); if (!o) setEditLocation(null); }}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{editLocation ? "Edit Office Location" : "Add Office Location"}</DialogTitle>
+            </DialogHeader>
+            <OfficeLocationForm
+              initialValues={editLocation}
+              onSubmit={v => handleCreateOrUpdate(v, editLocation?.id)}
+              onCancel={() => { setOpenForm(false); setEditLocation(null); }}
+            />
+          </DialogContent>
+        </Dialog>
+      }
     </Card>
   );
 };
 
 export default OfficeLocationsManager;
-

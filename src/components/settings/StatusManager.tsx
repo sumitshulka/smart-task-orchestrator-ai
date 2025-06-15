@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useTaskStatuses } from "@/hooks/useTaskStatuses";
 import StatusLifecycleGraph from "./StatusLifecycleGraph";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { useRole } from "@/contexts/RoleProvider";
 
 type TaskStatus = {
   id: string;
@@ -37,6 +38,7 @@ const StatusManager: React.FC = () => {
   const [editing, setEditing] = useState<{ [id: string]: boolean }>({});
   const [newStatus, setNewStatus] = useState({ name: "", description: "" });
   const [inputStatus, setInputStatus] = useState<{ [id: string]: { name: string; description: string } }>({});
+  const { highestRole } = useRole();
 
   // Reordering
   const moveRow = (fromIdx: number, toIdx: number) => {
@@ -128,15 +130,17 @@ const StatusManager: React.FC = () => {
                   <th className="w-12 p-2">#</th>
                   <th className="w-1/6 p-2">Status Name</th>
                   <th className="w-1/2 p-2">Description</th>
-                  <th className="w-1/4 p-2 text-center">Actions</th>
+                  <th className="w-1/4 p-2 text-center">
+                    {highestRole === "admin" ? "Actions" : ""}
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {statuses.map((status, idx) => (
-                  <DraggableRow key={status.id} index={idx} moveRow={moveRow} status={status}>
+                  <DraggableRow key={status.id} index={idx} moveRow={highestRole === "admin" ? moveRow : () => {}} status={status}>
                     <td className="p-2 cursor-move">{idx + 1}</td>
                     <td className="p-2">
-                      {editing[status.id] ? (
+                      {editing[status.id] && highestRole === "admin" ? (
                         <Input
                           value={inputStatus[status.id].name}
                           onChange={(e) =>
@@ -151,7 +155,7 @@ const StatusManager: React.FC = () => {
                       )}
                     </td>
                     <td className="p-2">
-                      {editing[status.id] ? (
+                      {editing[status.id] && highestRole === "admin" ? (
                         <Input
                           value={inputStatus[status.id].description}
                           onChange={(e) =>
@@ -167,9 +171,9 @@ const StatusManager: React.FC = () => {
                     </td>
                     <td className="p-2">
                       <div className="flex items-center justify-center gap-2">
-                        {editing[status.id] ? (
+                        {editing[status.id] && highestRole === "admin" ? (
                           <Button size="sm" variant="default" onClick={() => handleSaveStatus(status.id)}>Save</Button>
-                        ) : (
+                        ) : highestRole === "admin" ? (
                           <>
                             <Button variant="outline" size="sm" onClick={() => handleEditStatus(status.id)}>
                               Edit
@@ -178,7 +182,7 @@ const StatusManager: React.FC = () => {
                               Delete
                             </Button>
                           </>
-                        )}
+                        ) : null}
                       </div>
                     </td>
                   </DraggableRow>
@@ -187,24 +191,26 @@ const StatusManager: React.FC = () => {
             </table>
           </DndProvider>
         </div>
-
-        <div className="flex flex-wrap gap-2 items-end mt-4">
-          <Input
-            placeholder="Status name"
-            className="w-[180px]"
-            value={newStatus.name}
-            onChange={(e) => setNewStatus({ ...newStatus, name: e.target.value })}
-          />
-          <Input
-            placeholder="Description"
-            className="w-[250px]"
-            value={newStatus.description}
-            onChange={(e) => setNewStatus({ ...newStatus, description: e.target.value })}
-          />
-          <Button onClick={handleAddStatus} variant="default">
-            Add
-          </Button>
-        </div>
+        {/* Only admin can add statuses */}
+        {highestRole === "admin" && (
+          <div className="flex flex-wrap gap-2 items-end mt-4">
+            <Input
+              placeholder="Status name"
+              className="w-[180px]"
+              value={newStatus.name}
+              onChange={(e) => setNewStatus({ ...newStatus, name: e.target.value })}
+            />
+            <Input
+              placeholder="Description"
+              className="w-[250px]"
+              value={newStatus.description}
+              onChange={(e) => setNewStatus({ ...newStatus, description: e.target.value })}
+            />
+            <Button onClick={handleAddStatus} variant="default">
+              Add
+            </Button>
+          </div>
+        )}
         {/* Transitions + Graph */}
         <div className="mt-10">
           <StatusLifecycleGraph statuses={statuses} />

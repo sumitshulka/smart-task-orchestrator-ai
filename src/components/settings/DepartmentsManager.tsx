@@ -8,6 +8,7 @@ import { toast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import DepartmentForm from "./DepartmentForm";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { useRole } from "@/contexts/RoleProvider"; // Import
 
 interface Department {
   id: string;
@@ -20,6 +21,7 @@ const DepartmentsManager: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [openForm, setOpenForm] = useState(false);
   const [editDep, setEditDep] = useState<Department | null>(null);
+  const { highestRole } = useRole(); // Get the role from context
 
   const fetchDepartments = async () => {
     setLoading(true);
@@ -82,7 +84,10 @@ const DepartmentsManager: React.FC = () => {
     <Card className="max-w-3xl mx-auto">
       <CardHeader className="flex flex-row items-center justify-between pb-2">
         <CardTitle className="text-lg font-semibold">Departments</CardTitle>
-        <Button size="sm" onClick={() => setOpenForm(true)}>+ Add Department</Button>
+        {/* Only admin can add */}
+        {highestRole === "admin" && (
+          <Button size="sm" onClick={() => setOpenForm(true)}>+ Add Department</Button>
+        )}
       </CardHeader>
       <CardContent>
         <div className="border rounded bg-background overflow-x-auto shadow-sm">
@@ -91,7 +96,9 @@ const DepartmentsManager: React.FC = () => {
               <TableRow>
                 <TableHead className="w-1/4">Name</TableHead>
                 <TableHead className="w-2/4">Description</TableHead>
-                <TableHead className="w-1/4 text-center">Actions</TableHead>
+                <TableHead className="w-1/4 text-center">
+                  {highestRole === "admin" ? "Actions" : ""}
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -109,14 +116,16 @@ const DepartmentsManager: React.FC = () => {
                     <TableCell>{d.name}</TableCell>
                     <TableCell>{d.description || "--"}</TableCell>
                     <TableCell>
-                      <div className="flex items-center justify-center gap-2">
-                        <Button size="icon" variant="ghost" aria-label="Edit" onClick={() => { setEditDep(d); setOpenForm(true); }}>
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                        <Button size="icon" variant="ghost" aria-label="Delete" onClick={() => handleDelete(d.id)}>
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
+                      {highestRole === "admin" && (
+                        <div className="flex items-center justify-center gap-2">
+                          <Button size="icon" variant="ghost" aria-label="Edit" onClick={() => { setEditDep(d); setOpenForm(true); }}>
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                          <Button size="icon" variant="ghost" aria-label="Delete" onClick={() => handleDelete(d.id)}>
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))
@@ -125,20 +134,24 @@ const DepartmentsManager: React.FC = () => {
           </Table>
         </div>
       </CardContent>
-      <Dialog open={openForm} onOpenChange={o => { setOpenForm(o); if (!o) setEditDep(null); }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{editDep ? "Edit Department" : "Add Department"}</DialogTitle>
-          </DialogHeader>
-          <DepartmentForm
-            initialValues={editDep}
-            onSubmit={v => handleCreateOrUpdate(v, editDep?.id)}
-            onCancel={() => { setOpenForm(false); setEditDep(null); }}
-          />
-        </DialogContent>
-      </Dialog>
+      {/* Show form only if admin */}
+      {highestRole === "admin" &&
+        <Dialog open={openForm} onOpenChange={o => { setOpenForm(o); if (!o) setEditDep(null); }}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{editDep ? "Edit Department" : "Add Department"}</DialogTitle>
+            </DialogHeader>
+            <DepartmentForm
+              initialValues={editDep}
+              onSubmit={v => handleCreateOrUpdate(v, editDep?.id)}
+              onCancel={() => { setOpenForm(false); setEditDep(null); }}
+            />
+          </DialogContent>
+        </Dialog>
+      }
     </Card>
   );
 };
 
 export default DepartmentsManager;
+
