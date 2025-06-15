@@ -188,7 +188,7 @@ const EditTaskSheet: React.FC<Props> = ({
         action_type: "assigned",
         old_value: task!.assigned_to,
         new_value: newAssignee,
-        acted_by: user?.id,
+        acted_by: currentUser?.id,
       });
       toast({ title: "Task assignee updated" });
       onOpenChange(false);
@@ -237,7 +237,7 @@ const EditTaskSheet: React.FC<Props> = ({
           action_type: "edit",
           old_value: String(old),
           new_value: String(nw),
-          acted_by: user?.id
+          acted_by: currentUser?.id
         });
       }
       toast({ title: "Task updated" });
