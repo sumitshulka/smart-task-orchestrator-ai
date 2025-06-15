@@ -71,24 +71,35 @@ export const BulkUserUploadPreviewEditableTable: React.FC<BulkUserUploadPreviewE
 }) => {
   if (!users || users.length === 0) return null;
 
-  // No special scroll shadow logic.
+  // Refined scroll approach: 
+  // We want the scroll *inside* the modal boundaries.
+  // So we enforce the outer container to fit modal, and table min-width for content.
   return (
     <TooltipProvider delayDuration={150}>
-      {/* SCROLLABLE TABLE CONTAINER */}
+      {/* RESPONSIVE SCROLLABLE CONTAINER */}
       <div
-        className="border rounded-xl shadow-inner bg-white ring-1 ring-border/40
+        className="
+          w-full 
+          max-w-full
+          overflow-x-auto          /* <-- outer horizontal scroll if needed */
+          overflow-y-auto
+          border rounded-xl shadow-inner bg-white ring-1 ring-border/40
           mt-2 mb-2
-          max-h-[360px]
-          overflow-x-auto overflow-y-auto
-          w-full max-w-full"
-        style={{ minWidth: 0 }}
+        "
+        style={{
+          // Make sure we never overflow modal (650px = dialog default)
+          maxHeight: 360,
+          // if modal max-w is 650px, we keep slightly less, let dialog padding provide rest
+          maxWidth: '100%',
+          minWidth: 0,
+        }}
         tabIndex={-1}
       >
         <table
           className="
             border-collapse 
-            min-w-[900px]      /* Guarantee at least this width */
-            w-max              /* Table will grow horizontally if needed */
+            min-w-[900px]           /* Table itself has minimum width for full columns */
+            w-full                  /* Table will always fill container horizontally */
             bg-white
           "
         >
@@ -147,7 +158,7 @@ export const BulkUserUploadPreviewEditableTable: React.FC<BulkUserUploadPreviewE
                             : "bg-white border-border",
                           "focus-within:outline focus-within:outline-2 focus-within:outline-primary"
                         )}
-                        // No forced widths! Only content/min-w:hidden effect
+                        // Let the content drive width. No forced col widths.
                       >
                         {(h === "email" ||
                           h.toLowerCase().includes("name") ||
@@ -245,4 +256,4 @@ export const BulkUserUploadPreviewEditableTable: React.FC<BulkUserUploadPreviewE
 
 export default BulkUserUploadPreviewEditableTable;
 
-// END. This file is now quite long (~280+ lines). Consider refactoring into smaller components/hooks for maintainability.
+// File length warning: This file is quite long (~250+ lines). After verifying your scrollable table works, consider asking to refactor this file into smaller components for easier maintenance.
