@@ -65,10 +65,14 @@ export default function TaskCard({ task, onTaskUpdated, canDelete }: TaskCardPro
   const timeStatus = getTimeIndicator(task);
 
   // BADGE LOGIC: Determine if Subtask/Dependent based on known available properties
-  // Heuristic: If the task is part of a task_group_tasks table (i.e. assigned to group), it is a subtask
-  const isSubTask = !!(task.group_ids && Array.isArray(task.group_ids) && task.group_ids.length > 0);
-  // Heuristic: If a dependencyTaskId property is non-null, it's a dependent
-  const isDependent = !!task.dependencyTaskId;
+  // NOTE: These properties are NOT present on Task object, so we disable them for now!
+  // const isSubTask = !!(task.group_ids && Array.isArray(task.group_ids) && task.group_ids.length > 0);
+  // const isDependent = !!task.dependencyTaskId;
+
+  // TODO: If you want to display badges for "Subtask" and "Dependent", you'll need to
+  // modify your fetchTasks function to include related tables (see task_group_tasks, task_dependencies)
+  const isSubTask = false; // Not available by default
+  const isDependent = false; // Not available by default
 
   return (
     <Card className="relative group transition hover:shadow-lg">
@@ -128,15 +132,15 @@ export default function TaskCard({ task, onTaskUpdated, canDelete }: TaskCardPro
                 Overdue
               </span>
             )}
-            {/* --- NEW: Subtask and Dependency Badges --- */}
+            {/* --- Subtask and Dependency Badges (currently unavailable) --- */}
             {isSubTask && (
               <Badge className="bg-purple-100 text-purple-700 flex items-center gap-1" variant="secondary" title="Subtask in Group">
-                <List size={14} /> Subtask
+                {/* <List size={14} /> */} Subtask
               </Badge>
             )}
             {isDependent && (
               <Badge className="bg-blue-100 text-blue-700 flex items-center gap-1" variant="secondary" title="Dependent task">
-                <Link2 size={14} /> Dependent
+                {/* <Link2 size={14} /> */} Dependent
               </Badge>
             )}
           </div>
