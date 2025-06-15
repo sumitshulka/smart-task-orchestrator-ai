@@ -7,6 +7,7 @@ import { LogOut } from "lucide-react";
 import { Settings } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import useSupabaseSession from "@/hooks/useSupabaseSession";
+import { useRole } from "@/contexts/RoleProvider";
 
 const USER_PLACEHOLDER = {
   name: "Jane Doe",
@@ -23,11 +24,10 @@ const getInitials = (name: string) => {
 
 const Topbar: React.FC = () => {
   const navigate = useNavigate();
-
-  // Use current logged-in user info via session hook
   const { user } = useSupabaseSession();
+  const { userName, highestRole, loading } = useRole();
 
-  const displayName = user?.user_metadata?.user_name || user?.email || USER_PLACEHOLDER.name;
+  const displayName = userName || user?.user_metadata?.user_name || user?.email || USER_PLACEHOLDER.name;
   const displayEmail = user?.email || USER_PLACEHOLDER.email;
 
   const handleLogout = async () => {
@@ -37,7 +37,15 @@ const Topbar: React.FC = () => {
 
   return (
     <header className="flex items-center justify-between border-b bg-background h-14 px-6 gap-4">
-      <div className="text-lg font-semibold tracking-tight">Admin Dashboard</div>
+      <div className="flex flex-col">
+        <span className="text-lg font-semibold tracking-tight">Admin Dashboard</span>
+        {/* Show welcome and role info */}
+        {user && !loading && (
+          <span className="text-xs text-muted-foreground">
+            Welcome {displayName}, you are logged in with role as: <span className="font-semibold">{highestRole || "unknown"}</span>
+          </span>
+        )}
+      </div>
       <div className="flex items-center gap-2">
         <button
           aria-label="Settings"
