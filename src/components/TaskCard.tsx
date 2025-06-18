@@ -1,3 +1,4 @@
+
 import React from "react";
 import { Button } from "@/components/ui/button";
 import EditTaskSheet from "@/components/EditTaskSheet";
@@ -68,8 +69,11 @@ export default function TaskCard({ task, onTaskUpdated, canDelete }: TaskCardPro
   const isSubTask = !!(task.group_ids && Array.isArray(task.group_ids) && task.group_ids.length > 0);
   const isDependent = !!task.is_dependent;
 
+  // Check if task is completed for blue left border
+  const isCompleted = task.status === "completed";
+
   return (
-    <Card className="relative group transition hover:shadow-lg">
+    <Card className={`relative group transition hover:shadow-lg ${isCompleted ? 'border-l-4 border-l-blue-500' : ''}`}>
       {/* Floating top/center actions visible on hover */}
       <div className="absolute left-1/2 top-2 -translate-x-1/2 z-10 flex gap-4 opacity-0 group-hover:opacity-100 transition-all">
         {/* Edit icon always present */}
