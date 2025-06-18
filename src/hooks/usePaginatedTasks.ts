@@ -23,9 +23,12 @@ async function fetchManagerTasksPaginated(input: FetchTasksInput = {}): Promise<
     }
   }
   // Other filters
-  if (input.assignedTo) query = query.eq("assignee_email", input.assignedTo); // Use email as proxy if desired, or adapt
+  if (input.assignedTo) query = query.eq("assignee_email", input.assignedTo);
   if (input.teamId) query = query.eq("team_id", input.teamId);
-  if (input.status && input.status !== "all") query = query.eq("status", input.status);
+  // Fix status filtering with case-insensitive comparison
+  if (input.status && input.status !== "all") {
+    query = query.ilike("status", input.status);
+  }
   if (input.priority && input.priority !== -1) query = query.eq("priority", input.priority);
 
   // Limiting

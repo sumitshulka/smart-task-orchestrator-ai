@@ -127,7 +127,10 @@ export async function fetchTasksPaginated(input: FetchTasksInput = {}): Promise<
   // Other filters
   if (input.assignedTo) query = query.eq("assigned_to", input.assignedTo);
   if (input.teamId) query = query.eq("team_id", input.teamId);
-  if (input.status && input.status !== "all") query = query.eq("status", input.status);
+  // Fix status filtering with case-insensitive comparison
+  if (input.status && input.status !== "all") {
+    query = query.ilike("status", input.status);
+  }
   if (input.priority && input.priority !== -1) query = query.eq("priority", input.priority);
 
   // Limiting
