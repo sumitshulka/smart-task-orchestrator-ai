@@ -10,6 +10,7 @@ type Props = {
   onDelete?: () => void;
   canDelete?: boolean;
   ownerName?: string;
+  ownerEmail?: string;
 };
 
 const visibilityText: Record<TaskGroup["visibility"], string> = {
@@ -29,7 +30,7 @@ const getBorderColor = (visibility: TaskGroup["visibility"]) => {
   }
 };
 
-export default function TaskGroupCard({ group, onView, onDelete, canDelete, ownerName }: Props) {
+export default function TaskGroupCard({ group, onView, onDelete, canDelete, ownerName, ownerEmail }: Props) {
   const borderColorClass = getBorderColor(group.visibility);
   
   return (
@@ -43,7 +44,7 @@ export default function TaskGroupCard({ group, onView, onDelete, canDelete, owne
       {/* Owner information */}
       <div className="text-xs text-gray-600">
         <span className="font-medium">Owner:</span> {ownerName || "Unknown"} 
-        <span className="text-gray-400 ml-1">({group.owner_id})</span>
+        <span className="text-gray-400 ml-1">({ownerEmail || "No email"})</span>
       </div>
       
       <div className="flex items-center gap-2">

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { fetchTaskGroups, createTaskGroup, deleteTaskGroup, fetchTaskGroupDetails, TaskGroup } from "@/integrations/supabase/taskGroups";
 import TaskGroupCard from "@/components/TaskGroupCard";
@@ -82,9 +83,12 @@ export default function TaskGroupsPage() {
     }
   }
 
-  const getOwnerName = (ownerId: string) => {
+  const getOwnerInfo = (ownerId: string) => {
     const owner = users.find(u => u.id === ownerId);
-    return owner?.user_name || owner?.email || "Unknown";
+    return {
+      name: owner?.user_name || owner?.email || "Unknown",
+      email: owner?.email || "No email"
+    };
   };
 
   return (
@@ -136,16 +140,20 @@ export default function TaskGroupsPage() {
         <div className="text-muted-foreground">Loading groups...</div>
       ) : (
         <div className="flex flex-col gap-6">
-          {groups.map(group => (
-            <TaskGroupCard
-              key={group.id}
-              group={group}
-              onView={() => handleViewDetails(group)}
-              onDelete={() => handleDelete(group.id)}
-              canDelete={!!user && group.task_count === 0 && group.owner_id === user.id}
-              ownerName={getOwnerName(group.owner_id)}
-            />
-          ))}
+          {groups.map(group => {
+            const ownerInfo = getOwnerInfo(group.owner_id);
+            return (
+              <TaskGroupCard
+                key={group.id}
+                group={group}
+                onView={() => handleViewDetails(group)}
+                onDelete={() => handleDelete(group.id)}
+                canDelete={!!user && group.task_count === 0 && group.owner_id === user.id}
+                ownerName={ownerInfo.name}
+                ownerEmail={ownerInfo.email}
+              />
+            );
+          })}
         </div>
       )}
       <TaskGroupDetailsSheet
