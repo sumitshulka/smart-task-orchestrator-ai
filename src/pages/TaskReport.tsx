@@ -1,3 +1,4 @@
+
 import React from "react";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { fetchTasksPaginated } from "@/integrations/supabase/tasks";
@@ -145,6 +146,7 @@ export default function TaskReport() {
           assigned_user: {
             user_name: r.assignee_name,
             email: r.assignee_email,
+            department: r.assignee_department, // Add department from the view
           },
         }));
       }
@@ -157,6 +159,7 @@ export default function TaskReport() {
           assigned_user: {
             user_name: r.assignee_name,
             email: r.assignee_email,
+            department: r.assignee_department, // Add department from the view
           },
         }));
       }
@@ -170,13 +173,26 @@ export default function TaskReport() {
         filters.assignedTo = reportUserIds[0];
       }
       const { tasks } = await fetchTasksPaginated(filters);
+      
+      // For individual users, we need to enrich with department data from users array
+      const enrichedTasks = tasks.map(task => {
+        const userInfo = users.find(u => u.id === task.assigned_to);
+        return {
+          ...task,
+          assigned_user: {
+            ...task.assigned_user,
+            department: userInfo?.department || null,
+          }
+        };
+      });
+      
       if (reportUserIds.length === 1) {
-        return tasks.filter((t) => t.assigned_to === reportUserIds[0] || t.created_by === reportUserIds[0]);
+        return enrichedTasks.filter((t) => t.assigned_to === reportUserIds[0] || t.created_by === reportUserIds[0]);
       }
       if (reportUserIds.length > 1) {
-        return tasks.filter((t) => reportUserIds.includes(t.assigned_to ?? ""));
+        return enrichedTasks.filter((t) => reportUserIds.includes(t.assigned_to ?? ""));
       }
-      return tasks;
+      return enrichedTasks;
     },
   });
 
@@ -197,9 +213,12 @@ export default function TaskReport() {
     if (isAdmin) {
       // Department filter
       if (departmentFilter !== "all") {
-        filteredTaskData = filteredTaskData.filter(task => 
-          task.assigned_user?.department === departmentFilter
-        );
+        console.log("Filtering by department:", departmentFilter);
+        filteredTaskData = filteredTaskData.filter(task => {
+          console.log("Task assigned_user department:", task.assigned_user?.department);
+          return task.assigned_user?.department === departmentFilter;
+        });
+        console.log("Filtered tasks after department filter:", filteredTaskData.length);
       }
       
       // Alphabet filter
