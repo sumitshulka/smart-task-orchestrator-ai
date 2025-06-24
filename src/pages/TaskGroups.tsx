@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
 import useSupabaseSession from "@/hooks/useSupabaseSession";
+import { useUserList } from "@/hooks/useUserList";
 
 const visibilityOptions = [
   { value: "private", label: "Private" },
@@ -26,6 +27,7 @@ export default function TaskGroupsPage() {
   const [detailsGroup, setDetailsGroup] = useState<any>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const { user } = useSupabaseSession();
+  const { users } = useUserList();
 
   async function load() {
     setLoading(true);
@@ -79,6 +81,11 @@ export default function TaskGroupsPage() {
       toast({ title: "Failed to fetch group details", description: err.message });
     }
   }
+
+  const getOwnerName = (ownerId: string) => {
+    const owner = users.find(u => u.id === ownerId);
+    return owner?.user_name || owner?.email || "Unknown";
+  };
 
   return (
     <div className="max-w-4xl w-full p-4 mx-0">
@@ -136,6 +143,7 @@ export default function TaskGroupsPage() {
               onView={() => handleViewDetails(group)}
               onDelete={() => handleDelete(group.id)}
               canDelete={!!user && group.task_count === 0 && group.owner_id === user.id}
+              ownerName={getOwnerName(group.owner_id)}
             />
           ))}
         </div>
