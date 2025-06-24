@@ -5,9 +5,10 @@ import { useQuery } from "@tanstack/react-query";
 import useSupabaseSession from "@/hooks/useSupabaseSession";
 import { useCurrentUserRoleAndTeams } from "@/hooks/useCurrentUserRoleAndTeams";
 import { useTaskStatuses } from "@/hooks/useTaskStatuses";
+import { useUsersAndTeams } from "@/hooks/useUsersAndTeams";
 import { supabase } from "@/integrations/supabase/client";
 
-import TaskReportFilters from "@/components/report/TaskReportFilters";
+import TaskReportAdvancedFilters from "@/components/report/TaskReportAdvancedFilters";
 import TaskReportTable from "@/components/report/TaskReportTable";
 import TaskReportExportButton from "@/components/report/TaskReportExportButton";
 
@@ -72,6 +73,11 @@ export default function TaskReport() {
     defaultDateRange()
   );
 
+  // New filter states for admin users
+  const [departmentFilter, setDepartmentFilter] = React.useState<string>("all");
+  const [alphabetFilter, setAlphabetFilter] = React.useState<string>("all");
+  const [selectedEmployees, setSelectedEmployees] = React.useState<any[]>([]);
+
   // Make sure we always have valid dates
   const fromDate = dateRange.from || new Date();
   const toDate = dateRange.to || new Date();
@@ -79,7 +85,10 @@ export default function TaskReport() {
   const { user } = useSupabaseSession();
   const { roles, loading: rolesLoading, teams: userTeams, user: userRow } = useCurrentUserRoleAndTeams();
   const { statuses, loading: statusesLoading } = useTaskStatuses();
+  const { users } = useUsersAndTeams();
   const statusNames = statuses.map((s) => s.name);
+
+  const isAdmin = roles.includes("admin");
 
   // Keep userTeamIds and reportUserIds for possible filtering
   const userTeamIds = React.useMemo(() => userTeams?.map((t) => t.id) ?? [], [userTeams]);
@@ -181,7 +190,36 @@ export default function TaskReport() {
   const report = React.useMemo<EmployeeReport[]>(() => {
     if (!taskData) return [];
     const userMap: Record<string, EmployeeReport> = {};
-    taskData.forEach((task) => {
+    
+    // Filter task data based on admin filters
+    let filteredTaskData = taskData;
+    
+    if (isAdmin) {
+      // Department filter
+      if (departmentFilter !== "all") {
+        filteredTaskData = filteredTaskData.filter(task => 
+          task.assigned_user?.department === departmentFilter
+        );
+      }
+      
+      // Alphabet filter
+      if (alphabetFilter !== "all") {
+        filteredTaskData = filteredTaskData.filter(task => {
+          const firstName = task.assigned_user?.user_name?.charAt(0).toUpperCase();
+          return firstName === alphabetFilter;
+        });
+      }
+      
+      // Selected employees filter
+      if (selectedEmployees.length > 0) {
+        const selectedIds = selectedEmployees.map(emp => emp.id);
+        filteredTaskData = filteredTaskData.filter(task => 
+          selectedIds.includes(task.assigned_to)
+        );
+      }
+    }
+
+    filteredTaskData.forEach((task) => {
       const assignedId = task.assigned_to || "unassigned";
       const userInfo = task.assigned_user;
       const name = (userInfo && userInfo.user_name) || (userInfo && userInfo.email) || "Unassigned";
@@ -211,14 +249,25 @@ export default function TaskReport() {
           : "-"
       };
     });
-  }, [taskData, statusNames]);
+  }, [taskData, statusNames, isAdmin, departmentFilter, alphabetFilter, selectedEmployees]);
 
   return (
     <div className="max-w-5xl mx-0 p-4">
       <h1 className="text-2xl font-semibold mb-4">Task Report</h1>
       <div className="flex flex-col md:flex-row gap-2 justify-between items-start mb-2">
         <div className="bg-muted rounded p-4 mb-4 md:mb-0 w-full md:w-auto">
-          <TaskReportFilters dateRange={dateRange} setDateRange={setDateRange} />
+          <TaskReportAdvancedFilters
+            dateRange={dateRange}
+            setDateRange={setDateRange}
+            departmentFilter={departmentFilter}
+            setDepartmentFilter={setDepartmentFilter}
+            alphabetFilter={alphabetFilter}
+            setAlphabetFilter={setAlphabetFilter}
+            selectedEmployees={selectedEmployees}
+            setSelectedEmployees={setSelectedEmployees}
+            allUsers={users}
+            isAdmin={isAdmin}
+          />
         </div>
         <TaskReportExportButton
           disabled={isLoading || report.length === 0}

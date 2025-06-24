@@ -12,14 +12,16 @@ type TaskReportFiltersProps = {
   setDateRange: (range: { from: Date | null; to: Date | null }) => void;
 };
 
+// Simple version for non-admin users
 export default function TaskReportFilters({ dateRange, setDateRange }: TaskReportFiltersProps) {
   const [preset, setPreset] = React.useState<string>("custom");
 
   function handlePresetChange(range: { from: Date | null; to: Date | null }, p: string) {
     setPreset(p);
-    if (p === "custom") return; // allow calendar
+    if (p === "custom") return;
     setDateRange(range);
   }
+  
   function handleCustomRange(range: { from: Date | null; to: Date | null }) {
     setPreset("custom");
     setDateRange(range);
