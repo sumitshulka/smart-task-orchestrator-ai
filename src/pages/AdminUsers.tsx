@@ -1,3 +1,4 @@
+
 import React from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,6 +7,7 @@ import { toast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import UserTableActions from "@/components/UserTableActions";
 import EditUserDialog from "@/components/EditUserDialog";
+import CreateUserDialog from "@/components/CreateUserDialog";
 import useSupabaseSession from "@/hooks/useSupabaseSession";
 
 interface User {
@@ -20,7 +22,6 @@ interface User {
 
 const AdminUsers: React.FC = () => {
   const [search, setSearch] = React.useState("");
-  const [createDialogOpen, setCreateDialogOpen] = React.useState(false);
   const [editDialogOpen, setEditDialogOpen] = React.useState(false);
   const [editUser, setEditUser] = React.useState<User | null>(null);
   const [users, setUsers] = React.useState<User[]>([]);
@@ -57,9 +58,6 @@ const AdminUsers: React.FC = () => {
     });
   }, [users, search]);
 
-  function handleCreateUser() {
-    setCreateDialogOpen(true);
-  }
   function handleEditUser(user: User) {
     setEditUser(user);
     setEditDialogOpen(true);
@@ -75,12 +73,7 @@ const AdminUsers: React.FC = () => {
   return (
     <div className="p-6 max-w-6xl w-full">
       {/* Dialogs */}
-      <EditUserDialog
-        open={createDialogOpen}
-        onOpenChange={setCreateDialogOpen}
-        onUserUpdated={fetchUsers}
-        user={undefined}
-      />
+      <CreateUserDialog onUserCreated={fetchUsers} />
       <EditUserDialog
         open={editDialogOpen}
         onOpenChange={setEditDialogOpen}
@@ -90,12 +83,6 @@ const AdminUsers: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
         <h1 className="text-2xl font-bold">User Management</h1>
-        <div className="flex gap-3 flex-wrap">
-          <Button onClick={handleCreateUser}>
-            <Plus className="w-4 h-4 mr-2" />
-            Create User
-          </Button>
-        </div>
       </div>
       {/* Filters */}
       <div className="flex flex-col sm:flex-row flex-wrap gap-3 mb-5 bg-muted/30 border rounded-md px-4 py-3">
