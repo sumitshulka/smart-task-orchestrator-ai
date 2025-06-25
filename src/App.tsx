@@ -18,6 +18,7 @@ import HistoricalTasks from "./pages/HistoricalTasks";
 import AdminDashboard from "./pages/AdminDashboard";
 import TaskReport from "@/pages/TaskReport";
 import AnalyticsReport from "@/pages/AnalyticsReport";
+import TaskOverdueReport from "@/pages/TaskOverdueReport";
 import TaskGroupsPage from "./pages/TaskGroups";
 import MyTeams from "./pages/MyTeams";
 import { RoleProvider } from "@/contexts/RoleProvider";
@@ -121,6 +122,14 @@ const App = () => (
               }
             />
             <Route
+              path="/admin/reports/overdue"
+              element={
+                <AdminLayout>
+                  <TaskOverdueReport />
+                </AdminLayout>
+              }
+            />
+            <Route
               path="/admin/reports/analytics"
               element={
                 <AdminLayout>
@@ -147,4 +156,3 @@ const App = () => (
 );
 
 export default App;
-
