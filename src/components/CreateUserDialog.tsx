@@ -15,6 +15,8 @@ import { useUserList } from "@/hooks/useUserList";
 interface CreateUserDialogProps {
   onUserCreated?: () => void;
   organization?: string; // (Optional) if passed, use as default org
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 const initialValues = {
@@ -29,11 +31,17 @@ const initialValues = {
 const CreateUserDialog: React.FC<CreateUserDialogProps> = ({
   onUserCreated,
   organization,
+  open,
+  onOpenChange,
 }) => {
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
   const [values, setValues] = useState(initialValues);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Use external control if provided, otherwise use internal state
+  const isOpen = open !== undefined ? open : internalOpen;
+  const setIsOpen = onOpenChange || setInternalOpen;
 
   // Departments logic refactored into useDepartments
   const { departments, loading: departmentsLoading } = useDepartments();
@@ -70,7 +78,7 @@ const CreateUserDialog: React.FC<CreateUserDialogProps> = ({
         description: `User "${user_name || email}" was created.`,
       });
 
-      setOpen(false);
+      setIsOpen(false);
       setValues(initialValues);
       setLoading(false);
       onUserCreated?.();
@@ -85,12 +93,15 @@ const CreateUserDialog: React.FC<CreateUserDialogProps> = ({
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button className="w-full md:w-auto gap-2" size="sm">
-          <span>+ Create User</span>
-        </Button>
-      </DialogTrigger>
+    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+      {/* Only show trigger if not externally controlled */}
+      {open === undefined && (
+        <DialogTrigger asChild>
+          <Button className="w-full md:w-auto gap-2" size="sm">
+            <span>+ Create User</span>
+          </Button>
+        </DialogTrigger>
+      )}
       <DialogContent>
         <form onSubmit={handleSubmit} className="space-y-4">
           <DialogHeader>
@@ -181,4 +192,3 @@ const CreateUserDialog: React.FC<CreateUserDialogProps> = ({
 };
 
 export default CreateUserDialog;
-
