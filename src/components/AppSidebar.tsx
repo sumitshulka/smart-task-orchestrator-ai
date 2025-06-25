@@ -32,19 +32,21 @@ export default function AppSidebar() {
 
   return (
     <Sidebar
-      className={collapsed ? "w-14" : "w-64 min-w-14"}
+      className={`${collapsed ? "w-14" : "w-64 min-w-14"} bg-gradient-to-b from-sidebar to-sidebar/95 border-r border-sidebar-border/50`}
       collapsible="icon"
     >
-      <SidebarTrigger className="m-2 self-end" />
-      <SidebarContent>
+      <SidebarTrigger className="m-2 self-end hover:bg-sidebar-accent/70 transition-colors duration-200 rounded-lg" />
+      <SidebarContent className="px-2 py-1">
         <SidebarHeader />
-        <DashboardMenu isUserOnly={isUserOnly} collapsed={collapsed} />
-        <TaskManagementMenu collapsed={collapsed} />
-        <ManagementMenu isAdmin={isAdmin} isManager={isManager} collapsed={collapsed} />
-        <WarningNoTeams isOnTeams={isOnTeams} loading={loading} isUserOnly={isUserOnly} hasTeams={hasTeams} />
-        <ReportsMenu isUserOnly={isUserOnly} collapsed={collapsed} />
+        <div className="space-y-2">
+          <DashboardMenu isUserOnly={isUserOnly} collapsed={collapsed} />
+          <TaskManagementMenu collapsed={collapsed} />
+          <ManagementMenu isAdmin={isAdmin} isManager={isManager} collapsed={collapsed} />
+          <WarningNoTeams isOnTeams={isOnTeams} loading={loading} isUserOnly={isUserOnly} hasTeams={hasTeams} />
+          <ReportsMenu isUserOnly={isUserOnly} collapsed={collapsed} />
+        </div>
       </SidebarContent>
     </Sidebar>
   );
 }
-// NOTE: Now refactored for maintainability! 
+// NOTE: Now refactored for maintainability!
