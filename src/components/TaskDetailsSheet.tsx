@@ -169,7 +169,7 @@ const TaskDetailsSheet: React.FC<Props> = ({
   // Make modal content always scrollable on overflow
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="max-w-2xl w-[95vw] p-0 flex flex-col">
+      <SheetContent side="right" className="max-w-6xl w-[98vw] p-0 flex flex-col">
         <form className="h-full flex flex-col" onSubmit={e => e.preventDefault()} style={{ minHeight: 0 }}>
           <ScrollArea className="flex-1 min-h-0 p-6">
             <SheetHeader>

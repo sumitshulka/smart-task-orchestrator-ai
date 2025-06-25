@@ -389,7 +389,7 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
           </Button>
         )}
       </SheetTrigger>
-      <SheetContent side="right" className="max-w-6xl w-[78vw] overflow-y-auto">
+      <SheetContent side="right" className="max-w-[90rem] w-[90vw] overflow-y-auto">
         <form className="p-2 space-y-6" onSubmit={handleSubmit}>
           <SheetHeader>
             <SheetTitle>Create Task</SheetTitle>

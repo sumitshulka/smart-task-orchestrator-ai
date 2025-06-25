@@ -1,4 +1,3 @@
-
 import React from "react";
 import {
   Sheet,
@@ -21,7 +20,7 @@ type Props = {
 export default function TaskGroupDetailsSheet({ open, onOpenChange, group }: Props) {
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="max-w-3xl w-[90vw]">
+      <SheetContent side="right" className="max-w-[72rem] w-[95vw]">
         <SheetHeader>
           <SheetTitle>{group?.name || "Task Group"}</SheetTitle>
           <SheetDescription>
