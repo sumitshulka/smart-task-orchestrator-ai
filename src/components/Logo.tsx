@@ -5,7 +5,7 @@ import { Menu } from "lucide-react";
 const Logo: React.FC<{ collapsed?: boolean }> = ({ collapsed }) => (
   <div
     className={`flex items-center transition-all duration-300 ${
-      collapsed ? "justify-center px-2 py-2" : "px-4 py-2"
+      collapsed ? "justify-center px-2 py-1" : "px-4 py-1"
     }`}
   >
     <a

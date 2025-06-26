@@ -32,10 +32,10 @@ export default function AppSidebar() {
 
   return (
     <Sidebar
-      className={`${collapsed ? "w-14" : "w-64 min-w-14"} bg-gray-50 border-r border-gray-200`}
+      className={`${collapsed ? "w-14" : "w-64 min-w-14"} bg-gray-100 border-r border-gray-300`}
       collapsible="icon"
     >
-      <SidebarTrigger className="m-2 self-end hover:bg-gray-200 transition-colors duration-200 rounded-md" />
+      <SidebarTrigger className="m-2 self-end hover:bg-gray-300 transition-colors duration-200 rounded-md" />
       <SidebarContent className="px-2 py-1">
         <SidebarHeader />
         <div className="space-y-2">
