@@ -16,14 +16,14 @@ export default function DashboardMenu({ isUserOnly, collapsed }: { isUserOnly: b
                 to="/admin/dashboard"
                 end
                 className={({ isActive }) =>
-                  "flex items-center gap-3 py-2.5 px-3 rounded-lg transition-all duration-200 group " +
+                  "flex items-center gap-3 py-2 px-3 rounded-md transition-colors duration-200 " +
                   (isActive 
-                    ? "bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-md font-medium" 
-                    : "hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground font-medium text-sidebar-foreground/80"
+                    ? "bg-blue-500 text-white font-medium" 
+                    : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                   )
                 }
               >
-                <LayoutDashboard className={`w-5 h-5 transition-transform duration-200 group-hover:scale-110 ${location.pathname.startsWith("/admin/dashboard") ? "text-white" : ""}`} />
+                <LayoutDashboard className="w-4 h-4" />
                 {!collapsed && <span>Dashboard</span>}
               </NavLink>
             </SidebarMenuButton>
@@ -35,14 +35,14 @@ export default function DashboardMenu({ isUserOnly, collapsed }: { isUserOnly: b
                   to="/my-teams"
                   end
                   className={({ isActive }) =>
-                    "flex items-center gap-3 py-2.5 px-3 rounded-lg transition-all duration-200 group " +
+                    "flex items-center gap-3 py-2 px-3 rounded-md transition-colors duration-200 " +
                     (isActive 
-                      ? "bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-md font-medium" 
-                      : "hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground font-medium text-sidebar-foreground/80"
+                      ? "bg-blue-500 text-white font-medium" 
+                      : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                     )
                   }
                 >
-                  <Users2 className={`w-5 h-5 transition-transform duration-200 group-hover:scale-110 ${location.pathname.startsWith("/my-teams") ? "text-white" : ""}`} />
+                  <Users2 className="w-4 h-4" />
                   {!collapsed && <span>My Teams</span>}
                 </NavLink>
               </SidebarMenuButton>

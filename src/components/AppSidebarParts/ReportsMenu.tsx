@@ -8,7 +8,7 @@ export default function ReportsMenu({ isUserOnly, collapsed }: { isUserOnly: boo
   const location = useLocation();
   return (
     <SidebarGroup className="mt-6">
-      <SidebarGroupLabel className="text-xs font-semibold text-sidebar-foreground/60 uppercase tracking-wider mb-2 px-3">
+      <SidebarGroupLabel className="text-xs font-medium text-sidebar-foreground/60 uppercase tracking-wide mb-2 px-3">
         Reports
       </SidebarGroupLabel>
       <SidebarGroupContent>
@@ -19,14 +19,14 @@ export default function ReportsMenu({ isUserOnly, collapsed }: { isUserOnly: boo
                 to="/admin/reports/task"
                 end
                 className={({ isActive }) =>
-                  "flex items-center gap-3 py-2.5 px-3 rounded-lg transition-all duration-200 group " +
+                  "flex items-center gap-3 py-2 px-3 rounded-md transition-colors duration-200 " +
                   (isActive 
-                    ? "bg-gradient-to-r from-emerald-500 to-emerald-600 text-white shadow-md font-medium" 
-                    : "hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground font-medium text-sidebar-foreground/80"
+                    ? "bg-blue-500 text-white font-medium" 
+                    : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                   )
                 }
               >
-                <FileText className={`w-5 h-5 transition-transform duration-200 group-hover:scale-110 ${location.pathname.startsWith("/admin/reports/task") ? "text-white" : ""}`} />
+                <FileText className="w-4 h-4" />
                 {!collapsed && (
                   <span>
                     {isUserOnly ? "My Task Report" : "Task Report"}
@@ -41,14 +41,14 @@ export default function ReportsMenu({ isUserOnly, collapsed }: { isUserOnly: boo
                 to="/admin/reports/overdue"
                 end
                 className={({ isActive }) =>
-                  "flex items-center gap-3 py-2.5 px-3 rounded-lg transition-all duration-200 group " +
+                  "flex items-center gap-3 py-2 px-3 rounded-md transition-colors duration-200 " +
                   (isActive 
-                    ? "bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-md font-medium" 
-                    : "hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground font-medium text-sidebar-foreground/80"
+                    ? "bg-orange-500 text-white font-medium" 
+                    : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                   )
                 }
               >
-                <AlertTriangle className={`w-5 h-5 transition-transform duration-200 group-hover:scale-110 ${location.pathname.startsWith("/admin/reports/overdue") ? "text-white" : ""}`} />
+                <AlertTriangle className="w-4 h-4" />
                 {!collapsed && <span>Overdue Report</span>}
               </NavLink>
             </SidebarMenuButton>
@@ -59,14 +59,14 @@ export default function ReportsMenu({ isUserOnly, collapsed }: { isUserOnly: boo
                 to="/admin/reports/analytics"
                 end
                 className={({ isActive }) =>
-                  "flex items-center gap-3 py-2.5 px-3 rounded-lg transition-all duration-200 group " +
+                  "flex items-center gap-3 py-2 px-3 rounded-md transition-colors duration-200 " +
                   (isActive 
-                    ? "bg-gradient-to-r from-purple-500 to-purple-600 text-white shadow-md font-medium" 
-                    : "hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground font-medium text-sidebar-foreground/80"
+                    ? "bg-purple-500 text-white font-medium" 
+                    : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                   )
                 }
               >
-                <ChartBar className={`w-5 h-5 transition-transform duration-200 group-hover:scale-110 ${location.pathname.startsWith("/admin/reports/analytics") ? "text-white" : ""}`} />
+                <ChartBar className="w-4 h-4" />
                 {!collapsed && <span>Analytics Report</span>}
               </NavLink>
             </SidebarMenuButton>

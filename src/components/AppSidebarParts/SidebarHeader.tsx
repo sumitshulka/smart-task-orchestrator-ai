@@ -7,7 +7,7 @@ export default function SidebarHeader() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   return (
-    <div className="border-b border-sidebar-border/50 pb-3 mb-4 flex items-center justify-center bg-gradient-to-r from-blue-50/50 to-indigo-50/50 rounded-lg mx-2">
+    <div className="border-b border-sidebar-border pb-2 mb-4">
       <Logo collapsed={collapsed} />
     </div>
   );
