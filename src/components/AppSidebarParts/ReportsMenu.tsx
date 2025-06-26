@@ -8,7 +8,7 @@ export default function ReportsMenu({ isUserOnly, collapsed }: { isUserOnly: boo
   const location = useLocation();
   return (
     <SidebarGroup className="mt-6">
-      <SidebarGroupLabel className="text-xs font-medium text-sidebar-foreground/60 uppercase tracking-wide mb-2 px-3">
+      <SidebarGroupLabel className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2 px-3">
         Reports
       </SidebarGroupLabel>
       <SidebarGroupContent>
@@ -22,7 +22,7 @@ export default function ReportsMenu({ isUserOnly, collapsed }: { isUserOnly: boo
                   "flex items-center gap-3 py-2 px-3 rounded-md transition-colors duration-200 " +
                   (isActive 
                     ? "bg-blue-500 text-white font-medium" 
-                    : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                    : "text-gray-700 hover:bg-gray-100 hover:text-gray-900"
                   )
                 }
               >
@@ -44,7 +44,7 @@ export default function ReportsMenu({ isUserOnly, collapsed }: { isUserOnly: boo
                   "flex items-center gap-3 py-2 px-3 rounded-md transition-colors duration-200 " +
                   (isActive 
                     ? "bg-orange-500 text-white font-medium" 
-                    : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                    : "text-gray-700 hover:bg-gray-100 hover:text-gray-900"
                   )
                 }
               >
@@ -62,7 +62,7 @@ export default function ReportsMenu({ isUserOnly, collapsed }: { isUserOnly: boo
                   "flex items-center gap-3 py-2 px-3 rounded-md transition-colors duration-200 " +
                   (isActive 
                     ? "bg-purple-500 text-white font-medium" 
-                    : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                    : "text-gray-700 hover:bg-gray-100 hover:text-gray-900"
                   )
                 }
               >

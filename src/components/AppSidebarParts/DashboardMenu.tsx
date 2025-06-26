@@ -19,7 +19,7 @@ export default function DashboardMenu({ isUserOnly, collapsed }: { isUserOnly: b
                   "flex items-center gap-3 py-2 px-3 rounded-md transition-colors duration-200 " +
                   (isActive 
                     ? "bg-blue-500 text-white font-medium" 
-                    : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                    : "text-gray-700 hover:bg-gray-100 hover:text-gray-900"
                   )
                 }
               >
@@ -38,7 +38,7 @@ export default function DashboardMenu({ isUserOnly, collapsed }: { isUserOnly: b
                     "flex items-center gap-3 py-2 px-3 rounded-md transition-colors duration-200 " +
                     (isActive 
                       ? "bg-blue-500 text-white font-medium" 
-                      : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                      : "text-gray-700 hover:bg-gray-100 hover:text-gray-900"
                     )
                   }
                 >
