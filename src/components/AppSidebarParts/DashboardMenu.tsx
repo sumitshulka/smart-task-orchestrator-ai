@@ -9,21 +9,18 @@ export default function DashboardMenu({ isUserOnly, collapsed }: { isUserOnly: b
   return (
     <SidebarGroup>
       <SidebarGroupContent>
-        <SidebarMenu className="space-y-1">
+        <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton asChild isActive={location.pathname.startsWith("/admin/dashboard")}>
               <NavLink
                 to="/admin/dashboard"
                 end
                 className={({ isActive }) =>
-                  "flex items-center gap-3 py-2 px-3 rounded-md transition-colors duration-200 " +
-                  (isActive 
-                    ? "bg-blue-500 text-white font-medium" 
-                    : "text-gray-700 hover:bg-gray-100 hover:text-gray-900"
-                  )
+                  "flex items-center gap-2 py-1.5 px-2 rounded transition " +
+                  (isActive ? "bg-muted text-primary font-semibold" : "hover:bg-muted/50")
                 }
               >
-                <LayoutDashboard className="w-4 h-4" />
+                <LayoutDashboard className="w-5 h-5" />
                 {!collapsed && <span>Dashboard</span>}
               </NavLink>
             </SidebarMenuButton>
@@ -35,14 +32,11 @@ export default function DashboardMenu({ isUserOnly, collapsed }: { isUserOnly: b
                   to="/my-teams"
                   end
                   className={({ isActive }) =>
-                    "flex items-center gap-3 py-2 px-3 rounded-md transition-colors duration-200 " +
-                    (isActive 
-                      ? "bg-blue-500 text-white font-medium" 
-                      : "text-gray-700 hover:bg-gray-100 hover:text-gray-900"
-                    )
+                    "flex items-center gap-2 py-1.5 px-2 rounded transition " +
+                    (isActive ? "bg-muted text-primary font-semibold" : "hover:bg-muted/50")
                   }
                 >
-                  <Users2 className="w-4 h-4" />
+                  <Users2 className="w-5 h-5" />
                   {!collapsed && <span>My Teams</span>}
                 </NavLink>
               </SidebarMenuButton>
