@@ -8,7 +8,6 @@ import { Settings } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import useSupabaseSession from "@/hooks/useSupabaseSession";
 import { useRole } from "@/contexts/RoleProvider";
-import Logo from "./Logo";
 import { useSidebar } from "@/components/ui/sidebar";
 
 const USER_PLACEHOLDER = {
@@ -41,10 +40,12 @@ const Topbar: React.FC = () => {
 
   return (
     <header className="flex items-center justify-between border-b bg-background h-14 px-6 gap-4">
-      {/* Show Logo only when sidebar is collapsed */}
+      {/* Show only text when sidebar is collapsed */}
       {collapsed && (
         <div className="flex flex-col">
-          <Logo />
+          <span className="text-lg font-semibold text-gray-800">
+            #TaskRep
+          </span>
         </div>
       )}
       {/* Right: Welcome/role text, then settings, avatar, menu */}
@@ -65,7 +66,6 @@ const Topbar: React.FC = () => {
         <DropdownMenu>
           <DropdownMenuTrigger className="outline-none rounded-full focus:ring-2 focus:ring-primary/50">
             <Avatar>
-              {/* Replace with AvatarImage if you have a user photo URL */}
               <AvatarFallback>
                 {getInitials(displayName)}
               </AvatarFallback>
