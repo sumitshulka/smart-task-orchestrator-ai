@@ -9,7 +9,7 @@ const Logo: React.FC<{ collapsed?: boolean }> = ({ collapsed }) => (
     </div>
     {!collapsed && (
       <span className="text-lg font-semibold text-gray-800">
-        IntraHub
+        #TaskRep
       </span>
     )}
   </div>

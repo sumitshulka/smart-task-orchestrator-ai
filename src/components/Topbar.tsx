@@ -28,11 +28,11 @@ const Topbar: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useSupabaseSession();
   const { userName, highestRole, loading } = useRole();
-  // We do not need to conditionally render Logo collapsed in the header anymore:
-  // const { state: sidebarState } = useSidebar();
+  const { state: sidebarState } = useSidebar();
 
   const displayName = userName || user?.user_metadata?.user_name || user?.email || USER_PLACEHOLDER.name;
   const displayEmail = user?.email || USER_PLACEHOLDER.email;
+  const collapsed = sidebarState === "collapsed";
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -41,10 +41,12 @@ const Topbar: React.FC = () => {
 
   return (
     <header className="flex items-center justify-between border-b bg-background h-14 px-6 gap-4">
-      {/* Always show Logo (branding) on the left, never a hamburger */}
-      <div className="flex flex-col">
-        <Logo />
-      </div>
+      {/* Show Logo only when sidebar is collapsed */}
+      {collapsed && (
+        <div className="flex flex-col">
+          <Logo />
+        </div>
+      )}
       {/* Right: Welcome/role text, then settings, avatar, menu */}
       <div className="flex items-center gap-4 ml-auto">
         {/* Welcome text (always display if logged in, and not loading) */}
@@ -85,5 +87,3 @@ const Topbar: React.FC = () => {
 };
 
 export default Topbar;
-
-// Header ALWAYS shows Logo; hamburger/menu icon is only ever in the sidebar itself.
