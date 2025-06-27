@@ -34,11 +34,13 @@ export default function AppSidebar() {
     <Sidebar
       className={`${collapsed ? "w-14" : "w-64 min-w-14"}`}
       collapsible="icon"
-      style={{ backgroundColor: '#f3f4f6', borderRight: '1px solid #d1d5db' }}
+      style={{ backgroundColor: '#f8fafc', borderRight: '1px solid #e2e8f0' }}
     >
-      <SidebarTrigger className="m-2 self-end hover:bg-gray-300 transition-colors duration-200 rounded-md" />
-      <SidebarContent className="px-2 py-1" style={{ backgroundColor: '#f3f4f6' }}>
+      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
         <SidebarHeader />
+        <SidebarTrigger className="hover:bg-gray-200 transition-colors duration-200 rounded-md p-1" />
+      </div>
+      <SidebarContent className="px-2 py-4" style={{ backgroundColor: '#f8fafc' }}>
         <div className="space-y-2">
           <DashboardMenu isUserOnly={isUserOnly} collapsed={collapsed} />
           <TaskManagementMenu collapsed={collapsed} />
@@ -50,4 +52,3 @@ export default function AppSidebar() {
     </Sidebar>
   );
 }
-// NOTE: Now refactored for maintainability!
