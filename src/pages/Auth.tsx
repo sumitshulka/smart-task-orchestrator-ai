@@ -51,11 +51,7 @@ const AuthPage: React.FC = () => {
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      {/* Logo at the top left, always visible */}
-      <div className="fixed left-0 top-0 w-full md:static md:w-auto z-20 bg-background bg-opacity-90">
-        <Logo />
-      </div>
-      <div className="flex flex-1 flex-col md:flex-row items-stretch mt-20 md:mt-0">
+      <div className="flex flex-1 flex-col md:flex-row items-stretch">
         {/* Left Graphic/Branding */}
         <div className="hidden md:flex w-1/2 bg-card">
           <AuthGraphic />
@@ -67,7 +63,11 @@ const AuthPage: React.FC = () => {
         {/* Right Form */}
         <div className="flex w-full md:w-1/2 items-center justify-center px-4 py-12 bg-background">
           <div className="w-full max-w-md bg-card p-8 rounded-xl shadow-md animate-fade-in">
+            {/* Centered Logo above Sign in text */}
             <div className="text-center mb-8">
+              <div className="flex justify-center mb-6">
+                <Logo />
+              </div>
               <h1 className="text-3xl font-extrabold tracking-tight mb-1">
                 Sign in
               </h1>
