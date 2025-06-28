@@ -4,7 +4,6 @@ import { useLocation } from "react-router-dom";
 import {
   Sidebar,
   SidebarContent,
-  SidebarTrigger,
   useSidebar
 } from "@/components/ui/sidebar";
 import { useCurrentUserRoleAndTeams } from "@/hooks/useCurrentUserRoleAndTeams";
@@ -38,7 +37,6 @@ export default function AppSidebar() {
     >
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
         <SidebarHeader />
-        <SidebarTrigger className="hover:bg-gray-200 transition-colors duration-200 rounded-md p-1" />
       </div>
       <SidebarContent className="px-2 py-4" style={{ backgroundColor: '#f8fafc' }}>
         <div className="space-y-2">

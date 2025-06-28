@@ -9,11 +9,7 @@ const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => (
     <div className="flex w-full min-h-screen">
       <AppSidebar />
       <div className="flex flex-col flex-1">
-        <div className="flex items-center h-14 border-b bg-white px-4">
-          <div className="flex-1">
-            <Topbar />
-          </div>
-        </div>
+        <Topbar />
         <SidebarInset className="flex-1">{children}</SidebarInset>
       </div>
     </div>

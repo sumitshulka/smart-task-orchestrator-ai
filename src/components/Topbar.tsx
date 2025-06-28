@@ -8,7 +8,7 @@ import { Settings } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import useSupabaseSession from "@/hooks/useSupabaseSession";
 import { useRole } from "@/contexts/RoleProvider";
-import { useSidebar } from "@/components/ui/sidebar";
+import { useSidebar, SidebarTrigger } from "@/components/ui/sidebar";
 
 const USER_PLACEHOLDER = {
   name: "Jane Doe",
@@ -40,14 +40,16 @@ const Topbar: React.FC = () => {
 
   return (
     <header className="flex items-center justify-between border-b bg-background h-14 px-6 gap-4">
-      {/* Show only text when sidebar is collapsed */}
-      {collapsed && (
-        <div className="flex flex-col">
+      {/* Left: Sidebar toggle and TaskRep text when sidebar is collapsed */}
+      <div className="flex items-center gap-3">
+        <SidebarTrigger className="hover:bg-gray-200 transition-colors duration-200 rounded-md p-1" />
+        {collapsed && (
           <span className="text-lg font-semibold text-gray-800">
             #TaskRep
           </span>
-        </div>
-      )}
+        )}
+      </div>
+      
       {/* Right: Welcome/role text, then settings, avatar, menu */}
       <div className="flex items-center gap-4 ml-auto">
         {/* Welcome text (always display if logged in, and not loading) */}
