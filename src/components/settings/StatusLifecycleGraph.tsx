@@ -1,6 +1,7 @@
+
 import React, { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { useStatusTransitions, TaskStatus } from "@/hooks/useStatusStatuses";
+import { useStatusTransitions, TaskStatus } from "@/hooks/useTaskStatuses";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/use-toast";
 
