@@ -3,32 +3,53 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/components/ui/use-toast";
 
+interface Department {
+  id: string;
+  name: string;
+  description: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 /**
- * Hook to fetch department names from Supabase.
+ * Hook to fetch departments from Supabase.
  */
 export function useDepartments() {
-  const [departments, setDepartments] = useState<string[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
+  const fetchDepartments = async () => {
     setLoading(true);
-    supabase
-      .from("departments")
-      .select("name")
-      .order("name")
-      .then(({ data, error }) => {
-        if (error) {
-          toast({
-            title: "Failed to load departments",
-            description: error.message,
-          });
-          setDepartments([]);
-        } else {
-          setDepartments(data?.map((d: { name: string }) => d.name) || []);
-        }
-        setLoading(false);
-      });
+    try {
+      const { data, error } = await supabase
+        .from("departments")
+        .select("*")
+        .order("name");
+
+      if (error) {
+        toast({
+          title: "Failed to load departments",
+          description: error.message,
+        });
+        setDepartments([]);
+      } else {
+        setDepartments(data || []);
+      }
+    } catch (error) {
+      console.error("Error fetching departments:", error);
+      setDepartments([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchDepartments();
   }, []);
 
-  return { departments, loading };
+  return { 
+    departments, 
+    loading, 
+    refetch: fetchDepartments 
+  };
 }
