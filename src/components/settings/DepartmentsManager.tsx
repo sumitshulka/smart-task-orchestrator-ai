@@ -1,152 +1,204 @@
-import React, { useEffect, useState } from "react";
+
+import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
-import { Edit, Trash2 } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import DepartmentForm from "./DepartmentForm";
+import { useDepartments } from "@/hooks/useDepartments";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { useRole } from "@/contexts/RoleProvider"; // Import
-
-interface Department {
-  id: string;
-  name: string;
-  description?: string;
-}
+import { useRole } from "@/contexts/RoleProvider";
 
 const DepartmentsManager: React.FC = () => {
-  const [departments, setDepartments] = useState<Department[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [openForm, setOpenForm] = useState(false);
-  const [editDep, setEditDep] = useState<Department | null>(null);
-  const { highestRole } = useRole(); // Get the role from context
+  const { departments, loading, refetch } = useDepartments();
+  const [editing, setEditing] = useState<{ [id: string]: boolean }>({});
+  const [newDepartment, setNewDepartment] = useState({ name: "", description: "" });
+  const [editingDepartments, setEditingDepartments] = useState<{
+    [id: string]: { name: string; description: string };
+  }>({});
+  const { highestRole } = useRole();
 
-  const fetchDepartments = async () => {
-    setLoading(true);
+  const handleAddDepartment = async () => {
+    if (!newDepartment.name.trim()) return;
+
     const { data, error } = await supabase
       .from("departments")
-      .select("id, name, description")
-      .order("created_at");
+      .insert([{ name: newDepartment.name, description: newDepartment.description }])
+      .select()
+      .single();
+
     if (error) {
-      toast({ title: "Failed to fetch departments", description: error.message });
-    } else {
-      setDepartments(data || []);
-    }
-    setLoading(false);
-  };
-
-  useEffect(() => {
-    fetchDepartments();
-  }, []);
-
-  const handleCreateOrUpdate = async (values: { name: string; description?: string }, id?: string) => {
-    if (id) {
-      // Update
-      const { error } = await supabase
-        .from("departments")
-        .update({ name: values.name, description: values.description, updated_at: new Date().toISOString() })
-        .eq("id", id);
-      if (error) {
-        toast({ title: "Failed to update department", description: error.message });
-        return;
-      }
-      toast({ title: "Department updated" });
-    } else {
-      // Create
-      const { error } = await supabase
-        .from("departments")
-        .insert([{ name: values.name, description: values.description }]);
-      if (error) {
-        toast({ title: "Failed to create department", description: error.message });
-        return;
-      }
-      toast({ title: "Department created" });
-    }
-    setOpenForm(false);
-    setEditDep(null);
-    fetchDepartments();
-  };
-
-  const handleDelete = async (id: string) => {
-    if (!window.confirm("Are you sure you want to delete this department?")) return;
-    const { error } = await supabase.from("departments").delete().eq("id", id);
-    if (error) {
-      toast({ title: "Failed to delete department", description: error.message });
+      toast({ title: "Error", description: error.message });
       return;
     }
-    toast({ title: "Department deleted" });
-    fetchDepartments();
+
+    setNewDepartment({ name: "", description: "" });
+    refetch();
+    toast({ title: "Department added successfully" });
+  };
+
+  const handleEditDepartment = (id: string) => {
+    setEditing({ ...editing, [id]: true });
+    const dept = departments.find((d) => d.id === id);
+    if (dept) {
+      setEditingDepartments({
+        ...editingDepartments,
+        [id]: { name: dept.name, description: dept.description || "" },
+      });
+    }
+  };
+
+  const handleSaveDepartment = async (id: string) => {
+    const editedDept = editingDepartments[id];
+    if (!editedDept || !editedDept.name.trim()) return;
+
+    const { error } = await supabase
+      .from("departments")
+      .update({ name: editedDept.name, description: editedDept.description })
+      .eq("id", id);
+
+    if (error) {
+      toast({ title: "Error", description: error.message });
+      return;
+    }
+
+    setEditing({ ...editing, [id]: false });
+    refetch();
+    toast({ title: "Department updated successfully" });
+  };
+
+  const handleDeleteDepartment = async (id: string) => {
+    if (!window.confirm("Are you sure you want to delete this department?")) return;
+
+    const { error } = await supabase.from("departments").delete().eq("id", id);
+
+    if (error) {
+      toast({ title: "Error", description: error.message });
+      return;
+    }
+
+    refetch();
+    toast({ title: "Department deleted successfully" });
   };
 
   return (
-    <Card className="max-w-3xl mx-auto">
-      <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <CardTitle className="text-lg font-semibold">Departments</CardTitle>
-        {highestRole === "admin" && (
-          <Button size="sm" onClick={() => setOpenForm(true)}>+ Add Department</Button>
-        )}
-      </CardHeader>
-      <CardContent>
-        <div className="border rounded bg-background overflow-x-auto shadow-sm">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-muted">
-                <th className="w-1/4 p-2 text-left font-semibold text-black">Name</th>
-                <th className="w-2/4 p-2 text-left font-semibold text-black">Description</th>
-                <th className="w-1/4 p-2 text-center font-semibold text-black">
-                  {highestRole === "admin" ? "Actions" : ""}
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr>
-                  <td colSpan={3}><span className="text-muted-foreground">Loading...</span></td>
-                </tr>
-              ) : departments.length === 0 ? (
-                <tr>
-                  <td colSpan={3}><span className="text-muted-foreground">No departments found.</span></td>
-                </tr>
-              ) : (
-                departments.map((d) => (
-                  <tr key={d.id} className="border-b transition-colors hover:bg-muted/50">
-                    <td className="p-4">{d.name}</td>
-                    <td className="p-4">{d.description || "--"}</td>
-                    <td className="p-4">
-                      {highestRole === "admin" && (
-                        <div className="flex items-center justify-center gap-2">
-                          <Button size="icon" variant="ghost" aria-label="Edit" onClick={() => { setEditDep(d); setOpenForm(true); }}>
-                            <Edit className="w-4 h-4" />
-                          </Button>
-                          <Button size="icon" variant="ghost" aria-label="Delete" onClick={() => handleDelete(d.id)}>
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      )}
-                    </td>
+    <div className="w-full">
+      <Card className="w-full">
+        <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <CardTitle className="text-lg font-semibold">Departments</CardTitle>
+        </CardHeader>
+        <CardContent className="w-full">
+          <div className="w-full border rounded bg-background shadow-sm">
+            <div className="w-full overflow-x-auto">
+              <table className="w-full min-w-full text-sm">
+                <thead>
+                  <tr className="bg-muted">
+                    <th className="w-1/4 p-2 font-semibold text-black text-left">Name</th>
+                    <th className="w-1/2 p-2 font-semibold text-black text-left">Description</th>
+                    <th className="w-1/4 p-2 text-center font-semibold text-black">
+                      {highestRole === "admin" ? "Actions" : ""}
+                    </th>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </CardContent>
-      {highestRole === "admin" &&
-        <Dialog open={openForm} onOpenChange={o => { setOpenForm(o); if (!o) setEditDep(null); }}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>{editDep ? "Edit Department" : "Add Department"}</DialogTitle>
-            </DialogHeader>
-            <DepartmentForm
-              initialValues={editDep}
-              onSubmit={v => handleCreateOrUpdate(v, editDep?.id)}
-              onCancel={() => { setOpenForm(false); setEditDep(null); }}
-            />
-          </DialogContent>
-        </Dialog>
-      }
-    </Card>
+                </thead>
+                <tbody>
+                  {departments.map((department) => (
+                    <tr key={department.id}>
+                      <td className="p-2">
+                        {editing[department.id] && highestRole === "admin" ? (
+                          <Input
+                            value={editingDepartments[department.id]?.name || ""}
+                            onChange={(e) =>
+                              setEditingDepartments({
+                                ...editingDepartments,
+                                [department.id]: {
+                                  ...editingDepartments[department.id],
+                                  name: e.target.value,
+                                },
+                              })
+                            }
+                          />
+                        ) : (
+                          department.name
+                        )}
+                      </td>
+                      <td className="p-2">
+                        {editing[department.id] && highestRole === "admin" ? (
+                          <Textarea
+                            value={editingDepartments[department.id]?.description || ""}
+                            onChange={(e) =>
+                              setEditingDepartments({
+                                ...editingDepartments,
+                                [department.id]: {
+                                  ...editingDepartments[department.id],
+                                  description: e.target.value,
+                                },
+                              })
+                            }
+                            rows={2}
+                          />
+                        ) : (
+                          department.description
+                        )}
+                      </td>
+                      <td className="p-2">
+                        <div className="flex items-center justify-center gap-2">
+                          {editing[department.id] && highestRole === "admin" ? (
+                            <Button
+                              size="sm"
+                              variant="default"
+                              onClick={() => handleSaveDepartment(department.id)}
+                            >
+                              Save
+                            </Button>
+                          ) : highestRole === "admin" ? (
+                            <>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleEditDepartment(department.id)}
+                              >
+                                Edit
+                              </Button>
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={() => handleDeleteDepartment(department.id)}
+                              >
+                                Delete
+                              </Button>
+                            </>
+                          ) : null}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          {highestRole === "admin" && (
+            <div className="flex flex-wrap gap-2 items-end mt-4">
+              <Input
+                placeholder="Department name"
+                className="w-[200px]"
+                value={newDepartment.name}
+                onChange={(e) => setNewDepartment({ ...newDepartment, name: e.target.value })}
+              />
+              <Textarea
+                placeholder="Description"
+                className="w-[300px]"
+                value={newDepartment.description}
+                onChange={(e) => setNewDepartment({ ...newDepartment, description: e.target.value })}
+                rows={2}
+              />
+              <Button onClick={handleAddDepartment} variant="default">
+                Add Department
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 };
 
