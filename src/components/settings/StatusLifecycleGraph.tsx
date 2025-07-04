@@ -5,10 +5,6 @@ import { useStatusTransitions, TaskStatus } from "@/hooks/useTaskStatuses";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/use-toast";
 
-/**
- * Enhanced directional graph: shows transition lines as arrows with better visual design.
- * Allows admin to create/remove transitions between statuses.
- */
 const StatusLifecycleGraph: React.FC<{ statuses: TaskStatus[] }> = ({ statuses }) => {
   const { transitions, setTransitions } = useStatusTransitions();
   const [from, setFrom] = useState("");
@@ -19,7 +15,6 @@ const StatusLifecycleGraph: React.FC<{ statuses: TaskStatus[] }> = ({ statuses }
       toast({ title: "Pick different statuses." });
       return;
     }
-    // Check for duplicate
     if (transitions.find((t) => t.from_status === from && t.to_status === to)) {
       toast({ title: "Transition already exists." });
       return;
@@ -52,40 +47,49 @@ const StatusLifecycleGraph: React.FC<{ statuses: TaskStatus[] }> = ({ statuses }
     toast({ title: "Transition removed." });
   };
 
-  // Enhanced node positioning for better layout - responsive to container width
-  const nodeGap = Math.max(200, Math.min(300, (window.innerWidth - 200) / Math.max(statuses.length, 1)));
-  const nodeY = 120;
-  const nodeRadius = 60;
-  const svgHeight = 280;
-  const svgWidth = Math.max(statuses.length * nodeGap + 100, 800);
+  if (statuses.length === 0) {
+    return (
+      <div className="w-full bg-white border rounded-lg p-6 shadow-sm">
+        <h4 className="font-semibold mb-4 text-lg">Status Lifecycle (Transitions)</h4>
+        <p className="text-muted-foreground">No statuses available to create transitions.</p>
+      </div>
+    );
+  }
 
-  // Function to wrap text within circle
-  const wrapText = (text: string, maxLength: number) => {
-    if (text.length <= maxLength) return [text];
+  // Calculate responsive dimensions
+  const containerPadding = 40;
+  const nodeRadius = 50;
+  const nodeSpacing = Math.max(150, Math.min(200, (window.innerWidth - containerPadding * 2) / Math.max(statuses.length, 1)));
+  const svgWidth = Math.max(800, statuses.length * nodeSpacing + containerPadding * 2);
+  const svgHeight = 300;
+  const nodeY = svgHeight / 2;
+
+  const wrapText = (text: string, maxChars: number) => {
+    if (text.length <= maxChars) return [text];
     const words = text.split(' ');
     const lines = [];
     let currentLine = '';
     
     for (const word of words) {
-      if ((currentLine + word).length <= maxLength) {
-        currentLine += (currentLine ? ' ' : '') + word;
+      const testLine = currentLine ? `${currentLine} ${word}` : word;
+      if (testLine.length <= maxChars) {
+        currentLine = testLine;
       } else {
         if (currentLine) lines.push(currentLine);
-        currentLine = word;
+        currentLine = word.length > maxChars ? word.substring(0, maxChars - 3) + '...' : word;
       }
     }
     if (currentLine) lines.push(currentLine);
-    return lines.slice(0, 3); // Max 3 lines
+    return lines.slice(0, 2); // Max 2 lines to fit in circle
   };
 
   return (
-    <div className="my-6 w-full">
+    <div className="w-full bg-white border rounded-lg p-6 shadow-sm">
       <h4 className="font-semibold mb-4 text-lg">Status Lifecycle (Transitions)</h4>
       
-      {/* Controls */}
       <div className="flex flex-wrap gap-3 mb-6 p-4 bg-gray-50 rounded-lg">
         <select
-          className="border px-3 py-2 bg-background rounded-md shadow-sm"
+          className="border px-3 py-2 bg-background rounded-md shadow-sm min-w-[150px]"
           value={from}
           onChange={(e) => setFrom(e.target.value)}
         >
@@ -96,7 +100,7 @@ const StatusLifecycleGraph: React.FC<{ statuses: TaskStatus[] }> = ({ statuses }
         </select>
         <span className="self-center text-2xl text-muted-foreground">→</span>
         <select
-          className="border px-3 py-2 bg-background rounded-md shadow-sm"
+          className="border px-3 py-2 bg-background rounded-md shadow-sm min-w-[150px]"
           value={to}
           onChange={(e) => setTo(e.target.value)}
         >
@@ -110,144 +114,127 @@ const StatusLifecycleGraph: React.FC<{ statuses: TaskStatus[] }> = ({ statuses }
         </Button>
       </div>
 
-      {/* Enhanced Visual Graph - Full Width */}
-      <div className="w-full bg-white border rounded-lg p-6 shadow-sm">
-        <div className="w-full overflow-x-auto">
-          <svg 
-            width={svgWidth} 
-            height={svgHeight}
-            className="min-w-full"
-            viewBox={`0 0 ${svgWidth} ${svgHeight}`}
-            preserveAspectRatio="xMidYMid meet"
-          >
-            {/* Define gradients and markers */}
-            <defs>
-              {/* Arrow marker */}
-              <marker
-                id="arrowhead"
-                markerWidth="12"
-                markerHeight="12"
-                refX="11"
-                refY="6"
-                orient="auto"
-                markerUnits="strokeWidth"
-              >
-                <polygon points="0 0, 12 6, 0 12" fill="#4b5563" />
-              </marker>
-              
-              {/* Gradient for nodes */}
-              <linearGradient id="nodeGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                <stop offset="0%" stopColor="#f8fafc" />
-                <stop offset="100%" stopColor="#e2e8f0" />
-              </linearGradient>
-            </defs>
+      <div className="w-full">
+        <svg 
+          width="100%" 
+          height={svgHeight}
+          viewBox={`0 0 ${svgWidth} ${svgHeight}`}
+          preserveAspectRatio="xMidYMid meet"
+          className="w-full h-auto"
+        >
+          <defs>
+            <marker
+              id="arrowhead"
+              markerWidth="10"
+              markerHeight="10"
+              refX="9"
+              refY="3"
+              orient="auto"
+              markerUnits="strokeWidth"
+            >
+              <polygon points="0 0, 10 3, 0 6" fill="#4b5563" />
+            </marker>
+            
+            <linearGradient id="nodeGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="#f8fafc" />
+              <stop offset="100%" stopColor="#e2e8f0" />
+            </linearGradient>
+          </defs>
 
-            {/* Draw arrows for transitions */}
-            {transitions.map((tr, i) => {
-              const fromIdx = statuses.findIndex((s) => s.id === tr.from_status);
-              const toIdx = statuses.findIndex((s) => s.id === tr.to_status);
-              if (fromIdx === -1 || toIdx === -1) return null;
+          {transitions.map((tr, i) => {
+            const fromIdx = statuses.findIndex((s) => s.id === tr.from_status);
+            const toIdx = statuses.findIndex((s) => s.id === tr.to_status);
+            if (fromIdx === -1 || toIdx === -1) return null;
 
-              const fromX = nodeGap / 2 + fromIdx * nodeGap + 100;
-              const toX = nodeGap / 2 + toIdx * nodeGap + 100;
-              
-              // Calculate arrow positions to connect circle edges
-              const deltaX = toX - fromX;
-              const deltaY = 0; // Same Y level
-              const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-              const unitX = deltaX / distance;
-              
-              const startX = fromX + unitX * nodeRadius;
-              const endX = toX - unitX * nodeRadius;
-              
-              // Create curved path for better visual appeal
-              const midX = (startX + endX) / 2;
-              const midY = nodeY - 50; // Curve upward
-              
-              return (
-                <g key={tr.id}>
-                  {/* Curved arrow path */}
-                  <path
-                    d={`M ${startX} ${nodeY} Q ${midX} ${midY} ${endX} ${nodeY}`}
-                    stroke="#4b5563"
-                    strokeWidth="2"
-                    fill="none"
-                    markerEnd="url(#arrowhead)"
-                  />
-                  
-                  {/* Delete button */}
-                  <foreignObject 
-                    x={midX - 15} 
-                    y={midY - 15} 
-                    width="30" 
-                    height="30"
+            const fromX = containerPadding + fromIdx * nodeSpacing + nodeSpacing / 2;
+            const toX = containerPadding + toIdx * nodeSpacing + nodeSpacing / 2;
+            
+            const deltaX = toX - fromX;
+            const distance = Math.abs(deltaX);
+            const unitX = deltaX / distance;
+            
+            const startX = fromX + unitX * nodeRadius;
+            const endX = toX - unitX * nodeRadius;
+            
+            const midX = (startX + endX) / 2;
+            const midY = nodeY - 60;
+            
+            return (
+              <g key={tr.id}>
+                <path
+                  d={`M ${startX} ${nodeY} Q ${midX} ${midY} ${endX} ${nodeY}`}
+                  stroke="#4b5563"
+                  strokeWidth="2"
+                  fill="none"
+                  markerEnd="url(#arrowhead)"
+                />
+                
+                <foreignObject 
+                  x={midX - 12} 
+                  y={midY - 12} 
+                  width="24" 
+                  height="24"
+                >
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="!w-6 !h-6 !p-0 text-xs bg-red-50 hover:bg-red-100 text-red-600 rounded-full border border-red-200"
+                    onClick={() => deleteTransition(tr.id)}
+                    title="Remove transition"
                   >
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="!w-7 !h-7 !p-0 text-xs bg-red-50 hover:bg-red-100 text-red-600 rounded-full border border-red-200"
-                      onClick={() => deleteTransition(tr.id)}
-                      title="Remove transition"
-                    >
-                      ✕
-                    </Button>
-                  </foreignObject>
-                </g>
-              );
-            })}
+                    ✕
+                  </Button>
+                </foreignObject>
+              </g>
+            );
+          })}
 
-            {/* Draw enhanced nodes */}
-            {statuses.map((status, idx) => {
-              const x = nodeGap / 2 + idx * nodeGap + 100;
-              const textLines = wrapText(status.name, 12);
-              
-              return (
-                <g key={status.id}>
-                  {/* Node circle with gradient and shadow */}
-                  <circle 
-                    cx={x} 
-                    cy={nodeY} 
-                    r={nodeRadius} 
-                    fill="url(#nodeGradient)" 
-                    stroke="#64748b" 
-                    strokeWidth="2"
-                    filter="drop-shadow(0 2px 4px rgba(0,0,0,0.1))"
-                  />
-                  
-                  {/* Multi-line text */}
-                  {textLines.map((line, lineIdx) => (
-                    <text 
-                      key={lineIdx}
-                      x={x} 
-                      y={nodeY + (lineIdx - (textLines.length - 1) / 2) * 16} 
-                      textAnchor="middle" 
-                      fontSize="13" 
-                      fill="#1e293b"
-                      fontWeight="500"
-                    >
-                      {line}
-                    </text>
-                  ))}
-                  
-                  {/* Status sequence number */}
+          {statuses.map((status, idx) => {
+            const x = containerPadding + idx * nodeSpacing + nodeSpacing / 2;
+            const textLines = wrapText(status.name, 10);
+            
+            return (
+              <g key={status.id}>
+                <circle 
+                  cx={x} 
+                  cy={nodeY} 
+                  r={nodeRadius} 
+                  fill="url(#nodeGradient)" 
+                  stroke="#64748b" 
+                  strokeWidth="2"
+                  filter="drop-shadow(0 2px 4px rgba(0,0,0,0.1))"
+                />
+                
+                {textLines.map((line, lineIdx) => (
                   <text 
+                    key={lineIdx}
                     x={x} 
-                    y={nodeY + nodeRadius + 25} 
+                    y={nodeY + (lineIdx - (textLines.length - 1) / 2) * 14} 
                     textAnchor="middle" 
-                    fontSize="11" 
-                    fill="#64748b"
-                    fontWeight="400"
+                    fontSize="12" 
+                    fill="#1e293b"
+                    fontWeight="500"
                   >
-                    #{status.sequence_order}
+                    {line}
                   </text>
-                </g>
-              );
-            })}
-          </svg>
-        </div>
+                ))}
+                
+                <text 
+                  x={x} 
+                  y={nodeY + nodeRadius + 20} 
+                  textAnchor="middle" 
+                  fontSize="10" 
+                  fill="#64748b"
+                  fontWeight="400"
+                >
+                  #{status.sequence_order}
+                </text>
+              </g>
+            );
+          })}
+        </svg>
       </div>
 
-      {/* Enhanced Legend */}
       <div className="text-sm text-muted-foreground mt-4 p-4 bg-blue-50 rounded-lg border-l-4 border-blue-400">
         <div className="font-medium text-blue-800 mb-2">How to use:</div>
         <ul className="space-y-1 text-blue-700">

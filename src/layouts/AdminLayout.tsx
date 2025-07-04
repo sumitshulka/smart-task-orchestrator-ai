@@ -6,11 +6,13 @@ import Topbar from "@/components/Topbar";
 
 const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <SidebarProvider>
-    <div className="flex w-full min-h-screen">
+    <div className="flex w-full min-h-screen bg-background">
       <AppSidebar />
-      <div className="flex flex-col flex-1">
+      <div className="flex flex-col flex-1 min-w-0">
         <Topbar />
-        <SidebarInset className="flex-1">{children}</SidebarInset>
+        <SidebarInset className="flex-1 w-full max-w-none p-0">
+          {children}
+        </SidebarInset>
       </div>
     </div>
   </SidebarProvider>

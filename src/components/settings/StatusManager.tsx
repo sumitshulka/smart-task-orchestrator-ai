@@ -59,7 +59,6 @@ const StatusManager: React.FC = () => {
     });
   };
 
-  // CRUD
   const handleAddStatus = async () => {
     if (!newStatus.name.trim()) return;
     const maxOrder = Math.max(0, ...statuses.map((s) => s.sequence_order));
@@ -118,106 +117,109 @@ const StatusManager: React.FC = () => {
   };
 
   return (
-    <Card className="w-full">
-      <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <CardTitle className="text-lg font-semibold">Task Statuses</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="border rounded bg-background overflow-x-auto shadow-sm">
-          <DndProvider backend={HTML5Backend}>
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-muted">
-                  <th className="w-12 p-2 font-semibold text-black">#</th>
-                  <th className="w-1/6 p-2 font-semibold text-black">Status Name</th>
-                  <th className="w-1/2 p-2 font-semibold text-black">Description</th>
-                  <th className="w-1/4 p-2 text-center font-semibold text-black">
-                    {highestRole === "admin" ? "Actions" : ""}
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {statuses.map((status, idx) => (
-                  <DraggableRow key={status.id} index={idx} moveRow={highestRole === "admin" ? moveRow : () => {}} status={status}>
-                    <td className="p-2 cursor-move">{idx + 1}</td>
-                    <td className="p-2">
-                      {editing[status.id] && highestRole === "admin" ? (
-                        <Input
-                          value={inputStatus[status.id].name}
-                          onChange={(e) =>
-                            setInputStatus((cur) => ({
-                              ...cur,
-                              [status.id]: { ...cur[status.id], name: e.target.value },
-                            }))
-                          }
-                        />
-                      ) : (
-                        status.name
-                      )}
-                    </td>
-                    <td className="p-2">
-                      {editing[status.id] && highestRole === "admin" ? (
-                        <Input
-                          value={inputStatus[status.id].description}
-                          onChange={(e) =>
-                            setInputStatus((cur) => ({
-                              ...cur,
-                              [status.id]: { ...cur[status.id], description: e.target.value },
-                            }))
-                          }
-                        />
-                      ) : (
-                        status.description
-                      )}
-                    </td>
-                    <td className="p-2">
-                      <div className="flex items-center justify-center gap-2">
-                        {editing[status.id] && highestRole === "admin" ? (
-                          <Button size="sm" variant="default" onClick={() => handleSaveStatus(status.id)}>Save</Button>
-                        ) : highestRole === "admin" ? (
-                          <>
-                            <Button variant="outline" size="sm" onClick={() => handleEditStatus(status.id)}>
-                              Edit
-                            </Button>
-                            <Button variant="destructive" size="sm" onClick={() => handleDeleteStatus(status.id)}>
-                              Delete
-                            </Button>
-                          </>
-                        ) : null}
-                      </div>
-                    </td>
-                  </DraggableRow>
-                ))}
-              </tbody>
-            </table>
-          </DndProvider>
-        </div>
-        {/* Only admin can add statuses */}
-        {highestRole === "admin" && (
-          <div className="flex flex-wrap gap-2 items-end mt-4">
-            <Input
-              placeholder="Status name"
-              className="w-[180px]"
-              value={newStatus.name}
-              onChange={(e) => setNewStatus({ ...newStatus, name: e.target.value })}
-            />
-            <Input
-              placeholder="Description"
-              className="w-[250px]"
-              value={newStatus.description}
-              onChange={(e) => setNewStatus({ ...newStatus, description: e.target.value })}
-            />
-            <Button onClick={handleAddStatus} variant="default">
-              Add
-            </Button>
+    <div className="w-full space-y-6">
+      <Card className="w-full">
+        <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <CardTitle className="text-lg font-semibold">Task Statuses</CardTitle>
+        </CardHeader>
+        <CardContent className="w-full">
+          <div className="w-full border rounded bg-background shadow-sm">
+            <DndProvider backend={HTML5Backend}>
+              <div className="w-full overflow-x-auto">
+                <table className="w-full min-w-full text-sm">
+                  <thead>
+                    <tr className="bg-muted">
+                      <th className="w-12 p-2 font-semibold text-black">#</th>
+                      <th className="w-1/6 p-2 font-semibold text-black">Status Name</th>
+                      <th className="w-1/2 p-2 font-semibold text-black">Description</th>
+                      <th className="w-1/4 p-2 text-center font-semibold text-black">
+                        {highestRole === "admin" ? "Actions" : ""}
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {statuses.map((status, idx) => (
+                      <DraggableRow key={status.id} index={idx} moveRow={highestRole === "admin" ? moveRow : () => {}} status={status}>
+                        <td className="p-2 cursor-move">{idx + 1}</td>
+                        <td className="p-2">
+                          {editing[status.id] && highestRole === "admin" ? (
+                            <Input
+                              value={inputStatus[status.id].name}
+                              onChange={(e) =>
+                                setInputStatus((cur) => ({
+                                  ...cur,
+                                  [status.id]: { ...cur[status.id], name: e.target.value },
+                                }))
+                              }
+                            />
+                          ) : (
+                            status.name
+                          )}
+                        </td>
+                        <td className="p-2">
+                          {editing[status.id] && highestRole === "admin" ? (
+                            <Input
+                              value={inputStatus[status.id].description}
+                              onChange={(e) =>
+                                setInputStatus((cur) => ({
+                                  ...cur,
+                                  [status.id]: { ...cur[status.id], description: e.target.value },
+                                }))
+                              }
+                            />
+                          ) : (
+                            status.description
+                          )}
+                        </td>
+                        <td className="p-2">
+                          <div className="flex items-center justify-center gap-2">
+                            {editing[status.id] && highestRole === "admin" ? (
+                              <Button size="sm" variant="default" onClick={() => handleSaveStatus(status.id)}>Save</Button>
+                            ) : highestRole === "admin" ? (
+                              <>
+                                <Button variant="outline" size="sm" onClick={() => handleEditStatus(status.id)}>
+                                  Edit
+                                </Button>
+                                <Button variant="destructive" size="sm" onClick={() => handleDeleteStatus(status.id)}>
+                                  Delete
+                                </Button>
+                              </>
+                            ) : null}
+                          </div>
+                        </td>
+                      </DraggableRow>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </DndProvider>
           </div>
-        )}
-        {/* Transitions + Graph */}
-        <div className="mt-10">
-          <StatusLifecycleGraph statuses={statuses} />
-        </div>
-      </CardContent>
-    </Card>
+          {highestRole === "admin" && (
+            <div className="flex flex-wrap gap-2 items-end mt-4">
+              <Input
+                placeholder="Status name"
+                className="w-[180px]"
+                value={newStatus.name}
+                onChange={(e) => setNewStatus({ ...newStatus, name: e.target.value })}
+              />
+              <Input
+                placeholder="Description"
+                className="w-[250px]"
+                value={newStatus.description}
+                onChange={(e) => setNewStatus({ ...newStatus, description: e.target.value })}
+              />
+              <Button onClick={handleAddStatus} variant="default">
+                Add
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+      
+      <div className="w-full">
+        <StatusLifecycleGraph statuses={statuses} />
+      </div>
+    </div>
   );
 };
 

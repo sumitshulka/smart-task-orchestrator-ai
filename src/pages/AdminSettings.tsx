@@ -14,39 +14,41 @@ const AdminSettings: React.FC = () => {
   const [tab, setTab] = useState("departments");
 
   return (
-    <div className="py-6 px-6 w-full">
-      <h2 className="text-2xl font-semibold mb-6">Settings</h2>
-      <Tabs value={tab} onValueChange={setTab} className="w-full">
-        <TabsList className="w-full flex flex-row bg-background border rounded-md mb-6 p-0 gap-2">
-          <TabsTrigger
-            value="departments"
-            className="flex-1 px-4 py-3 text-left justify-start"
-          >
-            Departments
-          </TabsTrigger>
-          <TabsTrigger
-            value="office-locations"
-            className="flex-1 px-4 py-3 text-left justify-start"
-          >
-            Office Locations
-          </TabsTrigger>
-          <TabsTrigger
-            value="statuses"
-            className="flex-1 px-4 py-3 text-left justify-start"
-          >
-            Task Statuses
-          </TabsTrigger>
-        </TabsList>
-        <TabsContent value="departments">
-          <DepartmentsManager />
-        </TabsContent>
-        <TabsContent value="office-locations">
-          <OfficeLocationsManager />
-        </TabsContent>
-        <TabsContent value="statuses">
-          <StatusManager />
-        </TabsContent>
-      </Tabs>
+    <div className="w-full min-h-screen bg-background">
+      <div className="w-full max-w-none px-6 py-6">
+        <h2 className="text-2xl font-semibold mb-6 text-left">Settings</h2>
+        <Tabs value={tab} onValueChange={setTab} className="w-full">
+          <TabsList className="w-full max-w-none flex flex-row bg-background border rounded-md mb-6 p-0 gap-2 justify-start">
+            <TabsTrigger
+              value="departments"
+              className="px-6 py-3 text-left justify-start"
+            >
+              Departments
+            </TabsTrigger>
+            <TabsTrigger
+              value="office-locations"
+              className="px-6 py-3 text-left justify-start"
+            >
+              Office Locations
+            </TabsTrigger>
+            <TabsTrigger
+              value="statuses"
+              className="px-6 py-3 text-left justify-start"
+            >
+              Task Statuses
+            </TabsTrigger>
+          </TabsList>
+          <TabsContent value="departments" className="w-full">
+            <DepartmentsManager />
+          </TabsContent>
+          <TabsContent value="office-locations" className="w-full">
+            <OfficeLocationsManager />
+          </TabsContent>
+          <TabsContent value="statuses" className="w-full">
+            <StatusManager />
+          </TabsContent>
+        </Tabs>
+      </div>
     </div>
   );
 };
