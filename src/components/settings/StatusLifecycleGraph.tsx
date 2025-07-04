@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/use-toast";
 
 /**
- * Simple directional graph: shows transition lines as arrows.
+ * Enhanced directional graph: shows transition lines as arrows with better visual design.
  * Allows admin to create/remove transitions between statuses.
  */
 const StatusLifecycleGraph: React.FC<{ statuses: TaskStatus[] }> = ({ statuses }) => {
@@ -52,17 +52,39 @@ const StatusLifecycleGraph: React.FC<{ statuses: TaskStatus[] }> = ({ statuses }
     toast({ title: "Transition removed." });
   };
 
-  // Node positions for SVG (simple horizontal layout, improve as needed)
-  const nodeGap = 130;
-  const nodeY = 80;
-  const nodeRadius = 30;
+  // Enhanced node positioning for better layout
+  const nodeGap = 180;
+  const nodeY = 120;
+  const nodeRadius = 50;
+  const svgHeight = 280;
+
+  // Function to wrap text within circle
+  const wrapText = (text: string, maxLength: number) => {
+    if (text.length <= maxLength) return [text];
+    const words = text.split(' ');
+    const lines = [];
+    let currentLine = '';
+    
+    for (const word of words) {
+      if ((currentLine + word).length <= maxLength) {
+        currentLine += (currentLine ? ' ' : '') + word;
+      } else {
+        if (currentLine) lines.push(currentLine);
+        currentLine = word;
+      }
+    }
+    if (currentLine) lines.push(currentLine);
+    return lines.slice(0, 3); // Max 3 lines
+  };
 
   return (
-    <div className="my-4">
-      <h4 className="font-semibold mb-2">Status Lifecycle (Transitions)</h4>
-      <div className="flex gap-2 mb-4">
+    <div className="my-6">
+      <h4 className="font-semibold mb-4 text-lg">Status Lifecycle (Transitions)</h4>
+      
+      {/* Controls */}
+      <div className="flex flex-wrap gap-3 mb-6 p-4 bg-gray-50 rounded-lg">
         <select
-          className="border px-2 py-1 bg-background rounded"
+          className="border px-3 py-2 bg-background rounded-md shadow-sm"
           value={from}
           onChange={(e) => setFrom(e.target.value)}
         >
@@ -71,9 +93,9 @@ const StatusLifecycleGraph: React.FC<{ statuses: TaskStatus[] }> = ({ statuses }
             <option key={s.id} value={s.id}>{s.name}</option>
           ))}
         </select>
-        <span className="self-center text-muted-foreground">→</span>
+        <span className="self-center text-2xl text-muted-foreground">→</span>
         <select
-          className="border px-2 py-1 bg-background rounded"
+          className="border px-3 py-2 bg-background rounded-md shadow-sm"
           value={to}
           onChange={(e) => setTo(e.target.value)}
         >
@@ -82,40 +104,86 @@ const StatusLifecycleGraph: React.FC<{ statuses: TaskStatus[] }> = ({ statuses }
             <option key={s.id} value={s.id}>{s.name}</option>
           ))}
         </select>
-        <Button onClick={createTransition} variant="secondary">
+        <Button onClick={createTransition} variant="default" className="ml-2">
           Add Transition
         </Button>
       </div>
-      {/* Visual Graph */}
-      <div className="w-full overflow-x-auto pb-4">
-        <svg width={Math.max(statuses.length * nodeGap, 350)} height={180}>
+
+      {/* Enhanced Visual Graph */}
+      <div className="w-full overflow-x-auto pb-4 bg-white border rounded-lg p-6 shadow-sm">
+        <svg 
+          width={Math.max(statuses.length * nodeGap + 100, 400)} 
+          height={svgHeight}
+          className="mx-auto"
+        >
+          {/* Define gradients and markers */}
+          <defs>
+            {/* Arrow marker */}
+            <marker
+              id="arrowhead"
+              markerWidth="12"
+              markerHeight="12"
+              refX="11"
+              refY="6"
+              orient="auto"
+              markerUnits="strokeWidth"
+            >
+              <polygon points="0 0, 12 6, 0 12" fill="#4b5563" />
+            </marker>
+            
+            {/* Gradient for nodes */}
+            <linearGradient id="nodeGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="#f8fafc" />
+              <stop offset="100%" stopColor="#e2e8f0" />
+            </linearGradient>
+          </defs>
+
           {/* Draw arrows for transitions */}
           {transitions.map((tr, i) => {
             const fromIdx = statuses.findIndex((s) => s.id === tr.from_status);
             const toIdx = statuses.findIndex((s) => s.id === tr.to_status);
             if (fromIdx === -1 || toIdx === -1) return null;
-            // Horizontal arrow (can be more sophisticated!)
-            const fromX = nodeGap / 2 + fromIdx * nodeGap;
-            const toX = nodeGap / 2 + toIdx * nodeGap;
+
+            const fromX = nodeGap / 2 + fromIdx * nodeGap + 50;
+            const toX = nodeGap / 2 + toIdx * nodeGap + 50;
+            
+            // Calculate arrow positions to connect circle edges
+            const deltaX = toX - fromX;
+            const deltaY = 0; // Same Y level
+            const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+            const unitX = deltaX / distance;
+            
+            const startX = fromX + unitX * nodeRadius;
+            const endX = toX - unitX * nodeRadius;
+            
+            // Create curved path for better visual appeal
+            const midX = (startX + endX) / 2;
+            const midY = nodeY - 40; // Curve upward
+            
             return (
               <g key={tr.id}>
-                {/* Arrow */}
-                <line
-                  x1={fromX}
-                  y1={nodeY}
-                  x2={toX}
-                  y2={nodeY}
+                {/* Curved arrow path */}
+                <path
+                  d={`M ${startX} ${nodeY} Q ${midX} ${midY} ${endX} ${nodeY}`}
                   stroke="#4b5563"
                   strokeWidth="2"
+                  fill="none"
                   markerEnd="url(#arrowhead)"
                 />
+                
                 {/* Delete button */}
-                <foreignObject x={(fromX + toX) / 2 - 20} y={nodeY + 10} width="40" height="30">
+                <foreignObject 
+                  x={midX - 15} 
+                  y={midY - 15} 
+                  width="30" 
+                  height="30"
+                >
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="!px-2 !py-0 text-xs"
+                    className="!w-7 !h-7 !p-0 text-xs bg-red-50 hover:bg-red-100 text-red-600 rounded-full border border-red-200"
                     onClick={() => deleteTransition(tr.id)}
+                    title="Remove transition"
                   >
                     ✕
                   </Button>
@@ -123,40 +191,69 @@ const StatusLifecycleGraph: React.FC<{ statuses: TaskStatus[] }> = ({ statuses }
               </g>
             );
           })}
-          {/* Arrow marker definition */}
-          <defs>
-            <marker
-              id="arrowhead"
-              markerWidth="8"
-              markerHeight="8"
-              refX="8"
-              refY="4"
-              orient="auto"
-              markerUnits="strokeWidth"
-            >
-              <polygon points="0 0, 8 4, 0 8" fill="#4b5563" />
-            </marker>
-          </defs>
-          {/* Draw nodes */}
+
+          {/* Draw enhanced nodes */}
           {statuses.map((status, idx) => {
-            const x = nodeGap / 2 + idx * nodeGap;
+            const x = nodeGap / 2 + idx * nodeGap + 50;
+            const textLines = wrapText(status.name, 10);
+            
             return (
               <g key={status.id}>
-                <circle cx={x} cy={nodeY} r={nodeRadius} fill="#f1f5f9" stroke="#64748b" strokeWidth="2" />
-                <text x={x} y={nodeY} textAnchor="middle" dy="0.3em" fontSize="13" fill="#22223b">
-                  {status.name}
+                {/* Node circle with gradient and shadow */}
+                <circle 
+                  cx={x} 
+                  cy={nodeY} 
+                  r={nodeRadius} 
+                  fill="url(#nodeGradient)" 
+                  stroke="#64748b" 
+                  strokeWidth="2"
+                  filter="drop-shadow(0 2px 4px rgba(0,0,0,0.1))"
+                />
+                
+                {/* Multi-line text */}
+                {textLines.map((line, lineIdx) => (
+                  <text 
+                    key={lineIdx}
+                    x={x} 
+                    y={nodeY + (lineIdx - (textLines.length - 1) / 2) * 14} 
+                    textAnchor="middle" 
+                    fontSize="12" 
+                    fill="#1e293b"
+                    fontWeight="500"
+                  >
+                    {line}
+                  </text>
+                ))}
+                
+                {/* Status sequence number */}
+                <text 
+                  x={x} 
+                  y={nodeY + nodeRadius + 20} 
+                  textAnchor="middle" 
+                  fontSize="10" 
+                  fill="#64748b"
+                  fontWeight="400"
+                >
+                  #{status.sequence_order}
                 </text>
               </g>
             );
           })}
         </svg>
       </div>
-      {/* Legend */}
-      <div className="text-xs text-muted-foreground mt-2">
-        Drag to reorder statuses in the table above. Configure allowed transitions here.<br />
-        Delete a transition by clicking the ✕ on the arrow.
+
+      {/* Enhanced Legend */}
+      <div className="text-sm text-muted-foreground mt-4 p-4 bg-blue-50 rounded-lg border-l-4 border-blue-400">
+        <div className="font-medium text-blue-800 mb-2">How to use:</div>
+        <ul className="space-y-1 text-blue-700">
+          <li>• Drag to reorder statuses in the table above</li>
+          <li>• Configure allowed transitions using the dropdown menus</li>
+          <li>• Remove transitions by clicking the ✕ button on the curved arrows</li>
+          <li>• Numbers below circles show the sequence order</li>
+        </ul>
       </div>
     </div>
   );
 };
+
 export default StatusLifecycleGraph;
