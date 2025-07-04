@@ -194,27 +194,39 @@ const StatusManager: React.FC = () => {
               </div>
             </DndProvider>
           </div>
-          {highestRole === "admin" && (
-            <div className="flex flex-wrap gap-2 items-end mt-4">
-              <Input
-                placeholder="Status name"
-                className="w-[180px]"
-                value={newStatus.name}
-                onChange={(e) => setNewStatus({ ...newStatus, name: e.target.value })}
-              />
-              <Input
-                placeholder="Description"
-                className="w-[250px]"
-                value={newStatus.description}
-                onChange={(e) => setNewStatus({ ...newStatus, description: e.target.value })}
-              />
-              <Button onClick={handleAddStatus} variant="default">
-                Add
-              </Button>
-            </div>
-          )}
         </CardContent>
       </Card>
+
+      {highestRole === "admin" && (
+        <Card className="w-full">
+          <CardHeader>
+            <CardTitle className="text-lg font-semibold">Add New Status</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">Status Name</label>
+                <Input
+                  placeholder="Enter status name"
+                  value={newStatus.name}
+                  onChange={(e) => setNewStatus({ ...newStatus, name: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Description</label>
+                <Input
+                  placeholder="Enter description"
+                  value={newStatus.description}
+                  onChange={(e) => setNewStatus({ ...newStatus, description: e.target.value })}
+                />
+              </div>
+              <Button onClick={handleAddStatus} variant="default" className="w-full sm:w-auto">
+                Add Status
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
       
       <div className="w-full">
         <StatusLifecycleGraph statuses={statuses} />

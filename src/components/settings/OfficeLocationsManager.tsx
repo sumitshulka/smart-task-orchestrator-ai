@@ -110,7 +110,7 @@ const OfficeLocationsManager: React.FC = () => {
   };
 
   return (
-    <div className="w-full">
+    <div className="w-full space-y-6">
       <Card className="w-full">
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <CardTitle className="text-lg font-semibold">Office Locations</CardTitle>
@@ -204,28 +204,40 @@ const OfficeLocationsManager: React.FC = () => {
               </table>
             </div>
           </div>
-          {highestRole === "admin" && (
-            <div className="flex flex-wrap gap-2 items-end mt-4">
-              <Input
-                placeholder="Location name"
-                className="w-[200px]"
-                value={newLocation.location_name}
-                onChange={(e) => setNewLocation({ ...newLocation, location_name: e.target.value })}
-              />
-              <Textarea
-                placeholder="Address"
-                className="w-[300px]"
-                value={newLocation.address}
-                onChange={(e) => setNewLocation({ ...newLocation, address: e.target.value })}
-                rows={2}
-              />
-              <Button onClick={handleAddLocation} variant="default">
-                Add Location
-              </Button>
-            </div>
-          )}
         </CardContent>
       </Card>
+
+      {highestRole === "admin" && (
+        <Card className="w-full">
+          <CardHeader>
+            <CardTitle className="text-lg font-semibold">Add New Office Location</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">Location Name</label>
+                <Input
+                  placeholder="Enter location name"
+                  value={newLocation.location_name}
+                  onChange={(e) => setNewLocation({ ...newLocation, location_name: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Address</label>
+                <Textarea
+                  placeholder="Enter address"
+                  value={newLocation.address}
+                  onChange={(e) => setNewLocation({ ...newLocation, address: e.target.value })}
+                  rows={3}
+                />
+              </div>
+              <Button onClick={handleAddLocation} variant="default" className="w-full sm:w-auto">
+                Add Office Location
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };

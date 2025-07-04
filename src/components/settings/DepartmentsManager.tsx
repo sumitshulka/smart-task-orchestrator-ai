@@ -82,7 +82,7 @@ const DepartmentsManager: React.FC = () => {
   };
 
   return (
-    <div className="w-full">
+    <div className="w-full space-y-6">
       <Card className="w-full">
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <CardTitle className="text-lg font-semibold">Departments</CardTitle>
@@ -176,28 +176,40 @@ const DepartmentsManager: React.FC = () => {
               </table>
             </div>
           </div>
-          {highestRole === "admin" && (
-            <div className="flex flex-wrap gap-2 items-end mt-4">
-              <Input
-                placeholder="Department name"
-                className="w-[200px]"
-                value={newDepartment.name}
-                onChange={(e) => setNewDepartment({ ...newDepartment, name: e.target.value })}
-              />
-              <Textarea
-                placeholder="Description"
-                className="w-[300px]"
-                value={newDepartment.description}
-                onChange={(e) => setNewDepartment({ ...newDepartment, description: e.target.value })}
-                rows={2}
-              />
-              <Button onClick={handleAddDepartment} variant="default">
+        </CardContent>
+      </Card>
+
+      {highestRole === "admin" && (
+        <Card className="w-full">
+          <CardHeader>
+            <CardTitle className="text-lg font-semibold">Add New Department</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">Department Name</label>
+                <Input
+                  placeholder="Enter department name"
+                  value={newDepartment.name}
+                  onChange={(e) => setNewDepartment({ ...newDepartment, name: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Description</label>
+                <Textarea
+                  placeholder="Enter description"
+                  value={newDepartment.description}
+                  onChange={(e) => setNewDepartment({ ...newDepartment, description: e.target.value })}
+                  rows={3}
+                />
+              </div>
+              <Button onClick={handleAddDepartment} variant="default" className="w-full sm:w-auto">
                 Add Department
               </Button>
             </div>
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };
