@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -117,7 +118,7 @@ const StatusManager: React.FC = () => {
   };
 
   return (
-    <Card className="max-w-3xl mx-auto">
+    <Card className="w-full">
       <CardHeader className="flex flex-row items-center justify-between pb-2">
         <CardTitle className="text-lg font-semibold">Task Statuses</CardTitle>
       </CardHeader>
