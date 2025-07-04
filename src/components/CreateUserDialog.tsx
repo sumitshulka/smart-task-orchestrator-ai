@@ -145,9 +145,9 @@ const CreateUserDialog: React.FC<CreateUserDialogProps> = ({
               required
             >
               <option value="">{departmentsLoading ? "Loading departments..." : "Select department"}</option>
-              {departments.map((d) => (
-                <option key={d} value={d}>
-                  {d}
+              {departments.map((dept) => (
+                <option key={dept.id} value={dept.name}>
+                  {dept.name}
                 </option>
               ))}
             </select>

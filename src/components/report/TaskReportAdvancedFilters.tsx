@@ -127,7 +127,7 @@ export default function TaskReportAdvancedFilters({
                   <SelectItem value="" disabled>Loading...</SelectItem>
                 ) : (
                   departments.map(dept => (
-                    <SelectItem key={dept} value={dept}>{dept}</SelectItem>
+                    <SelectItem key={dept.id} value={dept.name}>{dept.name}</SelectItem>
                   ))
                 )}
               </SelectContent>
