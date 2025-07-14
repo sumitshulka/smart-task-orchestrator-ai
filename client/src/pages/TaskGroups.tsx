@@ -92,7 +92,7 @@ export default function TaskGroupsPage() {
   };
 
   return (
-    <div className="max-w-4xl w-full p-4 mx-0">
+    <div className="w-full p-4 mx-0">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">Task Groups</h1>
         <Button onClick={() => setCreateOpen(v => !v)}>
@@ -139,7 +139,7 @@ export default function TaskGroupsPage() {
       {loading ? (
         <div className="text-muted-foreground">Loading groups...</div>
       ) : (
-        <div className="flex flex-col gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {groups.map(group => {
             const ownerInfo = getOwnerInfo(group.owner_id);
             return (

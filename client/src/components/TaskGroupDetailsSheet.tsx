@@ -20,7 +20,7 @@ type Props = {
 export default function TaskGroupDetailsSheet({ open, onOpenChange, group }: Props) {
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="max-w-[108rem] w-[98vw]">
+      <SheetContent side="right" className="w-[90vw] max-w-[800px]">
         <SheetHeader>
           <SheetTitle>{group?.name || "Task Group"}</SheetTitle>
           <SheetDescription>
