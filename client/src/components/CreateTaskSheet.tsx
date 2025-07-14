@@ -17,7 +17,7 @@ import { toast } from "@/components/ui/use-toast";
 import useSupabaseSession from "@/hooks/useSupabaseSession";
 import { useTaskStatuses } from "@/hooks/useTaskStatuses";
 import { fetchAssignableTaskGroups, assignTaskToGroup, TaskGroup } from "@/integrations/supabase/taskGroups";
-import TaskSearchDialog from "./TaskSearchDialog";
+
 import { useDependencyConstraintValidation } from "@/hooks/useDependencyConstraintValidation";
 import { apiClient } from "@/lib/api";
 
@@ -94,9 +94,9 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
   const [taskGroups, setTaskGroups] = useState<TaskGroup[]>([]);
   const [selectedTaskGroup, setSelectedTaskGroup] = useState<string>("");
 
-  // Add these two lines for dependency dialog and task selection state:
+  // Add these lines for dependency selection and inline search:
   const [selectedDependencyTask, setSelectedDependencyTask] = useState<Task | null>(null);
-  const [dependencyDialogOpen, setDependencyDialogOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   // Get user role: use fetched roles, fallback to email only if missing
   const [userRole, setUserRole] = useState<string>("user");
@@ -295,11 +295,17 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
   // Compute selectable tasks for subtasks/dependencies
   const selectableTasks = tasks;
 
+  // Filter tasks for dependency search
+  const filteredTasks = tasks.filter(task => 
+    task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    task.description?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   // Reset form
   const resetForm = () => {
     setForm(initialForm);
     setSelectedDependencyTask(null);
-    setDependencyDialogOpen(false);
+    setSearchQuery("");
   };
 
   // Assigned To dropdown (unchanged, uses getAssignableUsersForCreate)
@@ -638,32 +644,56 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
                   {form.isDependent && (
                     <div className="mt-4 ml-8 space-y-3">
                       <label className="block text-sm font-semibold text-gray-700">Select Dependency Task</label>
-                      <div className="flex items-center gap-3">
-                        <button
-                          type="button"
-                          className="flex-1 h-12 px-4 border border-gray-300 rounded-lg bg-white hover:bg-gray-50 transition-colors text-left flex items-center justify-between"
-                          onClick={() => setDependencyDialogOpen(true)}
-                        >
-                          <span>
-                            {selectedDependencyTask
-                              ? <>🎯 <span className="font-semibold ml-2">{selectedDependencyTask.title}</span></>
-                              : "🔍 Search & Select Task"}
-                          </span>
-                          <span className="text-gray-400">
-                            {selectedDependencyTask ? "Change" : "Browse"}
-                          </span>
-                        </button>
+                      {/* Inline Task Search */}
+                      <div className="space-y-3">
+                        <Input
+                          type="text"
+                          placeholder="🔍 Search for dependency task by title..."
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          className="h-12"
+                        />
+                        
+                        {searchQuery && filteredTasks.length > 0 && (
+                          <div className="max-h-40 overflow-y-auto border border-gray-200 rounded-lg bg-white">
+                            {filteredTasks.slice(0, 5).map((task) => (
+                              <button
+                                key={task.id}
+                                type="button"
+                                className="w-full p-3 text-left hover:bg-gray-50 border-b border-gray-100 last:border-b-0 transition-colors"
+                                onClick={() => {
+                                  setSelectedDependencyTask(task);
+                                  setForm(f => ({ ...f, dependencyTaskId: task.id }));
+                                  setSearchQuery("");
+                                }}
+                              >
+                                <div className="font-medium text-gray-900">{task.title}</div>
+                                <div className="text-sm text-gray-500 truncate">{task.description}</div>
+                                <div className="text-xs text-blue-600 mt-1">Status: {task.status}</div>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        
                         {selectedDependencyTask && (
-                          <button
-                            type="button"
-                            className="px-4 py-2 text-sm text-red-600 border border-red-300 rounded-lg hover:bg-red-50 transition-colors"
-                            onClick={() => {
-                              setSelectedDependencyTask(null);
-                              setForm(f => ({ ...f, dependencyTaskId: "" }));
-                            }}
-                          >
-                            Clear
-                          </button>
+                          <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <div className="font-semibold text-blue-800">🎯 {selectedDependencyTask.title}</div>
+                                <div className="text-sm text-blue-700">{selectedDependencyTask.description}</div>
+                              </div>
+                              <button
+                                type="button"
+                                className="px-3 py-1 text-sm text-red-600 border border-red-300 rounded hover:bg-red-50"
+                                onClick={() => {
+                                  setSelectedDependencyTask(null);
+                                  setForm(f => ({ ...f, dependencyTaskId: "" }));
+                                }}
+                              >
+                                Clear
+                              </button>
+                            </div>
+                          </div>
                         )}
                       </div>
                       
@@ -672,13 +702,6 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
                         name="dependencyTaskId"
                         value={form.dependencyTaskId}
                         readOnly
-                      />
-                      
-                      <TaskSearchDialog
-                        open={dependencyDialogOpen}
-                        onOpenChange={setDependencyDialogOpen}
-                        onSelect={handleDependencySelect}
-                        excludeTaskId={undefined}
                       />
                       
                       {selectedDependencyTask && (
