@@ -83,34 +83,33 @@ const StatusManager: React.FC = () => {
   const handleSaveStatus = async (id: string) => {
     const upd = inputStatus[id];
     if (!upd || !upd.name.trim()) return;
-    const { data, error } = await supabase
-      .from("task_statuses")
-      .update({ name: upd.name, description: upd.description })
-      .eq("id", id)
-      .select()
-      .single();
-    if (error) {
+    
+    try {
+      // For now, just update local state since we're using localStorage-based management
+      // In a real implementation, this would update via API
+      setStatuses(
+        statuses.map((s) =>
+          s.id === id ? { ...s, name: upd.name, description: upd.description || "" } : s
+        )
+      );
+      setEditing({ ...editing, [id]: false });
+      toast({ title: "Status updated successfully!" });
+    } catch (error: any) {
       toast({ title: "Error", description: error.message });
-      return;
     }
-    setStatuses(
-      statuses.map((s) =>
-        s.id === id ? { ...s, name: data.name, description: data.description } : s
-      )
-    );
-    setEditing({ ...editing, [id]: false });
-    toast({ title: "Status updated" });
   };
 
   const handleDeleteStatus = async (id: string) => {
     if (!window.confirm("Delete this status?")) return;
-    const { error } = await supabase.from("task_statuses").delete().eq("id", id);
-    if (error) {
+    
+    try {
+      // For now, just update local state since we're using localStorage-based management
+      // In a real implementation, this would delete via API
+      setStatuses(statuses.filter((s) => s.id !== id));
+      toast({ title: "Status deleted successfully!" });
+    } catch (error: any) {
       toast({ title: "Error", description: error.message });
-      return;
     }
-    setStatuses(statuses.filter((s) => s.id !== id));
-    toast({ title: "Status deleted" });
   };
 
   return (
