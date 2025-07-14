@@ -1,5 +1,5 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -82,10 +82,19 @@ const StatusManager: React.FC = () => {
   const [inputStatus, setInputStatus] = useState<{ [id: string]: { name: string; description: string; color: string; is_default: boolean; can_delete: boolean } }>({});
   const { highestRole } = useRole();
 
-  // Reordering
+  // Reordering with optimistic updates
+  const [localStatuses, setLocalStatuses] = useState(statuses);
+  
+  // Update local statuses when API data changes
+  useEffect(() => {
+    setLocalStatuses(statuses);
+  }, [statuses]);
+
   const moveRow = (fromIdx: number, toIdx: number) => {
     if (fromIdx === toIdx) return;
-    const updated = [...statuses];
+    
+    // Optimistic update - show change immediately
+    const updated = [...localStatuses];
     const [removed] = updated.splice(fromIdx, 1);
     updated.splice(toIdx, 0, removed);
     
@@ -95,16 +104,21 @@ const StatusManager: React.FC = () => {
       sequence_order: index + 1
     }));
 
-    // Update all statuses with new sequence order
+    setLocalStatuses(updatedWithOrder);
+    toast({ title: "Saving new status order..." });
+
+    // Update all statuses with new sequence order in background
     Promise.all(
       updatedWithOrder.map(status => 
         apiClient.updateTaskStatus(status.id, { sequence_order: status.sequence_order })
       )
     ).then(() => {
-      refreshStatuses();
+      refreshStatuses(); // This will sync with server
+      toast({ title: "Status order saved successfully!" });
       console.log("Status order updated:", updatedWithOrder.map(s => s.name));
     }).catch(error => {
-      toast({ title: "Error", description: "Failed to update status order" });
+      toast({ title: "Error", description: "Failed to update status order. Reverting changes." });
+      setLocalStatuses(statuses); // Revert on error
     });
   };
 
@@ -194,7 +208,7 @@ const StatusManager: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {statuses.map((status, idx) => (
+                    {localStatuses.map((status, idx) => (
                       <DraggableRow key={status.id} index={idx} moveRow={highestRole === "admin" ? moveRow : () => {}} status={status}>
                         <td className="p-2 cursor-move">{idx + 1}</td>
                         <td className="p-2">

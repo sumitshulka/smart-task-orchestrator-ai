@@ -46,6 +46,10 @@ Preferred communication style: Simple, everyday language.
 ✓ **Component Architecture Enhancement**: Updated TasksList and KanbanTaskCard components to support onOpenDetails callback for unified task interaction
 ✓ **Modern TaskDetailsSheet Redesign**: Completely redesigned task details modal to match CreateTaskSheet's modern sectioned layout with proper user name display instead of UUIDs
 ✓ **Enhanced User Experience**: TaskDetailsSheet now features 5 clearly organized sections with colored backgrounds, proper date formatting, priority badges, and integrated edit functionality
+✓ **Dynamic Status-Based Task Deletion**: Implemented configurable deletion permissions per status with database-driven logic replacing hardcoded values
+✓ **StatusManager Enhancement**: Added can_delete configuration checkboxes for administrators to control which statuses allow task deletion
+✓ **Optimistic Status Reordering**: Enhanced table drag-and-drop with immediate visual feedback and background persistence to database
+✓ **Status Lifecycle Position Persistence**: Added localStorage saving for draggable status graph with unsaved changes indicator and finalize button
 
 ## System Architecture
 

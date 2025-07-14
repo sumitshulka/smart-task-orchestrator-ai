@@ -12,7 +12,43 @@ const StatusLifecycleGraphDraggable: React.FC<{ statuses: TaskStatus[] }> = ({ s
   const [statusPositions, setStatusPositions] = useState<Map<string, {x: number, y: number}>>(new Map());
   const [isDragging, setIsDragging] = useState<string | null>(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const svgRef = useRef<SVGSVGElement>(null);
+
+  // Load saved positions from localStorage
+  const loadSavedPositions = useCallback(() => {
+    try {
+      const saved = localStorage.getItem('statusLifecyclePositions');
+      if (saved) {
+        const positions = JSON.parse(saved);
+        const positionMap = new Map<string, {x: number, y: number}>();
+        Object.entries(positions).forEach(([statusName, pos]: [string, any]) => {
+          positionMap.set(statusName, pos);
+        });
+        setStatusPositions(positionMap);
+        return true;
+      }
+    } catch (error) {
+      console.error('Failed to load saved positions:', error);
+    }
+    return false;
+  }, []);
+
+  // Save positions to localStorage
+  const savePositions = () => {
+    try {
+      const positionsObj: Record<string, {x: number, y: number}> = {};
+      statusPositions.forEach((pos, statusName) => {
+        positionsObj[statusName] = pos;
+      });
+      localStorage.setItem('statusLifecyclePositions', JSON.stringify(positionsObj));
+      setHasUnsavedChanges(false);
+      toast({ title: "Status positions saved successfully!" });
+    } catch (error) {
+      console.error('Failed to save positions:', error);
+      toast({ title: "Error", description: "Failed to save positions" });
+    }
+  };
 
   const createTransition = async () => {
     if (!from || !to || from === to) {
@@ -53,16 +89,20 @@ const StatusLifecycleGraphDraggable: React.FC<{ statuses: TaskStatus[] }> = ({ s
   // Initialize positions if not set
   const initializePositions = useCallback(() => {
     if (statusPositions.size === 0 && statuses.length > 0) {
-      const newPositions = new Map<string, {x: number, y: number}>();
-      statuses.forEach((status, idx) => {
-        newPositions.set(status.name, {
-          x: 150 + idx * 180,
-          y: 250
+      // Try to load saved positions first
+      if (!loadSavedPositions()) {
+        // If no saved positions, create default layout
+        const newPositions = new Map<string, {x: number, y: number}>();
+        statuses.forEach((status, idx) => {
+          newPositions.set(status.name, {
+            x: 150 + idx * 180,
+            y: 250
+          });
         });
-      });
-      setStatusPositions(newPositions);
+        setStatusPositions(newPositions);
+      }
     }
-  }, [statuses, statusPositions.size]);
+  }, [statuses, statusPositions.size, loadSavedPositions]);
   
   // Initialize positions on component mount
   useEffect(() => {
@@ -98,6 +138,7 @@ const StatusLifecycleGraphDraggable: React.FC<{ statuses: TaskStatus[] }> = ({ s
       newPositions.set(isDragging, { x: newX, y: newY });
       return newPositions;
     });
+    setHasUnsavedChanges(true);
   }, [isDragging, dragOffset]);
   
   const handleMouseUp = useCallback(() => {
@@ -183,6 +224,22 @@ const StatusLifecycleGraphDraggable: React.FC<{ statuses: TaskStatus[] }> = ({ s
         >
           Add Transition
         </Button>
+        
+        <div className="flex gap-2 items-center ml-auto">
+          {hasUnsavedChanges && (
+            <span className="text-sm text-orange-600 font-medium">
+              ● Unsaved changes
+            </span>
+          )}
+          <Button
+            onClick={savePositions}
+            disabled={!hasUnsavedChanges}
+            variant={hasUnsavedChanges ? "default" : "outline"}
+            className={hasUnsavedChanges ? "bg-green-600 hover:bg-green-700 text-white" : ""}
+          >
+            {hasUnsavedChanges ? "Save Layout" : "Layout Saved"}
+          </Button>
+        </div>
       </div>
 
       <div className="border rounded-lg overflow-hidden bg-gray-50">
