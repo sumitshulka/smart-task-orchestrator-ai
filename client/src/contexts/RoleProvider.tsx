@@ -1,7 +1,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import useSupabaseSession from "@/hooks/useSupabaseSession";
+import { apiClient } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
 
 // Define priorities
 const ROLE_PRIORITY = ["admin", "manager", "user"] as const;
@@ -20,7 +20,7 @@ const RoleContext = createContext<RoleContextType>({
 });
 
 export const RoleProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user } = useSupabaseSession();
+  const { user } = useAuth();
   const [highestRole, setHighestRole] = useState<HighestRole>(null);
   const [userName, setUserName] = useState<string>("");
   const [loading, setLoading] = useState(true);
@@ -37,54 +37,59 @@ export const RoleProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return;
       }
 
-      // Use email to get user row in 'users' table
-      const { data: userRows, error: userError } = await supabase
-        .from("users")
-        .select("*")
-        .eq("email", user.email)
-        .limit(1);
+      try {
+        // Set user name from current user
+        setUserName(user.user_name || user.email);
 
-      if (userError || !userRows || userRows.length === 0) {
-        setHighestRole(null);
-        setUserName(user.email || "");
-        setLoading(false);
-        return;
-      }
+        // Fetch user roles from API
+        const userRoles = await apiClient.getUserRoles(user.id);
+        
+        if (!userRoles || userRoles.length === 0) {
+          // If no explicit roles, check if user is admin
+          const userData = await apiClient.getUser(user.id);
+          if (userData && userData.is_admin) {
+            setHighestRole("admin");
+          } else {
+            setHighestRole("user"); // Default role
+          }
+          setLoading(false);
+          return;
+        }
 
-      const dbUser = userRows[0];
-      setUserName(dbUser.user_name || user.email);
+        // Get role names and find highest priority
+        const roles = await apiClient.getRoles();
+        const userRoleIds = userRoles.map((ur: any) => ur.role_id);
+        const roleNames: string[] = roles
+          .filter((role: any) => userRoleIds.includes(role.id))
+          .map((role: any) => role.name);
 
-      // Now fetch all roles for this user id
-      const { data: userRoles, error: rolesError } = await supabase
-        .from("user_roles")
-        .select("role:roles(name)")
-        .eq("user_id", dbUser.id);
+        let foundRole: HighestRole = null;
+        for (const candidate of ROLE_PRIORITY) {
+          if (roleNames.includes(candidate)) {
+            foundRole = candidate;
+            break;
+          }
+        }
 
-      if (rolesError || !userRoles || userRoles.length === 0) {
-        setHighestRole(null);
-        setLoading(false);
-        return;
-      }
-
-      // Find highest priority role
-      const roleNames: string[] = userRoles.map((r: any) => r.role?.name).filter(Boolean);
-      let foundRole: HighestRole = null;
-      for (const candidate of ROLE_PRIORITY) {
-        if (roleNames.includes(candidate)) {
-          foundRole = candidate;
-          break;
+        if (mounted) {
+          setHighestRole(foundRole || "user");
+          setLoading(false);
+        }
+      } catch (error) {
+        console.error("Error fetching user roles:", error);
+        // Default to user role if there's an error
+        if (mounted) {
+          setHighestRole("user");
+          setLoading(false);
         }
       }
-      setHighestRole(foundRole);
-      setLoading(false);
     }
 
     fetchRoleAndName();
     return () => {
       mounted = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.email, user?.id]);
+  }, [user]);
 
   return (
     <RoleContext.Provider value={{ highestRole, userName, loading }}>

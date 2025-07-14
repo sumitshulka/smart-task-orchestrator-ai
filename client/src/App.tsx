@@ -22,6 +22,7 @@ import TaskOverdueReport from "@/pages/TaskOverdueReport";
 import TaskGroupsPage from "./pages/TaskGroups";
 import MyTeams from "./pages/MyTeams";
 import { RoleProvider } from "@/contexts/RoleProvider";
+import { AuthProvider } from "@/contexts/AuthContext";
 
 const queryClient = new QueryClient();
 
@@ -30,16 +31,12 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      {/* Wrap app in RoleProvider */}
-      <RoleProvider>
-        <BrowserRouter>
-          <Routes>
-            {/* Make / route go to AuthPage */}
-            <Route
-              path="/"
-              element={<Navigate to="/auth" replace />}
-            />
-            <Route path="/auth" element={<AuthPage />} />
+      <AuthProvider>
+        <RoleProvider>
+          <BrowserRouter>
+            <Routes>
+              <Route path="/" element={<Index />} />
+              <Route path="/auth" element={<AuthPage />} />
             <Route
               path="/admin/users"
               element={
@@ -151,6 +148,7 @@ const App = () => (
           </Routes>
         </BrowserRouter>
       </RoleProvider>
+      </AuthProvider>
     </TooltipProvider>
   </QueryClientProvider>
 );
