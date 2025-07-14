@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/use-toast";
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { useRole } from "@/contexts/RoleProvider";
 
@@ -28,18 +28,20 @@ const OfficeLocationsManager: React.FC = () => {
   const { highestRole } = useRole();
 
   const fetchLocations = async () => {
-    const { data, error } = await supabase
-      .from("office_locations")
-      .select("*")
-      .order("location_name");
-
-    if (error) {
-      toast({ title: "Error", description: error.message });
-      return;
+    try {
+      // For now, use localStorage to store office locations
+      const savedLocations = localStorage.getItem('office_locations');
+      if (savedLocations) {
+        setLocations(JSON.parse(savedLocations));
+      } else {
+        setLocations([]);
+      }
+    } catch (error) {
+      console.error("Error fetching locations:", error);
+      toast({ title: "Error", description: "Failed to load office locations" });
+    } finally {
+      setLoading(false);
     }
-
-    setLocations(data || []);
-    setLoading(false);
   };
 
   useEffect(() => {
@@ -49,20 +51,26 @@ const OfficeLocationsManager: React.FC = () => {
   const handleAddLocation = async () => {
     if (!newLocation.location_name.trim() || !newLocation.address.trim()) return;
 
-    const { data, error } = await supabase
-      .from("office_locations")
-      .insert([{ location_name: newLocation.location_name, address: newLocation.address }])
-      .select()
-      .single();
+    try {
+      const newLocationData = {
+        id: Date.now().toString(),
+        location_name: newLocation.location_name,
+        address: newLocation.address,
+        location_manager: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
 
-    if (error) {
-      toast({ title: "Error", description: error.message });
-      return;
+      const updatedLocations = [...locations, newLocationData];
+      localStorage.setItem('office_locations', JSON.stringify(updatedLocations));
+      
+      setNewLocation({ location_name: "", address: "" });
+      fetchLocations();
+      toast({ title: "Office location added successfully" });
+    } catch (error) {
+      console.error("Error adding location:", error);
+      toast({ title: "Error", description: "Failed to add office location" });
     }
-
-    setNewLocation({ location_name: "", address: "" });
-    fetchLocations();
-    toast({ title: "Office location added successfully" });
   };
 
   const handleEditLocation = (id: string) => {
@@ -80,33 +88,36 @@ const OfficeLocationsManager: React.FC = () => {
     const editedLocation = editingLocations[id];
     if (!editedLocation || !editedLocation.location_name.trim() || !editedLocation.address.trim()) return;
 
-    const { error } = await supabase
-      .from("office_locations")
-      .update({ location_name: editedLocation.location_name, address: editedLocation.address })
-      .eq("id", id);
+    try {
+      const updatedLocations = locations.map(location =>
+        location.id === id
+          ? { ...location, location_name: editedLocation.location_name, address: editedLocation.address, updated_at: new Date().toISOString() }
+          : location
+      );
+      localStorage.setItem('office_locations', JSON.stringify(updatedLocations));
 
-    if (error) {
-      toast({ title: "Error", description: error.message });
-      return;
+      setEditing({ ...editing, [id]: false });
+      fetchLocations();
+      toast({ title: "Office location updated successfully" });
+    } catch (error) {
+      console.error("Error updating location:", error);
+      toast({ title: "Error", description: "Failed to update office location" });
     }
-
-    setEditing({ ...editing, [id]: false });
-    fetchLocations();
-    toast({ title: "Office location updated successfully" });
   };
 
   const handleDeleteLocation = async (id: string) => {
     if (!window.confirm("Are you sure you want to delete this office location?")) return;
 
-    const { error } = await supabase.from("office_locations").delete().eq("id", id);
+    try {
+      const updatedLocations = locations.filter(location => location.id !== id);
+      localStorage.setItem('office_locations', JSON.stringify(updatedLocations));
 
-    if (error) {
-      toast({ title: "Error", description: error.message });
-      return;
+      fetchLocations();
+      toast({ title: "Office location deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting location:", error);
+      toast({ title: "Error", description: "Failed to delete office location" });
     }
-
-    fetchLocations();
-    toast({ title: "Office location deleted successfully" });
   };
 
   return (

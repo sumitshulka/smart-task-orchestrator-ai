@@ -7,6 +7,8 @@ import { Edit, Trash2, Check, Link2, List } from "lucide-react";
 import { Task, deleteTask, updateTask } from "@/integrations/supabase/tasks";
 import { toast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
+import { formatOrgDate } from "@/lib/dateUtils";
+import { useUserNames } from "@/hooks/useUserName";
 
 // Utility to determine if overdue/in time
 function getTimeIndicator(task: Task) {
@@ -24,6 +26,7 @@ type TaskCardProps = {
 };
 
 export default function TaskCard({ task, onTaskUpdated, canDelete }: TaskCardProps) {
+  const { getUserName } = useUserNames();
   // Unique identifier for confirmation dialog if desired in the future
   // const [openDeleteConfirm, setOpenDeleteConfirm] = React.useState(false);
 
@@ -154,27 +157,27 @@ export default function TaskCard({ task, onTaskUpdated, canDelete }: TaskCardPro
           <div>
             <span className="font-semibold">Due:</span>{" "}
             {task.due_date ? (
-              <span>{task.due_date}</span>
+              <span>{formatOrgDate(task.due_date)}</span>
             ) : (
               <span className="text-muted-foreground">No due date</span>
             )}
           </div>
           <div>
             <span className="font-semibold">Created:</span>{" "}
-            {task.created_at ? task.created_at.slice(0, 10) : "-"}
+            {task.created_at ? formatOrgDate(task.created_at) : "-"}
           </div>
           <div>
             <span className="font-semibold">Assigned To:</span>{" "}
             {task.assigned_user
               ? task.assigned_user.user_name || task.assigned_user.email
               : task.assigned_to
-              ? `(${task.assigned_to})`
+              ? getUserName(task.assigned_to)
               : "-"}
           </div>
           {task.status === "completed" && task.actual_completion_date && (
             <div>
               <span className="font-semibold">Completion Date:</span>{" "}
-              {task.actual_completion_date}
+              {formatOrgDate(task.actual_completion_date)}
             </div>
           )}
         </div>

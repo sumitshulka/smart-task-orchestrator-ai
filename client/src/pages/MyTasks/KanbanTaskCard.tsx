@@ -2,6 +2,8 @@
 import React from "react";
 import { useDrag } from "react-dnd";
 import { Task } from "@/integrations/supabase/tasks";
+import { formatOrgDate } from "@/lib/dateUtils";
+import { useUserName } from "@/hooks/useUserName";
 
 const getStatusKey = (status: string) => {
   return status.trim().toLowerCase().replace(/_/g, " ");
@@ -80,6 +82,7 @@ function KanbanTaskCard({ task, onClick, CARD_TYPE }: { task: Task; onClick: () 
   const statusKey = getStatusKey(task.status);
   const isCompleted = statusKey === "completed";
   const cardStyling = getCardStyling(statusKey);
+  const assignedUserName = useUserName(task.assigned_to);
   
   const [{ isDragging }, dragRef] = useDrag({
     type: CARD_TYPE,
@@ -114,27 +117,36 @@ function KanbanTaskCard({ task, onClick, CARD_TYPE }: { task: Task; onClick: () 
           <div className="text-xs text-gray-500">
             {isCompleted ? (
               task.actual_completion_date ? 
-                new Date(task.actual_completion_date).toLocaleDateString() : 
+                formatOrgDate(task.actual_completion_date) : 
                 "Completed"
             ) : (
               task.due_date ? 
-                new Date(task.due_date).toLocaleDateString() : 
+                formatOrgDate(task.due_date) : 
                 "No due date"
             )}
           </div>
         </div>
         
-        {/* Priority indicator */}
-        {task.priority && task.priority <= 2 && (
-          <div className="mt-3 flex items-center">
-            <div className={`w-2 h-2 rounded-full mr-2 ${
-              task.priority === 1 ? "bg-red-400" : "bg-orange-400"
-            }`} />
-            <span className="text-xs text-gray-500">
-              {task.priority === 1 ? "High Priority" : "Medium Priority"}
-            </span>
-          </div>
-        )}
+        {/* Assigned to and Priority indicator */}
+        <div className="mt-3 space-y-2">
+          {task.assigned_to && (
+            <div className="flex items-center text-xs text-gray-500">
+              <span className="font-medium">Assigned: </span>
+              <span className="ml-1">{assignedUserName}</span>
+            </div>
+          )}
+          
+          {task.priority && task.priority <= 2 && (
+            <div className="flex items-center">
+              <div className={`w-2 h-2 rounded-full mr-2 ${
+                task.priority === 1 ? "bg-red-400" : "bg-orange-400"
+              }`} />
+              <span className="text-xs text-gray-500">
+                {task.priority === 1 ? "High Priority" : "Medium Priority"}
+              </span>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

@@ -1,7 +1,6 @@
 
 import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import { toast } from "@/components/ui/use-toast";
+import { toast } from "@/hooks/use-toast";
 
 interface Department {
   id: string;
@@ -12,7 +11,7 @@ interface Department {
 }
 
 /**
- * Hook to fetch departments from Supabase.
+ * Hook to fetch departments from localStorage.
  */
 export function useDepartments() {
   const [departments, setDepartments] = useState<Department[]>([]);
@@ -21,19 +20,37 @@ export function useDepartments() {
   const fetchDepartments = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from("departments")
-        .select("*")
-        .order("name");
-
-      if (error) {
-        toast({
-          title: "Failed to load departments",
-          description: error.message,
-        });
-        setDepartments([]);
+      // For now, use localStorage to store departments
+      const savedDepartments = localStorage.getItem('departments');
+      if (savedDepartments) {
+        setDepartments(JSON.parse(savedDepartments));
       } else {
-        setDepartments(data || []);
+        // Default departments
+        const defaultDepartments = [
+          {
+            id: "1",
+            name: "Administration",
+            description: "Administrative department",
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          },
+          {
+            id: "2", 
+            name: "Engineering",
+            description: "Engineering department",
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          },
+          {
+            id: "3",
+            name: "Marketing",
+            description: "Marketing department", 
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          }
+        ];
+        localStorage.setItem('departments', JSON.stringify(defaultDepartments));
+        setDepartments(defaultDepartments);
       }
     } catch (error) {
       console.error("Error fetching departments:", error);

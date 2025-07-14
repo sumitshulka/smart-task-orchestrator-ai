@@ -1,9 +1,8 @@
 
 import React, { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { useStatusTransitions, TaskStatus } from "@/hooks/useTaskStatuses";
 import { Button } from "@/components/ui/button";
-import { toast } from "@/components/ui/use-toast";
+import { toast } from "@/hooks/use-toast";
 
 const StatusLifecycleGraph: React.FC<{ statuses: TaskStatus[] }> = ({ statuses }) => {
   const { transitions, setTransitions } = useStatusTransitions();
@@ -19,30 +18,25 @@ const StatusLifecycleGraph: React.FC<{ statuses: TaskStatus[] }> = ({ statuses }
       toast({ title: "Transition already exists." });
       return;
     }
-    const { data, error } = await supabase
-      .from("task_status_transitions")
-      .insert([{ from_status: from, to_status: to }])
-      .select()
-      .single();
-    if (error) {
-      toast({ title: "Error", description: error.message });
-      return;
-    }
-    setTransitions([...transitions, data]);
+    
+    const newTransition = {
+      id: Date.now().toString(),
+      from_status: from,
+      to_status: to,
+      created_at: new Date().toISOString(),
+    };
+    
+    // For now, just add to local state
+    // In a real implementation, this would save to the database
+    setTransitions([...transitions, newTransition]);
     setFrom("");
     setTo("");
     toast({ title: "Transition added!" });
   };
 
   const deleteTransition = async (transitionId: string) => {
-    const { error } = await supabase
-      .from("task_status_transitions")
-      .delete()
-      .eq("id", transitionId);
-    if (error) {
-      toast({ title: "Error", description: error.message });
-      return;
-    }
+    // For now, just remove from local state
+    // In a real implementation, this would delete from the database
     setTransitions(transitions.filter((t) => t.id !== transitionId));
     toast({ title: "Transition removed." });
   };

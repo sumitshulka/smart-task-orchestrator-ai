@@ -9,9 +9,10 @@ import {
 import DepartmentsManager from "@/components/settings/DepartmentsManager";
 import OfficeLocationsManager from "@/components/settings/OfficeLocationsManager";
 import StatusManager from "@/components/settings/StatusManager";
+import GeneralSettings from "@/components/settings/GeneralSettings";
 
 const AdminSettings: React.FC = () => {
-  const [tab, setTab] = useState("departments");
+  const [tab, setTab] = useState("general");
 
   return (
     <div className="w-full min-h-screen bg-background">
@@ -19,6 +20,12 @@ const AdminSettings: React.FC = () => {
         <h2 className="text-2xl font-semibold mb-6 text-left">Settings</h2>
         <Tabs value={tab} onValueChange={setTab} className="w-full">
           <TabsList className="w-full max-w-none flex flex-row bg-background border rounded-md mb-6 p-0 gap-2 justify-start">
+            <TabsTrigger
+              value="general"
+              className="px-6 py-3 text-left justify-start"
+            >
+              General
+            </TabsTrigger>
             <TabsTrigger
               value="departments"
               className="px-6 py-3 text-left justify-start"
@@ -38,6 +45,9 @@ const AdminSettings: React.FC = () => {
               Task Statuses
             </TabsTrigger>
           </TabsList>
+          <TabsContent value="general" className="w-full">
+            <GeneralSettings />
+          </TabsContent>
           <TabsContent value="departments" className="w-full">
             <DepartmentsManager />
           </TabsContent>
