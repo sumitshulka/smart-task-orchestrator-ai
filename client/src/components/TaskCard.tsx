@@ -11,6 +11,33 @@ import { formatOrgDate } from "@/lib/dateUtils";
 import { useUserNames } from "@/hooks/useUserName";
 import { useStatusTransitionValidation } from "@/hooks/useStatusTransitionValidation";
 
+// Utility to convert hex to RGB for lighter colors
+const hexToRgb = (hex: string) => {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return result ? {
+    r: parseInt(result[1], 16),
+    g: parseInt(result[2], 16),
+    b: parseInt(result[3], 16)
+  } : null;
+};
+
+// Generate lighter card colors based on status color (2-3 shades lighter)
+const getDynamicCardStyling = (statusColor?: string) => {
+  if (!statusColor) {
+    return {};
+  }
+  
+  const rgb = hexToRgb(statusColor);
+  if (!rgb) {
+    return {};
+  }
+  
+  return {
+    backgroundColor: `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.08)`, // Very light background
+    borderColor: `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.15)` // Subtle border
+  };
+};
+
 // Utility to determine if overdue/in time
 function getTimeIndicator(task: Task) {
   if (!task || task.status === "completed") return null;
@@ -24,11 +51,13 @@ type TaskCardProps = {
   task: Task;
   onTaskUpdated: () => void;
   canDelete: (status: string) => boolean;
+  statusColor?: string;
 };
 
-export default function TaskCard({ task, onTaskUpdated, canDelete }: TaskCardProps) {
+export default function TaskCard({ task, onTaskUpdated, canDelete, statusColor }: TaskCardProps) {
   const { getUserName } = useUserNames();
   const { isTransitionAllowed, getAllowedNextStatuses } = useStatusTransitionValidation();
+  const dynamicCardStyling = getDynamicCardStyling(statusColor);
   // Unique identifier for confirmation dialog if desired in the future
   // const [openDeleteConfirm, setOpenDeleteConfirm] = React.useState(false);
 
@@ -90,7 +119,10 @@ export default function TaskCard({ task, onTaskUpdated, canDelete }: TaskCardPro
   const isCompleted = task.status === "completed";
 
   return (
-    <Card className={`relative group transition hover:shadow-lg ${isCompleted ? 'border-l-4 border-l-blue-500' : ''}`}>
+    <Card 
+      className={`relative group transition hover:shadow-lg ${isCompleted ? 'border-l-4 border-l-blue-500' : ''}`}
+      style={dynamicCardStyling}
+    >
       {/* Floating top/center actions visible on hover */}
       <div className="absolute left-1/2 top-2 -translate-x-1/2 z-10 flex gap-4 opacity-0 group-hover:opacity-100 transition-all">
         {/* Edit icon always present */}

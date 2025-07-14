@@ -111,6 +111,24 @@ const hexToRgb = (hex: string) => {
   } : null;
 };
 
+// Generate much lighter card background colors (2-3 shades lighter)
+const getLighterCardColor = (statusColor: string | undefined) => {
+  const color = statusColor || "#6b7280";
+  const rgb = hexToRgb(color);
+  
+  if (!rgb) {
+    return {
+      backgroundColor: `rgba(107, 114, 128, 0.08)`, // Very light gray fallback
+      borderColor: `rgba(107, 114, 128, 0.15)`
+    };
+  }
+
+  return {
+    backgroundColor: `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.08)`, // Very light - 2-3 shades lighter
+    borderColor: `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.15)` // Subtle border
+  };
+};
+
 // Generate dynamic styles based on status color
 const getStatusStyleFromColor = (statusColor: string | undefined) => {
   const color = statusColor || "#6b7280";
@@ -123,7 +141,8 @@ const getStatusStyleFromColor = (statusColor: string | undefined) => {
       count: "bg-neutral-200 text-neutral-700",
       cardBg: "bg-neutral-50/40",
       cardBorder: "border-neutral-100 hover:border-neutral-200",
-      customStyles: {}
+      customStyles: {},
+      cardCustomStyles: getLighterCardColor(statusColor)
     };
   }
 
@@ -144,7 +163,8 @@ const getStatusStyleFromColor = (statusColor: string | undefined) => {
         backgroundColor: `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.25)`,
         color: color
       }
-    }
+    },
+    cardCustomStyles: getLighterCardColor(statusColor)
   };
 };
 
@@ -161,7 +181,8 @@ const getStatusStyle = (statusKey: string, statusColor?: string) => {
     header: "text-neutral-700 bg-neutral-100/60 border-neutral-200",
     count: "bg-neutral-200 text-neutral-700",
     cardBg: "bg-neutral-50/40",
-    cardBorder: "border-neutral-100 hover:border-neutral-200"
+    cardBorder: "border-neutral-100 hover:border-neutral-200",
+    cardCustomStyles: getLighterCardColor(undefined)
   };
 };
 
@@ -528,15 +549,19 @@ export default function MyTasksPage() {
 
             {!loading && !statusesLoading && !showTooManyWarning && tasks.length > 0 && view === "list" && (
               <div className="grid grid-cols-1 gap-6">
-                {tasks.map((task) => (
-                  <TaskCardClickable
-                    key={task.id}
-                    task={task}
-                    onOpen={() => openDetailsForTask(task)}
-                    canDelete={canDelete}
-                    onTaskUpdated={load}
-                  />
-                ))}
+                {tasks.map((task) => {
+                  const statusObj = statuses.find(s => getStatusKey(s.name) === getStatusKey(task.status));
+                  return (
+                    <TaskCardClickable
+                      key={task.id}
+                      task={task}
+                      onOpen={() => openDetailsForTask(task)}
+                      canDelete={canDelete}
+                      onTaskUpdated={load}
+                      statusColor={statusObj?.color}
+                    />
+                  );
+                })}
               </div>
             )}
 
@@ -564,6 +589,7 @@ export default function MyTasksPage() {
                                 task={task}
                                 CARD_TYPE={CARD_TYPE}
                                 onClick={() => openDetailsForTask(task)}
+                                statusColor={statusObj?.color}
                               />
                             ))
                           ) : (

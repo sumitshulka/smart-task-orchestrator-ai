@@ -207,9 +207,18 @@ export default function HistoricalTasksPage() {
               Showing {tasks.length} of {totalTasks} historical tasks
             </div>
             <div className="grid gap-4">
-              {tasks.map((task) => (
-                <TaskCard key={task.id} task={task} users={users} canDelete={() => false} />
-              ))}
+              {tasks.map((task) => {
+                const statusObj = statuses.find(s => s.name.trim().toLowerCase().replace(/_/g, " ") === task.status.trim().toLowerCase().replace(/_/g, " "));
+                return (
+                  <TaskCard 
+                    key={task.id} 
+                    task={task} 
+                    onTaskUpdated={() => {}} 
+                    canDelete={() => false} 
+                    statusColor={statusObj?.color}
+                  />
+                );
+              })}
             </div>
             <TasksPagination
               page={page}

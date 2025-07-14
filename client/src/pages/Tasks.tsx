@@ -287,7 +287,7 @@ const TasksPage: React.FC = () => {
             <div className="mb-4 text-sm text-gray-600">
               Showing {tasks.length} of {totalTasks} tasks
             </div>
-            <TasksList tasks={tasks} users={users} canDelete={canDelete} />
+            <TasksList tasks={tasks} users={users} canDelete={canDelete} statuses={statuses} />
             <TasksPagination
               page={page}
               pageSize={pageSize}

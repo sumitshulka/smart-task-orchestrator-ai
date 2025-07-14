@@ -5,6 +5,39 @@ import { Task } from "@/integrations/supabase/tasks";
 import { formatOrgDate } from "@/lib/dateUtils";
 import { useUserName } from "@/hooks/useUserName";
 
+// Utility to convert hex to RGB for lighter colors
+const hexToRgb = (hex: string) => {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return result ? {
+    r: parseInt(result[1], 16),
+    g: parseInt(result[2], 16),
+    b: parseInt(result[3], 16)
+  } : null;
+};
+
+// Generate lighter card colors based on status color
+const getDynamicCardStyling = (statusColor?: string) => {
+  if (!statusColor) {
+    return {
+      backgroundColor: `rgba(107, 114, 128, 0.08)`,
+      borderColor: `rgba(107, 114, 128, 0.15)`
+    };
+  }
+  
+  const rgb = hexToRgb(statusColor);
+  if (!rgb) {
+    return {
+      backgroundColor: `rgba(107, 114, 128, 0.08)`,
+      borderColor: `rgba(107, 114, 128, 0.15)`
+    };
+  }
+  
+  return {
+    backgroundColor: `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.08)`, // Very light background
+    borderColor: `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.15)` // Subtle border
+  };
+};
+
 const getStatusKey = (status: string) => {
   return status.trim().toLowerCase().replace(/_/g, " ");
 };
@@ -78,10 +111,16 @@ const getCardStyling = (statusKey: string) => {
   };
 };
 
-function KanbanTaskCard({ task, onClick, CARD_TYPE }: { task: Task; onClick: () => void; CARD_TYPE: string }) {
+function KanbanTaskCard({ task, onClick, CARD_TYPE, statusColor }: { 
+  task: Task; 
+  onClick: () => void; 
+  CARD_TYPE: string;
+  statusColor?: string;
+}) {
   const statusKey = getStatusKey(task.status);
   const isCompleted = statusKey === "completed";
   const cardStyling = getCardStyling(statusKey);
+  const dynamicStyling = getDynamicCardStyling(statusColor);
   const assignedUserName = useUserName(task.assigned_to);
   
   const [{ isDragging }, dragRef] = useDrag({
@@ -95,8 +134,13 @@ function KanbanTaskCard({ task, onClick, CARD_TYPE }: { task: Task; onClick: () 
   return (
     <div
       ref={dragRef}
-      style={{ opacity: isDragging ? 0.6 : 1, cursor: "grab" }}
-      className={`${cardStyling.bg} rounded-lg border ${cardStyling.border} shadow-sm hover:shadow-md transition-all duration-200 select-none group`}
+      style={{ 
+        opacity: isDragging ? 0.6 : 1, 
+        cursor: "grab",
+        backgroundColor: statusColor ? dynamicStyling.backgroundColor : undefined,
+        borderColor: statusColor ? dynamicStyling.borderColor : undefined
+      }}
+      className={`${statusColor ? 'bg-transparent border' : `${cardStyling.bg} border ${cardStyling.border}`} rounded-lg shadow-sm hover:shadow-md transition-all duration-200 select-none group`}
       onClick={onClick}
     >
       <div className="p-4">
