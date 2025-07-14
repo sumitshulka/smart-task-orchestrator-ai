@@ -348,7 +348,8 @@ export default function MyTasksPage() {
 
   function canDelete(status: string) {
     const skey = getStatusKey(status);
-    return skey === "pending" || skey === "new";
+    // Allow deletion for tasks in initial states (not started or in progress)
+    return skey === "new" || status === "New" || status === "backlog" || status === "planning";
   }
 
   const CARD_TYPE = "TASK_CARD";

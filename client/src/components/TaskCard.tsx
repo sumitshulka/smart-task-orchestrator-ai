@@ -137,7 +137,7 @@ export default function TaskCard({ task, onTaskUpdated, canDelete, statusColor, 
           size="icon"
           variant="ghost"
           className={`text-gray-400 ${canDelete(task.status) ? "hover:text-red-600" : "opacity-60 cursor-not-allowed"}`}
-          title={canDelete(task.status) ? "Delete Task" : "Can only delete New or Pending tasks"}
+          title={canDelete(task.status) ? "Delete Task" : "Can only delete New, Backlog, or Planning tasks"}
           onClick={() => canDelete(task.status) && handleDeleteTask(task.id)}
           disabled={!canDelete(task.status)}
         >
