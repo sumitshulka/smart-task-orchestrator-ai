@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Plus, Filter } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api";
 import UserTableActions from "@/components/UserTableActions";
 import EditUserDialog from "@/components/EditUserDialog";
 import CreateUserDialog from "@/components/CreateUserDialog";
@@ -31,15 +31,15 @@ const AdminUsers: React.FC = () => {
   // For checking session info and admin status
   const { user } = useSupabaseSession();
 
-  // Fetch users from Supabase
+  // Fetch users from API
   const fetchUsers = React.useCallback(async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from("users")
-      .select("*")
-      .order("created_at", { ascending: false });
-    if (data) {
+    try {
+      const data = await apiClient.getUsers();
       setUsers(data as User[]);
+    } catch (error) {
+      console.error('Failed to fetch users:', error);
+      setUsers([]);
     }
     setLoading(false);
   }, []);

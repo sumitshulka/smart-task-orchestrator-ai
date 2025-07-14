@@ -96,10 +96,15 @@ export default function MyTasksPage() {
     let fromDateObj = new Date(today);
     let toDateObj = new Date(today);
     
-    // Use date range filters if provided, otherwise default to last 30 days to today
+    // For admin users, use a much wider date range to show all tasks
     if (dateRange.from && dateRange.to) {
       fromDateObj = new Date(dateRange.from);
       toDateObj = new Date(dateRange.to);
+    } else if (roles.includes("admin")) {
+      // Admin sees all tasks - use very wide date range
+      fromDateObj = new Date('2020-01-01');
+      toDateObj = new Date();
+      toDateObj.setDate(toDateObj.getDate() + 365); // Future tasks too
     } else {
       fromDateObj.setDate(today.getDate() - 30);
     }
@@ -122,6 +127,9 @@ export default function MyTasksPage() {
     if (statusFilter !== "all") input.status = statusFilter;
     if (teamFilter !== "all") input.teamId = teamFilter;
 
+    console.log("[DEBUG][MyTasksPage] User roles:", roles);
+    console.log("[DEBUG][MyTasksPage] Is admin:", roles.includes("admin"));
+    console.log("[DEBUG][MyTasksPage] Date range - from:", fromDateStr, "to:", toDateStr);
     console.log("[DEBUG][MyTasksPage] Fetching tasks for user.id:", user.id, typeof user.id);
     console.log("[DEBUG][MyTasksPage] Input to fetchTasksPaginated:", input);
     
