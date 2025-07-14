@@ -62,7 +62,7 @@ const initialForm = {
   start_date: "",
   due_date: "",
   priority: 2,
-  status: "backlog", // Default to backlog status
+  status: "", // Will be set to default status from API
   type: "personal",
   estimated_hours: "",
   assigned_to: "",

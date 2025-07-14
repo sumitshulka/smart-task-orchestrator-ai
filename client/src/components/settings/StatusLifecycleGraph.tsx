@@ -63,7 +63,7 @@ const StatusLifecycleGraph: React.FC<{ statuses: TaskStatus[] }> = ({ statuses }
   const nodeRadius = 50;
   const nodeSpacing = Math.max(150, Math.min(200, (window.innerWidth - containerPadding * 2) / Math.max(statuses.length, 1)));
   const svgWidth = Math.max(800, statuses.length * nodeSpacing + containerPadding * 2);
-  const svgHeight = 300;
+  const svgHeight = 400; // Increased height to accommodate curved paths
   const nodeY = svgHeight / 2;
 
   const wrapText = (text: string, maxChars: number) => {
@@ -143,53 +143,89 @@ const StatusLifecycleGraph: React.FC<{ statuses: TaskStatus[] }> = ({ statuses }
             </linearGradient>
           </defs>
 
-          {transitions.map((tr, i) => {
-            const fromIdx = statuses.findIndex((s) => s.name === tr.from_status);
-            const toIdx = statuses.findIndex((s) => s.name === tr.to_status);
-            if (fromIdx === -1 || toIdx === -1) return null;
-
-            const fromX = containerPadding + fromIdx * nodeSpacing + nodeSpacing / 2;
-            const toX = containerPadding + toIdx * nodeSpacing + nodeSpacing / 2;
+          {(() => {
+            // Group transitions by their path to prevent overlap
+            const transitionPaths = new Map();
             
-            const deltaX = toX - fromX;
-            const distance = Math.abs(deltaX);
-            const unitX = deltaX / distance;
+            transitions.forEach((tr, i) => {
+              const fromIdx = statuses.findIndex((s) => s.name === tr.from_status);
+              const toIdx = statuses.findIndex((s) => s.name === tr.to_status);
+              if (fromIdx === -1 || toIdx === -1) return;
+              
+              // Create a key for this path direction
+              const pathKey = `${Math.min(fromIdx, toIdx)}-${Math.max(fromIdx, toIdx)}`;
+              if (!transitionPaths.has(pathKey)) {
+                transitionPaths.set(pathKey, []);
+              }
+              transitionPaths.get(pathKey).push({ tr, fromIdx, toIdx, originalIndex: i });
+            });
             
-            const startX = fromX + unitX * nodeRadius;
-            const endX = toX - unitX * nodeRadius;
-            
-            const midX = (startX + endX) / 2;
-            const midY = nodeY - 60;
-            
-            return (
-              <g key={tr.id}>
-                <path
-                  d={`M ${startX} ${nodeY} Q ${midX} ${midY} ${endX} ${nodeY}`}
-                  stroke="#4b5563"
-                  strokeWidth="2"
-                  fill="none"
-                  markerEnd="url(#arrowhead)"
-                />
+            return Array.from(transitionPaths.values()).flatMap(pathGroup => {
+              return pathGroup.map((item, groupIndex) => {
+                const { tr, fromIdx, toIdx } = item;
+                const fromX = containerPadding + fromIdx * nodeSpacing + nodeSpacing / 2;
+                const toX = containerPadding + toIdx * nodeSpacing + nodeSpacing / 2;
                 
-                <foreignObject 
-                  x={midX - 12} 
-                  y={midY - 12} 
-                  width="24" 
-                  height="24"
-                >
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="!w-6 !h-6 !p-0 text-xs bg-red-50 hover:bg-red-100 text-red-600 rounded-full border border-red-200"
-                    onClick={() => deleteTransition(tr.id)}
-                    title="Remove transition"
-                  >
-                    ✕
-                  </Button>
-                </foreignObject>
-              </g>
-            );
-          })}
+                const deltaX = toX - fromX;
+                const distance = Math.abs(deltaX);
+                const unitX = deltaX / distance;
+                
+                const startX = fromX + unitX * nodeRadius;
+                const endX = toX - unitX * nodeRadius;
+                
+                // Offset each transition in the same path group to prevent overlap
+                const baseOffset = -60;
+                const groupOffset = groupIndex * 30; // Each additional transition gets more curve
+                const curveOffset = baseOffset - groupOffset;
+                
+                const midX = (startX + endX) / 2;
+                const midY = nodeY + curveOffset;
+                
+                return (
+                  <g key={tr.id}>
+                    <path
+                      d={`M ${startX} ${nodeY} Q ${midX} ${midY} ${endX} ${nodeY}`}
+                      stroke="#4b5563"
+                      strokeWidth="2"
+                      fill="none"
+                      markerEnd="url(#arrowhead)"
+                      opacity="0.8"
+                    />
+                    
+                    {/* Transition label */}
+                    <text
+                      x={midX}
+                      y={midY - 10}
+                      textAnchor="middle"
+                      fontSize="10"
+                      fill="#6b7280"
+                      className="pointer-events-none"
+                    >
+                      {tr.from_status} → {tr.to_status}
+                    </text>
+                    
+                    {/* Delete button */}
+                    <foreignObject 
+                      x={midX - 12} 
+                      y={midY + 5} 
+                      width="24" 
+                      height="24"
+                    >
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="!w-6 !h-6 !p-0 text-xs bg-red-50 hover:bg-red-100 text-red-600 rounded-full border border-red-200"
+                        onClick={() => deleteTransition(tr.id)}
+                        title="Remove transition"
+                      >
+                        ✕
+                      </Button>
+                    </foreignObject>
+                  </g>
+                );
+              });
+            });
+          })()}
 
           {statuses.map((status, idx) => {
             const x = containerPadding + idx * nodeSpacing + nodeSpacing / 2;
