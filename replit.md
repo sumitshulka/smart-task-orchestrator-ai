@@ -8,6 +8,15 @@ TaskRep is a comprehensive task management application built with a React fronte
 
 Preferred communication style: Simple, everyday language.
 
+## Recent Changes (July 14, 2025)
+
+✓ **Comprehensive RBAC System Implemented**: Built complete role-based access control with visibility scopes at role level
+✓ **Role Visibility Scopes**: Added visibility_scope field to roles table supporting User, Manager, Team, Organization levels  
+✓ **Menu-Level Permissions**: Individual menu permissions control action levels (View, Update, Create, Delete) independently
+✓ **Modern Roles & Privileges UI**: Created comprehensive management interface replacing basic roles page
+✓ **Database Schema Updates**: Added visibility_scope to roles, removed from role_permissions table
+✓ **Admin Default Setup**: Configured admin role with organization-wide visibility and full permissions
+
 ## System Architecture
 
 ### Frontend Architecture

@@ -366,7 +366,7 @@ export default function RolePermissions() {
                         value={selectedRole.visibility_scope || "user"} 
                         onValueChange={updateRoleVisibilityScope}
                       >
-                        <SelectTrigger className="w-48">
+                        <SelectTrigger className="w-64">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -421,7 +421,7 @@ export default function RolePermissions() {
                               value={currentLevel.toString()}
                               onValueChange={(value) => updatePermission(resource.id, parseInt(value))}
                             >
-                              <SelectTrigger className="w-48">
+                              <SelectTrigger className="w-56">
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>

@@ -151,12 +151,7 @@ class ApiClient {
     });
   }
 
-  async updateRole(id: string, data: any) {
-    return this.request(`/roles/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    });
-  }
+
 
   async deleteRole(id: string) {
     return this.request(`/roles/${id}`, {
