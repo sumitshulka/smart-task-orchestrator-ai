@@ -155,7 +155,7 @@ export default function AnalyticsReport() {
         
         {/* Date Range */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-          <div>
+          <div className="md:col-span-3">
             <label className="block text-sm font-medium mb-2">Date Range</label>
             <DateRangePresetSelector
               dateRange={dateRange}
