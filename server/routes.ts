@@ -2,8 +2,39 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertUserSchema, insertTaskSchema, insertTeamSchema, insertTaskGroupSchema } from "@shared/schema";
+import bcrypt from "bcrypt";
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Authentication routes
+  app.post("/api/auth/login", async (req, res) => {
+    try {
+      const { email, password } = req.body;
+      
+      if (!email || !password) {
+        return res.status(400).json({ error: "Email and password required" });
+      }
+      
+      const user = await storage.getUserByEmail(email);
+      if (!user) {
+        return res.status(401).json({ error: "Invalid credentials" });
+      }
+      
+      // Check password if user has one, otherwise allow login with any password (for migrated users)
+      if (user.password_hash) {
+        const isValid = await bcrypt.compare(password, user.password_hash);
+        if (!isValid) {
+          return res.status(401).json({ error: "Invalid credentials" });
+        }
+      }
+      
+      // Return user info (excluding password)
+      const { password_hash, ...userInfo } = user;
+      res.json(userInfo);
+    } catch (error) {
+      res.status(500).json({ error: "Login failed" });
+    }
+  });
+
   // User management routes
   app.get("/api/users", async (req, res) => {
     try {

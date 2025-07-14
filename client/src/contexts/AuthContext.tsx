@@ -22,27 +22,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // For now, set a mock user to enable the application
-    // In a real implementation, this would check for stored session
-    const mockUser = {
-      id: '12345678-1234-5678-9012-123456789012',
-      email: 'admin@example.com',
-      user_name: 'Admin User',
-    };
-    setUser(mockUser);
+    // Check for stored session
+    const storedUser = localStorage.getItem('user');
+    if (storedUser) {
+      try {
+        setUser(JSON.parse(storedUser));
+      } catch (e) {
+        localStorage.removeItem('user');
+      }
+    }
     setLoading(false);
   }, []);
 
   const login = async (email: string, password: string) => {
     setLoading(true);
     try {
-      // Mock login for now
-      const mockUser = {
-        id: '12345678-1234-5678-9012-123456789012',
-        email,
-        user_name: 'Admin User',
-      };
-      setUser(mockUser);
+      // Simple authentication - in production this should be more secure
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+      
+      if (response.ok) {
+        const user = await response.json();
+        setUser(user);
+        localStorage.setItem('user', JSON.stringify(user));
+      } else {
+        throw new Error('Invalid credentials');
+      }
     } finally {
       setLoading(false);
     }
@@ -50,6 +58,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = () => {
     setUser(null);
+    localStorage.removeItem('user');
   };
 
   return (
