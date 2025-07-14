@@ -8,7 +8,7 @@ import { HTML5Backend } from "react-dnd-html5-backend";
 import { toast } from "@/components/ui/use-toast";
 import { apiClient } from "@/lib/api";
 import { useTaskStatuses } from "@/hooks/useTaskStatuses";
-import StatusLifecycleGraph from "./StatusLifecycleGraph";
+import StatusLifecycleGraphDraggable from "./StatusLifecycleGraphDraggable";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { useRole } from "@/contexts/RoleProvider";
 
@@ -341,7 +341,7 @@ const StatusManager: React.FC = () => {
       )}
       
       <div className="w-full">
-        <StatusLifecycleGraph statuses={statuses} />
+        <StatusLifecycleGraphDraggable statuses={statuses} />
       </div>
     </div>
   );

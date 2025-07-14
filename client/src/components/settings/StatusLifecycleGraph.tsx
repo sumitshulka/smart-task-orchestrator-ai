@@ -1,5 +1,5 @@
 
-import React, { useState } from "react";
+import React, { useState, useRef, useCallback } from "react";
 import { useStatusTransitions, TaskStatus } from "@/hooks/useTaskStatuses";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
@@ -8,6 +8,12 @@ const StatusLifecycleGraph: React.FC<{ statuses: TaskStatus[] }> = ({ statuses }
   const { transitions, setTransitions } = useStatusTransitions();
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
+  
+  // Drag and drop state
+  const [statusPositions, setStatusPositions] = useState<Map<string, {x: number, y: number}>>(new Map());
+  const [isDragging, setIsDragging] = useState<string | null>(null);
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const svgRef = useRef<SVGSVGElement>(null);
 
   const createTransition = async () => {
     if (!from || !to || from === to) {
