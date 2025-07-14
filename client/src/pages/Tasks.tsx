@@ -85,18 +85,23 @@ const TasksPage: React.FC = () => {
       if (!user) return { tasks: [], total: 0, showTooManyWarning: false };
       
       const fetchInput: FetchTasksInput = {
-        page,
-        pageSize,
-        priorityFilter,
-        statusFilter,
-        userFilter,
-        teamFilter,
-        dateRange,
-        currentUser: user,
-        currentUserRoles: roles,
+        // Map filter values to expected field names
+        assignedTo: userFilter !== "all" ? userFilter : undefined,
+        teamId: teamFilter !== "all" ? teamFilter : undefined,
+        status: statusFilter !== "all" ? statusFilter : undefined,
+        priority: priorityFilter !== "all" ? parseInt(priorityFilter) : undefined,
+        fromDate: dateRange.from ? dateRange.from.toISOString().split('T')[0] : undefined,
+        toDate: dateRange.to ? dateRange.to.toISOString().split('T')[0] : undefined,
+        offset: (page - 1) * pageSize,
+        limit: pageSize,
       };
       
-      return await fetchTasksPaginated(fetchInput);
+      const result = await fetchTasksPaginated(fetchInput);
+      return {
+        tasks: result.tasks,
+        total: result.total,
+        showTooManyWarning: false
+      };
     },
     enabled: !!user && !rolesLoading,
     staleTime: 30 * 1000, // 30 seconds

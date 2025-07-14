@@ -78,20 +78,38 @@ export async function fetchTasksPaginated(input: FetchTasksInput = {}): Promise<
   const allTasks = await fetchTasks();
   let filteredTasks = allTasks;
 
+  console.log(`[DEBUG] fetchTasksPaginated filters:`, {
+    assignedTo: input.assignedTo,
+    teamId: input.teamId,
+    status: input.status,
+    priority: input.priority,
+    fromDate: input.fromDate,
+    toDate: input.toDate
+  });
+  console.log(`[DEBUG] Total tasks before filtering:`, allTasks.length);
+
   // Apply filters
   if (input.assignedTo) {
+    console.log(`[DEBUG] Filtering by assignedTo: ${input.assignedTo}`);
     filteredTasks = filteredTasks.filter(task => task.assigned_to === input.assignedTo);
+    console.log(`[DEBUG] Tasks after assignedTo filter:`, filteredTasks.length);
   }
   if (input.teamId) {
+    console.log(`[DEBUG] Filtering by teamId: ${input.teamId}`);
     filteredTasks = filteredTasks.filter(task => task.team_id === input.teamId);
+    console.log(`[DEBUG] Tasks after teamId filter:`, filteredTasks.length);
   }
   if (input.status && input.status !== "all") {
+    console.log(`[DEBUG] Filtering by status: ${input.status}`);
     filteredTasks = filteredTasks.filter(task => 
       task.status.toLowerCase().includes(input.status!.toLowerCase())
     );
+    console.log(`[DEBUG] Tasks after status filter:`, filteredTasks.length);
   }
   if (input.priority && input.priority !== -1) {
+    console.log(`[DEBUG] Filtering by priority: ${input.priority}`);
     filteredTasks = filteredTasks.filter(task => task.priority === input.priority);
+    console.log(`[DEBUG] Tasks after priority filter:`, filteredTasks.length);
   }
   if (input.fromDate || input.toDate) {
     console.log("[DEBUG][fetchTasksPaginated] Before date filtering:", filteredTasks.length, "tasks");
@@ -119,6 +137,9 @@ export async function fetchTasksPaginated(input: FetchTasksInput = {}): Promise<
   const offset = input.offset || 0;
   const limit = input.limit || filteredTasks.length;
   const paginatedTasks = filteredTasks.slice(offset, offset + limit);
+
+  console.log(`[DEBUG] Final filtered tasks:`, filteredTasks.length);
+  console.log(`[DEBUG] Paginated tasks:`, paginatedTasks.length);
 
   return {
     tasks: paginatedTasks,
