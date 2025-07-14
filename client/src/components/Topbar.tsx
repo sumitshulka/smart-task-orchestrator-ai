@@ -5,8 +5,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { LogOut } from "lucide-react";
 import { Settings } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
-import useSupabaseSession from "@/hooks/useSupabaseSession";
+import { useAuth } from "@/contexts/AuthContext";
 import { useRole } from "@/contexts/RoleProvider";
 import { useSidebar, SidebarTrigger } from "@/components/ui/sidebar";
 
@@ -25,16 +24,16 @@ const getInitials = (name: string) => {
 
 const Topbar: React.FC = () => {
   const navigate = useNavigate();
-  const { user } = useSupabaseSession();
+  const { user, logout } = useAuth();
   const { userName, highestRole, loading } = useRole();
   const { state: sidebarState } = useSidebar();
 
-  const displayName = userName || user?.user_metadata?.user_name || user?.email || USER_PLACEHOLDER.name;
+  const displayName = userName || user?.user_name || user?.email || USER_PLACEHOLDER.name;
   const displayEmail = user?.email || USER_PLACEHOLDER.email;
   const collapsed = sidebarState === "collapsed";
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    logout();
     navigate("/auth");
   };
 
