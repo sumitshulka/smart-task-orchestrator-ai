@@ -473,6 +473,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.patch("/api/roles/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const role = await storage.updateRole(id, req.body);
+      res.json(role);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update role" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

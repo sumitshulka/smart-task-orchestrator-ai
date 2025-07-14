@@ -21,6 +21,7 @@ export const roles = pgTable("roles", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull().unique(),
   description: text("description"),
+  visibility_scope: text("visibility_scope").notNull().default("user"), // user, manager, team, organization
   created_at: timestamp("created_at").defaultNow(),
   updated_at: timestamp("updated_at").defaultNow(),
 });
@@ -176,7 +177,6 @@ export const rolePermissions = pgTable("role_permissions", {
   role_id: uuid("role_id").notNull().references(() => roles.id, { onDelete: "cascade" }),
   resource: text("resource").notNull(), // Menu/feature identifier (e.g., 'user-management', 'tasks')
   permission_level: integer("permission_level").notNull().default(0), // 0=None, 1=View, 2=View+Update, 3=View+Update+Create, 4=Full
-  visibility_scope: text("visibility_scope").notNull().default("user"), // user, manager, team, organization
   created_at: timestamp("created_at").defaultNow(),
   updated_at: timestamp("updated_at").defaultNow(),
 });
@@ -281,6 +281,8 @@ export const insertRoleSchema = createInsertSchema(roles).omit({
   id: true,
   created_at: true,
   updated_at: true,
+}).extend({
+  visibility_scope: z.enum(["user", "manager", "team", "organization"]).default("user")
 });
 
 export const insertTaskGroupSchema = createInsertSchema(taskGroups).omit({
@@ -292,6 +294,8 @@ export const insertRolePermissionSchema = createInsertSchema(rolePermissions).om
   id: true,
   created_at: true,
   updated_at: true,
+}).extend({
+  permission_level: z.number().min(0).max(4).default(0)
 });
 
 // Types

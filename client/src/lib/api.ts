@@ -228,6 +228,13 @@ class ApiClient {
       method: 'DELETE',
     });
   }
+
+  async updateRole(id: string, updates: any) {
+    return this.request(`/roles/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    });
+  }
 }
 
 export const apiClient = new ApiClient();
