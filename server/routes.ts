@@ -1,0 +1,368 @@
+import type { Express } from "express";
+import { createServer, type Server } from "http";
+import { storage } from "./storage";
+import { insertUserSchema, insertTaskSchema, insertTeamSchema, insertTaskGroupSchema } from "@shared/schema";
+
+export async function registerRoutes(app: Express): Promise<Server> {
+  // User management routes
+  app.get("/api/users", async (req, res) => {
+    try {
+      const users = await storage.getAllUsers();
+      res.json(users);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch users" });
+    }
+  });
+
+  app.get("/api/users/:id", async (req, res) => {
+    try {
+      const user = await storage.getUser(req.params.id);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+      res.json(user);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch user" });
+    }
+  });
+
+  app.post("/api/users", async (req, res) => {
+    try {
+      const userData = insertUserSchema.parse(req.body);
+      const user = await storage.createUser(userData);
+      res.status(201).json(user);
+    } catch (error) {
+      res.status(400).json({ error: "Invalid user data" });
+    }
+  });
+
+  app.patch("/api/users/:id", async (req, res) => {
+    try {
+      const user = await storage.updateUser(req.params.id, req.body);
+      res.json(user);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update user" });
+    }
+  });
+
+  // Bulk user upload (replacing Supabase Edge Function)
+  app.post("/api/admin/bulk-upload-users", async (req, res) => {
+    try {
+      let { users } = req.body;
+      if (!Array.isArray(users)) {
+        return res.status(400).json({ error: "No users array in payload." });
+      }
+
+      // Normalize and validate users
+      users = users
+        .map((u) => ({
+          email: (u.email || u.Email || "").trim(),
+          user_name: u.user_name || u["Employee Name"] || "",
+          department: u.department || u.Department || "",
+          manager: u.manager || u.Manager || "",
+          phone: u.phone || u.Phone || "",
+        }))
+        .filter((u) => u.email && /^[\w.-]+@[\w.-]+\.\w+$/.test(u.email));
+
+      if (users.length === 0) {
+        return res.status(400).json({ error: "No valid users to process." });
+      }
+
+      // Check for existing emails
+      const allUsers = await storage.getAllUsers();
+      const existingEmailSet = new Set(allUsers.map((u) => u.email.toLowerCase()));
+
+      const toInsert = users.filter((u) => !existingEmailSet.has(u.email.toLowerCase()));
+      const skipped = users.filter((u) => existingEmailSet.has(u.email.toLowerCase()));
+
+      let insertCount = 0;
+      let insertError = null;
+
+      // Insert new users
+      for (const user of toInsert) {
+        try {
+          await storage.createUser(user);
+          insertCount++;
+        } catch (error) {
+          insertError = `Failed to insert user ${user.email}`;
+          break;
+        }
+      }
+
+      res.json({
+        success: true,
+        inserted: insertCount,
+        skipped: skipped.length,
+        skipped_emails: skipped.map((u) => u.email),
+        error: insertError,
+        status: insertError ? "partial" : "success",
+        message: insertError
+          ? `Inserted ${insertCount}, skipped ${skipped.length} (duplicates), error: ${insertError}`
+          : `Inserted ${insertCount}, skipped ${skipped.length} (duplicates).`,
+      });
+    } catch (error) {
+      res.status(500).json({ error: "An unexpected error occurred." });
+    }
+  });
+
+  // Task management routes
+  app.get("/api/tasks", async (req, res) => {
+    try {
+      const tasks = await storage.getAllTasks();
+      res.json(tasks);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch tasks" });
+    }
+  });
+
+  app.get("/api/tasks/:id", async (req, res) => {
+    try {
+      const task = await storage.getTask(req.params.id);
+      if (!task) {
+        return res.status(404).json({ error: "Task not found" });
+      }
+      res.json(task);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch task" });
+    }
+  });
+
+  app.post("/api/tasks", async (req, res) => {
+    try {
+      const taskData = insertTaskSchema.parse(req.body);
+      const task = await storage.createTask(taskData);
+      
+      // Log task creation activity
+      await storage.logTaskActivity({
+        task_id: task.id,
+        action_type: "created",
+        new_value: task.title,
+        acted_by: task.created_by,
+      });
+      
+      res.status(201).json(task);
+    } catch (error) {
+      res.status(400).json({ error: "Invalid task data" });
+    }
+  });
+
+  app.patch("/api/tasks/:id", async (req, res) => {
+    try {
+      const oldTask = await storage.getTask(req.params.id);
+      const task = await storage.updateTask(req.params.id, req.body);
+      
+      // Log task update activity
+      if (oldTask && req.body.status && oldTask.status !== req.body.status) {
+        await storage.logTaskActivity({
+          task_id: task.id,
+          action_type: "status_changed",
+          old_value: oldTask.status,
+          new_value: req.body.status,
+          acted_by: req.body.updated_by || task.assigned_to || task.created_by,
+        });
+      }
+      
+      res.json(task);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update task" });
+    }
+  });
+
+  app.delete("/api/tasks/:id", async (req, res) => {
+    try {
+      await storage.deleteTask(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete task" });
+    }
+  });
+
+  // Task activity routes
+  app.get("/api/tasks/:id/activity", async (req, res) => {
+    try {
+      const activity = await storage.getTaskActivity(req.params.id);
+      res.json(activity);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch task activity" });
+    }
+  });
+
+  // Team management routes
+  app.get("/api/teams", async (req, res) => {
+    try {
+      const teams = await storage.getAllTeams();
+      res.json(teams);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch teams" });
+    }
+  });
+
+  app.get("/api/teams/:id", async (req, res) => {
+    try {
+      const team = await storage.getTeam(req.params.id);
+      if (!team) {
+        return res.status(404).json({ error: "Team not found" });
+      }
+      res.json(team);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch team" });
+    }
+  });
+
+  app.post("/api/teams", async (req, res) => {
+    try {
+      const teamData = insertTeamSchema.parse(req.body);
+      const team = await storage.createTeam(teamData);
+      res.status(201).json(team);
+    } catch (error) {
+      res.status(400).json({ error: "Invalid team data" });
+    }
+  });
+
+  app.patch("/api/teams/:id", async (req, res) => {
+    try {
+      const team = await storage.updateTeam(req.params.id, req.body);
+      res.json(team);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update team" });
+    }
+  });
+
+  app.delete("/api/teams/:id", async (req, res) => {
+    try {
+      await storage.deleteTeam(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete team" });
+    }
+  });
+
+  // Team membership routes
+  app.get("/api/teams/:id/members", async (req, res) => {
+    try {
+      const members = await storage.getTeamMembers(req.params.id);
+      res.json(members);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch team members" });
+    }
+  });
+
+  app.post("/api/teams/:teamId/members", async (req, res) => {
+    try {
+      const { userId, role } = req.body;
+      const membership = await storage.addTeamMember(req.params.teamId, userId, role);
+      res.status(201).json(membership);
+    } catch (error) {
+      res.status(400).json({ error: "Failed to add team member" });
+    }
+  });
+
+  app.delete("/api/teams/:teamId/members/:userId", async (req, res) => {
+    try {
+      await storage.removeTeamMember(req.params.teamId, req.params.userId);
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ error: "Failed to remove team member" });
+    }
+  });
+
+  // Role management routes
+  app.get("/api/roles", async (req, res) => {
+    try {
+      const roles = await storage.getAllRoles();
+      res.json(roles);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch roles" });
+    }
+  });
+
+  app.get("/api/users/:id/roles", async (req, res) => {
+    try {
+      const userRoles = await storage.getUserRoles(req.params.id);
+      res.json(userRoles);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch user roles" });
+    }
+  });
+
+  app.post("/api/users/:userId/roles", async (req, res) => {
+    try {
+      const { roleId } = req.body;
+      const userRole = await storage.assignUserRole(req.params.userId, roleId);
+      res.status(201).json(userRole);
+    } catch (error) {
+      res.status(400).json({ error: "Failed to assign role" });
+    }
+  });
+
+  app.delete("/api/users/:userId/roles/:roleId", async (req, res) => {
+    try {
+      await storage.removeUserRole(req.params.userId, req.params.roleId);
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ error: "Failed to remove role" });
+    }
+  });
+
+  // Task group routes
+  app.get("/api/task-groups", async (req, res) => {
+    try {
+      const groups = await storage.getAllTaskGroups();
+      res.json(groups);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch task groups" });
+    }
+  });
+
+  app.post("/api/task-groups", async (req, res) => {
+    try {
+      const groupData = insertTaskGroupSchema.parse(req.body);
+      const group = await storage.createTaskGroup(groupData);
+      res.status(201).json(group);
+    } catch (error) {
+      res.status(400).json({ error: "Invalid task group data" });
+    }
+  });
+
+  app.delete("/api/task-groups/:id", async (req, res) => {
+    try {
+      await storage.deleteTaskGroup(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete task group" });
+    }
+  });
+
+  // Task status routes
+  app.get("/api/task-statuses", async (req, res) => {
+    try {
+      const statuses = await storage.getAllTaskStatuses();
+      res.json(statuses);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch task statuses" });
+    }
+  });
+
+  // User tasks by assignment
+  app.get("/api/users/:id/tasks", async (req, res) => {
+    try {
+      const tasks = await storage.getTasksByUser(req.params.id);
+      res.json(tasks);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch user tasks" });
+    }
+  });
+
+  // Team tasks
+  app.get("/api/teams/:id/tasks", async (req, res) => {
+    try {
+      const tasks = await storage.getTasksByTeam(req.params.id);
+      res.json(tasks);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch team tasks" });
+    }
+  });
+
+  const httpServer = createServer(app);
+  return httpServer;
+}

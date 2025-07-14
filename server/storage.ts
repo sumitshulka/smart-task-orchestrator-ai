@@ -1,0 +1,235 @@
+import { eq, desc, and, or } from "drizzle-orm";
+import { db } from "./db";
+import { 
+  users, 
+  tasks, 
+  teams, 
+  roles, 
+  userRoles, 
+  teamMemberships, 
+  taskGroups, 
+  taskActivity, 
+  taskStatuses,
+  User, 
+  InsertUser, 
+  Task, 
+  InsertTask,
+  Team,
+  InsertTeam,
+  Role,
+  TaskGroup,
+  InsertTaskGroup,
+  UserRole,
+  TeamMembership,
+  TaskActivity,
+  TaskStatus
+} from "@shared/schema";
+
+export interface IStorage {
+  // User operations
+  getUser(id: string): Promise<User | undefined>;
+  getUserByEmail(email: string): Promise<User | undefined>;
+  createUser(user: InsertUser): Promise<User>;
+  updateUser(id: string, updates: Partial<User>): Promise<User>;
+  getAllUsers(): Promise<User[]>;
+  
+  // Task operations
+  getTask(id: string): Promise<Task | undefined>;
+  getAllTasks(): Promise<Task[]>;
+  getTasksByUser(userId: string): Promise<Task[]>;
+  getTasksByTeam(teamId: string): Promise<Task[]>;
+  createTask(task: InsertTask): Promise<Task>;
+  updateTask(id: string, updates: Partial<Task>): Promise<Task>;
+  deleteTask(id: string): Promise<void>;
+  
+  // Team operations
+  getTeam(id: string): Promise<Team | undefined>;
+  getAllTeams(): Promise<Team[]>;
+  createTeam(team: InsertTeam): Promise<Team>;
+  updateTeam(id: string, updates: Partial<Team>): Promise<Team>;
+  deleteTeam(id: string): Promise<void>;
+  
+  // Role operations
+  getAllRoles(): Promise<Role[]>;
+  getUserRoles(userId: string): Promise<UserRole[]>;
+  assignUserRole(userId: string, roleId: string): Promise<UserRole>;
+  removeUserRole(userId: string, roleId: string): Promise<void>;
+  
+  // Team membership operations
+  getTeamMembers(teamId: string): Promise<TeamMembership[]>;
+  addTeamMember(teamId: string, userId: string, role?: string): Promise<TeamMembership>;
+  removeTeamMember(teamId: string, userId: string): Promise<void>;
+  
+  // Task group operations
+  getAllTaskGroups(): Promise<TaskGroup[]>;
+  createTaskGroup(group: InsertTaskGroup): Promise<TaskGroup>;
+  deleteTaskGroup(id: string): Promise<void>;
+  
+  // Task activity operations
+  getTaskActivity(taskId: string): Promise<TaskActivity[]>;
+  logTaskActivity(activity: Omit<TaskActivity, 'id' | 'created_at'>): Promise<TaskActivity>;
+  
+  // Task status operations
+  getAllTaskStatuses(): Promise<TaskStatus[]>;
+}
+
+export class DatabaseStorage implements IStorage {
+  // User operations
+  async getUser(id: string): Promise<User | undefined> {
+    const result = await db.select().from(users).where(eq(users.id, id)).limit(1);
+    return result[0];
+  }
+
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const result = await db.select().from(users).where(eq(users.email, email)).limit(1);
+    return result[0];
+  }
+
+  async createUser(user: InsertUser): Promise<User> {
+    const result = await db.insert(users).values(user).returning();
+    return result[0];
+  }
+
+  async updateUser(id: string, updates: Partial<User>): Promise<User> {
+    const result = await db.update(users).set(updates).where(eq(users.id, id)).returning();
+    return result[0];
+  }
+
+  async getAllUsers(): Promise<User[]> {
+    return await db.select().from(users);
+  }
+
+  // Task operations
+  async getTask(id: string): Promise<Task | undefined> {
+    const result = await db.select().from(tasks).where(eq(tasks.id, id)).limit(1);
+    return result[0];
+  }
+
+  async getAllTasks(): Promise<Task[]> {
+    return await db.select().from(tasks).orderBy(desc(tasks.created_at));
+  }
+
+  async getTasksByUser(userId: string): Promise<Task[]> {
+    return await db.select().from(tasks).where(
+      or(eq(tasks.assigned_to, userId), eq(tasks.created_by, userId))
+    ).orderBy(desc(tasks.created_at));
+  }
+
+  async getTasksByTeam(teamId: string): Promise<Task[]> {
+    return await db.select().from(tasks).where(eq(tasks.team_id, teamId)).orderBy(desc(tasks.created_at));
+  }
+
+  async createTask(task: InsertTask): Promise<Task> {
+    const result = await db.insert(tasks).values(task).returning();
+    return result[0];
+  }
+
+  async updateTask(id: string, updates: Partial<Task>): Promise<Task> {
+    const result = await db.update(tasks).set(updates).where(eq(tasks.id, id)).returning();
+    return result[0];
+  }
+
+  async deleteTask(id: string): Promise<void> {
+    await db.delete(tasks).where(eq(tasks.id, id));
+  }
+
+  // Team operations
+  async getTeam(id: string): Promise<Team | undefined> {
+    const result = await db.select().from(teams).where(eq(teams.id, id)).limit(1);
+    return result[0];
+  }
+
+  async getAllTeams(): Promise<Team[]> {
+    return await db.select().from(teams);
+  }
+
+  async createTeam(team: InsertTeam): Promise<Team> {
+    const result = await db.insert(teams).values(team).returning();
+    return result[0];
+  }
+
+  async updateTeam(id: string, updates: Partial<Team>): Promise<Team> {
+    const result = await db.update(teams).set(updates).where(eq(teams.id, id)).returning();
+    return result[0];
+  }
+
+  async deleteTeam(id: string): Promise<void> {
+    await db.delete(teams).where(eq(teams.id, id));
+  }
+
+  // Role operations
+  async getAllRoles(): Promise<Role[]> {
+    return await db.select().from(roles);
+  }
+
+  async getUserRoles(userId: string): Promise<UserRole[]> {
+    return await db.select().from(userRoles).where(eq(userRoles.user_id, userId));
+  }
+
+  async assignUserRole(userId: string, roleId: string): Promise<UserRole> {
+    const result = await db.insert(userRoles).values({
+      user_id: userId,
+      role_id: roleId
+    }).returning();
+    return result[0];
+  }
+
+  async removeUserRole(userId: string, roleId: string): Promise<void> {
+    await db.delete(userRoles).where(
+      and(eq(userRoles.user_id, userId), eq(userRoles.role_id, roleId))
+    );
+  }
+
+  // Team membership operations
+  async getTeamMembers(teamId: string): Promise<TeamMembership[]> {
+    return await db.select().from(teamMemberships).where(eq(teamMemberships.team_id, teamId));
+  }
+
+  async addTeamMember(teamId: string, userId: string, role?: string): Promise<TeamMembership> {
+    const result = await db.insert(teamMemberships).values({
+      team_id: teamId,
+      user_id: userId,
+      role_within_team: role
+    }).returning();
+    return result[0];
+  }
+
+  async removeTeamMember(teamId: string, userId: string): Promise<void> {
+    await db.delete(teamMemberships).where(
+      and(eq(teamMemberships.team_id, teamId), eq(teamMemberships.user_id, userId))
+    );
+  }
+
+  // Task group operations
+  async getAllTaskGroups(): Promise<TaskGroup[]> {
+    return await db.select().from(taskGroups);
+  }
+
+  async createTaskGroup(group: InsertTaskGroup): Promise<TaskGroup> {
+    const result = await db.insert(taskGroups).values(group).returning();
+    return result[0];
+  }
+
+  async deleteTaskGroup(id: string): Promise<void> {
+    await db.delete(taskGroups).where(eq(taskGroups.id, id));
+  }
+
+  // Task activity operations
+  async getTaskActivity(taskId: string): Promise<TaskActivity[]> {
+    return await db.select().from(taskActivity)
+      .where(eq(taskActivity.task_id, taskId))
+      .orderBy(desc(taskActivity.created_at));
+  }
+
+  async logTaskActivity(activity: Omit<TaskActivity, 'id' | 'created_at'>): Promise<TaskActivity> {
+    const result = await db.insert(taskActivity).values(activity).returning();
+    return result[0];
+  }
+
+  // Task status operations
+  async getAllTaskStatuses(): Promise<TaskStatus[]> {
+    return await db.select().from(taskStatuses).orderBy(taskStatuses.sequence_order);
+  }
+}
+
+export const storage = new DatabaseStorage();

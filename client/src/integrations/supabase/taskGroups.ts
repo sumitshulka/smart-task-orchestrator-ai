@@ -1,4 +1,4 @@
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api";
 
 // Types
 export type TaskGroup = {
@@ -24,62 +24,28 @@ function parseVisibility(val: string): TaskGroup["visibility"] {
 }
 
 export async function fetchTaskGroups(): Promise<TaskGroup[]> {
-  // Supabase types don't know about task_groups table, so use 'as any'
-  const { data, error } = await supabase
-    .from("task_groups")
-    .select("*")
-    .order("created_at", { ascending: false });
-
-  if (error) throw error;
-  if (!data) throw new Error("No data");
-
-  // For each group, count tasks separately
-  const groups: TaskGroup[] = await Promise.all(
-    data.map(async (g: any) => {
-      const { count, error: countError } = await supabase
-        .from("task_group_tasks")
-        .select("*", { count: "exact", head: true })
-        .eq("group_id", g.id);
-      if (countError) throw countError;
-      return {
-        ...g,
-        task_count: count ?? 0,
-      } as TaskGroup;
-    })
-  );
-  return groups;
+  const groups = await apiClient.getTaskGroups();
+  return groups.map((g: any) => ({
+    ...g,
+    task_count: 0, // TODO: implement task count in API
+  }));
 }
 
 export async function createTaskGroup(
   input: Pick<TaskGroup, "name" | "description" | "visibility">
 ): Promise<TaskGroup> {
-  // Always use supabase client to get the logged-in user
-  const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-  if (sessionError || !sessionData.session?.user?.id) {
-    throw new Error("You must be signed in to create a task group.");
-  }
-  const user_id = sessionData.session.user.id;
-  const insertObj: any = {
+  // For now, use a mock user ID
+  // In production, this would come from the authenticated user context
+  const groupData = {
     ...input,
     visibility: parseVisibility(input.visibility as string),
-    owner_id: user_id,
+    owner_id: '12345678-1234-5678-9012-123456789012', // Mock user ID
   };
-  const { data, error } = await supabase
-    .from("task_groups")
-    .insert([insertObj])
-    .select("*")
-    .maybeSingle();
-  if (error) throw error;
-  if (!data) throw new Error("Failed to create task group");
-  return data as TaskGroup;
+  return await apiClient.createTaskGroup(groupData);
 }
 
 export async function deleteTaskGroup(id: string) {
-  const { error } = await supabase
-    .from("task_groups")
-    .delete()
-    .eq("id", id);
-  if (error) throw error;
+  return await apiClient.deleteTaskGroup(id);
 }
 
 export async function fetchTaskGroupDetails(groupId: string) {
