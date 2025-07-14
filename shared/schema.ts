@@ -79,6 +79,7 @@ export const taskStatuses = pgTable("task_statuses", {
   description: text("description"),
   color: text("color").default("#6b7280"), // Default gray color
   sequence_order: integer("sequence_order").notNull(),
+  is_default: boolean("is_default").default(false), // Only one status can be default
   created_at: timestamp("created_at").defaultNow(),
   updated_at: timestamp("updated_at").defaultNow(),
 });

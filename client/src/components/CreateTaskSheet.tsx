@@ -116,6 +116,17 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
     });
     // Fetch tasks for subtasks/dependencies
     fetchTasks().then(setTasks);
+    
+    // Fetch default status and set it in form
+    fetch("/api/task-statuses/default")
+      .then(res => res.json())
+      .then(defaultStatus => {
+        if (defaultStatus && defaultStatus.name) {
+          setForm(f => ({ ...f, status: defaultStatus.name }));
+          console.log("[DEBUG] Default status set:", defaultStatus.name);
+        }
+      })
+      .catch(err => console.error("Failed to fetch default status:", err));
   }, [open, user?.id]);
 
   // Get user role & update state on mount
@@ -234,8 +245,18 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
       const myUserId = user?.id;
       if (!myUserId) throw new Error("No current user!");
 
+      // Mandatory field validations
       if (!form.status) {
         throw new Error("Status is required.");
+      }
+      if (!form.estimated_hours || Number(form.estimated_hours) <= 0) {
+        throw new Error("Estimated hours is required and must be greater than 0.");
+      }
+      if (!form.start_date) {
+        throw new Error("Start date is required.");
+      }
+      if (!form.due_date) {
+        throw new Error("End date is required.");
       }
 
       // Only require subtask+group validation if checkbox is set

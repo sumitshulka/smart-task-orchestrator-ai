@@ -421,6 +421,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get default task status
+  app.get("/api/task-statuses/default", async (req, res) => {
+    try {
+      const defaultStatus = await storage.getDefaultTaskStatus();
+      res.json(defaultStatus);
+    } catch (error) {
+      console.error("Error fetching default task status:", error);
+      res.status(500).json({ error: "Failed to fetch default task status" });
+    }
+  });
+
   // User tasks by assignment
   app.get("/api/users/:id/tasks", async (req, res) => {
     try {

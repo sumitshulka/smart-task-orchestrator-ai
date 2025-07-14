@@ -77,9 +77,10 @@ export interface IStorage {
   
   // Task status operations
   getAllTaskStatuses(): Promise<TaskStatus[]>;
-  createTaskStatus(status: { name: string; description?: string; color?: string; sequence_order: number }): Promise<TaskStatus>;
+  createTaskStatus(status: { name: string; description?: string; color?: string; sequence_order: number; is_default?: boolean }): Promise<TaskStatus>;
   updateTaskStatus(id: string, updates: Partial<TaskStatus>): Promise<TaskStatus>;
   deleteTaskStatus(id: string): Promise<void>;
+  getDefaultTaskStatus(): Promise<TaskStatus | undefined>;
 
   // Role permissions operations
   getRolePermissions(roleId: string): Promise<RolePermission[]>;
@@ -277,17 +278,28 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(taskStatuses).orderBy(taskStatuses.sequence_order);
   }
 
-  async createTaskStatus(status: { name: string; description?: string; color?: string; sequence_order: number }): Promise<TaskStatus> {
+  async createTaskStatus(status: { name: string; description?: string; color?: string; sequence_order: number; is_default?: boolean }): Promise<TaskStatus> {
+    // If this is being set as default, first remove default from all other statuses
+    if (status.is_default) {
+      await db.update(taskStatuses).set({ is_default: false }).where(eq(taskStatuses.is_default, true));
+    }
+    
     const result = await db.insert(taskStatuses).values({
       name: status.name,
       description: status.description || null,
       color: status.color || "#6b7280",
-      sequence_order: status.sequence_order
+      sequence_order: status.sequence_order,
+      is_default: status.is_default || false
     }).returning();
     return result[0];
   }
 
   async updateTaskStatus(id: string, updates: Partial<TaskStatus>): Promise<TaskStatus> {
+    // If this is being set as default, first remove default from all other statuses
+    if (updates.is_default) {
+      await db.update(taskStatuses).set({ is_default: false }).where(eq(taskStatuses.is_default, true));
+    }
+    
     const result = await db.update(taskStatuses).set({
       ...updates,
       updated_at: new Date()
@@ -297,6 +309,11 @@ export class DatabaseStorage implements IStorage {
 
   async deleteTaskStatus(id: string): Promise<void> {
     await db.delete(taskStatuses).where(eq(taskStatuses.id, id));
+  }
+
+  async getDefaultTaskStatus(): Promise<TaskStatus | undefined> {
+    const result = await db.select().from(taskStatuses).where(eq(taskStatuses.is_default, true)).limit(1);
+    return result[0];
   }
 
   // Role permissions operations

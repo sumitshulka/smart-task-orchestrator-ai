@@ -17,6 +17,7 @@ type TaskStatus = {
   name: string;
   description: string | null;
   sequence_order: number;
+  is_default: boolean;
 };
 
 const ItemType = "STATUS_ROW";
@@ -76,8 +77,8 @@ const ColorPicker: React.FC<{
 const StatusManager: React.FC = () => {
   const { statuses, loading, refreshStatuses } = useTaskStatuses();
   const [editing, setEditing] = useState<{ [id: string]: boolean }>({});
-  const [newStatus, setNewStatus] = useState({ name: "", description: "", color: "#6b7280" });
-  const [inputStatus, setInputStatus] = useState<{ [id: string]: { name: string; description: string; color: string } }>({});
+  const [newStatus, setNewStatus] = useState({ name: "", description: "", color: "#6b7280", is_default: false });
+  const [inputStatus, setInputStatus] = useState<{ [id: string]: { name: string; description: string; color: string; is_default: boolean } }>({});
   const { highestRole } = useRole();
 
   // Reordering
@@ -116,9 +117,10 @@ const StatusManager: React.FC = () => {
         description: newStatus.description,
         color: newStatus.color,
         sequence_order: maxOrder + 1,
+        is_default: newStatus.is_default,
       });
       
-      setNewStatus({ name: "", description: "", color: "#6b7280" });
+      setNewStatus({ name: "", description: "", color: "#6b7280", is_default: false });
       refreshStatuses(); // Refresh from API
       toast({ title: "Status added successfully!" });
     } catch (error: any) {
@@ -129,7 +131,7 @@ const StatusManager: React.FC = () => {
   const handleEditStatus = (id: string) => {
     setEditing({ ...editing, [id]: true });
     const st = statuses.find((s) => s.id === id);
-    if (st) setInputStatus({ ...inputStatus, [id]: { name: st.name, description: st.description || "", color: st.color || "#6b7280" } });
+    if (st) setInputStatus({ ...inputStatus, [id]: { name: st.name, description: st.description || "", color: st.color || "#6b7280", is_default: st.is_default || false } });
   };
 
   const handleSaveStatus = async (id: string) => {
@@ -140,7 +142,8 @@ const StatusManager: React.FC = () => {
       await apiClient.updateTaskStatus(id, {
         name: upd.name,
         description: upd.description || "",
-        color: upd.color || "#6b7280"
+        color: upd.color || "#6b7280",
+        is_default: upd.is_default
       });
       
       setEditing({ ...editing, [id]: false });
@@ -178,8 +181,9 @@ const StatusManager: React.FC = () => {
                     <tr className="bg-muted">
                       <th className="w-12 p-2 font-semibold text-black">#</th>
                       <th className="w-1/6 p-2 font-semibold text-black">Status Name</th>
-                      <th className="w-1/3 p-2 font-semibold text-black">Description</th>
+                      <th className="w-1/4 p-2 font-semibold text-black">Description</th>
                       <th className="w-20 p-2 font-semibold text-black">Color</th>
+                      <th className="w-20 p-2 text-center font-semibold text-black">Default</th>
                       <th className="w-1/4 p-2 text-center font-semibold text-black">
                         {highestRole === "admin" ? "Actions" : ""}
                       </th>
@@ -241,6 +245,25 @@ const StatusManager: React.FC = () => {
                             </div>
                           )}
                         </td>
+                        <td className="p-2 text-center">
+                          {editing[status.id] && highestRole === "admin" ? (
+                            <input
+                              type="checkbox"
+                              checked={inputStatus[status.id]?.is_default || false}
+                              onChange={(e) =>
+                                setInputStatus((cur) => ({
+                                  ...cur,
+                                  [status.id]: { ...cur[status.id], is_default: e.target.checked },
+                                }))
+                              }
+                              className="w-4 h-4"
+                            />
+                          ) : (
+                            <span className={`text-sm font-semibold ${status.is_default ? 'text-green-600' : 'text-gray-400'}`}>
+                              {status.is_default ? '✓ Default' : ''}
+                            </span>
+                          )}
+                        </td>
                         <td className="p-2">
                           <div className="flex items-center justify-center gap-2">
                             {editing[status.id] && highestRole === "admin" ? (
@@ -296,6 +319,18 @@ const StatusManager: React.FC = () => {
                   selectedColor={newStatus.color}
                   onColorChange={(color) => setNewStatus({ ...newStatus, color })}
                 />
+              </div>
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="default-status"
+                  checked={newStatus.is_default}
+                  onChange={(e) => setNewStatus({ ...newStatus, is_default: e.target.checked })}
+                  className="w-4 h-4"
+                />
+                <label htmlFor="default-status" className="text-sm font-medium">
+                  Set as Default Status (for new tasks)
+                </label>
               </div>
               <Button onClick={handleAddStatus} variant="default" className="w-full sm:w-auto">
                 Add Status
