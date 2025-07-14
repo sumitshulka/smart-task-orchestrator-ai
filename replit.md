@@ -35,7 +35,7 @@ Preferred communication style: Simple, everyday language.
 ✓ **Dynamic Kanban Colors**: Updated My Tasks Kanban board to use selected status colors for column headers and backgrounds
 ✓ **Database Schema Enhancement**: Added color field to task_statuses table with default gray color support
 ✓ **Create Task Modal Width Enhancement**: Set modal to half viewport width (w-[50vw] with min-width 800px) for optimal form layout and user experience
-✓ **Inline Task Dependency Search**: Replaced separate modal with inline search functionality within Create Task modal for better user experience
+✓ **Enhanced Task Dependency Search**: Replaced separate modal with rich inline search showing task details, status badges, priority levels, assigned users, due dates, and multi-field search capability
 
 ## System Architecture
 

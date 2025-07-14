@@ -295,11 +295,17 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
   // Compute selectable tasks for subtasks/dependencies
   const selectableTasks = tasks;
 
-  // Filter tasks for dependency search
-  const filteredTasks = tasks.filter(task => 
-    task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    task.description?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Enhanced filter for dependency search - include title, description, and assigned user
+  const filteredTasks = tasks.filter(task => {
+    const query = searchQuery.toLowerCase();
+    const assignedUser = users.find(u => u.id === task.assigned_to);
+    const assignedUserName = assignedUser?.user_name?.toLowerCase() || assignedUser?.email?.toLowerCase() || '';
+    
+    return task.title.toLowerCase().includes(query) ||
+           task.description?.toLowerCase().includes(query) ||
+           assignedUserName.includes(query) ||
+           task.status?.toLowerCase().includes(query);
+  });
 
   // Reset form
   const resetForm = () => {
@@ -648,30 +654,79 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
                       <div className="space-y-3">
                         <Input
                           type="text"
-                          placeholder="🔍 Search for dependency task by title..."
+                          placeholder="🔍 Search by title, description, assignee, or status..."
                           value={searchQuery}
                           onChange={(e) => setSearchQuery(e.target.value)}
                           className="h-12"
                         />
                         
+                        {searchQuery && filteredTasks.length === 0 && (
+                          <div className="p-4 text-center text-gray-500 border border-gray-200 rounded-lg bg-gray-50">
+                            <div className="text-sm">No tasks found matching "{searchQuery}"</div>
+                            <div className="text-xs mt-1">Try searching by task title, description, assignee name, or status</div>
+                          </div>
+                        )}
+                        
                         {searchQuery && filteredTasks.length > 0 && (
-                          <div className="max-h-40 overflow-y-auto border border-gray-200 rounded-lg bg-white">
-                            {filteredTasks.slice(0, 5).map((task) => (
-                              <button
-                                key={task.id}
-                                type="button"
-                                className="w-full p-3 text-left hover:bg-gray-50 border-b border-gray-100 last:border-b-0 transition-colors"
-                                onClick={() => {
-                                  setSelectedDependencyTask(task);
-                                  setForm(f => ({ ...f, dependencyTaskId: task.id }));
-                                  setSearchQuery("");
-                                }}
-                              >
-                                <div className="font-medium text-gray-900">{task.title}</div>
-                                <div className="text-sm text-gray-500 truncate">{task.description}</div>
-                                <div className="text-xs text-blue-600 mt-1">Status: {task.status}</div>
-                              </button>
-                            ))}
+                          <div className="max-h-60 overflow-y-auto border border-gray-200 rounded-lg bg-white shadow-sm">
+                            {filteredTasks.slice(0, 8).map((task) => {
+                              const assignedUser = users.find(u => u.id === task.assigned_to);
+                              const priorityLabels = { 1: 'High', 2: 'Medium', 3: 'Low' };
+                              const priorityColors = { 1: 'text-red-600 bg-red-50', 2: 'text-yellow-600 bg-yellow-50', 3: 'text-green-600 bg-green-50' };
+                              const statusColors = { 
+                                'pending': 'text-gray-600 bg-gray-100',
+                                'in_progress': 'text-blue-600 bg-blue-100', 
+                                'completed': 'text-green-600 bg-green-100',
+                                'backlog': 'text-purple-600 bg-purple-100'
+                              };
+                              
+                              return (
+                                <button
+                                  key={task.id}
+                                  type="button"
+                                  className="w-full p-4 text-left hover:bg-blue-50 border-b border-gray-100 last:border-b-0 transition-colors group"
+                                  onClick={() => {
+                                    setSelectedDependencyTask(task);
+                                    setForm(f => ({ ...f, dependencyTaskId: task.id }));
+                                    setSearchQuery("");
+                                  }}
+                                >
+                                  <div className="flex items-start justify-between">
+                                    <div className="flex-1 min-w-0">
+                                      <div className="font-semibold text-gray-900 group-hover:text-blue-700 line-clamp-1">
+                                        {task.title}
+                                      </div>
+                                      <div className="text-sm text-gray-600 mt-1 line-clamp-2">
+                                        {task.description || "No description provided"}
+                                      </div>
+                                      <div className="flex items-center gap-3 mt-2 text-xs">
+                                        <span className={`px-2 py-1 rounded-full font-medium ${statusColors[task.status] || 'text-gray-600 bg-gray-100'}`}>
+                                          {task.status?.replace('_', ' ').toUpperCase()}
+                                        </span>
+                                        <span className={`px-2 py-1 rounded-full font-medium ${priorityColors[task.priority] || 'text-gray-600 bg-gray-100'}`}>
+                                          {priorityLabels[task.priority] || 'Medium'} Priority
+                                        </span>
+                                        {assignedUser && (
+                                          <span className="text-gray-500">
+                                            👤 {assignedUser.user_name || assignedUser.email}
+                                          </span>
+                                        )}
+                                        {task.due_date && (
+                                          <span className="text-gray-500">
+                                            📅 Due: {new Date(task.due_date).toLocaleDateString()}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </button>
+                              );
+                            })}
+                            {filteredTasks.length > 8 && (
+                              <div className="p-3 text-center text-sm text-gray-500 bg-gray-50">
+                                Showing 8 of {filteredTasks.length} results. Type more to refine search.
+                              </div>
+                            )}
                           </div>
                         )}
                         
