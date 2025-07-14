@@ -12,11 +12,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { updateTask, Task } from "@/integrations/supabase/tasks";
+import { Task } from "@/integrations/supabase/tasks";
 import { toast } from "@/components/ui/use-toast";
 import { useTaskStatuses } from "@/hooks/useTaskStatuses";
 import { EditTaskStatusSelect } from "./EditTaskStatusSelect";
-import { createTaskActivity } from "@/integrations/supabase/taskActivity";
+import { apiClient } from "@/lib/api";
 import { useUsersAndTeams } from "@/hooks/useUsersAndTeams";
 import useSupabaseSession from "@/hooks/useSupabaseSession";
 import { useCurrentUserRoleAndTeams } from "@/hooks/useCurrentUserRoleAndTeams";
@@ -183,14 +183,7 @@ const EditTaskSheet: React.FC<Props> = ({
         ...form,
         assigned_to: newAssignee,
       };
-      await updateTask(task!.id, updatePayload);
-      await createTaskActivity({
-        task_id: task!.id,
-        action_type: "assigned",
-        old_value: task!.assigned_to,
-        new_value: newAssignee,
-        acted_by: currentUser?.id,
-      });
+      await apiClient.updateTask(task!.id, updatePayload);
       toast({ title: "Task assignee updated" });
       onOpenChange(false);
       onUpdated();
@@ -229,18 +222,7 @@ const EditTaskSheet: React.FC<Props> = ({
       };
       const changedFields = getChangedFields(prevVals, form);
 
-      await updateTask(task!.id, updatePayload);
-
-      // 2. Log in activity for *all* changed fields
-      for (const { name, old, new: nw } of changedFields) {
-        await createTaskActivity({
-          task_id: task!.id,
-          action_type: "edit",
-          old_value: String(old),
-          new_value: String(nw),
-          acted_by: currentUser?.id
-        });
-      }
+      await apiClient.updateTask(task!.id, updatePayload);
       toast({ title: "Task updated" });
       onOpenChange(false);
       onUpdated();
@@ -256,10 +238,10 @@ const EditTaskSheet: React.FC<Props> = ({
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       {children && <SheetTrigger asChild>{children}</SheetTrigger>}
-      <SheetContent side="right" className="max-w-4xl w-[75vw] flex flex-col p-0">
-        <form className="flex-1 flex flex-col p-2 space-y-6 overflow-y-auto" onSubmit={handleSubmit} style={{ minHeight: 0 }}>
+      <SheetContent side="right" className="w-[50vw] min-w-[800px] flex flex-col p-0">
+        <form className="flex-1 flex flex-col p-4 gap-4 overflow-y-auto" onSubmit={handleSubmit} style={{ minHeight: 0 }}>
           <SheetHeader>
-            <SheetTitle>Edit Task</SheetTitle>
+            <SheetTitle className="text-base">Edit Task</SheetTitle>
             <SheetDescription>
               Modify the fields below and click Update to save changes.
             </SheetDescription>
@@ -267,7 +249,7 @@ const EditTaskSheet: React.FC<Props> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Task Title (editable if not restricted to user) */}
             <div>
-              <label className="block mb-1 font-medium">Task Title</label>
+              <label className="block mb-1 text-sm font-medium">Task Title</label>
               <Input
                 name="title"
                 value={form.title}
@@ -278,7 +260,7 @@ const EditTaskSheet: React.FC<Props> = ({
               />
             </div>
             <div>
-              <label className="block mb-1 font-medium">Priority</label>
+              <label className="block mb-1 text-sm font-medium">Priority</label>
               <select
                 name="priority"
                 value={form.priority}
@@ -292,7 +274,7 @@ const EditTaskSheet: React.FC<Props> = ({
               </select>
             </div>
             <div>
-              <label className="block mb-1 font-medium">Status</label>
+              <label className="block mb-1 text-sm font-medium">Status</label>
               <EditTaskStatusSelect
                 currentStatus={form.status}
                 onStatusChange={(newStatus) => setForm({ ...form, status: newStatus })}
@@ -300,7 +282,7 @@ const EditTaskSheet: React.FC<Props> = ({
               />
             </div>
             <div className="sm:col-span-2">
-              <label className="block mb-1 font-medium">Description</label>
+              <label className="block mb-1 text-sm font-medium">Description</label>
               <Textarea
                 name="description"
                 value={form.description}
@@ -311,17 +293,18 @@ const EditTaskSheet: React.FC<Props> = ({
             </div>
             {/* Due Date (only editable for admin/manager) */}
             <div>
-              <label className="block mb-1 font-medium">Due Date</label>
+              <label className="block mb-1 text-sm font-medium">Due Date <span className="text-red-500">*</span></label>
               <Input
                 name="due_date"
                 type="date"
                 value={form.due_date}
                 onChange={handleChange}
                 disabled={isUser}
+                required
               />
             </div>
             <div>
-              <label className="block mb-1 font-medium">Estimated Hours</label>
+              <label className="block mb-1 text-sm font-medium">Estimated Hours <span className="text-red-500">*</span></label>
               <Input
                 name="estimated_hours"
                 value={form.estimated_hours}
@@ -330,6 +313,7 @@ const EditTaskSheet: React.FC<Props> = ({
                 min="0"
                 step="0.1"
                 disabled={isUser}
+                required
               />
             </div>
             {/* Show field for completion date only if status is completed */}
