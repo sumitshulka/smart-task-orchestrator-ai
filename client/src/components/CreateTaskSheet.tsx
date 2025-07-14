@@ -288,8 +288,7 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
 
       // Create the task using API client
       console.log("[DEBUG] Creating task with data:", JSON.stringify(taskInput, null, 2));
-      const response = await apiClient.post("/api/tasks", taskInput);
-      const newTask = response.data;
+      const newTask = await apiClient.createTask(taskInput);
 
       // Only assign to group if group selected and Is Subtask checked
       if (form.isSubTask && selectedTaskGroup) {
