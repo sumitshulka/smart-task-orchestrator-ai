@@ -76,26 +76,73 @@ export default function DateRangePresetSelector({
   onChange,
 }: DateRangePresetSelectorProps) {
   return (
-    <div className="flex flex-wrap gap-2 mb-2">
-      {presets.map((opt) => (
-        <button
-          key={opt.key}
-          className={`px-2 py-1 rounded text-xs font-medium border 
-            ${preset === opt.key ? "bg-primary text-white border-primary" : "bg-muted border-muted-foreground/20"}
-            hover:bg-muted-foreground/10 transition`}
-          type="button"
-          onClick={() => {
-            if (opt.key === "custom") {
-              onChange(dateRange, "custom");
-            } else {
-              const range = computeRange(opt.key);
-              onChange(range, opt.key);
-            }
-          }}
-        >
-          {opt.label}
-        </button>
-      ))}
+    <div className="space-y-3">
+      {/* Preset buttons */}
+      <div className="flex flex-wrap gap-2">
+        {presets.map((opt) => (
+          <button
+            key={opt.key}
+            className={`px-2 py-1 rounded text-xs font-medium border 
+              ${preset === opt.key ? "bg-primary text-white border-primary" : "bg-muted border-muted-foreground/20"}
+              hover:bg-muted-foreground/10 transition`}
+            type="button"
+            onClick={() => {
+              if (opt.key === "custom") {
+                onChange(dateRange, "custom");
+              } else {
+                const range = computeRange(opt.key);
+                onChange(range, opt.key);
+              }
+            }}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Custom date picker - visible when custom is selected */}
+      {preset === "custom" && (
+        <div className="border rounded-lg p-4 bg-gray-50">
+          <h4 className="text-sm font-medium mb-3">Select Custom Date Range</h4>
+          <div className="flex gap-4 items-center flex-wrap">
+            {/* From Date Input */}
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">From Date</label>
+              <input
+                type="date"
+                value={dateRange.from ? dateRange.from.toISOString().split('T')[0] : ''}
+                onChange={(e) => {
+                  const newDate = e.target.value ? new Date(e.target.value) : null;
+                  onChange({ from: newDate, to: dateRange.to }, "custom");
+                }}
+                className="px-3 py-1 border rounded text-sm"
+              />
+            </div>
+
+            {/* To Date Input */}
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">To Date</label>
+              <input
+                type="date"
+                value={dateRange.to ? dateRange.to.toISOString().split('T')[0] : ''}
+                onChange={(e) => {
+                  const newDate = e.target.value ? new Date(e.target.value) : null;
+                  onChange({ from: dateRange.from, to: newDate }, "custom");
+                }}
+                min={dateRange.from ? dateRange.from.toISOString().split('T')[0] : undefined}
+                className="px-3 py-1 border rounded text-sm"
+              />
+            </div>
+            
+            {/* Selected range display */}
+            {dateRange.from && dateRange.to && (
+              <div className="text-xs text-green-600 font-medium">
+                {`${dateRange.from.toLocaleDateString()} - ${dateRange.to.toLocaleDateString()}`}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
