@@ -188,8 +188,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch("/api/tasks/:id", async (req, res) => {
     try {
+      console.log("[DEBUG] Task update request body:", JSON.stringify(req.body, null, 2));
       const oldTask = await storage.getTask(req.params.id);
-      const task = await storage.updateTask(req.params.id, req.body);
+      
+      // Validate the update data using the insert schema (partial update)
+      const updateData = insertTaskSchema.partial().parse(req.body);
+      
+      const task = await storage.updateTask(req.params.id, updateData);
       
       // Log task update activity
       if (oldTask && req.body.status && oldTask.status !== req.body.status) {
@@ -204,7 +209,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json(task);
     } catch (error) {
-      res.status(500).json({ error: "Failed to update task" });
+      console.error("[ERROR] Task update failed:", error);
+      if (error instanceof Error) {
+        console.error("[ERROR] Error message:", error.message);
+      }
+      res.status(500).json({ 
+        error: "Failed to update task", 
+        details: error instanceof Error ? error.message : "Unknown error" 
+      });
     }
   });
 
