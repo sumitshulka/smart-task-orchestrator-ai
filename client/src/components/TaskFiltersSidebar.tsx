@@ -1,9 +1,9 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
-import { format } from "date-fns";
+import { format, startOfMonth, endOfMonth, startOfDay, endOfDay } from "date-fns";
 import DateRangePresetSelector from "./DateRangePresetSelector";
 import type { TaskStatus } from "@/hooks/useTaskStatuses"; // <-- for typing
 
@@ -38,7 +38,19 @@ export default function TaskFiltersSidebar({
   users, teams,
   statuses, statusesLoading
 }: TaskFiltersSidebarProps) {
-  const [preset, setPreset] = useState<string>("custom");
+  const [preset, setPreset] = useState<string>("this_month");
+
+  // Initialize with "This Month" preset on component mount
+  useEffect(() => {
+    if (!dateRange.from && !dateRange.to) {
+      const now = new Date();
+      const thisMonthRange = {
+        from: startOfDay(startOfMonth(now)),
+        to: endOfDay(endOfMonth(now))
+      };
+      onDateRangeChange(thisMonthRange);
+    }
+  }, [dateRange.from, dateRange.to, onDateRangeChange]);
 
   function handlePresetChange(range: { from: Date | null; to: Date | null }, p: string) {
     setPreset(p);
