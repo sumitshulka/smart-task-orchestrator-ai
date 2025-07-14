@@ -190,7 +190,20 @@ export default function TaskReport() {
 
     filteredTaskData.forEach((task) => {
       const assignedId = task.assigned_to || "unassigned";
-      const userInfo = task.assigned_user;
+      
+      // Get user info from users array if not present in task.assigned_user
+      let userInfo = task.assigned_user;
+      if (!userInfo && task.assigned_to) {
+        const userFromList = users.find(u => u.id === task.assigned_to);
+        if (userFromList) {
+          userInfo = {
+            user_name: userFromList.user_name,
+            email: userFromList.email,
+            department: userFromList.department
+          };
+        }
+      }
+      
       const name = (userInfo && userInfo.user_name) || (userInfo && userInfo.email) || "Unassigned";
       const email = (userInfo && userInfo.email) || "N/A";
       if (!userMap[assignedId]) {
