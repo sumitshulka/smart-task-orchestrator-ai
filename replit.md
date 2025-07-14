@@ -36,6 +36,8 @@ Preferred communication style: Simple, everyday language.
 ✓ **Database Schema Enhancement**: Added color field to task_statuses table with default gray color support
 ✓ **Create Task Modal Width Enhancement**: Set modal to half viewport width (w-[50vw] with min-width 800px) for optimal form layout and user experience
 ✓ **Enhanced Task Dependency Search**: Replaced separate modal with rich inline search showing task details, status badges, priority levels, assigned users, due dates, and multi-field search capability
+✓ **Hierarchical Status Transition Layout**: Redesigned Status Lifecycle Graph with proper hierarchical layout where From-statuses appear in left column(s) and To-statuses in right column(s), eliminating visual overlaps
+✓ **Default Status Management**: Implemented comprehensive default status system with database constraints ensuring only one default status, automatic selection in task creation, and proper UI indicators
 
 ## System Architecture
 

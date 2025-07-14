@@ -58,13 +58,48 @@ const StatusLifecycleGraph: React.FC<{ statuses: TaskStatus[] }> = ({ statuses }
     );
   }
 
-  // Calculate responsive dimensions
-  const containerPadding = 40;
+  // Calculate hierarchical layout dimensions
+  const containerPadding = 60;
   const nodeRadius = 50;
-  const nodeSpacing = Math.max(150, Math.min(200, (window.innerWidth - containerPadding * 2) / Math.max(statuses.length, 1)));
-  const svgWidth = Math.max(800, statuses.length * nodeSpacing + containerPadding * 2);
-  const svgHeight = 400; // Increased height to accommodate curved paths
-  const nodeY = svgHeight / 2;
+  const columnSpacing = 250; // Spacing between columns (From -> To)
+  const rowSpacing = 120; // Spacing between rows
+  
+  // Build transition hierarchy: From statuses -> To statuses
+  const transitionMap = new Map<string, Set<string>>();
+  const allFromStatuses = new Set<string>();
+  const allToStatuses = new Set<string>();
+  
+  transitions.forEach(transition => {
+    if (!transitionMap.has(transition.from_status)) {
+      transitionMap.set(transition.from_status, new Set());
+    }
+    transitionMap.get(transition.from_status)!.add(transition.to_status);
+    allFromStatuses.add(transition.from_status);
+    allToStatuses.add(transition.to_status);
+  });
+  
+  // Determine layout: statuses that are only sources go left, targets go right, others in middle
+  const leftStatuses = Array.from(allFromStatuses).filter(status => !allToStatuses.has(status));
+  const rightStatuses = Array.from(allToStatuses).filter(status => !allFromStatuses.has(status));
+  const middleStatuses = statuses.filter(s => allFromStatuses.has(s.name) && allToStatuses.has(s.name)).map(s => s.name);
+  
+  // Calculate dimensions based on whether transitions exist
+  const hasTransitions = transitions.length > 0;
+  let svgWidth: number, svgHeight: number, nodeY: number;
+  
+  if (!hasTransitions) {
+    // Simple horizontal layout when no transitions
+    svgWidth = Math.max(800, statuses.length * 180 + containerPadding * 2);
+    svgHeight = 200;
+    nodeY = svgHeight / 2;
+  } else {
+    // Calculate dimensions for hierarchical layout
+    const maxRows = Math.max(leftStatuses.length, middleStatuses.length, rightStatuses.length, 1);
+    svgHeight = Math.max(300, maxRows * rowSpacing + containerPadding * 2);
+    const numColumns = (leftStatuses.length > 0 ? 1 : 0) + (middleStatuses.length > 0 ? 1 : 0) + (rightStatuses.length > 0 ? 1 : 0);
+    svgWidth = Math.max(600, numColumns * columnSpacing + containerPadding * 2);
+    nodeY = svgHeight / 2; // Not used in hierarchical layout, but needed for compilation
+  }
 
   const wrapText = (text: string, maxChars: number) => {
     if (text.length <= maxChars) return [text];
@@ -144,87 +179,164 @@ const StatusLifecycleGraph: React.FC<{ statuses: TaskStatus[] }> = ({ statuses }
           </defs>
 
           {(() => {
-            // Group transitions by their path to prevent overlap
-            const transitionPaths = new Map();
-            
-            transitions.forEach((tr, i) => {
-              const fromIdx = statuses.findIndex((s) => s.name === tr.from_status);
-              const toIdx = statuses.findIndex((s) => s.name === tr.to_status);
-              if (fromIdx === -1 || toIdx === -1) return;
-              
-              // Create a key for this path direction
-              const pathKey = `${Math.min(fromIdx, toIdx)}-${Math.max(fromIdx, toIdx)}`;
-              if (!transitionPaths.has(pathKey)) {
-                transitionPaths.set(pathKey, []);
-              }
-              transitionPaths.get(pathKey).push({ tr, fromIdx, toIdx, originalIndex: i });
-            });
-            
-            return Array.from(transitionPaths.values()).flatMap(pathGroup => {
-              return pathGroup.map((item, groupIndex) => {
-                const { tr, fromIdx, toIdx } = item;
-                const fromX = containerPadding + fromIdx * nodeSpacing + nodeSpacing / 2;
-                const toX = containerPadding + toIdx * nodeSpacing + nodeSpacing / 2;
-                
-                const deltaX = toX - fromX;
-                const distance = Math.abs(deltaX);
-                const unitX = deltaX / distance;
-                
-                const startX = fromX + unitX * nodeRadius;
-                const endX = toX - unitX * nodeRadius;
-                
-                // Offset each transition in the same path group to prevent overlap
-                const baseOffset = -60;
-                const groupOffset = groupIndex * 30; // Each additional transition gets more curve
-                const curveOffset = baseOffset - groupOffset;
-                
-                const midX = (startX + endX) / 2;
-                const midY = nodeY + curveOffset;
+            if (!hasTransitions) {
+              // Simple horizontal layout when no transitions
+              return statuses.map((status, idx) => {
+                const x = containerPadding + idx * 180 + 90;
+                const textLines = wrapText(status.name, 10);
                 
                 return (
-                  <g key={tr.id}>
-                    <path
-                      d={`M ${startX} ${nodeY} Q ${midX} ${midY} ${endX} ${nodeY}`}
-                      stroke="#4b5563"
+                  <g key={status.id}>
+                    <circle 
+                      cx={x} 
+                      cy={nodeY} 
+                      r={nodeRadius} 
+                      fill="url(#nodeGradient)" 
+                      stroke="#64748b" 
                       strokeWidth="2"
-                      fill="none"
-                      markerEnd="url(#arrowhead)"
-                      opacity="0.8"
+                      filter="drop-shadow(0 2px 4px rgba(0,0,0,0.1))"
                     />
-                    
-                    {/* Transition label */}
-                    <text
-                      x={midX}
-                      y={midY - 10}
-                      textAnchor="middle"
-                      fontSize="10"
-                      fill="#6b7280"
-                      className="pointer-events-none"
-                    >
-                      {tr.from_status} → {tr.to_status}
-                    </text>
-                    
-                    {/* Delete button */}
-                    <foreignObject 
-                      x={midX - 12} 
-                      y={midY + 5} 
-                      width="24" 
-                      height="24"
-                    >
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="!w-6 !h-6 !p-0 text-xs bg-red-50 hover:bg-red-100 text-red-600 rounded-full border border-red-200"
-                        onClick={() => deleteTransition(tr.id)}
-                        title="Remove transition"
+                    {textLines.map((line, lineIdx) => (
+                      <text 
+                        key={lineIdx}
+                        x={x} 
+                        y={nodeY + (lineIdx - (textLines.length - 1) / 2) * 14} 
+                        textAnchor="middle" 
+                        fontSize="12" 
+                        fill="#1e293b"
+                        fontWeight="500"
                       >
-                        ✕
-                      </Button>
-                    </foreignObject>
+                        {line}
+                      </text>
+                    ))}
                   </g>
                 );
               });
+            }
+            
+            // Calculate positions for hierarchical layout
+            const statusPositions = new Map<string, {x: number, y: number}>();
+            
+            // Position left column (from-only statuses)
+            leftStatuses.forEach((statusName, idx) => {
+              statusPositions.set(statusName, {
+                x: containerPadding + nodeRadius,
+                y: containerPadding + (idx + 1) * rowSpacing
+              });
             });
+            
+            // Position middle column (intermediate statuses)
+            middleStatuses.forEach((statusName, idx) => {
+              statusPositions.set(statusName, {
+                x: containerPadding + columnSpacing + nodeRadius,
+                y: containerPadding + (idx + 1) * rowSpacing
+              });
+            });
+            
+            // Position right column (to-only statuses)
+            rightStatuses.forEach((statusName, idx) => {
+              const xOffset = (leftStatuses.length > 0 ? columnSpacing : 0) + (middleStatuses.length > 0 ? columnSpacing : 0);
+              statusPositions.set(statusName, {
+                x: containerPadding + xOffset + nodeRadius,
+                y: containerPadding + (idx + 1) * rowSpacing
+              });
+            });
+            
+            // Render transitions with proper hierarchy
+            const transitionElements = transitions.map((tr, i) => {
+              const fromPos = statusPositions.get(tr.from_status);
+              const toPos = statusPositions.get(tr.to_status);
+              if (!fromPos || !toPos) return null;
+              
+              const startX = fromPos.x + nodeRadius;
+              const endX = toPos.x - nodeRadius;
+              const startY = fromPos.y;
+              const endY = toPos.y;
+              
+              // Create smooth curves for transitions
+              const midX = (startX + endX) / 2;
+              const controlY1 = startY;
+              const controlY2 = endY;
+              
+              return (
+                <g key={tr.id}>
+                  <path
+                    d={`M ${startX} ${startY} Q ${midX} ${controlY1} ${midX} ${(startY + endY) / 2} Q ${midX} ${controlY2} ${endX} ${endY}`}
+                    stroke="#4b5563"
+                    strokeWidth="2"
+                    fill="none"
+                    markerEnd="url(#arrowhead)"
+                    opacity="0.8"
+                  />
+                  
+                  {/* Delete button positioned along the path */}
+                  <foreignObject 
+                    x={midX - 12} 
+                    y={(startY + endY) / 2 - 12} 
+                    width="24" 
+                    height="24"
+                  >
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="!w-6 !h-6 !p-0 text-xs bg-red-50 hover:bg-red-100 text-red-600 rounded-full border border-red-200"
+                      onClick={() => deleteTransition(tr.id)}
+                      title="Remove transition"
+                    >
+                      ✕
+                    </Button>
+                  </foreignObject>
+                </g>
+              );
+            });
+            
+            // Render status nodes
+            const statusElements = Array.from(statusPositions.entries()).map(([statusName, pos]) => {
+              const status = statuses.find(s => s.name === statusName);
+              if (!status) return null;
+              
+              const textLines = wrapText(status.name, 10);
+              
+              return (
+                <g key={status.id}>
+                  <circle 
+                    cx={pos.x} 
+                    cy={pos.y} 
+                    r={nodeRadius} 
+                    fill="url(#nodeGradient)" 
+                    stroke="#64748b" 
+                    strokeWidth="2"
+                    filter="drop-shadow(0 2px 4px rgba(0,0,0,0.1))"
+                  />
+                  
+                  {textLines.map((line, lineIdx) => (
+                    <text 
+                      key={lineIdx}
+                      x={pos.x} 
+                      y={pos.y + (lineIdx - (textLines.length - 1) / 2) * 14} 
+                      textAnchor="middle" 
+                      fontSize="12" 
+                      fill="#1e293b"
+                      fontWeight="500"
+                    >
+                      {line}
+                    </text>
+                  ))}
+                  
+                  <text 
+                    x={pos.x} 
+                    y={pos.y + nodeRadius + 20} 
+                    textAnchor="middle" 
+                    fontSize="10" 
+                    fill="#64748b"
+                  >
+                    #{statuses.indexOf(status) + 1}
+                  </text>
+                </g>
+              );
+            });
+            
+            return [...transitionElements, ...statusElements];
           })()}
 
           {statuses.map((status, idx) => {
