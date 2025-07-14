@@ -84,6 +84,8 @@ export default function AnalyticsReport() {
     };
   }, [tasks, users]);
 
+  // Move the loading check after all hooks
+
   if (isLoading) {
     return (
       <div className="max-w-7xl mx-0 p-4">

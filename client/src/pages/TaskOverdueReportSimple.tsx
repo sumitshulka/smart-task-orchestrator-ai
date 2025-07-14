@@ -35,15 +35,6 @@ export default function TaskOverdueReport() {
     }
   });
 
-  if (isLoading) {
-    return (
-      <div className="max-w-5xl mx-0 p-4">
-        <h1 className="text-2xl font-semibold mb-4">Task Overdue Report</h1>
-        <div>Loading...</div>
-      </div>
-    );
-  }
-
   const overdueReport = React.useMemo(() => {
     if (!tasks) return [];
     
@@ -89,6 +80,15 @@ export default function TaskOverdueReport() {
     
     return Object.values(userMap);
   }, [tasks, users]);
+
+  if (isLoading) {
+    return (
+      <div className="max-w-5xl mx-0 p-4">
+        <h1 className="text-2xl font-semibold mb-4">Task Overdue Report</h1>
+        <div>Loading...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-5xl mx-0 p-4">
