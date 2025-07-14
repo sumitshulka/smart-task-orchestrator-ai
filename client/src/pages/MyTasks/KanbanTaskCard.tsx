@@ -144,9 +144,21 @@ function KanbanTaskCard({ task, onClick, CARD_TYPE, statusColor }: {
       onClick={onClick}
     >
       <div className="p-4">
-        {/* Task Title */}
-        <div className="font-medium text-gray-900 mb-3 leading-tight">
-          {task.title}
+        {/* Task Number and Title */}
+        <div className="flex items-start gap-2 mb-3">
+          {task.task_number && (
+            <span className="text-xs font-mono bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded border flex-shrink-0">
+              #{task.task_number}
+            </span>
+          )}
+          <div className="font-medium text-gray-900 leading-tight cursor-pointer hover:text-blue-600 transition-colors"
+               onClick={(e) => {
+                 e.stopPropagation();
+                 console.log("[DEBUG] KanbanTaskCard title clicked:", task.title);
+                 onClick();
+               }}>
+            {task.title}
+          </div>
         </div>
         
         {/* Task Meta */}
