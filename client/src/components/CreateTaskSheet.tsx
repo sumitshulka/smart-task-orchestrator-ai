@@ -504,7 +504,7 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Estimated Hours</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Estimated Hours <span className="text-red-500">*</span></label>
                   <Input
                     name="estimated_hours"
                     value={form.estimated_hours}
@@ -529,7 +529,7 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Start Date</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Start Date <span className="text-red-500">*</span></label>
                   <Input
                     name="start_date"
                     type="date"
@@ -551,7 +551,7 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
                   )}
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Expected End Date</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Expected End Date <span className="text-red-500">*</span></label>
                   <Input
                     name="due_date"
                     type="date"
