@@ -2,20 +2,13 @@
 import React from "react";
 import { useDrop } from "react-dnd";
 
-const KANBAN_COLORS: Record<string, string> = {
-  new: "bg-fuchsia-50",
-  assigned: "bg-blue-50",
-  "in progress": "bg-green-50",
-  pending: "bg-yellow-50",
-  completed: "bg-emerald-50",
-};
-
 interface KanbanColumnProps {
   statusKey: string;
   statusLabel: string;
   children: React.ReactNode;
   onDrop: (item: { id: string; status: string }, statusKey: string) => void;
   CARD_TYPE: string;
+  colorClasses?: string;
 }
 
 const KanbanColumn: React.FC<KanbanColumnProps> = ({
@@ -24,6 +17,7 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
   children,
   onDrop,
   CARD_TYPE,
+  colorClasses = "bg-slate-50 border-slate-200",
 }) => {
   const [{ isOver, canDrop }, dropRef] = useDrop({
     accept: CARD_TYPE,
@@ -42,9 +36,9 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
     <div
       ref={dropRef}
       className={`
-        min-w-[320px] rounded-lg p-4 shadow-md transition-all
-        ${KANBAN_COLORS[statusKey] || "bg-slate-50"}
-        ${isOver && canDrop ? "ring-2 ring-primary" : ""}
+        min-w-[320px] rounded-lg p-4 shadow-md transition-all border-2
+        ${colorClasses}
+        ${isOver && canDrop ? "ring-2 ring-primary ring-offset-2" : ""}
       `}
     >
       <h3 className="font-semibold text-lg mb-4 capitalize">{statusLabel}</h3>

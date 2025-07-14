@@ -20,13 +20,30 @@ import EditTaskSheet from "@/components/EditTaskSheet";
 import TasksFiltersPanel from "@/components/TasksFiltersPanel";
 import { apiClient } from "@/lib/api";
 
-// Pastel color classes for Kanban columns
+// Comprehensive pastel color palette for Kanban columns
 const KANBAN_COLORS: Record<string, string> = {
-  new: "bg-fuchsia-50",
-  assigned: "bg-blue-50",
-  "in progress": "bg-green-50",
-  pending: "bg-yellow-50",
-  completed: "bg-emerald-50",
+  // Core task statuses
+  backlog: "bg-slate-50 border-slate-200",
+  "in progress": "bg-blue-50 border-blue-200", 
+  in_progress: "bg-blue-50 border-blue-200",
+  review: "bg-amber-50 border-amber-200",
+  completed: "bg-emerald-50 border-emerald-200",
+  
+  // Legacy statuses (for backward compatibility)
+  new: "bg-purple-50 border-purple-200",
+  assigned: "bg-cyan-50 border-cyan-200",
+  pending: "bg-orange-50 border-orange-200",
+  planning: "bg-indigo-50 border-indigo-200",
+  testing: "bg-pink-50 border-pink-200",
+  deployed: "bg-green-50 border-green-200",
+  cancelled: "bg-red-50 border-red-200",
+  on_hold: "bg-gray-50 border-gray-200",
+  "on hold": "bg-gray-50 border-gray-200",
+};
+
+// Helper function to get color with fallback
+const getStatusColors = (statusKey: string): string => {
+  return KANBAN_COLORS[statusKey] || KANBAN_COLORS[statusKey.replace(/\s+/g, "_")] || "bg-neutral-50 border-neutral-200";
 };
 
 const fallbackImage =
@@ -351,6 +368,7 @@ export default function MyTasksPage() {
                         statusLabel={statusObj ? statusObj.name : statusKey}
                         onDrop={onDropTask}
                         CARD_TYPE={CARD_TYPE}
+                        colorClasses={getStatusColors(statusKey)}
                       >
                         {tasksByStatus[statusKey] && tasksByStatus[statusKey].length > 0 ? (
                           tasksByStatus[statusKey].map((task) => (
