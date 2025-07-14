@@ -386,12 +386,10 @@ export default function MyTasksPage() {
   };
 
   const openDetailsForTask = (task: Task) => {
-    console.log("[DEBUG] openDetailsForTask called with task:", task.title, task.id);
     setEditOpen(false);
     setEditTask(null);
     setDetailsTask(task);
     setDetailsOpen(true);
-    console.log("[DEBUG] setDetailsOpen(true) called - modal should open");
   };
 
   const openEditForTask = (task: Task) => {

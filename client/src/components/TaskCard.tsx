@@ -168,7 +168,6 @@ export default function TaskCard({ task, onTaskUpdated, canDelete, statusColor, 
             <h2 className="font-semibold text-lg truncate cursor-pointer hover:text-blue-600 transition-colors" 
                 onClick={(e) => {
                   e.stopPropagation();
-                  console.log("[DEBUG] Task title clicked:", task.title, "onOpenDetails:", !!onOpenDetails);
                   if (onOpenDetails) {
                     onOpenDetails(task);
                   }
