@@ -660,6 +660,12 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
                           className="h-12"
                         />
                         
+                        {!searchQuery && (
+                          <div className="p-3 text-center text-gray-400 border border-gray-200 rounded-lg bg-gray-50">
+                            <div className="text-sm">Start typing to see tasks with status badges, priority levels, assignees, and due dates</div>
+                          </div>
+                        )}
+                        
                         {searchQuery && filteredTasks.length === 0 && (
                           <div className="p-4 text-center text-gray-500 border border-gray-200 rounded-lg bg-gray-50">
                             <div className="text-sm">No tasks found matching "{searchQuery}"</div>
