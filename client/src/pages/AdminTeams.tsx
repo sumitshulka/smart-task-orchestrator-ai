@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
 import { Filter } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api";
 import { toast } from "@/components/ui/use-toast";
 import TeamManagerDialog from "@/components/TeamManagerDialog";
 import { useUserList } from "@/hooks/useUserList";
@@ -40,72 +40,22 @@ const AdminTeams: React.FC = () => {
 
   async function fetchTeamsWithMembers() {
     setLoading(true);
-    const { data: teams, error } = await supabase
-      .from("teams")
-      .select("*")
-      .order("name");
-    if (error) {
-      toast({ title: "Error loading teams", description: error.message });
-      setLoading(false);
-      return;
-    }
-    setTeams(teams || []);
+    try {
+      const teams = await apiClient.getTeams();
+      setTeams(teams || []);
 
-    // For each team, fetch members and manager
-    const teamIds = (teams || []).map((t: any) => t.id);
-    if (teamIds.length === 0) {
+      // For now, set empty maps since team membership API is not fully migrated
       setMembersMap({});
       setManagersMap({});
       setLoading(false);
-      return;
-    }
-
-    // Fetch memberships for all teams WITHOUT join
-    const { data: memberships, error: memErr } = await supabase
-      .from("team_memberships")
-      .select("team_id, user_id, role_within_team")
-      .in("team_id", teamIds);
-
-    if (memErr) {
-      toast({ title: "Error loading team members", description: memErr.message });
+    } catch (error) {
+      console.error('Failed to fetch teams:', error);
+      toast({ title: "Error loading teams" });
+      setTeams([]);
+      setMembersMap({});
+      setManagersMap({});
       setLoading(false);
-      return;
     }
-
-    const allUserIds = [...new Set((memberships || []).map((m: any) => m.user_id))];
-    let usersById: Record<string, any> = {};
-    if (allUserIds.length > 0) {
-      const { data: usersData, error: usersErr } = await supabase
-        .from("users")
-        .select("id, user_name, email")
-        .in("id", allUserIds);
-
-      if (usersErr) {
-        toast({ title: "Error loading team user info", description: usersErr.message });
-      } else if (usersData) {
-        usersById = Object.fromEntries(usersData.map((u: any) => [u.id, u]));
-      }
-    }
-
-    // Build maps for each team
-    const membMap: Record<string, string[]> = {};
-    const managerMap: Record<string, string> = {};
-
-    (memberships || []).forEach((m: any) => {
-      if (!membMap[m.team_id]) membMap[m.team_id] = [];
-      const user = usersById[m.user_id];
-      let label = m.user_id;
-      if (user) label = user.user_name || user.email || m.user_id;
-      membMap[m.team_id].push(label);
-
-      if (m.role_within_team === "manager") {
-        managerMap[m.team_id] = label;
-      }
-    });
-
-    setMembersMap(membMap);
-    setManagersMap(managerMap);
-    setLoading(false);
   }
 
   // Filtered by search
