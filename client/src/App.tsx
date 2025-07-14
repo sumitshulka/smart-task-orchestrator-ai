@@ -134,6 +134,15 @@ const App = () => (
                 </AdminLayout>
               }
             />
+            {/* Tasks page for regular users */}
+            <Route
+              path="/tasks"
+              element={
+                <AdminLayout>
+                  <TasksPage />
+                </AdminLayout>
+              }
+            />
             {/* My Teams page for plain users */}
             <Route
               path="/my-teams"

@@ -45,14 +45,11 @@ export const RoleProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const userRoles = await apiClient.getUserRoles(user.id);
         
         if (!userRoles || userRoles.length === 0) {
-          // If no explicit roles, check if user is admin
-          const userData = await apiClient.getUser(user.id);
-          if (userData && userData.is_admin) {
-            setHighestRole("admin");
-          } else {
-            setHighestRole("user"); // Default role
+          // If no explicit roles, default to user role
+          if (mounted) {
+            setHighestRole("user");
+            setLoading(false);
           }
-          setLoading(false);
           return;
         }
 
