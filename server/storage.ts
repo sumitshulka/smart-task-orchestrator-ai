@@ -77,6 +77,9 @@ export interface IStorage {
   
   // Task status operations
   getAllTaskStatuses(): Promise<TaskStatus[]>;
+  createTaskStatus(status: { name: string; description?: string; color?: string; sequence_order: number }): Promise<TaskStatus>;
+  updateTaskStatus(id: string, updates: Partial<TaskStatus>): Promise<TaskStatus>;
+  deleteTaskStatus(id: string): Promise<void>;
 
   // Role permissions operations
   getRolePermissions(roleId: string): Promise<RolePermission[]>;
@@ -272,6 +275,28 @@ export class DatabaseStorage implements IStorage {
   // Task status operations
   async getAllTaskStatuses(): Promise<TaskStatus[]> {
     return await db.select().from(taskStatuses).orderBy(taskStatuses.sequence_order);
+  }
+
+  async createTaskStatus(status: { name: string; description?: string; color?: string; sequence_order: number }): Promise<TaskStatus> {
+    const result = await db.insert(taskStatuses).values({
+      name: status.name,
+      description: status.description || null,
+      color: status.color || "#6b7280",
+      sequence_order: status.sequence_order
+    }).returning();
+    return result[0];
+  }
+
+  async updateTaskStatus(id: string, updates: Partial<TaskStatus>): Promise<TaskStatus> {
+    const result = await db.update(taskStatuses).set({
+      ...updates,
+      updated_at: new Date()
+    }).where(eq(taskStatuses.id, id)).returning();
+    return result[0];
+  }
+
+  async deleteTaskStatus(id: string): Promise<void> {
+    await db.delete(taskStatuses).where(eq(taskStatuses.id, id));
   }
 
   // Role permissions operations

@@ -483,6 +483,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Task status management routes
+  app.post("/api/task-statuses", async (req, res) => {
+    try {
+      const { name, description, color, sequence_order } = req.body;
+      if (!name || typeof sequence_order !== 'number') {
+        return res.status(400).json({ error: "Name and sequence_order are required" });
+      }
+      
+      const status = await storage.createTaskStatus({
+        name,
+        description,
+        color: color || "#6b7280",
+        sequence_order
+      });
+      res.status(201).json(status);
+    } catch (error) {
+      console.error("Failed to create task status:", error);
+      res.status(500).json({ error: "Failed to create task status" });
+    }
+  });
+
+  app.patch("/api/task-statuses/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const status = await storage.updateTaskStatus(id, req.body);
+      res.json(status);
+    } catch (error) {
+      console.error("Failed to update task status:", error);
+      res.status(500).json({ error: "Failed to update task status" });
+    }
+  });
+
+  app.delete("/api/task-statuses/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      await storage.deleteTaskStatus(id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Failed to delete task status:", error);
+      res.status(500).json({ error: "Failed to delete task status" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

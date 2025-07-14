@@ -74,7 +74,7 @@ const ColorPicker: React.FC<{
 };
 
 const StatusManager: React.FC = () => {
-  const { statuses, loading, setStatuses } = useTaskStatuses();
+  const { statuses, loading, refreshStatuses } = useTaskStatuses();
   const [editing, setEditing] = useState<{ [id: string]: boolean }>({});
   const [newStatus, setNewStatus] = useState({ name: "", description: "", color: "#6b7280" });
   const [inputStatus, setInputStatus] = useState<{ [id: string]: { name: string; description: string; color: string } }>({});
@@ -86,32 +86,44 @@ const StatusManager: React.FC = () => {
     const updated = [...statuses];
     const [removed] = updated.splice(fromIdx, 1);
     updated.splice(toIdx, 0, removed);
-    setStatuses(updated);
+    
+    // Update sequence order based on new positions
+    const updatedWithOrder = updated.map((status, index) => ({
+      ...status,
+      sequence_order: index + 1
+    }));
 
-    // For now, just update the local state
-    // In a real implementation, this would save to the database
-    console.log("Status order updated:", updated.map(s => s.name));
+    // Update all statuses with new sequence order
+    Promise.all(
+      updatedWithOrder.map(status => 
+        apiClient.updateTaskStatus(status.id, { sequence_order: status.sequence_order })
+      )
+    ).then(() => {
+      refreshStatuses();
+      console.log("Status order updated:", updatedWithOrder.map(s => s.name));
+    }).catch(error => {
+      toast({ title: "Error", description: "Failed to update status order" });
+    });
   };
 
   const handleAddStatus = async () => {
     if (!newStatus.name.trim()) return;
     const maxOrder = Math.max(0, ...statuses.map((s) => s.sequence_order));
     
-    const newStatusData = {
-      id: Date.now().toString(),
-      name: newStatus.name,
-      description: newStatus.description,
-      color: newStatus.color,
-      sequence_order: maxOrder + 1,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-
-    // For now, just add to local state
-    // In a real implementation, this would save to the database
-    setStatuses([...statuses, newStatusData]);
-    setNewStatus({ name: "", description: "", color: "#6b7280" });
-    toast({ title: "Status added" });
+    try {
+      await apiClient.createTaskStatus({
+        name: newStatus.name,
+        description: newStatus.description,
+        color: newStatus.color,
+        sequence_order: maxOrder + 1,
+      });
+      
+      setNewStatus({ name: "", description: "", color: "#6b7280" });
+      refreshStatuses(); // Refresh from API
+      toast({ title: "Status added successfully!" });
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message || "Failed to add status" });
+    }
   };
 
   const handleEditStatus = (id: string) => {
@@ -125,17 +137,17 @@ const StatusManager: React.FC = () => {
     if (!upd || !upd.name.trim()) return;
     
     try {
-      // For now, just update local state since we're using localStorage-based management
-      // In a real implementation, this would update via API
-      setStatuses(
-        statuses.map((s) =>
-          s.id === id ? { ...s, name: upd.name, description: upd.description || "", color: upd.color || "#6b7280" } : s
-        )
-      );
+      await apiClient.updateTaskStatus(id, {
+        name: upd.name,
+        description: upd.description || "",
+        color: upd.color || "#6b7280"
+      });
+      
       setEditing({ ...editing, [id]: false });
+      refreshStatuses(); // Refresh from API
       toast({ title: "Status updated successfully!" });
     } catch (error: any) {
-      toast({ title: "Error", description: error.message });
+      toast({ title: "Error", description: error.message || "Failed to update status" });
     }
   };
 
@@ -143,12 +155,11 @@ const StatusManager: React.FC = () => {
     if (!window.confirm("Delete this status?")) return;
     
     try {
-      // For now, just update local state since we're using localStorage-based management
-      // In a real implementation, this would delete via API
-      setStatuses(statuses.filter((s) => s.id !== id));
+      await apiClient.deleteTaskStatus(id);
+      refreshStatuses(); // Refresh from API
       toast({ title: "Status deleted successfully!" });
     } catch (error: any) {
-      toast({ title: "Error", description: error.message });
+      toast({ title: "Error", description: error.message || "Failed to delete status" });
     }
   };
 

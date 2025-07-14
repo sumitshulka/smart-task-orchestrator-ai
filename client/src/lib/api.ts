@@ -199,6 +199,26 @@ class ApiClient {
     return this.request('/task-statuses');
   }
 
+  async createTaskStatus(status: { name: string; description?: string; color?: string; sequence_order: number }) {
+    return this.request('/task-statuses', {
+      method: 'POST',
+      body: JSON.stringify(status)
+    });
+  }
+
+  async updateTaskStatus(id: string, updates: { name?: string; description?: string; color?: string; sequence_order?: number }) {
+    return this.request(`/task-statuses/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates)
+    });
+  }
+
+  async deleteTaskStatus(id: string) {
+    return this.request(`/task-statuses/${id}`, {
+      method: 'DELETE'
+    });
+  }
+
   // Role permissions
   async getRolePermissions(roleId: string) {
     return this.request(`/roles/${roleId}/permissions`);

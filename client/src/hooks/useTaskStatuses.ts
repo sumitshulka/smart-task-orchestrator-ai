@@ -7,6 +7,7 @@ export type TaskStatus = {
   id: string;
   name: string;
   description: string | null;
+  color?: string;
   sequence_order: number;
   created_at: string;
   updated_at: string;
@@ -20,12 +21,16 @@ export type StatusTransition = {
 };
 
 export function useTaskStatuses() {
-  const { data: statuses = [], isLoading: loading } = useQuery({
+  const { data: statuses = [], isLoading: loading, refetch } = useQuery({
     queryKey: ['/api/task-statuses'],
     queryFn: () => apiClient.getTaskStatuses(),
   });
 
-  return { statuses, loading, setStatuses: () => {} };
+  const refreshStatuses = () => {
+    refetch();
+  };
+
+  return { statuses, loading, refreshStatuses };
 }
 
 export function useStatusTransitions() {
