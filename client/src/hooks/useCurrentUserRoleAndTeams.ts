@@ -31,7 +31,18 @@ export function useCurrentUserRoleAndTeams() {
         // Step 1: Fetch user roles
         const userRolesData = await apiClient.getUserRoles(user.id);
         console.log("[useCurrentUserRoleAndTeams] User roles data:", userRolesData);
-        const roleNames = userRolesData?.map((r: any) => r.role?.name).filter(Boolean) || [];
+        
+        // Step 1.5: Fetch all roles to map role_id to role names
+        const allRoles = await apiClient.getRoles();
+        console.log("[useCurrentUserRoleAndTeams] All roles:", allRoles);
+        
+        // Map role_ids to role names
+        const roleNames = userRolesData?.map((userRole: any) => {
+          const role = allRoles.find((r: any) => r.id === userRole.role_id);
+          return role?.name;
+        }).filter(Boolean) || [];
+        
+        console.log("[useCurrentUserRoleAndTeams] Extracted role names:", roleNames);
         setRoles(roleNames);
 
         // Step 2: Fetch team memberships

@@ -180,7 +180,24 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getUserRoles(userId: string): Promise<UserRole[]> {
-    return await db.select().from(userRoles).where(eq(userRoles.user_id, userId));
+    return await db
+      .select({
+        id: userRoles.id,
+        user_id: userRoles.user_id,
+        role_id: userRoles.role_id,
+        assigned_by: userRoles.assigned_by,
+        assigned_at: userRoles.assigned_at,
+        role: {
+          id: roles.id,
+          name: roles.name,
+          description: roles.description,
+          created_at: roles.created_at,
+          updated_at: roles.updated_at,
+        }
+      })
+      .from(userRoles)
+      .leftJoin(roles, eq(userRoles.role_id, roles.id))
+      .where(eq(userRoles.user_id, userId));
   }
 
   async assignUserRole(userId: string, roleId: string): Promise<UserRole> {
