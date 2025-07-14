@@ -186,7 +186,9 @@ const EditTaskSheet: React.FC<Props> = ({
       await apiClient.updateTask(task!.id, updatePayload);
       toast({ title: "Task assignee updated" });
       onOpenChange(false);
-      onUpdated();
+      if (typeof onUpdated === 'function') {
+        onUpdated();
+      }
     } catch (err: any) {
       toast({ title: "Assignment failed", description: err.message });
     }
@@ -225,7 +227,9 @@ const EditTaskSheet: React.FC<Props> = ({
       await apiClient.updateTask(task!.id, updatePayload);
       toast({ title: "Task updated" });
       onOpenChange(false);
-      onUpdated();
+      if (typeof onUpdated === 'function') {
+        onUpdated();
+      }
     } catch (err: any) {
       toast({ title: "Update failed", description: err.message });
     }
