@@ -62,7 +62,7 @@ const initialForm = {
   start_date: "",
   due_date: "",
   priority: 2,
-  status: "", // Do NOT default; will pick from statuses as soon as loaded
+  status: "backlog", // Default to backlog status
   type: "personal",
   estimated_hours: "",
   assigned_to: "",
