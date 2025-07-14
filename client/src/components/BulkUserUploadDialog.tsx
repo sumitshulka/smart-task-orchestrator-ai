@@ -13,7 +13,7 @@ import * as XLSX from "xlsx";
 import Papa from "papaparse";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api";
 import DownloadSampleExcel from "@/components/DownloadSampleExcel";
 import BulkUserUploadPreviewEditableTable from "@/components/BulkUserUploadPreviewEditableTable";
 
@@ -37,8 +37,11 @@ const BulkUserUploadDialog = (props: BulkUserUploadDialogProps) => {
   const [existingEmails, setExistingEmails] = React.useState<string[]>([]);
   React.useEffect(() => {
     if (open) {
-      supabase.from("users").select("email").then(({ data, error }) => {
-        if (!error && data) setExistingEmails(data.map(u => (u.email || "").toLowerCase()));
+      apiClient.getUsers().then((data) => {
+        if (data) setExistingEmails(data.map(u => (u.email || "").toLowerCase()));
+      }).catch((error) => {
+        console.error('Failed to fetch users:', error);
+        setExistingEmails([]);
       });
     }
   }, [open]);

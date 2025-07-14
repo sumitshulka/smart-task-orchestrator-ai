@@ -1,6 +1,6 @@
 
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api";
 
 export interface SimpleUser {
   id: string;
@@ -13,13 +13,18 @@ export function useUserList() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    supabase
-      .from("users")
-      .select("id, user_name, email")
-      .then(({ data }) => {
+    async function fetchUsers() {
+      try {
+        const data = await apiClient.getUsers();
         setUsers(data || []);
-        setLoading(false);
-      });
+      } catch (error) {
+        console.error('Failed to fetch users:', error);
+        setUsers([]);
+      }
+      setLoading(false);
+    }
+    
+    fetchUsers();
   }, []);
 
   return { users, loading };

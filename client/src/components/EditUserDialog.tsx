@@ -4,7 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/use-toast";
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api";
 import { useUserList } from "@/hooks/useUserList";
 
 interface User {
@@ -42,18 +42,19 @@ const EditUserDialog: React.FC<EditUserDialogProps> = ({
   // User list for manager dropdown
   const { users: allUsers, loading: usersLoading } = useUserList();
 
-  // Fetch departments dynamically from Supabase
+  // Fetch departments dynamically from API
   useEffect(() => {
     async function fetchDepartments() {
       setDepartmentsLoading(true);
-      const { data, error } = await supabase.from("departments").select("name").order("name");
-      if (error) {
-        toast({ title: "Failed to load departments", description: error.message });
+      try {
+        // For now, use hardcoded departments since we don't have a departments API
+        const hardcodedDepartments = ["Administration", "IT", "HR", "Finance", "Marketing", "Sales", "Operations"];
+        setDepartments(hardcodedDepartments);
+      } catch (error) {
+        console.error('Error fetching departments:', error);
+        toast({ title: "Failed to load departments" });
         setDepartments([]);
-        setDepartmentsLoading(false);
-        return;
       }
-      setDepartments(data.map((d: {name: string}) => d.name));
       setDepartmentsLoading(false);
     }
     if (open) {

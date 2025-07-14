@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/use-toast";
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader, AlertDialogFooter, AlertDialogTitle, AlertDialogDescription, AlertDialogAction, AlertDialogCancel } from "@/components/ui/alert-dialog";
 
@@ -87,13 +87,12 @@ const TeamManagerDialog: React.FC<TeamManagerDialogProps> = ({
   // Load all users for assignment
   useEffect(() => {
     if (!open) return;
-    supabase.from("users").select("id, email, user_name").then(({ data, error }) => {
-      if (error) {
-        toast({ title: "Failed to load users", description: error.message });
-        setAllUsers([]);
-        return;
-      }
+    apiClient.getUsers().then((data) => {
       setAllUsers(data || []);
+    }).catch((error) => {
+      console.error('Failed to fetch users:', error);
+      toast({ title: "Failed to load users" });
+      setAllUsers([]);
     });
   }, [open]);
 
