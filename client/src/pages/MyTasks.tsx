@@ -111,7 +111,8 @@ export default function MyTasksPage() {
     const input: FetchTasksInput = {
       fromDate: fromDateStr,
       toDate: toDateStr,
-      assignedTo: user.id,
+      // Admin users should see all tasks, not just assigned ones
+      assignedTo: roles.includes("admin") ? undefined : user.id,
       offset: (page - 1) * pageSize,
       limit: pageSize,
     };
