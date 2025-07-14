@@ -1,5 +1,6 @@
 
 import { useQuery } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
 import { apiClient } from "@/lib/api";
 
 export type TaskStatus = {
@@ -28,9 +29,56 @@ export function useTaskStatuses() {
 }
 
 export function useStatusTransitions() {
-  // For now, return empty array since we don't have this endpoint yet
-  const transitions: StatusTransition[] = [];
-  const loading = false;
+  const [transitions, setTransitionsState] = useState<StatusTransition[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  return { transitions, loading, setTransitions: () => {} };
+  useEffect(() => {
+    // Load transitions from localStorage
+    const loadTransitions = () => {
+      try {
+        const savedTransitions = localStorage.getItem('status_transitions');
+        if (savedTransitions) {
+          setTransitionsState(JSON.parse(savedTransitions));
+        } else {
+          // Default transitions for a forward-only workflow
+          const defaultTransitions = [
+            {
+              id: "trans-1",
+              from_status: "pending",
+              to_status: "in_progress",
+              created_at: new Date().toISOString(),
+            },
+            {
+              id: "trans-2",
+              from_status: "in_progress", 
+              to_status: "review",
+              created_at: new Date().toISOString(),
+            },
+            {
+              id: "trans-3",
+              from_status: "review",
+              to_status: "completed",
+              created_at: new Date().toISOString(),
+            }
+          ];
+          localStorage.setItem('status_transitions', JSON.stringify(defaultTransitions));
+          setTransitionsState(defaultTransitions);
+        }
+      } catch (error) {
+        console.error("Error loading status transitions:", error);
+        setTransitionsState([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadTransitions();
+  }, []);
+
+  const setTransitions = (newTransitions: StatusTransition[]) => {
+    setTransitionsState(newTransitions);
+    localStorage.setItem('status_transitions', JSON.stringify(newTransitions));
+  };
+
+  return { transitions, loading, setTransitions };
 }

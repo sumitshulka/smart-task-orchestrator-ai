@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { useStatusTransitions, TaskStatus } from "@/hooks/useTaskStatuses";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
@@ -11,27 +11,35 @@ const StatusLifecycleGraph: React.FC<{ statuses: TaskStatus[] }> = ({ statuses }
 
   const createTransition = async () => {
     if (!from || !to || from === to) {
-      toast({ title: "Pick different statuses." });
+      toast({ title: "Please select different statuses." });
       return;
     }
-    if (transitions.find((t) => t.from_status === from && t.to_status === to)) {
+    
+    // Find the actual status names from IDs
+    const fromStatus = statuses.find(s => s.id === from);
+    const toStatus = statuses.find(s => s.id === to);
+    
+    if (!fromStatus || !toStatus) {
+      toast({ title: "Invalid status selection." });
+      return;
+    }
+    
+    if (transitions.find((t) => t.from_status === fromStatus.name && t.to_status === toStatus.name)) {
       toast({ title: "Transition already exists." });
       return;
     }
     
     const newTransition = {
       id: Date.now().toString(),
-      from_status: from,
-      to_status: to,
+      from_status: fromStatus.name,
+      to_status: toStatus.name,
       created_at: new Date().toISOString(),
     };
     
-    // For now, just add to local state
-    // In a real implementation, this would save to the database
     setTransitions([...transitions, newTransition]);
     setFrom("");
     setTo("");
-    toast({ title: "Transition added!" });
+    toast({ title: "Status transition added successfully!" });
   };
 
   const deleteTransition = async (transitionId: string) => {
@@ -136,8 +144,8 @@ const StatusLifecycleGraph: React.FC<{ statuses: TaskStatus[] }> = ({ statuses }
           </defs>
 
           {transitions.map((tr, i) => {
-            const fromIdx = statuses.findIndex((s) => s.id === tr.from_status);
-            const toIdx = statuses.findIndex((s) => s.id === tr.to_status);
+            const fromIdx = statuses.findIndex((s) => s.name === tr.from_status);
+            const toIdx = statuses.findIndex((s) => s.name === tr.to_status);
             if (fromIdx === -1 || toIdx === -1) return null;
 
             const fromX = containerPadding + fromIdx * nodeSpacing + nodeSpacing / 2;

@@ -15,6 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { updateTask, Task } from "@/integrations/supabase/tasks";
 import { toast } from "@/components/ui/use-toast";
 import { useTaskStatuses } from "@/hooks/useTaskStatuses";
+import { EditTaskStatusSelect } from "./EditTaskStatusSelect";
 import { createTaskActivity } from "@/integrations/supabase/taskActivity";
 import { useUsersAndTeams } from "@/hooks/useUsersAndTeams";
 import useSupabaseSession from "@/hooks/useSupabaseSession";
@@ -292,21 +293,11 @@ const EditTaskSheet: React.FC<Props> = ({
             </div>
             <div>
               <label className="block mb-1 font-medium">Status</label>
-              <select
-                name="status"
-                value={form.status}
-                onChange={handleChange}
-                className="w-full border rounded p-2"
+              <EditTaskStatusSelect
+                currentStatus={form.status}
+                onStatusChange={(newStatus) => setForm({ ...form, status: newStatus })}
                 disabled={statusesLoading || statuses.length === 0}
-                required
-              >
-                {statusesLoading && (
-                  <option value="">Loading...</option>
-                )}
-                {statuses.map((s) => (
-                  <option key={s.id} value={s.name}>{s.name}</option>
-                ))}
-              </select>
+              />
             </div>
             <div className="sm:col-span-2">
               <label className="block mb-1 font-medium">Description</label>

@@ -9,6 +9,7 @@ import { toast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { formatOrgDate } from "@/lib/dateUtils";
 import { useUserNames } from "@/hooks/useUserName";
+import { useStatusTransitionValidation } from "@/hooks/useStatusTransitionValidation";
 
 // Utility to determine if overdue/in time
 function getTimeIndicator(task: Task) {
@@ -27,6 +28,7 @@ type TaskCardProps = {
 
 export default function TaskCard({ task, onTaskUpdated, canDelete }: TaskCardProps) {
   const { getUserName } = useUserNames();
+  const { isTransitionAllowed, getAllowedNextStatuses } = useStatusTransitionValidation();
   // Unique identifier for confirmation dialog if desired in the future
   // const [openDeleteConfirm, setOpenDeleteConfirm] = React.useState(false);
 
@@ -46,6 +48,18 @@ export default function TaskCard({ task, onTaskUpdated, canDelete }: TaskCardPro
       toast({ title: "Task is already completed" });
       return;
     }
+
+    // Check if direct transition to "completed" is allowed
+    if (!isTransitionAllowed(task.status, "completed")) {
+      const allowedStatuses = getAllowedNextStatuses(task.status);
+      toast({ 
+        title: "Cannot Complete Task", 
+        description: `Cannot move directly from "${task.status}" to "completed". Allowed next statuses: ${allowedStatuses.join(", ")}`,
+        variant: "destructive"
+      });
+      return;
+    }
+
     try {
       await updateTask(task.id, {
         status: "completed",
