@@ -339,49 +339,7 @@ const StatusLifecycleGraph: React.FC<{ statuses: TaskStatus[] }> = ({ statuses }
             return [...transitionElements, ...statusElements];
           })()}
 
-          {statuses.map((status, idx) => {
-            const x = containerPadding + idx * nodeSpacing + nodeSpacing / 2;
-            const textLines = wrapText(status.name, 10);
-            
-            return (
-              <g key={status.id}>
-                <circle 
-                  cx={x} 
-                  cy={nodeY} 
-                  r={nodeRadius} 
-                  fill="url(#nodeGradient)" 
-                  stroke="#64748b" 
-                  strokeWidth="2"
-                  filter="drop-shadow(0 2px 4px rgba(0,0,0,0.1))"
-                />
-                
-                {textLines.map((line, lineIdx) => (
-                  <text 
-                    key={lineIdx}
-                    x={x} 
-                    y={nodeY + (lineIdx - (textLines.length - 1) / 2) * 14} 
-                    textAnchor="middle" 
-                    fontSize="12" 
-                    fill="#1e293b"
-                    fontWeight="500"
-                  >
-                    {line}
-                  </text>
-                ))}
-                
-                <text 
-                  x={x} 
-                  y={nodeY + nodeRadius + 20} 
-                  textAnchor="middle" 
-                  fontSize="10" 
-                  fill="#64748b"
-                  fontWeight="400"
-                >
-                  #{status.sequence_order}
-                </text>
-              </g>
-            );
-          })}
+
         </svg>
       </div>
 
