@@ -94,12 +94,25 @@ export async function fetchTasksPaginated(input: FetchTasksInput = {}): Promise<
     filteredTasks = filteredTasks.filter(task => task.priority === input.priority);
   }
   if (input.fromDate || input.toDate) {
+    console.log("[DEBUG][fetchTasksPaginated] Before date filtering:", filteredTasks.length, "tasks");
     filteredTasks = filteredTasks.filter(task => {
       const taskDate = new Date(task.created_at);
-      if (input.fromDate && taskDate < new Date(input.fromDate)) return false;
-      if (input.toDate && taskDate > new Date(input.toDate)) return false;
+      const fromDate = input.fromDate ? new Date(input.fromDate) : null;
+      const toDate = input.toDate ? new Date(input.toDate) : null;
+      
+      console.log(`[DEBUG][fetchTasksPaginated] Task ${task.id}: created_at=${task.created_at}, taskDate=${taskDate.toISOString()}, fromDate=${fromDate?.toISOString()}, toDate=${toDate?.toISOString()}`);
+      
+      if (fromDate && taskDate < fromDate) {
+        console.log(`[DEBUG][fetchTasksPaginated] Task ${task.id} filtered out: too old`);
+        return false;
+      }
+      if (toDate && taskDate > toDate) {
+        console.log(`[DEBUG][fetchTasksPaginated] Task ${task.id} filtered out: too new`);
+        return false;
+      }
       return true;
     });
+    console.log("[DEBUG][fetchTasksPaginated] After date filtering:", filteredTasks.length, "tasks");
   }
 
   // Apply pagination

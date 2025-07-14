@@ -2,6 +2,7 @@ import React from "react";
 import { MoreVertical, User, Edit, UserCheck, UserX } from "lucide-react";
 import EditUserDialog from "./EditUserDialog";
 import ResetUserPasswordDialog from "./ResetUserPasswordDialog";
+import EditUserRoleDialog from "./EditUserRoleDialog";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -23,19 +24,24 @@ interface UserTableActionsProps {
     manager?: string;
   };
   onEdit: (user: UserTableActionsProps["user"]) => void;
+  onRefresh?: () => void;
 }
 
-const UserTableActions: React.FC<UserTableActionsProps> = ({ user, onEdit }) => {
-  // Dialog open state for password reset
+const UserTableActions: React.FC<UserTableActionsProps> = ({ user, onEdit, onRefresh }) => {
+  // Dialog open states
   const [resetDialogOpen, setResetDialogOpen] = React.useState(false);
+  const [editRoleDialogOpen, setEditRoleDialogOpen] = React.useState(false);
 
   function handleEditUser() {
     onEdit(user);
   }
+  
   function handleEditRole() {
-    alert("Edit Role: " + (user.user_name || user.id));
+    setEditRoleDialogOpen(true);
   }
+  
   function handleToggleActive() {
+    // TODO: Implement user activation/deactivation
     alert(`${user.is_active ? "Deactivate" : "Activate"}: ${user.user_name || user.id}`);
   }
 
@@ -84,12 +90,18 @@ const UserTableActions: React.FC<UserTableActionsProps> = ({ user, onEdit }) => 
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-      {/* Dialog for reset password */}
+      {/* Dialogs */}
       <ResetUserPasswordDialog
         open={resetDialogOpen}
         onOpenChange={setResetDialogOpen}
         userId={user.id}
         userEmail={user.email}
+      />
+      <EditUserRoleDialog
+        open={editRoleDialogOpen}
+        onOpenChange={setEditRoleDialogOpen}
+        user={user}
+        onRolesUpdated={onRefresh}
       />
     </>
   );

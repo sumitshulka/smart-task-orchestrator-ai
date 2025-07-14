@@ -159,7 +159,7 @@ const AdminUsers: React.FC = () => {
                       }
                     </td>
                     <td className="p-2 text-right">
-                      <UserTableActions user={user} onEdit={handleEditUser} />
+                      <UserTableActions user={user} onEdit={handleEditUser} onRefresh={fetchUsers} />
                     </td>
                   </tr>
                 );
