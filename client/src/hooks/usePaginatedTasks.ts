@@ -104,22 +104,12 @@ export function usePaginatedTasks(options: {
     return tasksArr;
   }
 
-  // Modified paginated search
+  // Memoize roles to prevent unnecessary re-renders
+  const stableRoles = useMemo(() => roles || [], [roles]);
+
+  // Modified paginated search with stable dependencies
   const handleSearch = useCallback(async () => {
     setSearched(true);
-
-    // For historical tasks, we need at least one filter OR a date range, or default to show old completed tasks
-    if (
-      options.isHistorical &&
-      priorityFilter === "all" &&
-      statusFilter === "all" &&
-      userFilter === "all" &&
-      teamFilter === "all" &&
-      (!dateRange.from || !dateRange.to)
-    ) {
-      // Allow historical view to show old completed tasks by default
-      // Don't return early - let it proceed with the toDate filter
-    }
 
     setLoading(true);
     setShowTooManyWarning(false);
@@ -140,9 +130,12 @@ export function usePaginatedTasks(options: {
         endBoundary.setHours(23, 59, 59, 999);
         input.toDate = endBoundary.toISOString().slice(0, 10);
       } else {
-        // For historical tasks without date range, show tasks older than 30 days (completed before 30 days ago)
+        // For historical tasks, show tasks completed before 30 days ago
         input.toDate = thirtyDaysAgo.toISOString().slice(0, 10);
-        // Don't set fromDate, so it shows all historical tasks up to 30 days ago
+        // Force status to be completed for historical tasks
+        if (statusFilter === "all") {
+          input.status = "completed";
+        }
       }
     } else {
       if (!dateRange.from && !dateRange.to) {
@@ -170,7 +163,7 @@ export function usePaginatedTasks(options: {
 
     try {
       // MANAGERS/TEAM_MANAGERS use the new view!
-      if (roles.includes("manager") || roles.includes("team_manager")) {
+      if (stableRoles.includes("manager") || stableRoles.includes("team_manager")) {
         const { tasks: fetchedTasks, total } = await fetchManagerTasksPaginated(input);
         if (total > 100) {
           setShowTooManyWarning(true);
@@ -207,14 +200,23 @@ export function usePaginatedTasks(options: {
     dateRange.to,
     page,
     pageSize,
-    roles
+    stableRoles
   ]);
 
-  // Call handleSearch when dependencies change (excluding handleSearch itself to avoid infinite loop)
+  // Only trigger on manual search, not automatically
+  const [shouldAutoSearch, setShouldAutoSearch] = useState(false);
+  
   useEffect(() => {
-    handleSearch();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, pageSize, priorityFilter, statusFilter, userFilter, teamFilter, dateRange.from, dateRange.to, roles]);
+    if (shouldAutoSearch) {
+      handleSearch();
+      setShouldAutoSearch(false);
+    }
+  }, [shouldAutoSearch, handleSearch]);
+
+  // Trigger search when filters change
+  useEffect(() => {
+    setShouldAutoSearch(true);
+  }, [page, pageSize, priorityFilter, statusFilter, userFilter, teamFilter, dateRange.from, dateRange.to]);
 
   return {
     tasks,
@@ -241,7 +243,7 @@ export function usePaginatedTasks(options: {
     },
     users,
     teams,
-    roles,
+    roles: stableRoles,
     user,
   };
 }
