@@ -10,6 +10,7 @@ import {
   taskGroups, 
   taskActivity, 
   taskStatuses,
+  rolePermissions,
   User, 
   InsertUser, 
   Task, 
@@ -22,7 +23,9 @@ import {
   UserRole,
   TeamMembership,
   TaskActivity,
-  TaskStatus
+  TaskStatus,
+  RolePermission,
+  InsertRolePermission
 } from "@shared/schema";
 
 export interface IStorage {
@@ -74,6 +77,12 @@ export interface IStorage {
   
   // Task status operations
   getAllTaskStatuses(): Promise<TaskStatus[]>;
+
+  // Role permissions operations
+  getRolePermissions(roleId: string): Promise<RolePermission[]>;
+  createRolePermission(permission: InsertRolePermission): Promise<RolePermission>;
+  updateRolePermission(id: string, updates: Partial<RolePermission>): Promise<RolePermission>;
+  deleteRolePermission(id: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -263,6 +272,29 @@ export class DatabaseStorage implements IStorage {
   // Task status operations
   async getAllTaskStatuses(): Promise<TaskStatus[]> {
     return await db.select().from(taskStatuses).orderBy(taskStatuses.sequence_order);
+  }
+
+  // Role permissions operations
+  async getRolePermissions(roleId: string): Promise<RolePermission[]> {
+    const result = await db.select().from(rolePermissions).where(eq(rolePermissions.role_id, roleId));
+    return result;
+  }
+
+  async createRolePermission(permission: InsertRolePermission): Promise<RolePermission> {
+    const result = await db.insert(rolePermissions).values(permission).returning();
+    return result[0];
+  }
+
+  async updateRolePermission(id: string, updates: Partial<RolePermission>): Promise<RolePermission> {
+    const result = await db.update(rolePermissions).set({
+      ...updates,
+      updated_at: new Date()
+    }).where(eq(rolePermissions.id, id)).returning();
+    return result[0];
+  }
+
+  async deleteRolePermission(id: string): Promise<void> {
+    await db.delete(rolePermissions).where(eq(rolePermissions.id, id));
   }
 }
 

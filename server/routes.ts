@@ -433,6 +433,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Role permissions
+  app.get("/api/roles/:roleId/permissions", async (req, res) => {
+    try {
+      const { roleId } = req.params;
+      const permissions = await storage.getRolePermissions(roleId);
+      res.json(permissions);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch role permissions" });
+    }
+  });
+
+  app.post("/api/role-permissions", async (req, res) => {
+    try {
+      const permission = await storage.createRolePermission(req.body);
+      res.json(permission);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to create role permission" });
+    }
+  });
+
+  app.patch("/api/role-permissions/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const permission = await storage.updateRolePermission(id, req.body);
+      res.json(permission);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update role permission" });
+    }
+  });
+
+  app.delete("/api/role-permissions/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      await storage.deleteRolePermission(id);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete role permission" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

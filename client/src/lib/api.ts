@@ -203,6 +203,31 @@ class ApiClient {
   async getTaskStatuses() {
     return this.request('/task-statuses');
   }
+
+  // Role permissions
+  async getRolePermissions(roleId: string) {
+    return this.request(`/roles/${roleId}/permissions`);
+  }
+
+  async createRolePermission(permission: any) {
+    return this.request('/role-permissions', {
+      method: 'POST',
+      body: JSON.stringify(permission),
+    });
+  }
+
+  async updateRolePermission(id: string, updates: any) {
+    return this.request(`/role-permissions/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    });
+  }
+
+  async deleteRolePermission(id: string) {
+    return this.request(`/role-permissions/${id}`, {
+      method: 'DELETE',
+    });
+  }
 }
 
 export const apiClient = new ApiClient();

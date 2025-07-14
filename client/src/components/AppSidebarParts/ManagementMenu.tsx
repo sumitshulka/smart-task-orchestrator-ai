@@ -46,7 +46,7 @@ export default function ManagementMenu({ isAdmin, isManager, collapsed }: { isAd
           </SidebarMenuItem>
           {isAdmin && (
             <SidebarMenuItem>
-              <SidebarMenuButton asChild isActive={location.pathname.startsWith("/admin/roles")}>
+              <SidebarMenuButton asChild isActive={location.pathname.startsWith("/admin/roles") && location.pathname === "/admin/roles"}>
                 <NavLink
                   to="/admin/roles"
                   end
@@ -56,7 +56,24 @@ export default function ManagementMenu({ isAdmin, isManager, collapsed }: { isAd
                   }
                 >
                   <ShieldCheck className="w-5 h-5" />
-                  {!collapsed && <span>Roles and Privileges</span>}
+                  {!collapsed && <span>Roles & Access</span>}
+                </NavLink>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          )}
+          {isAdmin && (
+            <SidebarMenuItem>
+              <SidebarMenuButton asChild isActive={location.pathname.startsWith("/admin/role-permissions")}>
+                <NavLink
+                  to="/admin/role-permissions"
+                  end
+                  className={({ isActive }) =>
+                    "flex items-center gap-2 py-1.5 px-2 rounded transition " +
+                    (isActive ? "bg-muted text-primary font-semibold" : "hover:bg-muted/50")
+                  }
+                >
+                  <ShieldCheck className="w-5 h-5" />
+                  {!collapsed && <span>Roles & Privileges</span>}
                 </NavLink>
               </SidebarMenuButton>
             </SidebarMenuItem>

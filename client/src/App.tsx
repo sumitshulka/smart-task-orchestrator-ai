@@ -7,6 +7,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import AdminRolesPage from "./pages/AdminRoles";
+import RolePermissions from "./pages/RolePermissions";
 import AuthPage from "@/pages/Auth";
 import AdminLayout from "@/layouts/AdminLayout";
 import AdminUsers from "@/pages/AdminUsers";
@@ -58,6 +59,14 @@ const App = () => (
               element={
                 <AdminLayout>
                   <AdminRolesPage />
+                </AdminLayout>
+              }
+            />
+            <Route
+              path="/admin/role-permissions"
+              element={
+                <AdminLayout>
+                  <RolePermissions />
                 </AdminLayout>
               }
             />

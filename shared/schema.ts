@@ -170,6 +170,17 @@ export const taskGroupTasks = pgTable("task_group_tasks", {
   created_at: timestamp("created_at").defaultNow(),
 });
 
+// Role permissions for granular access control
+export const rolePermissions = pgTable("role_permissions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  role_id: uuid("role_id").notNull().references(() => roles.id, { onDelete: "cascade" }),
+  resource: text("resource").notNull(), // Menu/feature identifier (e.g., 'user-management', 'tasks')
+  permission_level: integer("permission_level").notNull().default(0), // 0=None, 1=View, 2=View+Update, 3=View+Update+Create, 4=Full
+  visibility_scope: text("visibility_scope").notNull().default("user"), // user, manager, team, organization
+  created_at: timestamp("created_at").defaultNow(),
+  updated_at: timestamp("updated_at").defaultNow(),
+});
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   userRoles: many(userRoles),
@@ -181,6 +192,7 @@ export const usersRelations = relations(users, ({ many }) => ({
 
 export const rolesRelations = relations(roles, ({ many }) => ({
   userRoles: many(userRoles),
+  permissions: many(rolePermissions),
 }));
 
 export const userRolesRelations = relations(userRoles, ({ one }) => ({
@@ -241,6 +253,10 @@ export const taskGroupTasksRelations = relations(taskGroupTasks, ({ one }) => ({
   task: one(tasks, { fields: [taskGroupTasks.task_id], references: [tasks.id] }),
 }));
 
+export const rolePermissionsRelations = relations(rolePermissions, ({ one }) => ({
+  role: one(roles, { fields: [rolePermissions.role_id], references: [roles.id] }),
+}));
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
@@ -272,6 +288,12 @@ export const insertTaskGroupSchema = createInsertSchema(taskGroups).omit({
   created_at: true,
 });
 
+export const insertRolePermissionSchema = createInsertSchema(rolePermissions).omit({
+  id: true,
+  created_at: true,
+  updated_at: true,
+});
+
 // Types
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
@@ -283,6 +305,8 @@ export type InsertRole = z.infer<typeof insertRoleSchema>;
 export type Role = typeof roles.$inferSelect;
 export type InsertTaskGroup = z.infer<typeof insertTaskGroupSchema>;
 export type TaskGroup = typeof taskGroups.$inferSelect;
+export type InsertRolePermission = z.infer<typeof insertRolePermissionSchema>;
+export type RolePermission = typeof rolePermissions.$inferSelect;
 export type TeamMembership = typeof teamMemberships.$inferSelect;
 export type UserRole = typeof userRoles.$inferSelect;
 export type TaskActivity = typeof taskActivity.$inferSelect;
