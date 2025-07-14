@@ -392,35 +392,43 @@ export default function MyTasksPage() {
             {!loading && !statusesLoading && !showTooManyWarning && view === "kanban" && (
               <DndProvider backend={HTML5Backend}>
                 <div className="flex gap-6 overflow-x-auto pb-8 px-2">
-                  {sortedStatusKeys.map((statusKey) => {
+                  {sortedStatusKeys.map((statusKey, index) => {
                     const statusObj = statuses.find(
                       (s) => getStatusKey(s.name) === statusKey
                     );
                     return (
-                      <KanbanColumn
-                        key={statusKey}
-                        statusKey={statusKey}
-                        statusLabel={statusObj ? statusObj.name : statusKey}
-                        onDrop={onDropTask}
-                        CARD_TYPE={CARD_TYPE}
-                        statusStyle={getStatusStyle(statusKey)}
-                        taskCount={tasksByStatus[statusKey]?.length || 0}
-                      >
-                        {tasksByStatus[statusKey] && tasksByStatus[statusKey].length > 0 ? (
-                          tasksByStatus[statusKey].map((task) => (
-                            <KanbanTaskCard
-                              key={task.id}
-                              task={task}
-                              CARD_TYPE={CARD_TYPE}
-                              onClick={() => openDetailsForTask(task)}
-                            />
-                          ))
-                        ) : (
-                          <div className="text-muted-foreground text-sm py-4 text-center">
-                            No tasks
+                      <React.Fragment key={statusKey}>
+                        <KanbanColumn
+                          statusKey={statusKey}
+                          statusLabel={statusObj ? statusObj.name : statusKey}
+                          onDrop={onDropTask}
+                          CARD_TYPE={CARD_TYPE}
+                          statusStyle={getStatusStyle(statusKey)}
+                          taskCount={tasksByStatus[statusKey]?.length || 0}
+                        >
+                          {tasksByStatus[statusKey] && tasksByStatus[statusKey].length > 0 ? (
+                            tasksByStatus[statusKey].map((task) => (
+                              <KanbanTaskCard
+                                key={task.id}
+                                task={task}
+                                CARD_TYPE={CARD_TYPE}
+                                onClick={() => openDetailsForTask(task)}
+                              />
+                            ))
+                          ) : (
+                            <div className="text-muted-foreground text-sm py-4 text-center">
+                              No tasks
+                            </div>
+                          )}
+                        </KanbanColumn>
+                        
+                        {/* Vertical divider between columns */}
+                        {index < sortedStatusKeys.length - 1 && (
+                          <div className="flex items-stretch py-4 px-2">
+                            <div className="w-px bg-gradient-to-b from-transparent via-gray-300/60 to-transparent min-h-[400px] flex-shrink-0" />
                           </div>
                         )}
-                      </KanbanColumn>
+                      </React.Fragment>
                     );
                   })}
                 </div>
