@@ -12,6 +12,11 @@ interface KanbanColumnProps {
     bg: string;
     header: string;
     count: string;
+    customStyles?: {
+      bg?: React.CSSProperties;
+      header?: React.CSSProperties;
+      count?: React.CSSProperties;
+    };
   };
   taskCount: number;
 }
@@ -46,20 +51,27 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
         ${statusStyle.bg}
         ${isOver && canDrop ? "ring-2 ring-blue-400 ring-offset-2 scale-[1.02]" : ""}
       `}
+      style={statusStyle.customStyles?.bg}
     >
       {/* Column Header */}
-      <div className={`
-        rounded-t-xl px-4 py-3 border-b border-gray-200/50
-        ${statusStyle.header}
-      `}>
+      <div 
+        className={`
+          rounded-t-xl px-4 py-3 border-b border-gray-200/50
+          ${statusStyle.header}
+        `}
+        style={statusStyle.customStyles?.header}
+      >
         <div className="flex items-center justify-between">
           <h3 className="font-semibold text-sm uppercase tracking-wide">
             {statusLabel.replace(/_/g, " ")}
           </h3>
-          <span className={`
-            px-2.5 py-1 rounded-full text-xs font-semibold min-w-[24px] text-center
-            ${statusStyle.count}
-          `}>
+          <span 
+            className={`
+              px-2.5 py-1 rounded-full text-xs font-semibold min-w-[24px] text-center
+              ${statusStyle.count}
+            `}
+            style={statusStyle.customStyles?.count}
+          >
             {taskCount}
           </span>
         </div>

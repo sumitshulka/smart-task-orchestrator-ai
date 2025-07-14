@@ -34,11 +34,50 @@ const DraggableRow = ({ status, index, moveRow, children }: any) => {
   );
 };
 
+// Predefined pastel colors for status selection
+const PASTEL_COLORS = [
+  { name: "Gray", value: "#6b7280", bg: "bg-gray-100", text: "text-gray-700" },
+  { name: "Blue", value: "#3b82f6", bg: "bg-blue-100", text: "text-blue-700" },
+  { name: "Green", value: "#10b981", bg: "bg-green-100", text: "text-green-700" },
+  { name: "Orange", value: "#f59e0b", bg: "bg-orange-100", text: "text-orange-700" },
+  { name: "Purple", value: "#8b5cf6", bg: "bg-purple-100", text: "text-purple-700" },
+  { name: "Pink", value: "#ec4899", bg: "bg-pink-100", text: "text-pink-700" },
+  { name: "Indigo", value: "#6366f1", bg: "bg-indigo-100", text: "text-indigo-700" },
+  { name: "Teal", value: "#14b8a6", bg: "bg-teal-100", text: "text-teal-700" },
+  { name: "Red", value: "#ef4444", bg: "bg-red-100", text: "text-red-700" },
+  { name: "Yellow", value: "#eab308", bg: "bg-yellow-100", text: "text-yellow-700" },
+];
+
+const ColorPicker: React.FC<{ 
+  selectedColor: string; 
+  onColorChange: (color: string) => void;
+  className?: string;
+}> = ({ selectedColor, onColorChange, className = "" }) => {
+  return (
+    <div className={`flex flex-wrap gap-2 ${className}`}>
+      {PASTEL_COLORS.map((color) => (
+        <button
+          key={color.value}
+          type="button"
+          onClick={() => onColorChange(color.value)}
+          className={`w-8 h-8 rounded-full border-2 transition-all hover:scale-110 ${
+            selectedColor === color.value 
+              ? 'border-gray-800 ring-2 ring-gray-300' 
+              : 'border-gray-300 hover:border-gray-400'
+          }`}
+          style={{ backgroundColor: color.value }}
+          title={color.name}
+        />
+      ))}
+    </div>
+  );
+};
+
 const StatusManager: React.FC = () => {
   const { statuses, loading, setStatuses } = useTaskStatuses();
   const [editing, setEditing] = useState<{ [id: string]: boolean }>({});
-  const [newStatus, setNewStatus] = useState({ name: "", description: "" });
-  const [inputStatus, setInputStatus] = useState<{ [id: string]: { name: string; description: string } }>({});
+  const [newStatus, setNewStatus] = useState({ name: "", description: "", color: "#6b7280" });
+  const [inputStatus, setInputStatus] = useState<{ [id: string]: { name: string; description: string; color: string } }>({});
   const { highestRole } = useRole();
 
   // Reordering
@@ -62,6 +101,7 @@ const StatusManager: React.FC = () => {
       id: Date.now().toString(),
       name: newStatus.name,
       description: newStatus.description,
+      color: newStatus.color,
       sequence_order: maxOrder + 1,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -70,14 +110,14 @@ const StatusManager: React.FC = () => {
     // For now, just add to local state
     // In a real implementation, this would save to the database
     setStatuses([...statuses, newStatusData]);
-    setNewStatus({ name: "", description: "" });
+    setNewStatus({ name: "", description: "", color: "#6b7280" });
     toast({ title: "Status added" });
   };
 
   const handleEditStatus = (id: string) => {
     setEditing({ ...editing, [id]: true });
     const st = statuses.find((s) => s.id === id);
-    if (st) setInputStatus({ ...inputStatus, [id]: { name: st.name, description: st.description || "" } });
+    if (st) setInputStatus({ ...inputStatus, [id]: { name: st.name, description: st.description || "", color: st.color || "#6b7280" } });
   };
 
   const handleSaveStatus = async (id: string) => {
@@ -89,7 +129,7 @@ const StatusManager: React.FC = () => {
       // In a real implementation, this would update via API
       setStatuses(
         statuses.map((s) =>
-          s.id === id ? { ...s, name: upd.name, description: upd.description || "" } : s
+          s.id === id ? { ...s, name: upd.name, description: upd.description || "", color: upd.color || "#6b7280" } : s
         )
       );
       setEditing({ ...editing, [id]: false });
@@ -127,7 +167,8 @@ const StatusManager: React.FC = () => {
                     <tr className="bg-muted">
                       <th className="w-12 p-2 font-semibold text-black">#</th>
                       <th className="w-1/6 p-2 font-semibold text-black">Status Name</th>
-                      <th className="w-1/2 p-2 font-semibold text-black">Description</th>
+                      <th className="w-1/3 p-2 font-semibold text-black">Description</th>
+                      <th className="w-20 p-2 font-semibold text-black">Color</th>
                       <th className="w-1/4 p-2 text-center font-semibold text-black">
                         {highestRole === "admin" ? "Actions" : ""}
                       </th>
@@ -165,6 +206,28 @@ const StatusManager: React.FC = () => {
                             />
                           ) : (
                             status.description
+                          )}
+                        </td>
+                        <td className="p-2">
+                          {editing[status.id] && highestRole === "admin" ? (
+                            <ColorPicker
+                              selectedColor={inputStatus[status.id]?.color || status.color || "#6b7280"}
+                              onColorChange={(color) =>
+                                setInputStatus((cur) => ({
+                                  ...cur,
+                                  [status.id]: { ...cur[status.id], color },
+                                }))
+                              }
+                              className="justify-start"
+                            />
+                          ) : (
+                            <div className="flex items-center gap-2">
+                              <div 
+                                className="w-6 h-6 rounded-full border border-gray-300"
+                                style={{ backgroundColor: status.color || "#6b7280" }}
+                              />
+                              <span className="text-xs text-gray-500">{status.color || "#6b7280"}</span>
+                            </div>
                           )}
                         </td>
                         <td className="p-2">
@@ -214,6 +277,13 @@ const StatusManager: React.FC = () => {
                   placeholder="Enter description"
                   value={newStatus.description}
                   onChange={(e) => setNewStatus({ ...newStatus, description: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Color</label>
+                <ColorPicker
+                  selectedColor={newStatus.color}
+                  onColorChange={(color) => setNewStatus({ ...newStatus, color })}
                 />
               </div>
               <Button onClick={handleAddStatus} variant="default" className="w-full sm:w-auto">

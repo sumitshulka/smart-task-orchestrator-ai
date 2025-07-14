@@ -77,6 +77,7 @@ export const taskStatuses = pgTable("task_statuses", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),
   description: text("description"),
+  color: text("color").default("#6b7280"), // Default gray color
   sequence_order: integer("sequence_order").notNull(),
   created_at: timestamp("created_at").defaultNow(),
   updated_at: timestamp("updated_at").defaultNow(),

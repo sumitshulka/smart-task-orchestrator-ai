@@ -101,8 +101,61 @@ const KANBAN_STYLES: Record<string, { bg: string; header: string; count: string;
   },
 };
 
-// Helper function to get styling with fallback
-const getStatusStyle = (statusKey: string) => {
+// Helper function to convert hex color to RGB values
+const hexToRgb = (hex: string) => {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return result ? {
+    r: parseInt(result[1], 16),
+    g: parseInt(result[2], 16),
+    b: parseInt(result[3], 16)
+  } : null;
+};
+
+// Generate dynamic styles based on status color
+const getStatusStyleFromColor = (statusColor: string | undefined) => {
+  const color = statusColor || "#6b7280";
+  const rgb = hexToRgb(color);
+  
+  if (!rgb) {
+    return {
+      bg: "bg-neutral-50/30",
+      header: "text-neutral-700 bg-neutral-100/60 border-neutral-200",
+      count: "bg-neutral-200 text-neutral-700",
+      cardBg: "bg-neutral-50/40",
+      cardBorder: "border-neutral-100 hover:border-neutral-200",
+      customStyles: {}
+    };
+  }
+
+  return {
+    bg: "bg-transparent",
+    header: "text-white border-transparent",
+    count: "text-white",
+    cardBg: "bg-transparent",
+    cardBorder: "border-transparent hover:border-gray-300",
+    customStyles: {
+      bg: { backgroundColor: `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.1)` },
+      header: { 
+        backgroundColor: `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.15)`,
+        color: color,
+        borderColor: `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.3)`
+      },
+      count: { 
+        backgroundColor: `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.25)`,
+        color: color
+      }
+    }
+  };
+};
+
+// Helper function to get styling with fallback that uses status colors
+const getStatusStyle = (statusKey: string, statusColor?: string) => {
+  // First try to use the dynamic color-based styling
+  if (statusColor) {
+    return getStatusStyleFromColor(statusColor);
+  }
+  
+  // Fallback to hardcoded styles for backward compatibility
   return KANBAN_STYLES[statusKey] || KANBAN_STYLES[statusKey.replace(/\s+/g, "_")] || {
     bg: "bg-neutral-50/30",
     header: "text-neutral-700 bg-neutral-100/60 border-neutral-200",
@@ -501,7 +554,7 @@ export default function MyTasksPage() {
                           statusLabel={statusObj ? statusObj.name : statusKey}
                           onDrop={onDropTask}
                           CARD_TYPE={CARD_TYPE}
-                          statusStyle={getStatusStyle(statusKey)}
+                          statusStyle={getStatusStyle(statusKey, statusObj?.color)}
                           taskCount={tasksByStatus[statusKey]?.length || 0}
                         >
                           {tasksByStatus[statusKey] && tasksByStatus[statusKey].length > 0 ? (
