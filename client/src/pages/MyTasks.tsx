@@ -20,30 +20,65 @@ import EditTaskSheet from "@/components/EditTaskSheet";
 import TasksFiltersPanel from "@/components/TasksFiltersPanel";
 import { apiClient } from "@/lib/api";
 
-// Comprehensive pastel color palette for Kanban columns
-const KANBAN_COLORS: Record<string, string> = {
+// Professional Kanban column styling
+const KANBAN_STYLES: Record<string, { bg: string; header: string; count: string }> = {
   // Core task statuses
-  backlog: "bg-slate-50 border-slate-200",
-  "in progress": "bg-blue-50 border-blue-200", 
-  in_progress: "bg-blue-50 border-blue-200",
-  review: "bg-amber-50 border-amber-200",
-  completed: "bg-emerald-50 border-emerald-200",
+  backlog: {
+    bg: "bg-gray-50/50",
+    header: "text-gray-700 bg-gray-100/80 border-gray-200",
+    count: "bg-gray-200 text-gray-700"
+  },
+  "in progress": {
+    bg: "bg-blue-50/30",
+    header: "text-blue-700 bg-blue-100/60 border-blue-200",
+    count: "bg-blue-200 text-blue-700"
+  }, 
+  in_progress: {
+    bg: "bg-blue-50/30",
+    header: "text-blue-700 bg-blue-100/60 border-blue-200",
+    count: "bg-blue-200 text-blue-700"
+  },
+  review: {
+    bg: "bg-orange-50/30",
+    header: "text-orange-700 bg-orange-100/60 border-orange-200",
+    count: "bg-orange-200 text-orange-700"
+  },
+  completed: {
+    bg: "bg-green-50/30",
+    header: "text-green-700 bg-green-100/60 border-green-200",
+    count: "bg-green-200 text-green-700"
+  },
   
   // Legacy statuses (for backward compatibility)
-  new: "bg-purple-50 border-purple-200",
-  assigned: "bg-cyan-50 border-cyan-200",
-  pending: "bg-orange-50 border-orange-200",
-  planning: "bg-indigo-50 border-indigo-200",
-  testing: "bg-pink-50 border-pink-200",
-  deployed: "bg-green-50 border-green-200",
-  cancelled: "bg-red-50 border-red-200",
-  on_hold: "bg-gray-50 border-gray-200",
-  "on hold": "bg-gray-50 border-gray-200",
+  new: {
+    bg: "bg-purple-50/30",
+    header: "text-purple-700 bg-purple-100/60 border-purple-200",
+    count: "bg-purple-200 text-purple-700"
+  },
+  assigned: {
+    bg: "bg-cyan-50/30",
+    header: "text-cyan-700 bg-cyan-100/60 border-cyan-200",
+    count: "bg-cyan-200 text-cyan-700"
+  },
+  pending: {
+    bg: "bg-yellow-50/30",
+    header: "text-yellow-700 bg-yellow-100/60 border-yellow-200",
+    count: "bg-yellow-200 text-yellow-700"
+  },
+  planning: {
+    bg: "bg-indigo-50/30",
+    header: "text-indigo-700 bg-indigo-100/60 border-indigo-200",
+    count: "bg-indigo-200 text-indigo-700"
+  },
 };
 
-// Helper function to get color with fallback
-const getStatusColors = (statusKey: string): string => {
-  return KANBAN_COLORS[statusKey] || KANBAN_COLORS[statusKey.replace(/\s+/g, "_")] || "bg-neutral-50 border-neutral-200";
+// Helper function to get styling with fallback
+const getStatusStyle = (statusKey: string) => {
+  return KANBAN_STYLES[statusKey] || KANBAN_STYLES[statusKey.replace(/\s+/g, "_")] || {
+    bg: "bg-neutral-50/30",
+    header: "text-neutral-700 bg-neutral-100/60 border-neutral-200",
+    count: "bg-neutral-200 text-neutral-700"
+  };
 };
 
 const fallbackImage =
@@ -356,7 +391,7 @@ export default function MyTasksPage() {
 
             {!loading && !statusesLoading && !showTooManyWarning && view === "kanban" && (
               <DndProvider backend={HTML5Backend}>
-                <div className="flex gap-4 overflow-x-auto pb-6">
+                <div className="flex gap-6 overflow-x-auto pb-8 px-2">
                   {sortedStatusKeys.map((statusKey) => {
                     const statusObj = statuses.find(
                       (s) => getStatusKey(s.name) === statusKey
@@ -368,7 +403,8 @@ export default function MyTasksPage() {
                         statusLabel={statusObj ? statusObj.name : statusKey}
                         onDrop={onDropTask}
                         CARD_TYPE={CARD_TYPE}
-                        colorClasses={getStatusColors(statusKey)}
+                        statusStyle={getStatusStyle(statusKey)}
+                        taskCount={tasksByStatus[statusKey]?.length || 0}
                       >
                         {tasksByStatus[statusKey] && tasksByStatus[statusKey].length > 0 ? (
                           tasksByStatus[statusKey].map((task) => (

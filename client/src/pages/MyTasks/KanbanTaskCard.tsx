@@ -7,28 +7,23 @@ const getStatusKey = (status: string) => {
   return status.trim().toLowerCase().replace(/_/g, " ");
 };
 
-// Status badge color mapping
-const STATUS_BADGE_COLORS: Record<string, string> = {
-  backlog: "bg-slate-100 text-slate-700 border-slate-300",
-  "in progress": "bg-blue-100 text-blue-700 border-blue-300",
-  in_progress: "bg-blue-100 text-blue-700 border-blue-300",
-  review: "bg-amber-100 text-amber-700 border-amber-300",
-  completed: "bg-emerald-100 text-emerald-700 border-emerald-300",
+// Subtle status badge styling
+const STATUS_BADGE_STYLES: Record<string, string> = {
+  backlog: "bg-gray-100/80 text-gray-600 border-gray-200",
+  "in progress": "bg-blue-100/80 text-blue-600 border-blue-200",
+  in_progress: "bg-blue-100/80 text-blue-600 border-blue-200",
+  review: "bg-orange-100/80 text-orange-600 border-orange-200",
+  completed: "bg-green-100/80 text-green-600 border-green-200",
   
   // Legacy statuses
-  new: "bg-purple-100 text-purple-700 border-purple-300",
-  assigned: "bg-cyan-100 text-cyan-700 border-cyan-300",
-  pending: "bg-orange-100 text-orange-700 border-orange-300",
-  planning: "bg-indigo-100 text-indigo-700 border-indigo-300",
-  testing: "bg-pink-100 text-pink-700 border-pink-300",
-  deployed: "bg-green-100 text-green-700 border-green-300",
-  cancelled: "bg-red-100 text-red-700 border-red-300",
-  on_hold: "bg-gray-100 text-gray-700 border-gray-300",
-  "on hold": "bg-gray-100 text-gray-700 border-gray-300",
+  new: "bg-purple-100/80 text-purple-600 border-purple-200",
+  assigned: "bg-cyan-100/80 text-cyan-600 border-cyan-200",
+  pending: "bg-yellow-100/80 text-yellow-600 border-yellow-200",
+  planning: "bg-indigo-100/80 text-indigo-600 border-indigo-200",
 };
 
-const getStatusBadgeColor = (statusKey: string): string => {
-  return STATUS_BADGE_COLORS[statusKey] || STATUS_BADGE_COLORS[statusKey.replace(/\s+/g, "_")] || "bg-neutral-100 text-neutral-700 border-neutral-300";
+const getStatusBadgeStyle = (statusKey: string): string => {
+  return STATUS_BADGE_STYLES[statusKey] || STATUS_BADGE_STYLES[statusKey.replace(/\s+/g, "_")] || "bg-neutral-100/80 text-neutral-600 border-neutral-200";
 };
 
 function KanbanTaskCard({ task, onClick, CARD_TYPE }: { task: Task; onClick: () => void; CARD_TYPE: string }) {
@@ -44,28 +39,49 @@ function KanbanTaskCard({ task, onClick, CARD_TYPE }: { task: Task; onClick: () 
   return (
     <div
       ref={dragRef}
-      style={{ opacity: isDragging ? 0.5 : 1, cursor: "pointer" }}
-      className="rounded border bg-white shadow p-4 hover:shadow-lg transition-all select-none max-w-[320px] mx-auto"
+      style={{ opacity: isDragging ? 0.6 : 1, cursor: "grab" }}
+      className="bg-white rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200 select-none group hover:border-gray-300"
       onClick={onClick}
     >
-      <div className="font-semibold mb-2 truncate">{task.title}</div>
-      <div className="flex justify-between items-center text-sm">
-        <span className={`capitalize px-2 py-1 rounded border text-xs font-medium ${getStatusBadgeColor(statusKey)}`}>
-          {task.status.replace(/_/g, " ")}
-        </span>
-        <span>
-          {isCompleted ? (
-            <span>
-              <span className="text-muted-foreground">Completed:</span>{" "}
-              {task.actual_completion_date || "-"}
+      <div className="p-4">
+        {/* Task Title */}
+        <div className="font-medium text-gray-900 mb-3 leading-tight">
+          {task.title}
+        </div>
+        
+        {/* Task Meta */}
+        <div className="flex items-center justify-between">
+          <span className={`
+            inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border
+            ${getStatusBadgeStyle(statusKey)}
+          `}>
+            {task.status.replace(/_/g, " ")}
+          </span>
+          
+          <div className="text-xs text-gray-500">
+            {isCompleted ? (
+              task.actual_completion_date ? 
+                new Date(task.actual_completion_date).toLocaleDateString() : 
+                "Completed"
+            ) : (
+              task.due_date ? 
+                new Date(task.due_date).toLocaleDateString() : 
+                "No due date"
+            )}
+          </div>
+        </div>
+        
+        {/* Priority indicator */}
+        {task.priority && task.priority <= 2 && (
+          <div className="mt-3 flex items-center">
+            <div className={`w-2 h-2 rounded-full mr-2 ${
+              task.priority === 1 ? "bg-red-400" : "bg-orange-400"
+            }`} />
+            <span className="text-xs text-gray-500">
+              {task.priority === 1 ? "High Priority" : "Medium Priority"}
             </span>
-          ) : (
-            <span>
-              <span className="text-muted-foreground">Due:</span>{" "}
-              {task.due_date || "-"}
-            </span>
-          )}
-        </span>
+          </div>
+        )}
       </div>
     </div>
   );
