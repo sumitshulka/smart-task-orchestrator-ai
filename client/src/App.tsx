@@ -15,7 +15,7 @@ import AdminSettings from "./pages/AdminSettings";
 import TasksPage from "./pages/Tasks";
 import MyTasksPage from "./pages/MyTasks";
 import HistoricalTasks from "./pages/HistoricalTasks";
-import AdminDashboard from "./pages/AdminDashboard";
+import AdminDashboard from "./pages/AdminDashboardSimple";
 import TaskReport from "@/pages/TaskReport";
 import AnalyticsReport from "@/pages/AnalyticsReportSimple";
 import TaskOverdueReport from "@/pages/TaskOverdueReportSimple";
