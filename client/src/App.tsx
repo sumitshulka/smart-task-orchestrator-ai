@@ -18,7 +18,7 @@ import HistoricalTasks from "./pages/HistoricalTasks";
 import AdminDashboard from "./pages/AdminDashboardSimple";
 import TaskReport from "@/pages/TaskReportSimple";
 import AnalyticsReport from "@/pages/AnalyticsReportSimple";
-import TaskOverdueReport from "@/pages/TaskOverdueReportSimple";
+import TaskOverdueReport from "@/pages/TaskOverdueReportAdvanced";
 import TaskGroupsPage from "./pages/TaskGroups";
 import MyTeams from "./pages/MyTeams";
 import { RoleProvider } from "@/contexts/RoleProvider";
