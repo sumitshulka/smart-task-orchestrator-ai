@@ -51,6 +51,9 @@ export interface IStorage {
   
   // Role operations
   getAllRoles(): Promise<Role[]>;
+  createRole(role: any): Promise<Role>;
+  updateRole(id: string, updates: Partial<Role>): Promise<Role>;
+  deleteRole(id: string): Promise<void>;
   getUserRoles(userId: string): Promise<UserRole[]>;
   assignUserRole(userId: string, roleId: string): Promise<UserRole>;
   removeUserRole(userId: string, roleId: string): Promise<void>;
@@ -160,6 +163,20 @@ export class DatabaseStorage implements IStorage {
   // Role operations
   async getAllRoles(): Promise<Role[]> {
     return await db.select().from(roles);
+  }
+
+  async createRole(role: any): Promise<Role> {
+    const result = await db.insert(roles).values(role).returning();
+    return result[0];
+  }
+
+  async updateRole(id: string, updates: Partial<Role>): Promise<Role> {
+    const result = await db.update(roles).set(updates).where(eq(roles.id, id)).returning();
+    return result[0];
+  }
+
+  async deleteRole(id: string): Promise<void> {
+    await db.delete(roles).where(eq(roles.id, id));
   }
 
   async getUserRoles(userId: string): Promise<UserRole[]> {

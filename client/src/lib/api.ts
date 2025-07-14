@@ -144,6 +144,26 @@ class ApiClient {
     return this.request('/roles');
   }
 
+  async createRole(data: any) {
+    return this.request('/roles', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateRole(id: string, data: any) {
+    return this.request(`/roles/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteRole(id: string) {
+    return this.request(`/roles/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
   async getUserRoles(userId: string) {
     return this.request(`/users/${userId}/roles`);
   }

@@ -1,7 +1,8 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertUserSchema, insertTaskSchema, insertTeamSchema, insertTaskGroupSchema } from "@shared/schema";
+import { insertUserSchema, insertTaskSchema, insertTeamSchema, insertTaskGroupSchema, insertRoleSchema, userRoles } from "@shared/schema";
+import { db } from "./db";
 import bcrypt from "bcrypt";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -304,6 +305,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(roles);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch roles" });
+    }
+  });
+
+  app.post("/api/roles", async (req, res) => {
+    try {
+      const roleData = insertRoleSchema.parse(req.body);
+      const role = await storage.createRole(roleData);
+      res.status(201).json(role);
+    } catch (error) {
+      res.status(400).json({ error: "Invalid role data" });
+    }
+  });
+
+  app.put("/api/roles/:id", async (req, res) => {
+    try {
+      const role = await storage.updateRole(req.params.id, req.body);
+      res.json(role);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update role" });
+    }
+  });
+
+  app.delete("/api/roles/:id", async (req, res) => {
+    try {
+      await storage.deleteRole(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete role" });
+    }
+  });
+
+  // Get all user-role relationships
+  app.get("/api/user-roles", async (req, res) => {
+    try {
+      const allUserRoles = await db.select().from(userRoles);
+      res.json(allUserRoles);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch user roles" });
     }
   });
 
