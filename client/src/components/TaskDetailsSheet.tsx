@@ -49,6 +49,7 @@ const TaskDetailsSheet: React.FC<Props> = ({
   onUpdated,
   onEdit
 }) => {
+  console.log("[DEBUG] TaskDetailsSheet rendered with:", { open, taskTitle: task?.title });
   // Always run hooks regardless of task
   const [comment, setComment] = useState("");
   const [assignTo, setAssignTo] = useState(task?.assigned_to || "");
