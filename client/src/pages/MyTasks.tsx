@@ -326,94 +326,152 @@ export default function MyTasksPage() {
   };
 
   return (
-    <div className="w-full min-h-screen bg-background">
-      <div className="w-full max-w-none px-6 py-6">
-        <div className="flex w-full max-w-none">
-          {/* Filters Panel */}
-          <TasksFiltersPanel
-            priorityFilter={priorityFilter}
-            setPriorityFilter={setPriorityFilter}
-            statusFilter={statusFilter}
-            setStatusFilter={setStatusFilter}
-            userFilter={userFilter}
-            setUserFilter={setUserFilter}
-            teamFilter={teamFilter}
-            setTeamFilter={setTeamFilter}
-            dateRange={dateRange}
-            setDateRange={setDateRange}
-            users={users}
-            teams={teams}
-            statuses={statuses}
-            statusesLoading={statusesLoading}
-          />
+    <div className="w-full p-4 mx-0">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold">My Tasks</h1>
+        <div className="flex gap-2">
+          <Button 
+            variant="outline" 
+            onClick={() => setShowFilters(!showFilters)}
+            className="flex items-center gap-2"
+          >
+            <Filter size={16} />
+            Filters
+          </Button>
+          <Button
+            variant={view === "list" ? "default" : "outline"}
+            onClick={() => setView("list")}
+            className="gap-2"
+          >
+            <List className="w-4 h-4" />
+            List
+          </Button>
+          <Button
+            variant={view === "kanban" ? "default" : "outline"}
+            onClick={() => setView("kanban")}
+            className="gap-2"
+          >
+            <Kanban className="w-4 h-4" />
+            Kanban
+          </Button>
+          <CreateTaskSheet onTaskCreated={load}>
+            <Button size="sm" className="gap-2">
+              <Plus className="w-4 h-4" />
+              Create Task
+            </Button>
+          </CreateTaskSheet>
+        </div>
+      </div>
 
-          {/* Main Content */}
-          <div className="flex-1 ml-6">
-            <div className="flex w-full items-center gap-4 mb-6">
-              <h1 className="text-2xl font-bold flex-shrink-0">My Tasks</h1>
-              <div className="ml-auto flex gap-2 items-center">
-                <Button
-                  variant={view === "list" ? "default" : "outline"}
-                  className="px-3"
-                  onClick={() => setView("list")}
-                >
-                  <List className="w-4 h-4 mr-1" />
-                  List
-                </Button>
-                <Button
-                  variant={view === "kanban" ? "default" : "outline"}
-                  className="px-3"
-                  onClick={() => setView("kanban")}
-                >
-                  <Kanban className="w-4 h-4 mr-1" />
-                  Kanban
-                </Button>
-                {user?.id && (
-                  <CreateTaskSheet
-                    onTaskCreated={load}
-                    defaultAssignedTo={user.id}
-                  >
-                    <Button variant="outline" className="flex items-center px-3">
-                      <Plus className="w-4 h-4 mr-1" />
-                      Add Task
-                    </Button>
-                  </CreateTaskSheet>
-                )}
+      {/* Search and Filters */}
+      <div className="mb-6 space-y-4">
+        {/* Search Bar */}
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+          <Input
+            placeholder="Search my tasks by title, description..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+
+        {/* Advanced Filters */}
+        {showFilters && (
+          <div className="bg-white rounded-lg border shadow-sm p-4">
+            <h3 className="text-lg font-medium mb-4">Advanced Filters</h3>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+              {/* Date Range */}
+              <div className="md:col-span-3">
+                <label className="block text-sm font-medium mb-2">Date Range</label>
+                <DateRangePresetSelector
+                  dateRange={dateRange}
+                  preset={preset}
+                  onChange={handlePresetChange}
+                />
               </div>
             </div>
 
-            {showTooManyWarning && (
-              <div className="p-4 bg-yellow-50 border border-yellow-200 text-yellow-700 rounded mb-4 text-center">
-                <strong>
-                  Too many results ({totalTasks}). Please refine your filters to narrow down the results. Only up to 100 can be loaded at a time.
-                </strong>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Priority Filter */}
+              <div>
+                <label className="block text-sm font-medium mb-2">Priority</label>
+                <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="All Priorities" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Priorities</SelectItem>
+                    <SelectItem value="1">High</SelectItem>
+                    <SelectItem value="2">Medium</SelectItem>
+                    <SelectItem value="3">Low</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-            )}
 
-            {(loading || statusesLoading) && (
-              <div className="text-muted-foreground mb-4 text-center">Loading...</div>
-            )}
-
-            {!loading && !statusesLoading && !showTooManyWarning && tasks.length === 0 && (
-              <div className="flex flex-col items-center justify-center mt-16">
-                <img
-                  src={fallbackImage}
-                  alt="No tasks found"
-                  className="w-40 h-40 object-cover rounded-lg mb-4 shadow"
-                />
-                <div className="text-muted-foreground text-lg mb-2 flex items-center gap-2">
-                  <Image className="w-5 h-5" />
-                  {roles.includes("manager") || roles.includes("team_manager") ? (
-                    <>
-                      You do not currently have access to any tasks as a manager or team manager. <br />
-                      This may mean you do not manage any users, or none of your team members have tasks assigned.
-                    </>
-                  ) : (
-                    <>You have no tasks assigned.</>
-                  )}
-                </div>
+              {/* Status Filter */}
+              <div>
+                <label className="block text-sm font-medium mb-2">Status</label>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="All Statuses" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Statuses</SelectItem>
+                    {statuses.map(status => (
+                      <SelectItem key={status.id} value={status.name}>
+                        {status.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-            )}
+
+              {/* Team Filter */}
+              <div>
+                <label className="block text-sm font-medium mb-2">Team</label>
+                <Select value={teamFilter} onValueChange={setTeamFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="All Teams" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Teams</SelectItem>
+                    {teams.map(team => (
+                      <SelectItem key={team.id} value={team.id}>
+                        {team.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="flex-1">
+        {showTooManyWarning && (
+          <div className="p-4 bg-yellow-50 border border-yellow-200 text-yellow-700 rounded mb-4 text-center">
+            <strong>
+              Too many results ({totalTasks}). Please refine your filters to narrow down the results. Only up to 100 can be loaded at a time.
+            </strong>
+          </div>
+        )}
+
+        {(loading || statusesLoading) && (
+          <div className="text-muted-foreground mb-4 text-center">Loading...</div>
+        )}
+
+        {!loading && !statusesLoading && !showTooManyWarning && tasks.length === 0 && (
+          <div className="flex flex-col items-center justify-center mt-16">
+            <div className="w-40 h-40 bg-gray-100 rounded-lg mb-4 flex items-center justify-center">
+              <Search className="w-16 h-16 text-gray-400" />
+            </div>
+            <div className="text-muted-foreground text-lg mb-2">No tasks found</div>
+            <div className="text-sm text-gray-500">Try adjusting your filters or search criteria</div>
+          </div>
+        )}
 
             {!loading && !statusesLoading && !showTooManyWarning && tasks.length > 0 && view === "list" && (
               <div className="grid grid-cols-1 gap-6">
@@ -502,9 +560,7 @@ export default function MyTasksPage() {
                 pageSizeOptions={pageSizeOptions}
               />
             )}
-          </div>
         </div>
       </div>
-    </div>
-  );
-}
+    );
+  }
