@@ -3,7 +3,10 @@ import { format, startOfMonth, endOfMonth } from "date-fns";
 import { useQuery } from "@tanstack/react-query";
 import { fetchTasksPaginated } from "@/integrations/supabase/tasks";
 import { useUsersAndTeams } from "@/hooks/useUsersAndTeams";
+import { useCurrentUserRoleAndTeams } from "@/hooks/useCurrentUserRoleAndTeams";
 import { PieChart, Pie, Cell, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, ResponsiveContainer } from "recharts";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import DateRangePresetSelector from "@/components/DateRangePresetSelector";
 
 function defaultDateRange() {
   const now = new Date();
@@ -16,8 +19,16 @@ function defaultDateRange() {
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
 
 export default function AnalyticsReport() {
-  const [dateRange] = React.useState(defaultDateRange());
+  const [dateRange, setDateRange] = React.useState(defaultDateRange());
+  const [departmentFilter, setDepartmentFilter] = React.useState<string>("all");
+  const [alphabetFilter, setAlphabetFilter] = React.useState<string>("all");
+  const [selectedEmployees, setSelectedEmployees] = React.useState<any[]>([]);
+  const [preset, setPreset] = React.useState<string>("This Month");
+
   const { users } = useUsersAndTeams();
+  const { roles, loading: rolesLoading } = useCurrentUserRoleAndTeams();
+
+  const isAdmin = roles.includes("admin");
 
   const { data: tasks, isLoading } = useQuery({
     queryKey: ["analytics-tasks", format(dateRange.from, "yyyy-MM-dd"), format(dateRange.to, "yyyy-MM-dd")],
@@ -31,8 +42,44 @@ export default function AnalyticsReport() {
     }
   });
 
+  function handlePresetChange(range: { from: Date | null; to: Date | null }, p: string) {
+    setPreset(p);
+    if (p === "custom") return;
+    setDateRange(range);
+  }
+
   const analytics = React.useMemo(() => {
     if (!tasks) return { statusData: [], userStats: [], kpis: { total: 0, completed: 0, overdue: 0, inProgress: 0 } };
+    
+    // Apply filters to tasks
+    let filteredTasks = tasks;
+    
+    if (isAdmin) {
+      // Department filter
+      if (departmentFilter !== "all") {
+        filteredTasks = filteredTasks.filter(task => {
+          const userInfo = users.find(u => u.id === task.assigned_to);
+          return userInfo?.department === departmentFilter;
+        });
+      }
+      
+      // Alphabet filter
+      if (alphabetFilter !== "all") {
+        filteredTasks = filteredTasks.filter(task => {
+          const userInfo = users.find(u => u.id === task.assigned_to);
+          const name = userInfo?.user_name || userInfo?.email || "";
+          return name.toLowerCase().startsWith(alphabetFilter.toLowerCase());
+        });
+      }
+      
+      // Selected employees filter
+      if (selectedEmployees.length > 0) {
+        const selectedIds = selectedEmployees.map(emp => emp.id);
+        filteredTasks = filteredTasks.filter(task => 
+          selectedIds.includes(task.assigned_to)
+        );
+      }
+    }
     
     const statusCounts: Record<string, number> = {};
     const userTaskCounts: Record<string, number> = {};
@@ -41,7 +88,7 @@ export default function AnalyticsReport() {
     let inProgress = 0;
     const today = new Date();
     
-    tasks.forEach(task => {
+    filteredTasks.forEach(task => {
       // Status counts
       statusCounts[task.status] = (statusCounts[task.status] || 0) + 1;
       
@@ -76,17 +123,20 @@ export default function AnalyticsReport() {
       statusData,
       userStats,
       kpis: {
-        total: tasks.length,
+        total: filteredTasks.length,
         completed,
         overdue,
         inProgress
       }
     };
-  }, [tasks, users]);
+  }, [tasks, users, departmentFilter, alphabetFilter, selectedEmployees, isAdmin]);
 
   // Move the loading check after all hooks
 
-  if (isLoading) {
+  const departments = Array.from(new Set(users.map(u => u.department).filter(Boolean)));
+  const alphabetLetters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+
+  if (isLoading || rolesLoading) {
     return (
       <div className="max-w-7xl mx-0 p-4">
         <h1 className="text-2xl font-semibold mb-4">Analytics Report</h1>
@@ -98,6 +148,60 @@ export default function AnalyticsReport() {
   return (
     <div className="max-w-7xl mx-0 p-4">
       <h1 className="text-2xl font-semibold mb-4">Analytics Report</h1>
+      
+      {/* Advanced Filters */}
+      <div className="bg-white rounded-lg border shadow-sm p-4 mb-6">
+        <h3 className="text-lg font-medium mb-4">Filters</h3>
+        
+        {/* Date Range */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+          <div>
+            <label className="block text-sm font-medium mb-2">Date Range</label>
+            <DateRangePresetSelector
+              dateRange={dateRange}
+              preset={preset}
+              onChange={handlePresetChange}
+            />
+          </div>
+        </div>
+
+        {/* Admin-only filters */}
+        {isAdmin && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Department Filter */}
+            <div>
+              <label className="block text-sm font-medium mb-2">Department</label>
+              <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="All Departments" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Departments</SelectItem>
+                  {departments.map(dept => (
+                    <SelectItem key={dept} value={dept}>{dept}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Alphabet Filter */}
+            <div>
+              <label className="block text-sm font-medium mb-2">Name starts with</label>
+              <Select value={alphabetFilter} onValueChange={setAlphabetFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="All Letters" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Letters</SelectItem>
+                  {alphabetLetters.map(letter => (
+                    <SelectItem key={letter} value={letter}>{letter}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        )}
+      </div>
       
       <div className="mb-6">
         <p className="text-sm text-gray-600">
