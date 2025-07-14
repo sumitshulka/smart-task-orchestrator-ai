@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/components/ui/use-toast";
@@ -10,27 +10,17 @@ import Logo from "@/components/Logo";
 import AuthPageContent from "@/components/AuthPageContent";
 
 const AuthPage: React.FC = () => {
-  // Only login allowed now, remove signup support
-  const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({ email: "", password: "" });
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
-  const [session, setSession] = useState<any>(null);
+  const { user, login, loading } = useAuth();
 
   useEffect(() => {
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-    });
-    supabase.auth.getSession().then(({ data }) => setSession(data.session));
-    return () => { listener.subscription.unsubscribe(); };
-  }, []);
-
-  useEffect(() => {
-    if (session) {
-      // If an authenticated session exists, send the user to dashboard
-      navigate("/admin/dashboard", { replace: true });
+    if (user) {
+      // If user is already logged in, redirect to home (which will handle role-based routing)
+      navigate("/", { replace: true });
     }
-  }, [session, navigate]);
+  }, [user, navigate]);
 
   const handleInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -39,14 +29,19 @@ const AuthPage: React.FC = () => {
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({
-      email: form.email,
-      password: form.password,
-    });
-    if (error) setError(error.message);
-    else toast({ title: "Login successful!" });
-    setLoading(false);
+    
+    try {
+      await login(form.email, form.password);
+      toast({ title: "Login successful!" });
+      // Navigation will happen automatically via useEffect when user state changes
+    } catch (error: any) {
+      setError(error.message || "Login failed");
+      toast({ 
+        title: "Login failed", 
+        description: error.message || "Please check your credentials",
+        variant: "destructive"
+      });
+    }
   };
 
   return (
@@ -110,9 +105,9 @@ const AuthPage: React.FC = () => {
               <Button type="submit" disabled={loading} className="w-full font-semibold">
                 {loading ? "Processing..." : "Sign in"}
               </Button>
-              {/* New demo login instruction */}
+              {/* Demo login instruction */}
               <div className="mt-2 text-xs text-muted-foreground text-center">
-                Use demo login <span className="font-semibold">ss@sumits.me / Sumit1209!</span> to explore the system features.
+                Use demo login <span className="font-semibold">ss@sumits.me / tempPassword123</span> to explore the system features.
               </div>
               {error && <div className="text-sm text-destructive">{error}</div>}
             </form>
