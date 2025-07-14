@@ -295,15 +295,6 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
         await assignTaskToGroup({ group_id: selectedTaskGroup, task_id: newTask.id });
       }
 
-      // Log creation!
-      await (await import("@/integrations/supabase/taskActivity")).createTaskActivity({
-        task_id: newTask.id,
-        action_type: "created",
-        old_value: null,
-        new_value: null,
-        acted_by: myUserId,
-      });
-
       toast({ title: "Task Created", description: form.title });
       resetForm();
       setOpen(false);
