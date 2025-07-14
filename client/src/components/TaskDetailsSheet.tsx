@@ -13,14 +13,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { useUsersAndTeams } from "@/hooks/useUsersAndTeams";
 import { updateTask, Task } from "@/integrations/supabase/tasks";
 import { toast } from "@/components/ui/use-toast";
-import { ScrollArea } from "@/components/ui/scroll-area";
+
 import { useTaskStatuses } from "@/hooks/useTaskStatuses";
 import { useTaskActivity } from "@/hooks/useTaskActivity";
 import TaskActivityTimeline from "./TaskActivityTimeline";
 import { createTaskActivity } from "@/integrations/supabase/taskActivity";
-import TaskDetailsInfo from "./TaskDetailsInfo";
-import TaskDetailsComments from "./TaskDetailsComments";
-import TaskDetailsAssign from "./TaskDetailsAssign";
+
 
 // Dummy role check! Replace with real logic if user roles are exposed
 const hasManagerPermissions = (user: any) =>
@@ -157,8 +155,7 @@ const TaskDetailsSheet: React.FC<Props> = ({
     );
     const statusToSet = found ? found.name : task.status;
     setStatus(statusToSet);
-    // Debug: check the value in devtools
-    console.log("Dropdown status set to:", statusToSet);
+
   }, [task, statuses, open]);
 
   // Reset assignTo if task changes
@@ -166,64 +163,266 @@ const TaskDetailsSheet: React.FC<Props> = ({
     setAssignTo(task?.assigned_to || "");
   }, [task]);
 
-  // Make modal content always scrollable on overflow
+  // Get assigned user name
+  const assignedUser = users.find(u => u.id === task?.assigned_to);
+  const assignedUserName = assignedUser ? (assignedUser.user_name || assignedUser.email) : "Unassigned";
+  
+  // Get created by user name
+  const createdByUser = users.find(u => u.id === task?.created_by);
+  const createdByUserName = createdByUser ? (createdByUser.user_name || createdByUser.email) : "Unknown";
+
+  // Format dates
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return "Not set";
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  };
+
+  const getPriorityLabel = (priority: number) => {
+    switch (priority) {
+      case 1: return "High";
+      case 2: return "Medium";
+      case 3: return "Low";
+      default: return "Medium";
+    }
+  };
+
+  const getPriorityColor = (priority: number) => {
+    switch (priority) {
+      case 1: return "bg-red-100 text-red-800";
+      case 2: return "bg-yellow-100 text-yellow-800";
+      case 3: return "bg-green-100 text-green-800";
+      default: return "bg-gray-100 text-gray-800";
+    }
+  };
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="max-w-[108rem] w-[98vw] p-0 flex flex-col">
-        <form className="h-full flex flex-col" onSubmit={e => e.preventDefault()} style={{ minHeight: 0 }}>
-          <ScrollArea className="flex-1 min-h-0 p-6">
-            <SheetHeader>
-              <SheetTitle>Task Details</SheetTitle>
-              <SheetDescription>
-                All task details and actions.
-              </SheetDescription>
-            </SheetHeader>
-            {!task ? (
-              <div className="text-center text-muted-foreground py-20">
-                No task selected.
+      <SheetContent side="right" className="w-[50vw] min-w-[800px] max-w-none overflow-y-auto">
+        <form className="p-6 space-y-8" onSubmit={e => e.preventDefault()}>
+          <SheetHeader className="space-y-4 pb-6 border-b border-gray-200">
+            <div className="flex items-center justify-between">
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  {task?.task_number && (
+                    <span className="text-xs font-mono bg-gray-100 px-2 py-1 rounded border">
+                      #{task.task_number}
+                    </span>
+                  )}
+                  <SheetTitle className="text-3xl font-bold text-gray-900">
+                    {task?.title || "Task Details"}
+                  </SheetTitle>
+                </div>
+                <SheetDescription className="text-lg text-gray-600">
+                  View and manage all task information, status, and activity.
+                </SheetDescription>
               </div>
-            ) : (
-              <>
-                <TaskDetailsInfo
-                  task={task}
-                  status={status}
-                  statuses={statuses}
-                  statusesLoading={statusesLoading}
-                  canChangeStatus={
-                    hasManagerPermissions(currentUser) ||
-                    task.assigned_to === currentUser.id ||
-                    task.created_by === currentUser.id
-                  }
-                  onStatusChange={handleStatusChange}
-                />
-                <TaskDetailsComments
-                  comment={comment}
-                  setComment={setComment}
-                  handleComment={handleComment}
-                />
-                {showAssign && (
-                  <TaskDetailsAssign
-                    users={users}
-                    assignTo={assignTo}
-                    setAssignTo={setAssignTo}
-                    handleAssign={handleAssign}
-                    disabled={assignTo === task.assigned_to || loading}
-                    loading={loading}
-                  />
-                )}
-                {/* Activity log/timeline */}
-                <div className="border-t pt-4 mt-6">
-                  <label className="block font-bold mb-1">Activity Log</label>
+              {onEdit && (
+                <Button onClick={() => onEdit(task!)} variant="outline" className="ml-4">
+                  Edit Task
+                </Button>
+              )}
+            </div>
+          </SheetHeader>
+
+          {!task ? (
+            <div className="text-center text-muted-foreground py-20">
+              No task selected.
+            </div>
+          ) : (
+            <>
+              {/* SECTION 1: BASIC INFORMATION */}
+              <div className="space-y-4">
+                <div className="bg-blue-50 p-4 rounded-lg">
+                  <h3 className="text-base font-medium text-gray-800 mb-3 flex items-center">
+                    <span className="bg-blue-100 text-blue-800 rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold mr-2">1</span>
+                    Task Information
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Description</label>
+                      <div className="bg-white p-3 rounded border min-h-[80px]">
+                        {task.description || <span className="text-gray-500 italic">No description provided</span>}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Priority</label>
+                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getPriorityColor(task.priority)}`}>
+                        {getPriorityLabel(task.priority)}
+                      </span>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Type</label>
+                      <span className="bg-gray-100 text-gray-800 px-3 py-1 rounded-full text-sm font-medium">
+                        {task.type?.charAt(0).toUpperCase() + task.type?.slice(1) || "Task"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION 2: STATUS & ASSIGNMENT */}
+              <div className="space-y-4">
+                <div className="bg-green-50 p-4 rounded-lg">
+                  <h3 className="text-base font-medium text-gray-800 mb-3 flex items-center">
+                    <span className="bg-green-100 text-green-800 rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold mr-2">2</span>
+                    Status & Assignment
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Current Status</label>
+                      {(hasManagerPermissions(currentUser) || task.assigned_to === currentUser.id || task.created_by === currentUser.id) ? (
+                        <select
+                          value={status}
+                          onChange={handleStatusChange}
+                          className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          disabled={statusesLoading}
+                        >
+                          {statusesLoading ? (
+                            <option value="">Loading...</option>
+                          ) : (
+                            statuses.map((s) => (
+                              <option key={s.id} value={s.name}>{s.name}</option>
+                            ))
+                          )}
+                        </select>
+                      ) : (
+                        <div className="bg-white p-2 border rounded">
+                          {task.status}
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Assigned To</label>
+                      {showAssign ? (
+                        <div className="space-y-2">
+                          <select
+                            value={assignTo}
+                            onChange={(e) => setAssignTo(e.target.value)}
+                            className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          >
+                            <option value="">Unassigned</option>
+                            {users.map(user => (
+                              <option key={user.id} value={user.id}>
+                                {user.user_name || user.email}
+                              </option>
+                            ))}
+                          </select>
+                          {assignTo !== task.assigned_to && (
+                            <Button
+                              onClick={handleAssign}
+                              disabled={loading}
+                              size="sm"
+                              className="w-full"
+                            >
+                              {loading ? "Updating..." : "Update Assignment"}
+                            </Button>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="bg-white p-2 border rounded">
+                          {assignedUserName}
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Created By</label>
+                      <div className="bg-white p-2 border rounded">
+                        {createdByUserName}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Created Date</label>
+                      <div className="bg-white p-2 border rounded">
+                        {formatDate(task.created_at)}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION 3: TIMELINE & EFFORT */}
+              <div className="space-y-4">
+                <div className="bg-orange-50 p-4 rounded-lg">
+                  <h3 className="text-base font-medium text-gray-800 mb-3 flex items-center">
+                    <span className="bg-orange-100 text-orange-800 rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold mr-2">3</span>
+                    Timeline & Effort
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Start Date</label>
+                      <div className="bg-white p-2 border rounded">
+                        {formatDate(task.start_date)}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Due Date</label>
+                      <div className="bg-white p-2 border rounded">
+                        {formatDate(task.due_date)}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Estimated Hours</label>
+                      <div className="bg-white p-2 border rounded">
+                        {task.estimated_hours || "Not specified"}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Completion Date</label>
+                      <div className="bg-white p-2 border rounded">
+                        {formatDate(task.actual_completion_date)}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION 4: COMMENTS */}
+              <div className="space-y-4">
+                <div className="bg-purple-50 p-4 rounded-lg">
+                  <h3 className="text-base font-medium text-gray-800 mb-3 flex items-center">
+                    <span className="bg-purple-100 text-purple-800 rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold mr-2">4</span>
+                    Add Comment
+                  </h3>
+                  <div className="space-y-3">
+                    <textarea
+                      placeholder="Add a comment about this task..."
+                      value={comment}
+                      onChange={(e) => setComment(e.target.value)}
+                      className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 min-h-[80px]"
+                    />
+                    <Button
+                      onClick={handleComment}
+                      disabled={!comment.trim()}
+                      size="sm"
+                    >
+                      Add Comment
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION 5: ACTIVITY LOG */}
+              <div className="space-y-4">
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <h3 className="text-base font-medium text-gray-800 mb-3 flex items-center">
+                    <span className="bg-gray-100 text-gray-800 rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold mr-2">5</span>
+                    Activity Log
+                  </h3>
                   {activityLoading ? (
-                    <div className="text-muted-foreground text-sm">Loading activity log...</div>
+                    <div className="text-muted-foreground text-sm py-4">Loading activity log...</div>
                   ) : (
                     <TaskActivityTimeline activity={activity} usersById={usersById} />
                   )}
                 </div>
-              </>
-            )}
-          </ScrollArea>
-          <SheetFooter className="mt-4 p-6">
+              </div>
+            </>
+          )}
+
+          <SheetFooter className="pt-6 border-t border-gray-200">
             <SheetClose asChild>
               <Button type="button" variant="ghost">Close</Button>
             </SheetClose>
