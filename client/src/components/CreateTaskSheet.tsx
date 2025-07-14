@@ -388,261 +388,355 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
           </Button>
         )}
       </SheetTrigger>
-      <SheetContent side="right" className="max-w-[135rem] w-[98vw] overflow-y-auto">
-        <form className="p-2 space-y-6" onSubmit={handleSubmit}>
-          <SheetHeader>
-            <SheetTitle>Create Task</SheetTitle>
-            <SheetDescription>
-              Fill in the details below to create a new task.
+      <SheetContent side="right" className="max-w-[90rem] w-[85vw] overflow-y-auto">
+        <form className="p-6 space-y-8" onSubmit={handleSubmit}>
+          <SheetHeader className="space-y-4 pb-6 border-b border-gray-200">
+            <SheetTitle className="text-3xl font-bold text-gray-900">Create New Task</SheetTitle>
+            <SheetDescription className="text-lg text-gray-600">
+              Fill in the details below to create a comprehensive task with all necessary information.
             </SheetDescription>
           </SheetHeader>
-          {/* MAIN FIELDS */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {/* Row 1: Task Title - full width */}
-            <div className="sm:col-span-2">
-              <label className="block mb-1 font-medium">Task Title</label>
-              <Input
-                name="title"
-                value={form.title}
-                onChange={handleChange}
-                required
-                placeholder="Enter task title"
-              />
-            </div>
-            {/* Row 2: Description - full width */}
-            <div className="sm:col-span-2">
-              <label className="block mb-1 font-medium">Description</label>
-              <Textarea
-                name="description"
-                value={form.description}
-                onChange={handleChange}
-                placeholder="Task description"
-              />
-            </div>
-            {/* Row 3: Priority & Status */}
-            <div>
-              <label className="block mb-1 font-medium">Priority</label>
-              <select
-                name="priority"
-                value={form.priority}
-                onChange={handleChange}
-                className="w-full border rounded p-2"
-              >
-                {priorityOptions.map((opt) => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block mb-1 font-medium">Status</label>
-              <select
-                name="status"
-                value={form.status}
-                onChange={handleChange}
-                className="w-full border rounded p-2"
-                disabled={statusLoading || statuses.length === 0}
-                required
-              >
-                {statusLoading && (
-                  <option value="">Loading...</option>
-                )}
-                {statuses.map((opt) => (
-                  <option key={opt.id} value={opt.name}>{opt.name}</option>
-                ))}
-              </select>
-            </div>
-            {/* Row 4: Start and End Dates (side-by-side) */}
-            <div>
-              <label className="block mb-1 font-medium">Start Date</label>
-              <Input
-                name="start_date"
-                type="date"
-                value={form.start_date}
-                onChange={handleChange}
-                min={dependencyDueDate || undefined}
-                disabled={dependencyLoading}
-                className={
-                  isInvalidStartDate(form.start_date)
-                    ? "border-red-500"
-                    : ""
-                }
-              />
-              {form.isDependent && form.dependencyTaskId && isInvalidStartDate(form.start_date) && (
-                <div className="text-xs text-red-600 mt-1">
-                  Start date must be on or after the dependency's due date ({dependencyDueDate})
+          {/* SECTION 1: BASIC INFORMATION */}
+          <div className="space-y-6">
+            <div className="bg-gray-50 p-6 rounded-lg">
+              <h3 className="text-xl font-semibold text-gray-800 mb-4 flex items-center">
+                <span className="bg-blue-100 text-blue-800 rounded-full w-8 h-8 flex items-center justify-center text-sm font-bold mr-3">1</span>
+                Basic Information
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Task Title *</label>
+                  <Input
+                    name="title"
+                    value={form.title}
+                    onChange={handleChange}
+                    required
+                    placeholder="Enter a clear, descriptive task title"
+                    className="text-base h-12"
+                  />
                 </div>
-              )}
-            </div>
-            <div>
-              <label className="block mb-1 font-medium">Expected End Date</label>
-              <Input
-                name="due_date"
-                type="date"
-                value={form.due_date}
-                onChange={handleChange}
-                min={form.start_date || undefined}
-                className={
-                  form.start_date && form.due_date && form.due_date < form.start_date
-                    ? "border-red-500"
-                    : ""
-                }
-              />
-              {form.start_date && form.due_date && form.due_date < form.start_date && (
-                <div className="text-xs text-red-600 mt-1">
-                  End date must be on or after start date
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Description</label>
+                  <Textarea
+                    name="description"
+                    value={form.description}
+                    onChange={handleChange}
+                    placeholder="Provide detailed information about the task objectives, requirements, and deliverables"
+                    className="text-base min-h-[120px] resize-y"
+                  />
                 </div>
-              )}
-            </div>
-            {/* Row 5: Assign Type (left) and Assigned To (right) */}
-            <div>
-              <label className="block mb-1 font-medium">Assign Type</label>
-              <select
-                name="type"
-                value={form.type}
-                onChange={handleChange}
-                className="w-full border rounded p-2"
-              >
-                {typeOptions.map((opt) => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block mb-1 font-medium">Assigned To</label>
-              {renderAssignedToInput()}
-            </div>
-            {/* Row 6: Estimated Hours (full width below Assign Type + Assigned To) */}
-            <div className="sm:col-span-2">
-              <label className="block mb-1 font-medium">Estimated Hours</label>
-              <Input
-                name="estimated_hours"
-                value={form.estimated_hours}
-                onChange={handleChange}
-                type="number"
-                min="0"
-                step="0.1"
-              />
+              </div>
             </div>
           </div>
-          {/* ADVANCED FIELDS */}
-          <div className="space-y-6 pt-2">
-            <div>
-              <label className="inline-flex items-center">
-                <input
-                  type="checkbox"
-                  name="isSubTask"
-                  checked={form.isSubTask}
-                  onChange={handleChange}
-                  className="mr-2"
-                />
-                Is Subtask?
-              </label>
-              {form.isSubTask && (
-                <div className="mt-2">
-                  {/* Show TASK GROUP selection here, filtered */}
-                  <label className="block mb-1 text-sm">Task Group</label>
+
+          {/* SECTION 2: TASK SETTINGS */}
+          <div className="space-y-6">
+            <div className="bg-green-50 p-6 rounded-lg">
+              <h3 className="text-xl font-semibold text-gray-800 mb-4 flex items-center">
+                <span className="bg-green-100 text-green-800 rounded-full w-8 h-8 flex items-center justify-center text-sm font-bold mr-3">2</span>
+                Task Settings
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Priority Level</label>
                   <select
-                    name="task_group"
-                    value={selectedTaskGroup}
-                    onChange={e => setSelectedTaskGroup(e.target.value)}
-                    className="w-full border rounded p-2 bg-white z-50"
-                    required={form.isSubTask}
-                    disabled={taskGroups.length === 0}
+                    name="priority"
+                    value={form.priority}
+                    onChange={handleChange}
+                    className="w-full h-12 text-base border border-gray-300 rounded-lg px-4 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   >
-                    <option value="">
-                      {form.type === "personal"
-                        ? "Select Private Task Group"
-                        : "Select Team Task Group"}
-                    </option>
-                    {taskGroups.map((g) => (
-                      <option key={g.id} value={g.id}>{g.name} ({g.visibility})</option>
+                    {priorityOptions.map((opt) => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
                     ))}
                   </select>
-                  {/* Super Task select has been fully removed */}
                 </div>
-              )}
-            </div>
-            {/* Dependency Section (unchanged except status feedback) */}
-            <div>
-              <label className="inline-flex items-center">
-                <input
-                  type="checkbox"
-                  name="isDependent"
-                  checked={form.isDependent}
-                  onChange={handleChange}
-                  className="mr-2"
-                />
-                Is Dependent?
-              </label>
-              {form.isDependent && (
-                <div className="mt-2">
-                  <label className="block mb-1 text-sm">Dependency Task</label>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      className="border rounded px-3 py-2 bg-muted/50 hover:bg-muted/70 transition"
-                      onClick={() => setDependencyDialogOpen(true)}
-                    >
-                      {selectedDependencyTask
-                        ? <>Selected: <span className="font-semibold">{selectedDependencyTask.title}</span> (Change)</>
-                        : "Search & Select Task"}
-                    </button>
-                    {selectedDependencyTask && (
-                      <button
-                        type="button"
-                        className="text-xs text-danger-600 underline ml-2"
-                        onClick={() => {
-                          setSelectedDependencyTask(null);
-                          setForm(f => ({ ...f, dependencyTaskId: "" }));
-                        }}
-                      >
-                        Clear
-                      </button>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Initial Status *</label>
+                  <select
+                    name="status"
+                    value={form.status}
+                    onChange={handleChange}
+                    className="w-full h-12 text-base border border-gray-300 rounded-lg px-4 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    disabled={statusLoading || statuses.length === 0}
+                    required
+                  >
+                    {statusLoading && (
+                      <option value="">Loading statuses...</option>
                     )}
-                  </div>
-                  <input
-                    type="hidden"
-                    name="dependencyTaskId"
-                    value={form.dependencyTaskId}
-                    readOnly
-                  />
-                  <TaskSearchDialog
-                    open={dependencyDialogOpen}
-                    onOpenChange={setDependencyDialogOpen}
-                    onSelect={handleDependencySelect}
-                    excludeTaskId={undefined}
-                  />
-                  {selectedDependencyTask && (
-                    <div className="mt-1 text-xs text-muted-foreground">
-                      Description: {selectedDependencyTask.description || "—"}
-                    </div>
-                  )}
-                  {/* Dependency status warning */}
-                  {form.status === "completed" && !canCompleteDependent() && (
-                    <div className="text-xs text-red-600 mt-1">
-                      Cannot complete this task until the dependency task is completed.
-                    </div>
-                  )}
+                    {statuses.map((opt) => (
+                      <option key={opt.id} value={opt.name}>{opt.name}</option>
+                    ))}
+                  </select>
                 </div>
-              )}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Estimated Hours</label>
+                  <Input
+                    name="estimated_hours"
+                    value={form.estimated_hours}
+                    onChange={handleChange}
+                    type="number"
+                    min="0"
+                    step="0.5"
+                    placeholder="e.g., 8.5"
+                    className="text-base h-12"
+                  />
+                </div>
+              </div>
             </div>
           </div>
-          <SheetFooter className="mt-8">
-            <Button type="submit" disabled={creating || sessionLoading || !user}>
-              {creating ? "Creating..." : "Create Task"}
-            </Button>
-            <SheetClose asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => {
-                  resetForm();
-                  setOpen(false);
-                }}
+
+          {/* SECTION 3: TIMELINE */}
+          <div className="space-y-6">
+            <div className="bg-purple-50 p-6 rounded-lg">
+              <h3 className="text-xl font-semibold text-gray-800 mb-4 flex items-center">
+                <span className="bg-purple-100 text-purple-800 rounded-full w-8 h-8 flex items-center justify-center text-sm font-bold mr-3">3</span>
+                Timeline & Scheduling
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Start Date</label>
+                  <Input
+                    name="start_date"
+                    type="date"
+                    value={form.start_date}
+                    onChange={handleChange}
+                    min={dependencyDueDate || undefined}
+                    disabled={dependencyLoading}
+                    className={`text-base h-12 ${
+                      isInvalidStartDate(form.start_date)
+                        ? "border-red-500 focus:ring-red-500"
+                        : ""
+                    }`}
+                  />
+                  {form.isDependent && form.dependencyTaskId && isInvalidStartDate(form.start_date) && (
+                    <div className="text-sm text-red-600 mt-2 flex items-center">
+                      <span className="mr-1">⚠️</span>
+                      Start date must be on or after the dependency's due date ({dependencyDueDate})
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Expected End Date</label>
+                  <Input
+                    name="due_date"
+                    type="date"
+                    value={form.due_date}
+                    onChange={handleChange}
+                    min={form.start_date || undefined}
+                    className={`text-base h-12 ${
+                      form.start_date && form.due_date && form.due_date < form.start_date
+                        ? "border-red-500 focus:ring-red-500"
+                        : ""
+                    }`}
+                  />
+                  {form.start_date && form.due_date && form.due_date < form.start_date && (
+                    <div className="text-sm text-red-600 mt-2 flex items-center">
+                      <span className="mr-1">⚠️</span>
+                      End date must be on or after start date
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* SECTION 4: ASSIGNMENT */}
+          <div className="space-y-6">
+            <div className="bg-orange-50 p-6 rounded-lg">
+              <h3 className="text-xl font-semibold text-gray-800 mb-4 flex items-center">
+                <span className="bg-orange-100 text-orange-800 rounded-full w-8 h-8 flex items-center justify-center text-sm font-bold mr-3">4</span>
+                Assignment & Responsibility
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Assignment Type</label>
+                  <select
+                    name="type"
+                    value={form.type}
+                    onChange={handleChange}
+                    className="w-full h-12 text-base border border-gray-300 rounded-lg px-4 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    {typeOptions.map((opt) => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Assigned To</label>
+                  {renderAssignedToInput()}
+                </div>
+              </div>
+            </div>
+          </div>
+          {/* SECTION 5: ADVANCED OPTIONS */}
+          <div className="space-y-6">
+            <div className="bg-gray-50 p-6 rounded-lg border-2 border-dashed border-gray-300">
+              <h3 className="text-xl font-semibold text-gray-800 mb-4 flex items-center">
+                <span className="bg-gray-100 text-gray-800 rounded-full w-8 h-8 flex items-center justify-center text-sm font-bold mr-3">5</span>
+                Advanced Options
+              </h3>
+              
+              <div className="space-y-6">
+                {/* Subtask Option */}
+                <div className="bg-white p-4 rounded-lg border border-gray-200">
+                  <label className="flex items-center cursor-pointer text-base font-medium text-gray-700">
+                    <input
+                      type="checkbox"
+                      name="isSubTask"
+                      checked={form.isSubTask}
+                      onChange={handleChange}
+                      className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 mr-3"
+                    />
+                    <span className="flex items-center">
+                      <span className="mr-2">📋</span>
+                      Mark as Subtask
+                    </span>
+                  </label>
+                  <p className="text-sm text-gray-500 mt-1 ml-8">This task will be grouped under a parent task collection</p>
+                  
+                  {form.isSubTask && (
+                    <div className="mt-4 ml-8">
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Select Task Group</label>
+                      <select
+                        name="task_group"
+                        value={selectedTaskGroup}
+                        onChange={e => setSelectedTaskGroup(e.target.value)}
+                        className="w-full h-12 text-base border border-gray-300 rounded-lg px-4 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        required={form.isSubTask}
+                        disabled={taskGroups.length === 0}
+                      >
+                        <option value="">
+                          {form.type === "personal"
+                            ? "Select Private Task Group"
+                            : "Select Team Task Group"}
+                        </option>
+                        {taskGroups.map((g) => (
+                          <option key={g.id} value={g.id}>{g.name} ({g.visibility})</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
+
+                {/* Dependency Option */}
+                <div className="bg-white p-4 rounded-lg border border-gray-200">
+                  <label className="flex items-center cursor-pointer text-base font-medium text-gray-700">
+                    <input
+                      type="checkbox"
+                      name="isDependent"
+                      checked={form.isDependent}
+                      onChange={handleChange}
+                      className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 mr-3"
+                    />
+                    <span className="flex items-center">
+                      <span className="mr-2">🔗</span>
+                      Add Task Dependency
+                    </span>
+                  </label>
+                  <p className="text-sm text-gray-500 mt-1 ml-8">This task cannot start until another task is completed</p>
+                  
+                  {form.isDependent && (
+                    <div className="mt-4 ml-8 space-y-3">
+                      <label className="block text-sm font-semibold text-gray-700">Select Dependency Task</label>
+                      <div className="flex items-center gap-3">
+                        <button
+                          type="button"
+                          className="flex-1 h-12 px-4 border border-gray-300 rounded-lg bg-white hover:bg-gray-50 transition-colors text-left flex items-center justify-between"
+                          onClick={() => setDependencyDialogOpen(true)}
+                        >
+                          <span>
+                            {selectedDependencyTask
+                              ? <>🎯 <span className="font-semibold ml-2">{selectedDependencyTask.title}</span></>
+                              : "🔍 Search & Select Task"}
+                          </span>
+                          <span className="text-gray-400">
+                            {selectedDependencyTask ? "Change" : "Browse"}
+                          </span>
+                        </button>
+                        {selectedDependencyTask && (
+                          <button
+                            type="button"
+                            className="px-4 py-2 text-sm text-red-600 border border-red-300 rounded-lg hover:bg-red-50 transition-colors"
+                            onClick={() => {
+                              setSelectedDependencyTask(null);
+                              setForm(f => ({ ...f, dependencyTaskId: "" }));
+                            }}
+                          >
+                            Clear
+                          </button>
+                        )}
+                      </div>
+                      
+                      <input
+                        type="hidden"
+                        name="dependencyTaskId"
+                        value={form.dependencyTaskId}
+                        readOnly
+                      />
+                      
+                      <TaskSearchDialog
+                        open={dependencyDialogOpen}
+                        onOpenChange={setDependencyDialogOpen}
+                        onSelect={handleDependencySelect}
+                        excludeTaskId={undefined}
+                      />
+                      
+                      {selectedDependencyTask && (
+                        <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                          <div className="text-sm font-medium text-blue-800">Dependency Task Details:</div>
+                          <div className="text-sm text-blue-700 mt-1">
+                            {selectedDependencyTask.description || "No description provided"}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {form.status === "completed" && !canCompleteDependent() && (
+                        <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                          <div className="text-sm text-red-800 flex items-center">
+                            <span className="mr-2">⚠️</span>
+                            Cannot complete this task until the dependency task is completed.
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+          <SheetFooter className="mt-10 pt-6 border-t border-gray-200 flex-col sm:flex-row gap-4">
+            <div className="flex gap-4 w-full">
+              <Button 
+                type="submit" 
+                disabled={creating || sessionLoading || !user}
+                className="flex-1 h-12 text-base font-semibold bg-blue-600 hover:bg-blue-700 text-white"
               >
-                Cancel
+                {creating ? (
+                  <span className="flex items-center">
+                    <span className="animate-spin mr-2">⏳</span>
+                    Creating Task...
+                  </span>
+                ) : (
+                  <span className="flex items-center">
+                    <span className="mr-2">✨</span>
+                    Create Task
+                  </span>
+                )}
               </Button>
-            </SheetClose>
+              <SheetClose asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-12 px-6 text-base font-semibold"
+                  onClick={() => {
+                    resetForm();
+                    setOpen(false);
+                  }}
+                >
+                  Cancel
+                </Button>
+              </SheetClose>
+            </div>
           </SheetFooter>
         </form>
       </SheetContent>
