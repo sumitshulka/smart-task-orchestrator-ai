@@ -16,7 +16,7 @@ import TasksPage from "./pages/Tasks";
 import MyTasksPage from "./pages/MyTasks";
 import HistoricalTasks from "./pages/HistoricalTasks";
 import AdminDashboard from "./pages/AdminDashboardSimple";
-import TaskReport from "@/pages/TaskReport";
+import TaskReport from "@/pages/TaskReportSimple";
 import AnalyticsReport from "@/pages/AnalyticsReportSimple";
 import TaskOverdueReport from "@/pages/TaskOverdueReportSimple";
 import TaskGroupsPage from "./pages/TaskGroups";
