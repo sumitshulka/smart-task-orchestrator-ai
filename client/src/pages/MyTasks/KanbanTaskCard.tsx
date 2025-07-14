@@ -26,9 +26,61 @@ const getStatusBadgeStyle = (statusKey: string): string => {
   return STATUS_BADGE_STYLES[statusKey] || STATUS_BADGE_STYLES[statusKey.replace(/\s+/g, "_")] || "bg-neutral-100/80 text-neutral-600 border-neutral-200";
 };
 
+// Dynamic card styling based on status
+const getCardStyling = (statusKey: string) => {
+  const CARD_STYLES: Record<string, { bg: string; border: string }> = {
+    // Core task statuses
+    backlog: {
+      bg: "bg-gray-50/40",
+      border: "border-gray-100 hover:border-gray-200"
+    },
+    "in progress": {
+      bg: "bg-blue-50/40", 
+      border: "border-blue-100 hover:border-blue-200"
+    },
+    in_progress: {
+      bg: "bg-blue-50/40",
+      border: "border-blue-100 hover:border-blue-200"
+    },
+    review: {
+      bg: "bg-orange-50/40",
+      border: "border-orange-100 hover:border-orange-200"
+    },
+    completed: {
+      bg: "bg-green-50/40",
+      border: "border-green-100 hover:border-green-200"
+    },
+    
+    // Legacy statuses
+    new: {
+      bg: "bg-purple-50/40",
+      border: "border-purple-100 hover:border-purple-200"
+    },
+    assigned: {
+      bg: "bg-cyan-50/40",
+      border: "border-cyan-100 hover:border-cyan-200"
+    },
+    pending: {
+      bg: "bg-yellow-50/40",
+      border: "border-yellow-100 hover:border-yellow-200"
+    },
+    planning: {
+      bg: "bg-indigo-50/40",
+      border: "border-indigo-100 hover:border-indigo-200"
+    },
+  };
+  
+  return CARD_STYLES[statusKey] || CARD_STYLES[statusKey.replace(/\s+/g, "_")] || {
+    bg: "bg-neutral-50/40",
+    border: "border-neutral-100 hover:border-neutral-200"
+  };
+};
+
 function KanbanTaskCard({ task, onClick, CARD_TYPE }: { task: Task; onClick: () => void; CARD_TYPE: string }) {
   const statusKey = getStatusKey(task.status);
   const isCompleted = statusKey === "completed";
+  const cardStyling = getCardStyling(statusKey);
+  
   const [{ isDragging }, dragRef] = useDrag({
     type: CARD_TYPE,
     item: { id: task.id, status: task.status },
@@ -36,11 +88,12 @@ function KanbanTaskCard({ task, onClick, CARD_TYPE }: { task: Task; onClick: () 
       isDragging: monitor.isDragging(),
     }),
   });
+  
   return (
     <div
       ref={dragRef}
       style={{ opacity: isDragging ? 0.6 : 1, cursor: "grab" }}
-      className="bg-white rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200 select-none group hover:border-gray-300"
+      className={`${cardStyling.bg} rounded-lg border ${cardStyling.border} shadow-sm hover:shadow-md transition-all duration-200 select-none group`}
       onClick={onClick}
     >
       <div className="p-4">

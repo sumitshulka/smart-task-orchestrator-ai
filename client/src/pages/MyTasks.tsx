@@ -20,55 +20,73 @@ import EditTaskSheet from "@/components/EditTaskSheet";
 import TasksFiltersPanel from "@/components/TasksFiltersPanel";
 import { apiClient } from "@/lib/api";
 
-// Professional Kanban column styling
-const KANBAN_STYLES: Record<string, { bg: string; header: string; count: string }> = {
+// Professional Kanban column styling with card backgrounds
+const KANBAN_STYLES: Record<string, { bg: string; header: string; count: string; cardBg: string; cardBorder: string }> = {
   // Core task statuses
   backlog: {
     bg: "bg-gray-50/50",
     header: "text-gray-700 bg-gray-100/80 border-gray-200",
-    count: "bg-gray-200 text-gray-700"
+    count: "bg-gray-200 text-gray-700",
+    cardBg: "bg-gray-50/40",
+    cardBorder: "border-gray-100 hover:border-gray-200"
   },
   "in progress": {
     bg: "bg-blue-50/30",
     header: "text-blue-700 bg-blue-100/60 border-blue-200",
-    count: "bg-blue-200 text-blue-700"
+    count: "bg-blue-200 text-blue-700",
+    cardBg: "bg-blue-50/40",
+    cardBorder: "border-blue-100 hover:border-blue-200"
   }, 
   in_progress: {
     bg: "bg-blue-50/30",
     header: "text-blue-700 bg-blue-100/60 border-blue-200",
-    count: "bg-blue-200 text-blue-700"
+    count: "bg-blue-200 text-blue-700",
+    cardBg: "bg-blue-50/40",
+    cardBorder: "border-blue-100 hover:border-blue-200"
   },
   review: {
     bg: "bg-orange-50/30",
     header: "text-orange-700 bg-orange-100/60 border-orange-200",
-    count: "bg-orange-200 text-orange-700"
+    count: "bg-orange-200 text-orange-700",
+    cardBg: "bg-orange-50/40",
+    cardBorder: "border-orange-100 hover:border-orange-200"
   },
   completed: {
     bg: "bg-green-50/30",
     header: "text-green-700 bg-green-100/60 border-green-200",
-    count: "bg-green-200 text-green-700"
+    count: "bg-green-200 text-green-700",
+    cardBg: "bg-green-50/40",
+    cardBorder: "border-green-100 hover:border-green-200"
   },
   
   // Legacy statuses (for backward compatibility)
   new: {
     bg: "bg-purple-50/30",
     header: "text-purple-700 bg-purple-100/60 border-purple-200",
-    count: "bg-purple-200 text-purple-700"
+    count: "bg-purple-200 text-purple-700",
+    cardBg: "bg-purple-50/40",
+    cardBorder: "border-purple-100 hover:border-purple-200"
   },
   assigned: {
     bg: "bg-cyan-50/30",
     header: "text-cyan-700 bg-cyan-100/60 border-cyan-200",
-    count: "bg-cyan-200 text-cyan-700"
+    count: "bg-cyan-200 text-cyan-700",
+    cardBg: "bg-cyan-50/40",
+    cardBorder: "border-cyan-100 hover:border-cyan-200"
   },
   pending: {
     bg: "bg-yellow-50/30",
     header: "text-yellow-700 bg-yellow-100/60 border-yellow-200",
-    count: "bg-yellow-200 text-yellow-700"
+    count: "bg-yellow-200 text-yellow-700",
+    cardBg: "bg-yellow-50/40",
+    cardBorder: "border-yellow-100 hover:border-yellow-200"
   },
   planning: {
     bg: "bg-indigo-50/30",
     header: "text-indigo-700 bg-indigo-100/60 border-indigo-200",
-    count: "bg-indigo-200 text-indigo-700"
+    count: "bg-indigo-200 text-indigo-700",
+    cardBg: "bg-indigo-50/40",
+    cardBorder: "border-indigo-100 hover:border-indigo-200"
   },
 };
 
@@ -77,7 +95,9 @@ const getStatusStyle = (statusKey: string) => {
   return KANBAN_STYLES[statusKey] || KANBAN_STYLES[statusKey.replace(/\s+/g, "_")] || {
     bg: "bg-neutral-50/30",
     header: "text-neutral-700 bg-neutral-100/60 border-neutral-200",
-    count: "bg-neutral-200 text-neutral-700"
+    count: "bg-neutral-200 text-neutral-700",
+    cardBg: "bg-neutral-50/40",
+    cardBorder: "border-neutral-100 hover:border-neutral-200"
   };
 };
 
