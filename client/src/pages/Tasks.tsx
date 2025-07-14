@@ -1,5 +1,6 @@
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { fetchTasks, Task } from "@/integrations/supabase/tasks";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
@@ -23,8 +24,7 @@ import TasksList from "@/components/TasksList";
 import TasksNoResults from "@/components/TasksNoResults";
 import TasksPagination from "@/components/TasksPagination";
 import { useCurrentUserRoleAndTeams } from "@/hooks/useCurrentUserRoleAndTeams";
-import { usePaginatedTasks } from "@/hooks/usePaginatedTasks"; // NEW HOOK
-import TasksFiltersPanel from "@/components/TasksFiltersPanel"; // NEW COMPONENT
+import TasksFiltersPanel from "@/components/TasksFiltersPanel";
 
 // Priorities filter dropdown
 const priorities = [
@@ -50,38 +50,69 @@ const fallbackImage =
 const pageSizeOptions = [25, 50, 75, 100];
 
 const TasksPage: React.FC = () => {
-  // Use new hook for all main interactions
-  const {
-    tasks,
-    totalTasks,
-    loading,
-    page,
-    setPage,
-    pageSize,
-    setPageSize,
-    showTooManyWarning,
-    searched,
-    handleSearch,
-    filters,
-    users,
-    teams,
-    roles,   // <-- FROM usePaginatedTasks
-    user,
-  } = usePaginatedTasks({ isHistorical: false, initialPageSize: 25 });
+  const { session, user, loading: sessionLoading } = useSupabaseSession();
+  const { users, teams } = useUsersAndTeams();
+  const { roles, loading: rolesLoading } = useCurrentUserRoleAndTeams();
   const { statuses, loading: statusesLoading } = useTaskStatuses();
 
-  // New: allTasks for "latest" fallback
-  const [allTasks, setAllTasks] = useState<Task[]>([]);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  
+  // Initialize filters properly
+  const [priorityFilter, setPriorityFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [userFilter, setUserFilter] = useState("all");
+  const [teamFilter, setTeamFilter] = useState("all");
+  const [dateRange, setDateRange] = useState<{ from: Date | null; to: Date | null }>({ from: null, to: null });
+  
+  const filters = useMemo(() => ({
+    priorityFilter,
+    setPriorityFilter,
+    statusFilter,
+    setStatusFilter,
+    userFilter,
+    setUserFilter,
+    teamFilter,
+    setTeamFilter,
+    dateRange,
+    setDateRange,
+  }), [priorityFilter, statusFilter, userFilter, teamFilter, dateRange]);
+
+  // Use React Query for tasks with stable key
+  const { data: tasksResult, isLoading: loading, refetch: handleSearch } = useQuery({
+    queryKey: ["/api/tasks", "paginated", page, pageSize, priorityFilter, statusFilter, userFilter, teamFilter, dateRange, user?.id],
+    queryFn: async () => {
+      if (!user) return { tasks: [], total: 0, showTooManyWarning: false };
+      
+      const fetchInput: FetchTasksInput = {
+        page,
+        pageSize,
+        priorityFilter,
+        statusFilter,
+        userFilter,
+        teamFilter,
+        dateRange,
+        currentUser: user,
+        currentUserRoles: roles,
+      };
+      
+      return await fetchTasksPaginated(fetchInput);
+    },
+    enabled: !!user && !rolesLoading,
+    staleTime: 30 * 1000, // 30 seconds
+    gcTime: 2 * 60 * 1000, // 2 minutes
+  });
+
+  const tasks = tasksResult?.tasks || [];
+  const totalTasks = tasksResult?.total || 0;
+  const showTooManyWarning = tasksResult?.showTooManyWarning || false;
 
   // Restrict delete to status 'pending' or 'new'
   function canDelete(status: string) {
     return status === "pending" || status === "new";
   }
 
-  React.useEffect(() => {
-    handleSearch();
-    // eslint-disable-next-line
-  }, [page, pageSize, filters.priorityFilter, filters.statusFilter, filters.userFilter, filters.teamFilter, filters.dateRange]);
+
 
   // --- Removed duplicate roles state and side-effect ---
 
