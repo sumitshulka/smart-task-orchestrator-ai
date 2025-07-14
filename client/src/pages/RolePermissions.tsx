@@ -424,20 +424,29 @@ export default function RolePermissions() {
                                 </div>
                                 
                                 <div className="flex flex-col gap-1">
-                                  <Label className="text-xs">Visibility Scope</Label>
+                                  <Label className="text-xs">Data Visibility</Label>
                                   <Select
                                     value={currentScope}
                                     onValueChange={(value) => 
                                       updatePermission(resource.id, currentLevel, value)
                                     }
+                                    disabled={currentLevel === 0}
                                   >
                                     <SelectTrigger className="w-40">
-                                      <SelectValue />
+                                      <SelectValue placeholder="Select scope" />
                                     </SelectTrigger>
                                     <SelectContent>
                                       {Object.entries(VISIBILITY_SCOPE_NAMES).map(([scope, name]) => (
                                         <SelectItem key={scope} value={scope}>
-                                          {name}
+                                          <div className="flex flex-col">
+                                            <span className="font-medium">{name}</span>
+                                            <span className="text-xs text-muted-foreground">
+                                              {scope === 'user' && 'Can only see own data'}
+                                              {scope === 'manager' && 'Can see own + managed users data'}
+                                              {scope === 'team' && 'Can see own + team members data'}
+                                              {scope === 'organization' && 'Can see all organizational data'}
+                                            </span>
+                                          </div>
                                         </SelectItem>
                                       ))}
                                     </SelectContent>
