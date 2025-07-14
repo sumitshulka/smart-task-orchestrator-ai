@@ -1,6 +1,6 @@
 
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api";
 
 export interface StatusStat {
   status: string;
@@ -14,25 +14,37 @@ export function useStatusStats(taskFilter: any) {
   useEffect(() => {
     async function fetchStatusStats() {
       setLoading(true);
-      // Explicitly prevent excessive deep inference: use 'any'
-      let taskQuery: any = supabase.from("tasks").select("status");
-      if (taskFilter && taskFilter.column) {
-        if (taskFilter.op === "in") {
-          taskQuery = taskQuery.in(taskFilter.column, taskFilter.value);
-        } else if (taskFilter.op === "eq") {
-          taskQuery = taskQuery.eq(taskFilter.column, taskFilter.value);
+      try {
+        // Get all tasks from API
+        const allTasks = await apiClient.getTasks();
+        let filteredTasks = allTasks;
+        
+        // Apply filter if provided
+        if (taskFilter && taskFilter.column) {
+          if (taskFilter.op === "in") {
+            filteredTasks = allTasks.filter((task: any) => 
+              taskFilter.value.includes(task[taskFilter.column])
+            );
+          } else if (taskFilter.op === "eq") {
+            filteredTasks = allTasks.filter((task: any) => 
+              task[taskFilter.column] === taskFilter.value
+            );
+          }
         }
+        
+        // Count status occurrences
+        const statusCounts: Record<string, number> = {};
+        for (const task of filteredTasks) {
+          statusCounts[task.status] = (statusCounts[task.status] || 0) + 1;
+        }
+        
+        setStatusStats(
+          Object.entries(statusCounts).map(([status, count]) => ({ status, count }))
+        );
+      } catch (error) {
+        console.error('Failed to fetch status stats:', error);
+        setStatusStats([]);
       }
-      // Use any[] instead of letting TS infer supabase's type
-      const { data } = await (taskQuery as any);
-      const taskRows: any[] = Array.isArray(data) ? data : [];
-      const statusCounts: Record<string, number> = {};
-      for (const row of taskRows) {
-        statusCounts[row.status] = (statusCounts[row.status] || 0) + 1;
-      }
-      setStatusStats(
-        Object.entries(statusCounts).map(([status, count]) => ({ status, count }))
-      );
       setLoading(false);
     }
     fetchStatusStats();

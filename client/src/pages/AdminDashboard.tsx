@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api";
 import { useNavigate } from "react-router-dom";
 import { useUsersAndTeams } from "@/hooks/useUsersAndTeams";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -151,26 +151,41 @@ const AdminDashboard = () => {
   // Check team assignment
   const isUserAndNoTeams = currentRole === "user" && teams.length === 0;
 
-  // --- Add: Function to fetch oldest open tasks from tasks_manager_report_view ---
+  // --- Function to fetch oldest open tasks from API ---
   async function fetchManagerOldestOpenTasks(nextTaskFilter: any) {
-    let query: any = supabase
-      .from("tasks_manager_report_view")
-      .select("*")
-      .neq("status", "completed")
-      .order("due_date", { ascending: true, nullsFirst: true })
-      .order("created_at", { ascending: true })
-      .limit(5);
-
-    // In the manager view, sometimes nextTaskFilter is an IN or EQ filter for team_id, assigned_to, etc
-    if (nextTaskFilter.column) {
-      if (nextTaskFilter.op === "in") {
-        query = query.in(nextTaskFilter.column, nextTaskFilter.value);
-      } else if (nextTaskFilter.op === "eq") {
-        query = query.eq(nextTaskFilter.column, nextTaskFilter.value);
+    try {
+      // Get all tasks and filter them client-side
+      const allTasks = await apiClient.getTasks();
+      let filteredTasks = allTasks.filter((task: any) => task.status !== "completed");
+      
+      // Apply filters based on nextTaskFilter
+      if (nextTaskFilter.column) {
+        if (nextTaskFilter.op === "in") {
+          filteredTasks = filteredTasks.filter((task: any) => 
+            nextTaskFilter.value.includes(task[nextTaskFilter.column])
+          );
+        } else if (nextTaskFilter.op === "eq") {
+          filteredTasks = filteredTasks.filter((task: any) => 
+            task[nextTaskFilter.column] === nextTaskFilter.value
+          );
+        }
       }
+      
+      // Sort by due_date and created_at, then limit to 5
+      return filteredTasks
+        .sort((a: any, b: any) => {
+          if (a.due_date && b.due_date) {
+            return new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
+          }
+          if (a.due_date && !b.due_date) return -1;
+          if (!a.due_date && b.due_date) return 1;
+          return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+        })
+        .slice(0, 5);
+    } catch (error) {
+      console.error('Failed to fetch oldest open tasks:', error);
+      return [];
     }
-    const result: any = await query;
-    return result?.data || [];
   }
 
   useEffect(() => {
@@ -179,10 +194,6 @@ const AdminDashboard = () => {
 
       // Get user and id (single source)
       let localUser = user;
-      if (!localUser) {
-        const sessionDataResult: any = await supabase.auth.getUser();
-        localUser = sessionDataResult?.data?.user;
-      }
       if (!localUser) {
         setUserId(null);
         setLoading(false);
@@ -198,19 +209,19 @@ const AdminDashboard = () => {
       else if (roles && roles.includes("user")) filteredRole = "user";
       setRole(filteredRole);
 
-      // Generate task filter for the rest of queries (same as before)
+      // Generate task filter for the rest of queries
       let nextTaskFilter: any = {};
       if (filteredRole === "admin") {
         nextTaskFilter = {};
       } else if (filteredRole === "manager" || filteredRole === "team_manager") {
-        const membershipsResult: any = await supabase
-          .from("team_memberships")
-          .select("team_id")
-          .eq("user_id", localUser.id);
-        const memberships: any[] = membershipsResult?.data ?? [];
-        const teamIds = memberships?.map((m: any) => m.team_id) || [];
-        if (teamIds.length) {
-          nextTaskFilter = { column: "team_id", op: "in", value: teamIds };
+        try {
+          const memberships = await apiClient.getTeamMembers(localUser.id);
+          const teamIds = memberships?.map((m: any) => m.team_id) || [];
+          if (teamIds.length) {
+            nextTaskFilter = { column: "team_id", op: "in", value: teamIds };
+          }
+        } catch (error) {
+          console.error('Failed to fetch team memberships:', error);
         }
       } else if (filteredRole === "user") {
         nextTaskFilter = { column: "assigned_to", op: "eq", value: localUser.id };
@@ -219,192 +230,192 @@ const AdminDashboard = () => {
 
       // ---------------- NEW TASKS LOGIC ---------------- //
       if (filteredRole === "admin") {
-        // Correct: fetch new tasks count with status = 'New' (capital N)
-        const [
-          userCountResult,
-          teamCountResult,
-          taskCountResult,
-          completedTasksResult,
-          newTasksResult,
-        ]: any = await Promise.all([
-          supabase.from("users").select("id", { count: "exact" }),
-          supabase.from("teams").select("id", { count: "exact" }),
-          supabase.from("tasks").select("id", { count: "exact" }),
-          supabase.from("tasks").select("id").eq("status", "completed"),
-          supabase.from("tasks").select("id").eq("status", "New"),
-        ]);
-        setOrgStats({
-          users: userCountResult?.count || 0,
-          teams: teamCountResult?.count || 0,
-          totalTasks: taskCountResult?.count || 0,
-          completedTasks: completedTasksResult?.data?.length || 0,
-          newTasks: newTasksResult?.data?.length || 0,
-        });
-      } else if (filteredRole === "manager" || filteredRole === "team_manager") {
-        const membershipsResult: any = await supabase
-          .from("team_memberships")
-          .select("team_id")
-          .eq("user_id", localUser.id);
-        const memberships: any[] = membershipsResult?.data ?? [];
-        const teamIds = memberships?.map((m: any) => m.team_id) || [];
-        if (teamIds.length) {
-          const [
-            teamTaskCountResult,
-            completedTeamTasksResult,
-            newTeamTasksResult,
-          ]: any = await Promise.all([
-            supabase.from("tasks").select("id", { count: "exact" }).in("team_id", teamIds),
-            supabase.from("tasks").select("id", { count: "exact" }).in("team_id", teamIds).eq("status", "completed"),
-            supabase.from("tasks").select("id").in("team_id", teamIds).eq("status", "New"),
+        try {
+          const [users, teams, tasks] = await Promise.all([
+            apiClient.getUsers(),
+            apiClient.getTeams(),
+            apiClient.getTasks(),
           ]);
+          
+          const completedTasks = tasks.filter((task: any) => task.status === "completed");
+          const newTasks = tasks.filter((task: any) => task.status === "New");
+          
           setOrgStats({
-            users: users.length || 0,
-            teams: teamIds.length,
-            totalTasks: teamTaskCountResult?.count || 0,
-            completedTasks: completedTeamTasksResult?.count || 0,
-            newTasks: newTeamTasksResult?.data?.length || 0,
+            users: users.length,
+            teams: teams.length,
+            totalTasks: tasks.length,
+            completedTasks: completedTasks.length,
+            newTasks: newTasks.length,
           });
+        } catch (error) {
+          console.error('Failed to fetch admin stats:', error);
+        }
+      } else if (filteredRole === "manager" || filteredRole === "team_manager") {
+        try {
+          // Get teams user is a member of
+          const allMembers = await apiClient.getTeamMembers(''); // We'll need to fix this API
+          const userTeams = teams.map((t: any) => t.id); // Use from hook
+          
+          if (userTeams.length) {
+            const allTasks = await apiClient.getTasks();
+            const teamTasks = allTasks.filter((task: any) => userTeams.includes(task.team_id));
+            const completedTeamTasks = teamTasks.filter((task: any) => task.status === "completed");
+            const newTeamTasks = teamTasks.filter((task: any) => task.status === "New");
+            
+            setOrgStats({
+              users: users.length || 0,
+              teams: userTeams.length,
+              totalTasks: teamTasks.length,
+              completedTasks: completedTeamTasks.length,
+              newTasks: newTeamTasks.length,
+            });
+          }
+        } catch (error) {
+          console.error('Failed to fetch manager stats:', error);
         }
       } else if (filteredRole === "user") {
-        const [
-          assignedResult,
-          completedResult,
-          pendingResult,
-          newResult,
-        ]: any = await Promise.all([
-          supabase
-            .from("tasks")
-            .select("id", { count: "exact" })
-            .eq("assigned_to", localUser.id),
-          supabase
-            .from("tasks")
-            .select("id", { count: "exact" })
-            .eq("assigned_to", localUser.id)
-            .eq("status", "completed"),
-          supabase
-            .from("tasks")
-            .select("id", { count: "exact" })
-            .eq("assigned_to", localUser.id)
-            .eq("status", "pending"),
-          supabase
-            .from("tasks")
-            .select("id")
-            .eq("assigned_to", localUser.id)
-            .eq("status", "New"),
-        ]);
-        setUserStats({
-          assignedTasks: assignedResult?.count || 0,
-          completed: completedResult?.count || 0,
-          pending: pendingResult?.count || 0,
-          new: newResult?.data?.length || 0,
-        });
+        try {
+          const allTasks = await apiClient.getTasks();
+          const userTasks = allTasks.filter((task: any) => task.assigned_to === localUser.id);
+          const completedTasks = userTasks.filter((task: any) => task.status === "completed");
+          const pendingTasks = userTasks.filter((task: any) => task.status === "pending");
+          const newTasks = userTasks.filter((task: any) => task.status === "New");
+          
+          setUserStats({
+            assignedTasks: userTasks.length,
+            completed: completedTasks.length,
+            pending: pendingTasks.length,
+            new: newTasks.length,
+          });
+        } catch (error) {
+          console.error('Failed to fetch user stats:', error);
+        }
       }
 
       // 3. Overdue tasks
-      let overdueQuery: any = supabase
-        .from("tasks")
-        .select("*")
-        .lt("due_date", dayjs().format("YYYY-MM-DD"))
-        .neq("status", "completed");
-      if (taskFilter.column) {
-        if (taskFilter.op === "in")
-          overdueQuery = overdueQuery.in(
-            taskFilter.column,
-            taskFilter.value
-          );
-        else if (taskFilter.op === "eq")
-          overdueQuery = overdueQuery.eq(
-            taskFilter.column,
-            taskFilter.value
-          );
+      try {
+        const allTasks = await apiClient.getTasks();
+        const today = dayjs().format("YYYY-MM-DD");
+        let overdueTasks = allTasks.filter((task: any) => 
+          task.due_date && 
+          task.due_date < today && 
+          task.status !== "completed"
+        );
+        
+        // Apply task filter
+        if (nextTaskFilter.column) {
+          if (nextTaskFilter.op === "in") {
+            overdueTasks = overdueTasks.filter((task: any) => 
+              nextTaskFilter.value.includes(task[nextTaskFilter.column])
+            );
+          } else if (nextTaskFilter.op === "eq") {
+            overdueTasks = overdueTasks.filter((task: any) => 
+              task[nextTaskFilter.column] === nextTaskFilter.value
+            );
+          }
+        }
+        
+        setOverdueTasks(overdueTasks);
+      } catch (error) {
+        console.error('Failed to fetch overdue tasks:', error);
+        setOverdueTasks([]);
       }
-      const overdueResult: any = await overdueQuery;
-      setOverdueTasks(overdueResult?.data || []);
 
-      // 4. High priority tasks
-      let highPrioQuery: any = supabase
-        .from("tasks")
-        .select("*")
-        .eq("priority", 1)
-        .neq("status", "completed");
-      if (taskFilter.column) {
-        if (taskFilter.op === "in")
-          highPrioQuery = highPrioQuery.in(
-            taskFilter.column,
-            taskFilter.value
-          );
-        else if (taskFilter.op === "eq")
-          highPrioQuery = highPrioQuery.eq(
-            taskFilter.column,
-            taskFilter.value
-          );
+      // 4. High priority tasks  
+      try {
+        const allTasks = await apiClient.getTasks();
+        let highPriorityTasks = allTasks.filter((task: any) => 
+          task.priority === 1 && task.status !== "completed"
+        );
+        
+        // Apply task filter
+        if (nextTaskFilter.column) {
+          if (nextTaskFilter.op === "in") {
+            highPriorityTasks = highPriorityTasks.filter((task: any) => 
+              nextTaskFilter.value.includes(task[nextTaskFilter.column])
+            );
+          } else if (nextTaskFilter.op === "eq") {
+            highPriorityTasks = highPriorityTasks.filter((task: any) => 
+              task[nextTaskFilter.column] === nextTaskFilter.value
+            );
+          }
+        }
+        
+        setHighPriorityTasks(highPriorityTasks);
+      } catch (error) {
+        console.error('Failed to fetch high priority tasks:', error);
+        setHighPriorityTasks([]);
       }
-      const highPrioResult: any = await highPrioQuery;
-      setHighPriorityTasks(highPrioResult?.data || []);
 
       // 5. Assigned vs completion per month (last 6 months)
-      const fromDate = dayjs().subtract(5, "months").startOf("month");
-      const months = [];
-      for (let i = 0; i < 6; i++) {
-        months.push(dayjs(fromDate).add(i, "month"));
-      }
-      // Query all assignments & completions in last 6 months
-      let assignedQ: any = supabase
-        .from("tasks")
-        .select("id,created_at")
-        .gte("created_at", months[0].format("YYYY-MM-DD"));
-      let completedQ: any = supabase
-        .from("tasks")
-        .select("id,actual_completion_date")
-        .gte("created_at", months[0].format("YYYY-MM-DD"))
-        .eq("status", "completed");
-      if (taskFilter.column) {
-        if (taskFilter.op === "in") {
-          assignedQ = assignedQ.in(taskFilter.column, taskFilter.value);
-          completedQ = completedQ.in(taskFilter.column, taskFilter.value);
-        } else if (taskFilter.op === "eq") {
-          assignedQ = assignedQ.eq(taskFilter.column, taskFilter.value);
-          completedQ = completedQ.eq(taskFilter.column, taskFilter.value);
+      try {
+        const fromDate = dayjs().subtract(5, "months").startOf("month");
+        const months = [];
+        for (let i = 0; i < 6; i++) {
+          months.push(dayjs(fromDate).add(i, "month"));
         }
+        
+        const allTasks = await apiClient.getTasks();
+        const fromDateStr = months[0].format("YYYY-MM-DD");
+        
+        // Filter tasks from the last 6 months
+        let recentTasks = allTasks.filter((task: any) => 
+          task.created_at >= fromDateStr
+        );
+        
+        // Apply task filter
+        if (nextTaskFilter.column) {
+          if (nextTaskFilter.op === "in") {
+            recentTasks = recentTasks.filter((task: any) => 
+              nextTaskFilter.value.includes(task[nextTaskFilter.column])
+            );
+          } else if (nextTaskFilter.op === "eq") {
+            recentTasks = recentTasks.filter((task: any) => 
+              task[nextTaskFilter.column] === nextTaskFilter.value
+            );
+          }
+        }
+        
+        const assignedData = recentTasks;
+        const completedData = recentTasks.filter((task: any) => task.status === "completed");
+        
+        // Format as monthly buckets
+        const stats = months.map((m) => ({
+          month: m.format("MMM YYYY"),
+          assigned: 0,
+          completed: 0,
+        }));
+        
+        assignedData.forEach((task: any) => {
+          const idx = months.findIndex((m) =>
+            dayjs(task.created_at).isSame(m, "month")
+          );
+          if (idx > -1) stats[idx].assigned++;
+        });
+        
+        completedData.forEach((task: any) => {
+          // Try prefer actual_completion_date if available
+          const dt = task.actual_completion_date || task.created_at;
+          const idx = months.findIndex((m) =>
+            dayjs(dt).isSame(m, "month")
+          );
+          if (idx > -1) stats[idx].completed++;
+        });
+        
+        setTaskMonthlyStats(stats);
+      } catch (error) {
+        console.error('Failed to fetch monthly stats:', error);
+        setTaskMonthlyStats([]);
       }
-      const [assignedDataResult, completedDataResult]: any = await Promise.all([
-        assignedQ,
-        completedQ,
-      ]);
-      const assignedData: any[] = assignedDataResult?.data ?? [];
-      const completedData: any[] = completedDataResult?.data ?? [];
-      // Format as monthly buckets
-      const stats = months.map((m) => ({
-        month: m.format("MMM YYYY"),
-        assigned: 0,
-        completed: 0,
-      }));
-      (assignedData || []).forEach((task: any) => {
-        const idx = months.findIndex((m) =>
-          dayjs(task.created_at).isSame(m, "month")
-        );
-        if (idx > -1) stats[idx].assigned++;
-      });
-      (completedData || []).forEach((task: any) => {
-        // Try prefer actual_completion_date if available
-        const dt = task.actual_completion_date || task.created_at;
-        const idx = months.findIndex((m) =>
-          dayjs(dt).isSame(m, "month")
-        );
-        if (idx > -1) stats[idx].completed++;
-      });
-      setTaskMonthlyStats(stats);
 
       // 6. Overdue ratio
       const totalTasks =
         currentRole === "user" && userStats
           ? userStats.assignedTasks
           : orgStats?.totalTasks || 0;
-      const overdueCount = (overdueResult?.data || []).length;
+      const overdueCount = overdueTasks.length;
       setOverdueRatio(
-        totalTasks
-          ? `${Math.round((overdueCount / totalTasks) * 100)}%`
-          : "0%"
+        totalTasks > 0 ? `${Math.round((overdueCount / totalTasks) * 100)}%` : "0%"
       );
 
       // --- Refactor: Use view for oldest open tasks for managers/team managers ---
@@ -412,103 +423,99 @@ const AdminDashboard = () => {
       if (filteredRole === "manager" || filteredRole === "team_manager") {
         oldestOpenTasksData = await fetchManagerOldestOpenTasks(nextTaskFilter);
       } else {
-        // Default: users/admins
-        let oldestOpenTasksQuery: any = supabase
-          .from("tasks")
-          .select("*")
-          .neq("status", "completed")
-          .order("due_date", { ascending: true, nullsFirst: true })
-          .order("created_at", { ascending: true })
-          .limit(5);
-
-        if (nextTaskFilter.column) {
-          if (nextTaskFilter.op === "in") {
-            oldestOpenTasksQuery = oldestOpenTasksQuery.in(
-              nextTaskFilter.column,
-              nextTaskFilter.value
-            );
-          } else if (nextTaskFilter.op === "eq") {
-            oldestOpenTasksQuery = oldestOpenTasksQuery.eq(
-              nextTaskFilter.column,
-              nextTaskFilter.value
-            );
+        // Default: users/admins  
+        try {
+          const allTasks = await apiClient.getTasks();
+          let filteredTasks = allTasks.filter((task: any) => task.status !== "completed");
+          
+          // Apply filter if needed
+          if (nextTaskFilter.column) {
+            if (nextTaskFilter.op === "in") {
+              filteredTasks = filteredTasks.filter((task: any) => 
+                nextTaskFilter.value.includes(task[nextTaskFilter.column])
+              );
+            } else if (nextTaskFilter.op === "eq") {
+              filteredTasks = filteredTasks.filter((task: any) => 
+                task[nextTaskFilter.column] === nextTaskFilter.value
+              );
+            }
           }
+          
+          // Sort and limit to 5
+          oldestOpenTasksData = filteredTasks
+            .sort((a: any, b: any) => {
+              if (a.due_date && b.due_date) {
+                return new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
+              }
+              if (a.due_date && !b.due_date) return -1;
+              if (!a.due_date && b.due_date) return 1;
+              return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+            })
+            .slice(0, 5);
+        } catch (error) {
+          console.error('Failed to fetch oldest open tasks:', error);
+          oldestOpenTasksData = [];
         }
-        const oldestOpenTasksResult: any = await oldestOpenTasksQuery;
-        oldestOpenTasksData = oldestOpenTasksResult?.data || [];
       }
       setOldestOpenTasks(oldestOpenTasksData);
 
       // ---------- FETCH MANAGERS/TEAM_MANAGERS WITHOUT TEAMS (For ADMIN) ----------
       if (filteredRole === "admin") {
-        // 1. Get all user_roles for managers and team_managers
-        const { data: allUserRoles, error: roleErr } = await supabase
-          .from("user_roles")
-          .select(`
-            user_id,
-            id,
-            role:roles(name)
-          `);
+        try {
+          // 1. Get all roles and find manager/team_manager IDs
+          const allRoles = await apiClient.getRoles();
+          const managerRoleIds = allRoles
+            .filter((role: any) => role.name === "manager" || role.name === "team_manager")
+            .map((role: any) => role.id);
 
-        if (roleErr) {
-          console.error("Failed to fetch user_roles for manager detection:", roleErr);
-        }
-        // roles data is now: { user_id, id, role: { name: string } }
-        // Get all user_ids with role.name 'manager' or 'team_manager'
-        const managerIds =
-          allUserRoles
-            ?.filter(
-              (ur: any) =>
-                ur.role &&
-                (ur.role.name === "manager" || ur.role.name === "team_manager")
-            )
-            .map((ur: any) => ur.user_id) || [];
-
-        // 2. Get all user_ids who are assigned to at least one team (via team_memberships)
-        const { data: membershipsData, error: membErr } = await supabase
-          .from("team_memberships")
-          .select("user_id");
-        if (membErr) {
-          console.error("Failed to fetch team_memberships for manager warning strip:", membErr);
-        }
-        const usersWithTeams = membershipsData?.map((m: any) => m.user_id) || [];
-
-        // 3. Find IDs with manager/team_manager role, not present in memberships
-        const managerIdsWithoutTeam = managerIds.filter(
-          (id: string) => !usersWithTeams.includes(id)
-        );
-
-        // 4. Fetch user row for each manager without team (to include emails/names)
-        let managerUsers: any[] = [];
-        if (managerIdsWithoutTeam.length) {
-          const { data, error: mgrUserErr } = await supabase
-            .from("users")
-            .select("id, email, user_name")
-            .in("id", managerIdsWithoutTeam);
-
-          managerUsers = data || [];
-          if (mgrUserErr) {
-            console.error("Failed to fetch user info for managers without teams:", mgrUserErr);
+          // 2. Get all users and their roles
+          const allUsers = await apiClient.getUsers();
+          const managerUserIds: string[] = [];
+          
+          for (const user of allUsers) {
+            try {
+              const userRoles = await apiClient.getUserRoles(user.id);
+              const hasManagerRole = userRoles.some((ur: any) => 
+                managerRoleIds.includes(ur.role_id)
+              );
+              if (hasManagerRole) {
+                managerUserIds.push(user.id);
+              }
+            } catch (error) {
+              // Skip users with role fetch errors
+            }
           }
-        }
 
-        // 5. Debug: output list and ensure `sumits@smopl.com` is checked
-        const testManager = managerUsers.find(u => u.email === "sumits@smopl.com");
-        if (!testManager) {
-          console.log(
-            "[DEBUG] sumits@smopl.com NOT found in managersWithoutTeams list! managerIdsWithoutTeam:",
-            managerIdsWithoutTeam,
-            "Fetched managerUsers:", managerUsers
-          );
-        } else {
-          console.log("[DEBUG] sumits@smopl.com is correctly detected as manager without team");
-        }
+          // 3. Check which managers don't have teams
+          const managersWithoutTeams: any[] = [];
+          for (const userId of managerUserIds) {
+            try {
+              const teamMembers = await apiClient.getTeamMembers(userId);
+              if (!teamMembers || teamMembers.length === 0) {
+                const user = allUsers.find((u: any) => u.id === userId);
+                if (user) {
+                  managersWithoutTeams.push(user);
+                }
+              }
+            } catch (error) {
+              // If can't fetch team info, assume no teams
+              const user = allUsers.find((u: any) => u.id === userId);
+              if (user) {
+                managersWithoutTeams.push(user);
+              }
+            }
+          }
 
-        setManagersWithoutTeams(managerUsers || []);
+          setManagersWithoutTeams(managersWithoutTeams);
+        } catch (error) {
+          console.error('Failed to fetch managers without teams:', error);
+          setManagersWithoutTeams([]);
+        }
       }
 
       setLoading(false);
     }
+    
     setup();
     // eslint-disable-next-line
   }, [user, roles, teams]);

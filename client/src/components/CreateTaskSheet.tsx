@@ -19,36 +19,35 @@ import { useTaskStatuses } from "@/hooks/useTaskStatuses";
 import { fetchAssignableTaskGroups, assignTaskToGroup, TaskGroup } from "@/integrations/supabase/taskGroups";
 import TaskSearchDialog from "./TaskSearchDialog";
 import { useDependencyConstraintValidation } from "@/hooks/useDependencyConstraintValidation";
+import { apiClient } from "@/lib/api";
 
 // Simulated quick user record
 type User = { id: string; email: string; user_name: string | null; manager: string | null };
 type Role = { name: string };
 
-// HELPER: fetch roles for a given user id from Supabase
+// HELPER: fetch roles for a given user id from API
 async function fetchUserRolesFromSupabase(userId: string): Promise<string[]> {
-  const { supabase } = await import("@/integrations/supabase/client");
-  const { data, error } = await supabase
-    .from("user_roles")
-    .select(`role:role_id (name)`)
-    .eq("user_id", userId);
-  if (error) {
+  try {
+    const userRoles = await apiClient.getUserRoles(userId);
+    const roles = await apiClient.getRoles();
+    const userRoleIds = userRoles.map((ur: any) => ur.role_id);
+    return roles
+      .filter((role: any) => userRoleIds.includes(role.id))
+      .map((role: any) => role.name);
+  } catch (error) {
     console.error("Failed to fetch user roles", error);
     return [];
   }
-  // The 'role' field comes as an object: { name: string }
-  return (data || []).map((r: any) => r.role?.name).filter(Boolean);
 }
 
-// Helper function to fetch users (now using Supabase)
+// Helper function to fetch users (now using API)
 async function fetchUsersSupabase(): Promise<User[]> {
-  // Uses Supabase client to fetch all users with manager field
-  // Assumes client imported (already in codebase)
-  const { supabase } = await import("@/integrations/supabase/client");
-  const { data, error } = await supabase
-    .from("users")
-    .select("id, email, user_name, manager");
-  if (error) throw error;
-  return data as User[];
+  try {
+    return await apiClient.getUsers();
+  } catch (error) {
+    console.error("Failed to fetch users", error);
+    return [];
+  }
 }
 
 interface Props {

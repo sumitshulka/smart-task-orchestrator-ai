@@ -18,6 +18,7 @@ import TaskCardClickable from "./MyTasks/TaskCardClickable";
 import TasksPagination from "@/components/TasksPagination";
 import EditTaskSheet from "@/components/EditTaskSheet";
 import TasksFiltersPanel from "@/components/TasksFiltersPanel";
+import { apiClient } from "@/lib/api";
 
 // Pastel color classes for Kanban columns
 const KANBAN_COLORS: Record<string, string> = {
@@ -69,11 +70,17 @@ export default function MyTasksPage() {
   useEffect(() => {
     (async () => {
       if (!user?.id) return setRoles([]);
-      const { data, error } = await import("@/integrations/supabase/client").then(mod =>
-        mod.supabase.from("user_roles").select("role:roles(name)").eq("user_id", user.id)
-      );
-      if (error) setRoles([]);
-      else setRoles((data ?? []).map((r: any) => r.role?.name).filter(Boolean));
+      try {
+        const userRoles = await apiClient.getUserRoles(user.id);
+        const allRoles = await apiClient.getRoles();
+        const userRoleIds = userRoles.map((ur: any) => ur.role_id);
+        const roleNames = allRoles
+          .filter((role: any) => userRoleIds.includes(role.id))
+          .map((role: any) => role.name);
+        setRoles(roleNames);
+      } catch (error) {
+        setRoles([]);
+      }
     })();
   }, [user?.id]);
 

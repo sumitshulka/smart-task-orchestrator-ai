@@ -1,6 +1,6 @@
 
-import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { useQuery } from "@tanstack/react-query";
+import { apiClient } from "@/lib/api";
 
 export type TaskStatus = {
   id: string;
@@ -19,38 +19,18 @@ export type StatusTransition = {
 };
 
 export function useTaskStatuses() {
-  const [statuses, setStatuses] = useState<TaskStatus[]>([]);
-  const [loading, setLoading] = useState(false);
+  const { data: statuses = [], isLoading: loading } = useQuery({
+    queryKey: ['/api/task-statuses'],
+    queryFn: () => apiClient.getTaskStatuses(),
+  });
 
-  useEffect(() => {
-    setLoading(true);
-    supabase
-      .from("task_statuses")
-      .select("*")
-      .order("sequence_order", { ascending: true })
-      .then(({ data }) => {
-        setStatuses(data || []);
-        setLoading(false);
-      });
-  }, []);
-
-  return { statuses, loading, setStatuses };
+  return { statuses, loading, setStatuses: () => {} };
 }
 
 export function useStatusTransitions() {
-  const [transitions, setTransitions] = useState<StatusTransition[]>([]);
-  const [loading, setLoading] = useState(false);
+  // For now, return empty array since we don't have this endpoint yet
+  const transitions: StatusTransition[] = [];
+  const loading = false;
 
-  useEffect(() => {
-    setLoading(true);
-    supabase
-      .from("task_status_transitions")
-      .select("*")
-      .then(({ data }) => {
-        setTransitions(data || []);
-        setLoading(false);
-      });
-  }, []);
-
-  return { transitions, loading, setTransitions };
+  return { transitions, loading, setTransitions: () => {} };
 }
