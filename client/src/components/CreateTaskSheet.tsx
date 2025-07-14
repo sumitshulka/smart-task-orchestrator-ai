@@ -20,6 +20,7 @@ import { fetchAssignableTaskGroups, assignTaskToGroup, TaskGroup } from "@/integ
 
 import { useDependencyConstraintValidation } from "@/hooks/useDependencyConstraintValidation";
 import { apiClient } from "@/lib/api";
+import { queryClient } from "@/lib/queryClient";
 
 // Simulated quick user record
 type User = { id: string; email: string; user_name: string | null; manager: string | null };
@@ -296,6 +297,12 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
       }
 
       toast({ title: "Task Created", description: form.title });
+      
+      // Invalidate all task-related queries to refresh the UI
+      await queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
+      await queryClient.invalidateQueries({ queryKey: ['overdue-tasks'] });
+      await queryClient.invalidateQueries({ queryKey: ['analytics-tasks'] });
+      
       resetForm();
       setOpen(false);
       onTaskCreated();

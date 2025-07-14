@@ -17,6 +17,7 @@ import { toast } from "@/components/ui/use-toast";
 import { useTaskStatuses } from "@/hooks/useTaskStatuses";
 import { EditTaskStatusSelect } from "./EditTaskStatusSelect";
 import { apiClient } from "@/lib/api";
+import { queryClient } from "@/lib/queryClient";
 import { useUsersAndTeams } from "@/hooks/useUsersAndTeams";
 import useSupabaseSession from "@/hooks/useSupabaseSession";
 import { useCurrentUserRoleAndTeams } from "@/hooks/useCurrentUserRoleAndTeams";
@@ -185,6 +186,12 @@ const EditTaskSheet: React.FC<Props> = ({
       };
       await apiClient.updateTask(task!.id, updatePayload);
       toast({ title: "Task assignee updated" });
+      
+      // Invalidate all task-related queries to refresh the UI
+      await queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
+      await queryClient.invalidateQueries({ queryKey: ['overdue-tasks'] });
+      await queryClient.invalidateQueries({ queryKey: ['analytics-tasks'] });
+      
       onOpenChange(false);
       if (typeof onUpdated === 'function') {
         onUpdated();
@@ -226,6 +233,12 @@ const EditTaskSheet: React.FC<Props> = ({
 
       await apiClient.updateTask(task!.id, updatePayload);
       toast({ title: "Task updated" });
+      
+      // Invalidate all task-related queries to refresh the UI
+      await queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
+      await queryClient.invalidateQueries({ queryKey: ['overdue-tasks'] });
+      await queryClient.invalidateQueries({ queryKey: ['analytics-tasks'] });
+      
       onOpenChange(false);
       if (typeof onUpdated === 'function') {
         onUpdated();
