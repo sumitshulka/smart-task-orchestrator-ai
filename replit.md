@@ -42,6 +42,8 @@ Preferred communication style: Simple, everyday language.
 ✓ **Required Field Indicators**: Added red asterisks (*) to mandatory fields (Estimated Hours, Start Date, End Date) in Create Task modal for clear visual guidance
 ✓ **5-Digit Task Numbering System**: Implemented readable task IDs starting from 11001 instead of 1 - all tasks now display as #11001, #11002, etc.
 ✓ **Clickable Task Titles**: Added click functionality to task titles that opens full task details view with enhanced user experience
+✓ **Universal Task Details Modal**: Implemented TaskDetailsSheet functionality across all task pages (My Tasks, All Tasks, Kanban view) with consistent click-to-view behavior
+✓ **Component Architecture Enhancement**: Updated TasksList and KanbanTaskCard components to support onOpenDetails callback for unified task interaction
 
 ## System Architecture
 

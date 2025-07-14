@@ -386,12 +386,10 @@ export default function MyTasksPage() {
   };
 
   const openDetailsForTask = (task: Task) => {
-    console.log("[DEBUG] openDetailsForTask called for task:", task.title);
     setEditOpen(false);
     setEditTask(null);
     setDetailsTask(task);
     setDetailsOpen(true);
-    console.log("[DEBUG] State updated: detailsOpen should be true");
   };
 
   const openEditForTask = (task: Task) => {

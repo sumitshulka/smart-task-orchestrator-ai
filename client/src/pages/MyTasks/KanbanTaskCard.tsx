@@ -154,7 +154,6 @@ function KanbanTaskCard({ task, onClick, CARD_TYPE, statusColor }: {
           <div className="font-medium text-gray-900 leading-tight cursor-pointer hover:text-blue-600 transition-colors"
                onClick={(e) => {
                  e.stopPropagation();
-                 console.log("[DEBUG] KanbanTaskCard title clicked:", task.title);
                  onClick();
                }}>
             {task.title}

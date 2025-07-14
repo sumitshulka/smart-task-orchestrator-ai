@@ -10,6 +10,8 @@ import { toast } from "@/hooks/use-toast";
 import useSupabaseSession from "@/hooks/useSupabaseSession";
 import CreateTaskSheet from "@/components/CreateTaskSheet";
 import TaskCard from "@/components/TaskCard";
+import TaskDetailsSheet from "@/components/TaskDetailsSheet";
+import EditTaskSheet from "@/components/EditTaskSheet";
 import { useUsersAndTeams } from "@/hooks/useUsersAndTeams";
 import { useTaskStatuses } from "@/hooks/useTaskStatuses";
 import { fetchTasksPaginated, FetchTasksInput } from "@/integrations/supabase/tasks";
@@ -59,6 +61,12 @@ const TasksPage: React.FC = () => {
 
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
+  
+  // Task Details Modal States
+  const [detailsTask, setDetailsTask] = useState<Task | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [editTask, setEditTask] = useState<Task | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
   
   // Filter states
   const [searchQuery, setSearchQuery] = useState("");
@@ -127,6 +135,21 @@ const TasksPage: React.FC = () => {
   function canDelete(status: string) {
     return status === "pending" || status === "new";
   }
+
+  // Task Details Modal Functions
+  const openDetailsForTask = (task: Task) => {
+    setEditOpen(false);
+    setEditTask(null);
+    setDetailsTask(task);
+    setDetailsOpen(true);
+  };
+
+  const openEditForTask = (task: Task) => {
+    setDetailsOpen(false);
+    setDetailsTask(null);
+    setEditTask(task);
+    setEditOpen(true);
+  };
 
 
 
@@ -287,7 +310,13 @@ const TasksPage: React.FC = () => {
             <div className="mb-4 text-sm text-gray-600">
               Showing {tasks.length} of {totalTasks} tasks
             </div>
-            <TasksList tasks={tasks} users={users} canDelete={canDelete} statuses={statuses} />
+            <TasksList 
+              tasks={tasks} 
+              onTaskUpdated={handleSearch} 
+              canDelete={canDelete} 
+              statuses={statuses} 
+              onOpenDetails={openDetailsForTask} 
+            />
             <TasksPagination
               page={page}
               pageSize={pageSize}
@@ -299,6 +328,27 @@ const TasksPage: React.FC = () => {
           </>
         )}
       </div>
+
+      {/* Task Details Modal */}
+      <TaskDetailsSheet
+        task={detailsTask}
+        open={detailsOpen}
+        onOpenChange={setDetailsOpen}
+        currentUser={user}
+        onUpdated={handleSearch}
+        onEdit={openEditForTask}
+      />
+
+      {/* Edit Task Modal */}
+      <EditTaskSheet
+        task={editTask}
+        onUpdated={() => {
+          setEditOpen(false);
+          handleSearch();
+        }}
+        open={editOpen}
+        onOpenChange={setEditOpen}
+      />
     </div>
   );
 };
