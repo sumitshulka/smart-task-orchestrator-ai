@@ -4,7 +4,9 @@ import useSupabaseSession from "@/hooks/useSupabaseSession";
 import { fetchTasks, Task, updateTask, fetchTasksPaginated, FetchTasksInput } from "@/integrations/supabase/tasks";
 import { useUsersAndTeams } from "@/hooks/useUsersAndTeams";
 import { Button } from "@/components/ui/button";
-import { Image, Kanban, List, Plus } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Filter, Search, Kanban, List, Plus } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useTaskStatuses } from "@/hooks/useTaskStatuses";
 import { useDrop, useDrag, DndProvider } from "react-dnd";
@@ -17,8 +19,17 @@ import KanbanTaskCard from "./MyTasks/KanbanTaskCard";
 import TaskCardClickable from "./MyTasks/TaskCardClickable";
 import TasksPagination from "@/components/TasksPagination";
 import EditTaskSheet from "@/components/EditTaskSheet";
-import TasksFiltersPanel from "@/components/TasksFiltersPanel";
 import { apiClient } from "@/lib/api";
+import { format, startOfMonth, endOfMonth } from "date-fns";
+import DateRangePresetSelector from "@/components/DateRangePresetSelector";
+
+function defaultDateRange() {
+  const now = new Date();
+  return {
+    from: startOfMonth(now),
+    to: endOfMonth(now),
+  };
+}
 
 // Professional Kanban column styling with card backgrounds
 const KANBAN_STYLES: Record<string, { bg: string; header: string; count: string; cardBg: string; cardBorder: string }> = {
@@ -123,11 +134,20 @@ export default function MyTasksPage() {
   const [showTooManyWarning, setShowTooManyWarning] = useState(false);
 
   // Filter states
+  const [searchQuery, setSearchQuery] = useState("");
+  const [showFilters, setShowFilters] = useState(false);
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [userFilter, setUserFilter] = useState<string>("all");
   const [teamFilter, setTeamFilter] = useState<string>("all");
-  const [dateRange, setDateRange] = useState<{ from: Date | null; to: Date | null }>({ from: null, to: null });
+  const [dateRange, setDateRange] = useState(defaultDateRange());
+  const [preset, setPreset] = useState<string>("This Month");
+
+  function handlePresetChange(range: { from: Date | null; to: Date | null }, p: string) {
+    setPreset(p);
+    if (p === "custom") return;
+    setDateRange(range);
+  }
 
   const { users, teams } = useUsersAndTeams();
   const { statuses, loading: statusesLoading } = useTaskStatuses();
