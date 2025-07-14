@@ -432,23 +432,16 @@ export default function RolePermissions() {
                           </div>
                           
                           <div className="flex items-center gap-3">
-                            <div className="flex items-center gap-2">
-                              <Badge className={`${getPermissionBadgeColor(currentLevel)} flex items-center gap-1 px-3 py-1`}>
-                                <span className="text-sm">{getPermissionIcon(currentLevel)}</span>
-                                <span className="font-medium text-xs">{PERMISSION_LEVELS[currentLevel as keyof typeof PERMISSION_LEVELS]}</span>
-                              </Badge>
-                              {currentLevel > 0 && (
-                                <div className="text-xs text-muted-foreground max-w-32 truncate">
-                                  {PERMISSION_LEVEL_DESCRIPTIONS[currentLevel as keyof typeof PERMISSION_LEVEL_DESCRIPTIONS]}
-                                </div>
-                              )}
-                            </div>
+                            <Badge className={`${getPermissionBadgeColor(currentLevel)} flex items-center gap-1 px-3 py-1`}>
+                              <span className="text-sm">{getPermissionIcon(currentLevel)}</span>
+                              <span className="font-medium text-xs">{PERMISSION_LEVELS[currentLevel as keyof typeof PERMISSION_LEVELS]}</span>
+                            </Badge>
                             
                             <Select
                               value={currentLevel.toString()}
                               onValueChange={(value) => updatePermission(resource.id, parseInt(value))}
                             >
-                              <SelectTrigger className="w-44">
+                              <SelectTrigger className="w-48">
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
@@ -456,12 +449,7 @@ export default function RolePermissions() {
                                   <SelectItem key={level} value={level}>
                                     <div className="flex items-center gap-2">
                                       <span>{getPermissionIcon(parseInt(level))}</span>
-                                      <div className="flex flex-col">
-                                        <span className="font-medium">{name}</span>
-                                        <span className="text-xs text-muted-foreground">
-                                          {PERMISSION_LEVEL_DESCRIPTIONS[parseInt(level) as keyof typeof PERMISSION_LEVEL_DESCRIPTIONS]}
-                                        </span>
-                                      </div>
+                                      <span className="font-medium">{name}</span>
                                     </div>
                                   </SelectItem>
                                 ))}
