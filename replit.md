@@ -34,7 +34,7 @@ Preferred communication style: Simple, everyday language.
 ✓ **Status Color Management**: Implemented pastel color selection for task statuses with visual color picker in StatusManager
 ✓ **Dynamic Kanban Colors**: Updated My Tasks Kanban board to use selected status colors for column headers and backgrounds
 ✓ **Database Schema Enhancement**: Added color field to task_statuses table with default gray color support
-✓ **Create Task Modal Width Enhancement**: Doubled modal width (from w-[85vw] to w-[95vw]) for better form element spacing and user experience
+✓ **Create Task Modal Width Enhancement**: Set modal to half viewport width (w-[50vw] with min-width 800px) for optimal form layout and user experience
 
 ## System Architecture
 

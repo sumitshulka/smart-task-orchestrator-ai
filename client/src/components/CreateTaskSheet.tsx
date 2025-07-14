@@ -388,7 +388,7 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
           </Button>
         )}
       </SheetTrigger>
-      <SheetContent side="right" className="max-w-[120rem] w-[95vw] overflow-y-auto">
+      <SheetContent side="right" className="w-[50vw] min-w-[800px] max-w-none overflow-y-auto">
         <form className="p-6 space-y-8" onSubmit={handleSubmit}>
           <SheetHeader className="space-y-4 pb-6 border-b border-gray-200">
             <SheetTitle className="text-3xl font-bold text-gray-900">Create New Task</SheetTitle>
