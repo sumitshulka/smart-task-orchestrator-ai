@@ -108,6 +108,7 @@ export function usePaginatedTasks(options: {
   const handleSearch = useCallback(async () => {
     setSearched(true);
 
+    // For historical tasks, we need at least one filter OR a date range, or default to show old completed tasks
     if (
       options.isHistorical &&
       priorityFilter === "all" &&
@@ -116,9 +117,8 @@ export function usePaginatedTasks(options: {
       teamFilter === "all" &&
       (!dateRange.from || !dateRange.to)
     ) {
-      setTasks([]);
-      setTotalTasks(0);
-      return;
+      // Allow historical view to show old completed tasks by default
+      // Don't return early - let it proceed with the toDate filter
     }
 
     setLoading(true);
@@ -140,9 +140,9 @@ export function usePaginatedTasks(options: {
         endBoundary.setHours(23, 59, 59, 999);
         input.toDate = endBoundary.toISOString().slice(0, 10);
       } else {
-        const endBoundary = new Date(thirtyDaysAgo);
-        endBoundary.setHours(23, 59, 59, 999);
-        input.toDate = endBoundary.toISOString().slice(0, 10);
+        // For historical tasks without date range, show tasks older than 30 days (completed before 30 days ago)
+        input.toDate = thirtyDaysAgo.toISOString().slice(0, 10);
+        // Don't set fromDate, so it shows all historical tasks up to 30 days ago
       }
     } else {
       if (!dateRange.from && !dateRange.to) {
@@ -203,17 +203,18 @@ export function usePaginatedTasks(options: {
     statusFilter,
     userFilter,
     teamFilter,
-    dateRange,
+    dateRange.from,
+    dateRange.to,
     page,
     pageSize,
     roles
   ]);
 
-  // NEW: Always call handleSearch on mount and when relevant deps change
+  // Call handleSearch when dependencies change (excluding handleSearch itself to avoid infinite loop)
   useEffect(() => {
     handleSearch();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, pageSize, priorityFilter, statusFilter, userFilter, teamFilter, dateRange, roles]);
+  }, [page, pageSize, priorityFilter, statusFilter, userFilter, teamFilter, dateRange.from, dateRange.to, roles]);
 
   return {
     tasks,
