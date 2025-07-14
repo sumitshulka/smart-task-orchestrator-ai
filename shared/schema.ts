@@ -272,6 +272,12 @@ export const insertTaskSchema = createInsertSchema(tasks).omit({
   id: true,
   created_at: true,
   updated_at: true,
+}).extend({
+  due_date: z.union([z.date(), z.string().transform((str) => new Date(str))]).nullable().optional(),
+  start_date: z.union([z.date(), z.string().transform((str) => new Date(str))]).nullable().optional(),
+  actual_completion_date: z.union([z.date(), z.string().transform((str) => new Date(str))]).nullable().optional(),
+  priority: z.union([z.number(), z.string().transform((str) => parseInt(str, 10))]).optional(),
+  estimated_hours: z.union([z.number(), z.string().transform((str) => parseInt(str, 10))]).nullable().optional(),
 });
 
 export const insertTeamSchema = createInsertSchema(teams).omit({
