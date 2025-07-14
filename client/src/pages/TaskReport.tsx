@@ -130,15 +130,16 @@ export default function TaskReport() {
       // All roles now use the same fetch method with API client
       const tasks = await fetchTaskReportView(fromDate, toDate, 1000);
       
-      // Enrich with department data from users array
+      // Enrich tasks with full user data from users array
       const enrichedTasks = tasks.map(task => {
         const userInfo = users.find(u => u.id === task.assigned_to);
         return {
           ...task,
-          assigned_user: {
-            ...task.assigned_user,
-            department: userInfo?.department || null,
-          }
+          assigned_user: userInfo ? {
+            user_name: userInfo.user_name,
+            email: userInfo.email,
+            department: userInfo.department
+          } : null
         };
       });
       
