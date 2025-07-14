@@ -5,8 +5,30 @@ import { startOfDay, endOfDay, format, subDays, startOfMonth, endOfMonth } from 
 import {
   PieChart, Pie, Cell, Tooltip, Legend, LineChart, Line, BarChart, Bar, XAxis, YAxis, ResponsiveContainer,
 } from "recharts";
-import AnalyticsKPICards from "@/components/analytics/AnalyticsKPICards";
-import AnalyticsLeaderboard from "@/components/analytics/AnalyticsLeaderboard";
+// Simple placeholder components since the originals don't exist
+const AnalyticsKPICards = ({ kpis }: any) => (
+  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+    {kpis.map((kpi: any, idx: number) => (
+      <div key={idx} className="bg-white p-4 rounded-lg border">
+        <h3 className="text-sm font-medium text-gray-500">{kpi.title}</h3>
+        <p className="text-2xl font-bold text-gray-900">{kpi.value}</p>
+        <p className="text-sm text-gray-500">{kpi.change}</p>
+      </div>
+    ))}
+  </div>
+);
+
+const AnalyticsLeaderboard = ({ data }: any) => (
+  <div className="bg-white p-4 rounded-lg border">
+    <h3 className="text-lg font-semibold mb-4">Top Performers</h3>
+    {data.slice(0, 5).map((item: any, idx: number) => (
+      <div key={idx} className="flex justify-between py-2">
+        <span>{item.name}</span>
+        <span className="font-medium">{item.completedTasks} tasks</span>
+      </div>
+    ))}
+  </div>
+);
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";

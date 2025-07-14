@@ -5,11 +5,11 @@ import { useQuery } from "@tanstack/react-query";
 import useSupabaseSession from "@/hooks/useSupabaseSession";
 import { useCurrentUserRoleAndTeams } from "@/hooks/useCurrentUserRoleAndTeams";
 import { useUsersAndTeams } from "@/hooks/useUsersAndTeams";
-import { supabase } from "@/integrations/supabase/client";
+// Removed supabase import as it's no longer needed
 
 import TaskReportAdvancedFilters from "@/components/report/TaskReportAdvancedFilters";
-import TaskOverdueTable from "@/components/report/TaskOverdueTable";
-import TaskOverdueExportButton from "@/components/report/TaskOverdueExportButton";
+import TaskReportTable from "@/components/report/TaskReportTable";
+import TaskReportExportButton from "@/components/report/TaskReportExportButton";
 
 function defaultDateRange() {
   const now = new Date();
@@ -249,15 +249,18 @@ export default function TaskOverdueReport() {
             isAdmin={isAdmin}
           />
         </div>
-        <TaskOverdueExportButton
+        <TaskReportExportButton
           disabled={isLoading || overdueReport.length === 0}
           report={overdueReport}
+          statusNames={["0-15", "15-30", "30-45", "45-60", ">60"]}
         />
       </div>
-      <TaskOverdueTable
+      <TaskReportTable
         reportingColumns={columns}
+        statusNames={["0-15", "15-30", "30-45", "45-60", ">60"]}
         report={overdueReport}
         isLoading={isLoading}
+        statusesLoading={false}
       />
     </div>
   );
