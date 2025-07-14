@@ -38,6 +38,8 @@ Preferred communication style: Simple, everyday language.
 ✓ **Enhanced Task Dependency Search**: Replaced separate modal with rich inline search showing task details, status badges, priority levels, assigned users, due dates, and multi-field search capability
 ✓ **Hierarchical Status Transition Layout**: Redesigned Status Lifecycle Graph with proper hierarchical layout where From-statuses appear in left column(s) and To-statuses in right column(s), eliminating visual overlaps
 ✓ **Default Status Management**: Implemented comprehensive default status system with database constraints ensuring only one default status, automatic selection in task creation, and proper UI indicators
+✓ **Create Task Modal Typography Enhancement**: Reduced heading fonts from text-xl to text-base and section spacing for consistency with system-wide typography standards
+✓ **Required Field Indicators**: Added red asterisks (*) to mandatory fields (Estimated Hours, Start Date, End Date) in Create Task modal for clear visual guidance
 
 ## System Architecture
 

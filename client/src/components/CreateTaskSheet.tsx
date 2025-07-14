@@ -432,13 +432,13 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
             </SheetDescription>
           </SheetHeader>
           {/* SECTION 1: BASIC INFORMATION */}
-          <div className="space-y-6">
-            <div className="bg-gray-50 p-6 rounded-lg">
-              <h3 className="text-xl font-semibold text-gray-800 mb-4 flex items-center">
-                <span className="bg-blue-100 text-blue-800 rounded-full w-8 h-8 flex items-center justify-center text-sm font-bold mr-3">1</span>
+          <div className="space-y-4">
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <h3 className="text-base font-medium text-gray-800 mb-3 flex items-center">
+                <span className="bg-blue-100 text-blue-800 rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold mr-2">1</span>
                 Basic Information
               </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="md:col-span-2">
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Task Title *</label>
                   <Input
@@ -465,13 +465,13 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
           </div>
 
           {/* SECTION 2: TASK SETTINGS */}
-          <div className="space-y-6">
-            <div className="bg-green-50 p-6 rounded-lg">
-              <h3 className="text-xl font-semibold text-gray-800 mb-4 flex items-center">
-                <span className="bg-green-100 text-green-800 rounded-full w-8 h-8 flex items-center justify-center text-sm font-bold mr-3">2</span>
+          <div className="space-y-4">
+            <div className="bg-green-50 p-4 rounded-lg">
+              <h3 className="text-base font-medium text-gray-800 mb-3 flex items-center">
+                <span className="bg-green-100 text-green-800 rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold mr-2">2</span>
                 Task Settings
               </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Priority Level</label>
                   <select
@@ -521,13 +521,13 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
           </div>
 
           {/* SECTION 3: TIMELINE */}
-          <div className="space-y-6">
-            <div className="bg-purple-50 p-6 rounded-lg">
-              <h3 className="text-xl font-semibold text-gray-800 mb-4 flex items-center">
-                <span className="bg-purple-100 text-purple-800 rounded-full w-8 h-8 flex items-center justify-center text-sm font-bold mr-3">3</span>
+          <div className="space-y-4">
+            <div className="bg-purple-50 p-4 rounded-lg">
+              <h3 className="text-base font-medium text-gray-800 mb-3 flex items-center">
+                <span className="bg-purple-100 text-purple-800 rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold mr-2">3</span>
                 Timeline & Scheduling
               </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Start Date <span className="text-red-500">*</span></label>
                   <Input
@@ -576,13 +576,13 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
           </div>
 
           {/* SECTION 4: ASSIGNMENT */}
-          <div className="space-y-6">
-            <div className="bg-orange-50 p-6 rounded-lg">
-              <h3 className="text-xl font-semibold text-gray-800 mb-4 flex items-center">
-                <span className="bg-orange-100 text-orange-800 rounded-full w-8 h-8 flex items-center justify-center text-sm font-bold mr-3">4</span>
+          <div className="space-y-4">
+            <div className="bg-orange-50 p-4 rounded-lg">
+              <h3 className="text-base font-medium text-gray-800 mb-3 flex items-center">
+                <span className="bg-orange-100 text-orange-800 rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold mr-2">4</span>
                 Assignment & Responsibility
               </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Assignment Type</label>
                   <select
@@ -604,10 +604,10 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
             </div>
           </div>
           {/* SECTION 5: ADVANCED OPTIONS */}
-          <div className="space-y-6">
-            <div className="bg-gray-50 p-6 rounded-lg border-2 border-dashed border-gray-300">
-              <h3 className="text-xl font-semibold text-gray-800 mb-4 flex items-center">
-                <span className="bg-gray-100 text-gray-800 rounded-full w-8 h-8 flex items-center justify-center text-sm font-bold mr-3">5</span>
+          <div className="space-y-4">
+            <div className="bg-gray-50 p-4 rounded-lg border-2 border-dashed border-gray-300">
+              <h3 className="text-base font-medium text-gray-800 mb-3 flex items-center">
+                <span className="bg-gray-100 text-gray-800 rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold mr-2">5</span>
                 Advanced Options
               </h3>
               
