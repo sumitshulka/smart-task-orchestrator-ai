@@ -16,6 +16,8 @@ Preferred communication style: Simple, everyday language.
 ✓ **Modern Roles & Privileges UI**: Created comprehensive management interface replacing basic roles page
 ✓ **Database Schema Updates**: Added visibility_scope to roles, removed from role_permissions table
 ✓ **Admin Default Setup**: Configured admin role with organization-wide visibility and full permissions
+✓ **Enhanced UI/UX**: Improved badge display with icons and better text handling for long permission names
+✓ **Menu Cleanup**: Removed redundant "Roles & Access" menu, keeping comprehensive "Roles & Privileges"
 
 ## System Architecture
 

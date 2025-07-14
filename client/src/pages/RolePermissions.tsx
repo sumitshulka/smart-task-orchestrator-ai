@@ -13,10 +13,18 @@ import { apiClient } from '@/lib/api';
 
 const PERMISSION_LEVELS = {
   0: "None",
-  1: "View Only", 
-  2: "View + Update",
-  3: "View + Update + Create",
+  1: "View", 
+  2: "View + Edit",
+  3: "View + Edit + Create",
   4: "Full Access"
+};
+
+const PERMISSION_LEVEL_DESCRIPTIONS = {
+  0: "No access to this feature",
+  1: "Can only view data", 
+  2: "Can view and edit existing data",
+  3: "Can view, edit, and create new data",
+  4: "Full access including delete operations"
 };
 
 const VISIBILITY_SCOPES = {
@@ -220,12 +228,23 @@ export default function RolePermissions() {
 
   const getPermissionBadgeColor = (level: number): string => {
     switch (level) {
-      case 0: return "bg-gray-100 text-gray-800";
-      case 1: return "bg-blue-100 text-blue-800";
-      case 2: return "bg-yellow-100 text-yellow-800";
-      case 3: return "bg-orange-100 text-orange-800";
-      case 4: return "bg-red-100 text-red-800";
-      default: return "bg-gray-100 text-gray-800";
+      case 0: return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300";
+      case 1: return "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300";
+      case 2: return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300";
+      case 3: return "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300";
+      case 4: return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300";
+      default: return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300";
+    }
+  };
+
+  const getPermissionIcon = (level: number): string => {
+    switch (level) {
+      case 0: return "🚫";
+      case 1: return "👁️";
+      case 2: return "✏️";
+      case 3: return "➕";
+      case 4: return "🔧";
+      default: return "❓";
     }
   };
 
@@ -413,21 +432,37 @@ export default function RolePermissions() {
                           </div>
                           
                           <div className="flex items-center gap-3">
-                            <Badge className={getPermissionBadgeColor(currentLevel)}>
-                              {PERMISSION_LEVELS[currentLevel as keyof typeof PERMISSION_LEVELS]}
-                            </Badge>
+                            <div className="flex items-center gap-2">
+                              <Badge className={`${getPermissionBadgeColor(currentLevel)} flex items-center gap-1 px-3 py-1`}>
+                                <span className="text-sm">{getPermissionIcon(currentLevel)}</span>
+                                <span className="font-medium text-xs">{PERMISSION_LEVELS[currentLevel as keyof typeof PERMISSION_LEVELS]}</span>
+                              </Badge>
+                              {currentLevel > 0 && (
+                                <div className="text-xs text-muted-foreground max-w-32 truncate">
+                                  {PERMISSION_LEVEL_DESCRIPTIONS[currentLevel as keyof typeof PERMISSION_LEVEL_DESCRIPTIONS]}
+                                </div>
+                              )}
+                            </div>
                             
                             <Select
                               value={currentLevel.toString()}
                               onValueChange={(value) => updatePermission(resource.id, parseInt(value))}
                             >
-                              <SelectTrigger className="w-56">
+                              <SelectTrigger className="w-44">
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
                                 {Object.entries(PERMISSION_LEVELS).map(([level, name]) => (
                                   <SelectItem key={level} value={level}>
-                                    {name}
+                                    <div className="flex items-center gap-2">
+                                      <span>{getPermissionIcon(parseInt(level))}</span>
+                                      <div className="flex flex-col">
+                                        <span className="font-medium">{name}</span>
+                                        <span className="text-xs text-muted-foreground">
+                                          {PERMISSION_LEVEL_DESCRIPTIONS[parseInt(level) as keyof typeof PERMISSION_LEVEL_DESCRIPTIONS]}
+                                        </span>
+                                      </div>
+                                    </div>
                                   </SelectItem>
                                 ))}
                               </SelectContent>
