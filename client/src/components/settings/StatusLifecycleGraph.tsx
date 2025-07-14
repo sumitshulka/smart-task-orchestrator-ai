@@ -92,8 +92,35 @@ const StatusLifecycleGraph: React.FC<{ statuses: TaskStatus[] }> = ({ statuses }
     .filter(([status, targets]) => targets.length > 1)
     .map(([status]) => status);
   
-  // Determine if we need hierarchical layout (when there are merge/branch points)
-  const needsHierarchicalLayout = mergePoints.length > 0 || branchPoints.length > 0;
+  // Check if we can still maintain linear flow despite merge/branch points
+  // Linear flow is possible if after merge points, the flow continues linearly
+  const canMaintainLinearFlow = () => {
+    // If there are branch points (one status pointing to multiple), we need hierarchical
+    if (branchPoints.length > 0) return false;
+    
+    // If there are merge points, check if the flow after merge is still linear
+    if (mergePoints.length > 0) {
+      // For each merge point, check if it continues linearly afterwards
+      for (const mergePoint of mergePoints) {
+        const outgoing = outgoingTransitions.get(mergePoint) || [];
+        if (outgoing.length > 1) return false; // Merge point that also branches
+        
+        // Follow the chain after merge point to ensure it's linear
+        let current = outgoing[0];
+        while (current) {
+          const nextTargets = outgoingTransitions.get(current) || [];
+          if (nextTargets.length > 1) return false; // Branch found later
+          current = nextTargets[0];
+        }
+      }
+      return true; // Merge points exist but flow continues linearly
+    }
+    
+    return true; // No merge or branch points
+  };
+  
+  // Determine if we need hierarchical layout
+  const needsHierarchicalLayout = !canMaintainLinearFlow();
   
   // Calculate dimensions and layout based on complexity
   const hasTransitions = transitions.length > 0;
@@ -235,34 +262,42 @@ const StatusLifecycleGraph: React.FC<{ statuses: TaskStatus[] }> = ({ statuses }
             }
             
             if (!needsHierarchicalLayout) {
-              // Linear layout for simple sequential workflows
+              // Smart linear layout that handles merge points but maintains horizontal flow
               const statusPositions = new Map<string, {x: number, y: number}>();
               
-              // Build a chain of connected statuses
+              // Build the main linear chain by following the longest path
               const statusChain: string[] = [];
               const visitedStatuses = new Set<string>();
               
-              // Find starting status (one with no incoming transitions)
-              let startStatus = Array.from(outgoingTransitions.keys()).find(status => 
+              // Find the main flow path - start from a status with no incoming OR follow from merge points
+              let mainFlowStart: string | undefined;
+              
+              // First, try to find a true starting point (no incoming transitions)
+              const trueStarts = Array.from(outgoingTransitions.keys()).filter(status => 
                 !incomingTransitions.has(status) || incomingTransitions.get(status)!.length === 0
               );
               
-              if (!startStatus && outgoingTransitions.size > 0) {
-                startStatus = Array.from(outgoingTransitions.keys())[0];
+              if (trueStarts.length > 0) {
+                mainFlowStart = trueStarts[0];
+              } else if (mergePoints.length > 0) {
+                // Start from the first merge point and build the main flow
+                mainFlowStart = mergePoints[0];
+              } else if (outgoingTransitions.size > 0) {
+                mainFlowStart = Array.from(outgoingTransitions.keys())[0];
               }
               
-              // Build the chain by following transitions
-              if (startStatus) {
-                let current = startStatus;
+              // Build main chain by following single outgoing transitions
+              if (mainFlowStart) {
+                let current = mainFlowStart;
                 while (current && !visitedStatuses.has(current)) {
                   statusChain.push(current);
                   visitedStatuses.add(current);
                   const nextStatuses = outgoingTransitions.get(current) || [];
-                  current = nextStatuses[0]; // Follow first transition
+                  current = nextStatuses.length === 1 ? nextStatuses[0] : undefined;
                 }
               }
               
-              // Add any remaining statuses that are part of transitions
+              // Add any remaining transition statuses that weren't in the main chain
               const allTransitionStatuses = new Set([...outgoingTransitions.keys(), ...incomingTransitions.keys()]);
               allTransitionStatuses.forEach(status => {
                 if (!visitedStatuses.has(status)) {
@@ -270,11 +305,28 @@ const StatusLifecycleGraph: React.FC<{ statuses: TaskStatus[] }> = ({ statuses }
                 }
               });
               
-              // Position statuses in linear chain
+              // Position main chain horizontally
               statusChain.forEach((statusName, idx) => {
                 statusPositions.set(statusName, {
                   x: containerPadding + idx * 180 + 90,
                   y: nodeY
+                });
+              });
+              
+              // For merge scenarios, position additional source statuses above/below the merge point
+              mergePoints.forEach(mergePoint => {
+                const sources = incomingTransitions.get(mergePoint) || [];
+                const mergePos = statusPositions.get(mergePoint);
+                if (!mergePos) return;
+                
+                sources.forEach((source, idx) => {
+                  if (!statusPositions.has(source)) {
+                    // Position additional sources vertically offset from merge point
+                    statusPositions.set(source, {
+                      x: mergePos.x - 180, // Position to the left of merge point
+                      y: nodeY + (idx - Math.floor(sources.length / 2)) * 120 // Vertical offset
+                    });
+                  }
                 });
               });
               
