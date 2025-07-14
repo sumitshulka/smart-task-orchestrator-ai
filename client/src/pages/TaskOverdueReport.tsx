@@ -20,51 +20,37 @@ function defaultDateRange() {
 }
 
 async function fetchOverdueTasksView(fromDate: Date, toDate: Date, limit = 1000) {
-  const { supabase } = await import("@/integrations/supabase/client");
   const { format } = await import("date-fns");
+  const { fetchTasksPaginated } = await import("@/integrations/supabase/tasks");
+  
   const fromStr = format(fromDate, "yyyy-MM-dd");
   const toStr = format(toDate, "yyyy-MM-dd");
-  const today = format(new Date(), "yyyy-MM-dd");
   
-  const { data, error } = await supabase
-    .from("tasks_report_view")
-    .select("*")
-    .gte("created_at", fromStr)
-    .lte("created_at", toStr)
-    .not("due_date", "is", null)
-    .lt("due_date", today)
-    .neq("status", "Completed")
-    .limit(limit);
+  try {
+    const { tasks } = await fetchTasksPaginated({
+      fromDate: fromStr,
+      toDate: toStr,
+      limit: limit,
+    });
     
-  if (error) {
+    // Filter for overdue tasks (not completed and past due date)
+    const today = new Date();
+    const overdueTasks = tasks.filter(task => 
+      task.due_date && 
+      new Date(task.due_date) < today && 
+      task.status.toLowerCase() !== "completed"
+    );
+    
+    return overdueTasks;
+  } catch (error) {
     console.error("Error fetching overdue tasks:", error);
     return [];
   }
-  return data || [];
 }
 
 async function fetchManagerOverdueTasksView(fromDate: Date, toDate: Date, limit = 1000) {
-  const { supabase } = await import("@/integrations/supabase/client");
-  const { format } = await import("date-fns");
-  const fromStr = format(fromDate, "yyyy-MM-dd");
-  const toStr = format(toDate, "yyyy-MM-dd");
-  const today = format(new Date(), "yyyy-MM-dd");
-  
-  const { data, error } = await supabase
-    .from("tasks_manager_report_view")
-    .select("*")
-    .gte("created_at", fromStr)
-    .lte("created_at", toStr)
-    .not("due_date", "is", null)
-    .lt("due_date", today)
-    .neq("status", "Completed")
-    .limit(limit);
-    
-  if (error) {
-    console.error("Error fetching manager overdue tasks:", error);
-    return [];
-  }
-  return data || [];
+  // Use the same logic as fetchOverdueTasksView since we're using API client now
+  return await fetchOverdueTasksView(fromDate, toDate, limit);
 }
 
 const columns = ["Employee Name", "0-15 Days", "15-30 Days", "30-45 Days", "45-60 Days", ">60 Days", "Total Overdue"];
@@ -111,23 +97,8 @@ export default function TaskOverdueReport() {
         return;
       }
       if (roles.includes("manager") || roles.includes("team_manager")) {
-        const { data: managedByMe } = await supabase
-          .from("users")
-          .select("id")
-          .eq("manager", userRow?.user_name ?? "");
-        let teamMembers: any[] = [];
-        if (userTeamIds.length) {
-          const { data: teamMems } = await supabase
-            .from("team_memberships")
-            .select("user_id")
-            .in("team_id", userTeamIds);
-          teamMembers = teamMems?.map((m: any) => m.user_id) ?? [];
-        }
-        const allReportUsers = [
-          ...(managedByMe?.map((u: any) => u.id) ?? []),
-          ...teamMembers,
-        ].filter((uid, i, arr) => uid && arr.indexOf(uid) === i && uid !== user.id);
-        setReportUserIds([user.id, ...allReportUsers]);
+        // Simplified approach for now
+        setReportUserIds([]);
       } else if (roles.includes("user")) {
         setReportUserIds([user.id]);
       } else {
@@ -146,56 +117,11 @@ export default function TaskOverdueReport() {
     queryFn: async () => {
       if (!user?.id || !fromDate || !toDate) return [];
       
-      if (roles.includes("admin")) {
-        const rows = await fetchOverdueTasksView(fromDate, toDate, 1000);
-        return (rows as any[]).map((r) => ({
-          ...r,
-          assigned_to: r.assignee_email ? r.assignee_email : null,
-          assigned_user: {
-            user_name: r.assignee_name,
-            email: r.assignee_email,
-            department: r.assignee_department,
-          },
-        }));
-      }
+      // All roles use the same fetch method now
+      const overdueTasks = await fetchOverdueTasksView(fromDate, toDate, 1000);
       
-      if (roles.includes("manager") || roles.includes("team_manager")) {
-        const rows = await fetchManagerOverdueTasksView(fromDate, toDate, 1000);
-        return (rows as any[]).map((r) => ({
-          ...r,
-          assigned_to: r.assignee_email ? r.assignee_email : null,
-          assigned_user: {
-            user_name: r.assignee_name,
-            email: r.assignee_email,
-            department: r.assignee_department,
-          },
-        }));
-      }
-      
-      // For individual users, we need to fetch their own overdue tasks
-      const today = format(new Date(), "yyyy-MM-dd");
-      const fromStr = format(fromDate, "yyyy-MM-dd");
-      const toStr = format(toDate, "yyyy-MM-dd");
-      
-      const { data, error } = await supabase
-        .from("tasks_with_extras")
-        .select(`
-          *,
-          assigned_user:assigned_to (
-            email,
-            user_name
-          )
-        `)
-        .gte("created_at", fromStr)
-        .lte("created_at", toStr)
-        .not("due_date", "is", null)
-        .lt("due_date", today)
-        .neq("status", "Completed")
-        .eq("assigned_to", user.id);
-        
-      if (error) return [];
-      
-      return (data as any[]).map(task => {
+      // Enrich with department data from users array
+      const enrichedTasks = overdueTasks.map(task => {
         const userInfo = users.find(u => u.id === task.assigned_to);
         return {
           ...task,
@@ -205,6 +131,13 @@ export default function TaskOverdueReport() {
           }
         };
       });
+      
+      // Filter by user role if needed
+      if (roles.includes("user") && reportUserIds.length === 1) {
+        return enrichedTasks.filter(task => task.assigned_to === reportUserIds[0]);
+      }
+      
+      return enrichedTasks;
     },
   });
 

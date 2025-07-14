@@ -124,18 +124,19 @@ export function usePaginatedTasks(options: {
     thirtyDaysAgo.setDate(today.getDate() - 30);
 
     if (options.isHistorical) {
+      // For historical tasks, ALWAYS filter by completed status and date
+      if (statusFilter === "all") {
+        input.status = "completed";
+      }
+      
       if (dateRange.from && dateRange.to) {
         input.fromDate = dateRange.from.toISOString().slice(0, 10);
         const endBoundary = new Date(dateRange.to);
         endBoundary.setHours(23, 59, 59, 999);
         input.toDate = endBoundary.toISOString().slice(0, 10);
       } else {
-        // For historical tasks, show tasks completed before 30 days ago
+        // For historical tasks without date range, show tasks completed before 30 days ago
         input.toDate = thirtyDaysAgo.toISOString().slice(0, 10);
-        // Force status to be completed for historical tasks
-        if (statusFilter === "all") {
-          input.status = "completed";
-        }
       }
     } else {
       if (!dateRange.from && !dateRange.to) {
