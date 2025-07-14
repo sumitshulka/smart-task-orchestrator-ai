@@ -16,13 +16,17 @@ function TaskCardClickable({
   onTaskUpdated: () => void;
   statusColor?: string;
 }) {
+  console.log("[DEBUG] TaskCardClickable onOpen:", !!onOpen);
   return (
     <TaskCard 
       task={task} 
       onTaskUpdated={onTaskUpdated} 
       canDelete={canDelete} 
       statusColor={statusColor}
-      onOpenDetails={() => onOpen()}
+      onOpenDetails={(task) => {
+        console.log("[DEBUG] TaskCardClickable onOpenDetails called, calling onOpen");
+        onOpen();
+      }}
     />
   );
 }
