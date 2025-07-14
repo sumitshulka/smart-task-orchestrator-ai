@@ -64,26 +64,38 @@ const StatusLifecycleGraph: React.FC<{ statuses: TaskStatus[] }> = ({ statuses }
   const columnSpacing = 250; // Spacing between columns (From -> To)
   const rowSpacing = 120; // Spacing between rows
   
-  // Build transition hierarchy: From statuses -> To statuses
-  const transitionMap = new Map<string, Set<string>>();
-  const allFromStatuses = new Set<string>();
-  const allToStatuses = new Set<string>();
+  // Build transition maps for smarter layout
+  const outgoingTransitions = new Map<string, string[]>(); // status -> [target statuses]
+  const incomingTransitions = new Map<string, string[]>(); // status -> [source statuses]
   
   transitions.forEach(transition => {
-    if (!transitionMap.has(transition.from_status)) {
-      transitionMap.set(transition.from_status, new Set());
+    // Track outgoing
+    if (!outgoingTransitions.has(transition.from_status)) {
+      outgoingTransitions.set(transition.from_status, []);
     }
-    transitionMap.get(transition.from_status)!.add(transition.to_status);
-    allFromStatuses.add(transition.from_status);
-    allToStatuses.add(transition.to_status);
+    outgoingTransitions.get(transition.from_status)!.push(transition.to_status);
+    
+    // Track incoming
+    if (!incomingTransitions.has(transition.to_status)) {
+      incomingTransitions.set(transition.to_status, []);
+    }
+    incomingTransitions.get(transition.to_status)!.push(transition.from_status);
   });
   
-  // Determine layout: statuses that are only sources go left, targets go right, others in middle
-  const leftStatuses = Array.from(allFromStatuses).filter(status => !allToStatuses.has(status));
-  const rightStatuses = Array.from(allToStatuses).filter(status => !allFromStatuses.has(status));
-  const middleStatuses = statuses.filter(s => allFromStatuses.has(s.name) && allToStatuses.has(s.name)).map(s => s.name);
+  // Find statuses that have multiple incoming transitions (merge points)
+  const mergePoints = Array.from(incomingTransitions.entries())
+    .filter(([status, sources]) => sources.length > 1)
+    .map(([status]) => status);
   
-  // Calculate dimensions based on whether transitions exist
+  // Find statuses that have multiple outgoing transitions (branch points)
+  const branchPoints = Array.from(outgoingTransitions.entries())
+    .filter(([status, targets]) => targets.length > 1)
+    .map(([status]) => status);
+  
+  // Determine if we need hierarchical layout (when there are merge/branch points)
+  const needsHierarchicalLayout = mergePoints.length > 0 || branchPoints.length > 0;
+  
+  // Calculate dimensions and layout based on complexity
   const hasTransitions = transitions.length > 0;
   let svgWidth: number, svgHeight: number, nodeY: number;
   
@@ -92,13 +104,21 @@ const StatusLifecycleGraph: React.FC<{ statuses: TaskStatus[] }> = ({ statuses }
     svgWidth = Math.max(800, statuses.length * 180 + containerPadding * 2);
     svgHeight = 200;
     nodeY = svgHeight / 2;
+  } else if (!needsHierarchicalLayout) {
+    // Linear layout for simple sequential workflows
+    svgWidth = Math.max(800, statuses.length * 180 + containerPadding * 2);
+    svgHeight = 250;
+    nodeY = svgHeight / 2;
   } else {
-    // Calculate dimensions for hierarchical layout
-    const maxRows = Math.max(leftStatuses.length, middleStatuses.length, rightStatuses.length, 1);
-    svgHeight = Math.max(300, maxRows * rowSpacing + containerPadding * 2);
-    const numColumns = (leftStatuses.length > 0 ? 1 : 0) + (middleStatuses.length > 0 ? 1 : 0) + (rightStatuses.length > 0 ? 1 : 0);
-    svgWidth = Math.max(600, numColumns * columnSpacing + containerPadding * 2);
-    nodeY = svgHeight / 2; // Not used in hierarchical layout, but needed for compilation
+    // Hierarchical layout for complex workflows with branches/merges
+    const statusesInvolved = new Set([...incomingTransitions.keys(), ...outgoingTransitions.keys()]);
+    const maxRowsNeeded = Math.max(
+      mergePoints.reduce((max, status) => Math.max(max, incomingTransitions.get(status)?.length || 0), 1),
+      branchPoints.reduce((max, status) => Math.max(max, outgoingTransitions.get(status)?.length || 0), 1)
+    );
+    svgHeight = Math.max(300, maxRowsNeeded * rowSpacing + containerPadding * 2);
+    svgWidth = Math.max(600, statusesInvolved.size * columnSpacing + containerPadding * 2);
+    nodeY = svgHeight / 2; // Not used in hierarchical layout
   }
 
   const wrapText = (text: string, maxChars: number) => {
@@ -214,35 +234,181 @@ const StatusLifecycleGraph: React.FC<{ statuses: TaskStatus[] }> = ({ statuses }
               });
             }
             
-            // Calculate positions for hierarchical layout
+            if (!needsHierarchicalLayout) {
+              // Linear layout for simple sequential workflows
+              const statusPositions = new Map<string, {x: number, y: number}>();
+              
+              // Build a chain of connected statuses
+              const statusChain: string[] = [];
+              const visitedStatuses = new Set<string>();
+              
+              // Find starting status (one with no incoming transitions)
+              let startStatus = Array.from(outgoingTransitions.keys()).find(status => 
+                !incomingTransitions.has(status) || incomingTransitions.get(status)!.length === 0
+              );
+              
+              if (!startStatus && outgoingTransitions.size > 0) {
+                startStatus = Array.from(outgoingTransitions.keys())[0];
+              }
+              
+              // Build the chain by following transitions
+              if (startStatus) {
+                let current = startStatus;
+                while (current && !visitedStatuses.has(current)) {
+                  statusChain.push(current);
+                  visitedStatuses.add(current);
+                  const nextStatuses = outgoingTransitions.get(current) || [];
+                  current = nextStatuses[0]; // Follow first transition
+                }
+              }
+              
+              // Add any remaining statuses that are part of transitions
+              const allTransitionStatuses = new Set([...outgoingTransitions.keys(), ...incomingTransitions.keys()]);
+              allTransitionStatuses.forEach(status => {
+                if (!visitedStatuses.has(status)) {
+                  statusChain.push(status);
+                }
+              });
+              
+              // Position statuses in linear chain
+              statusChain.forEach((statusName, idx) => {
+                statusPositions.set(statusName, {
+                  x: containerPadding + idx * 180 + 90,
+                  y: nodeY
+                });
+              });
+              
+              // Render transitions
+              const transitionElements = transitions.map((tr, i) => {
+                const fromPos = statusPositions.get(tr.from_status);
+                const toPos = statusPositions.get(tr.to_status);
+                if (!fromPos || !toPos) return null;
+                
+                const startX = fromPos.x + nodeRadius;
+                const endX = toPos.x - nodeRadius;
+                const startY = fromPos.y;
+                const endY = toPos.y;
+                
+                const midX = (startX + endX) / 2;
+                const midY = startY - 40; // Slight curve above
+                
+                return (
+                  <g key={tr.id}>
+                    <path
+                      d={`M ${startX} ${startY} Q ${midX} ${midY} ${endX} ${endY}`}
+                      stroke="#4b5563"
+                      strokeWidth="2"
+                      fill="none"
+                      markerEnd="url(#arrowhead)"
+                      opacity="0.8"
+                    />
+                    
+                    <foreignObject 
+                      x={midX - 12} 
+                      y={midY - 12} 
+                      width="24" 
+                      height="24"
+                    >
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="!w-6 !h-6 !p-0 text-xs bg-red-50 hover:bg-red-100 text-red-600 rounded-full border border-red-200"
+                        onClick={() => deleteTransition(tr.id)}
+                        title="Remove transition"
+                      >
+                        ✕
+                      </Button>
+                    </foreignObject>
+                  </g>
+                );
+              });
+              
+              // Render status nodes
+              const statusElements = Array.from(statusPositions.entries()).map(([statusName, pos]) => {
+                const status = statuses.find(s => s.name === statusName);
+                if (!status) return null;
+                
+                const textLines = wrapText(status.name, 10);
+                
+                return (
+                  <g key={status.id}>
+                    <circle 
+                      cx={pos.x} 
+                      cy={pos.y} 
+                      r={nodeRadius} 
+                      fill="url(#nodeGradient)" 
+                      stroke="#64748b" 
+                      strokeWidth="2"
+                      filter="drop-shadow(0 2px 4px rgba(0,0,0,0.1))"
+                    />
+                    
+                    {textLines.map((line, lineIdx) => (
+                      <text 
+                        key={lineIdx}
+                        x={pos.x} 
+                        y={pos.y + (lineIdx - (textLines.length - 1) / 2) * 14} 
+                        textAnchor="middle" 
+                        fontSize="12" 
+                        fill="#1e293b"
+                        fontWeight="500"
+                      >
+                        {line}
+                      </text>
+                    ))}
+                    
+                    <text 
+                      x={pos.x} 
+                      y={pos.y + nodeRadius + 20} 
+                      textAnchor="middle" 
+                      fontSize="10" 
+                      fill="#64748b"
+                    >
+                      #{statuses.indexOf(status) + 1}
+                    </text>
+                  </g>
+                );
+              });
+              
+              return [...transitionElements, ...statusElements];
+            }
+            
+            // Hierarchical layout for complex workflows with branches/merges
             const statusPositions = new Map<string, {x: number, y: number}>();
             
-            // Position left column (from-only statuses)
-            leftStatuses.forEach((statusName, idx) => {
+            // Group statuses by their role in the workflow
+            const startStatuses = Array.from(outgoingTransitions.keys()).filter(status => 
+              !incomingTransitions.has(status) || incomingTransitions.get(status)!.length === 0
+            );
+            const endStatuses = Array.from(incomingTransitions.keys()).filter(status => 
+              !outgoingTransitions.has(status) || outgoingTransitions.get(status)!.length === 0
+            );
+            const intermediateStatuses = Array.from(new Set([...outgoingTransitions.keys(), ...incomingTransitions.keys()]))
+              .filter(status => !startStatuses.includes(status) && !endStatuses.includes(status));
+            
+            // Position statuses in columns based on their role
+            startStatuses.forEach((statusName, idx) => {
               statusPositions.set(statusName, {
                 x: containerPadding + nodeRadius,
                 y: containerPadding + (idx + 1) * rowSpacing
               });
             });
             
-            // Position middle column (intermediate statuses)
-            middleStatuses.forEach((statusName, idx) => {
+            intermediateStatuses.forEach((statusName, idx) => {
               statusPositions.set(statusName, {
                 x: containerPadding + columnSpacing + nodeRadius,
                 y: containerPadding + (idx + 1) * rowSpacing
               });
             });
             
-            // Position right column (to-only statuses)
-            rightStatuses.forEach((statusName, idx) => {
-              const xOffset = (leftStatuses.length > 0 ? columnSpacing : 0) + (middleStatuses.length > 0 ? columnSpacing : 0);
+            endStatuses.forEach((statusName, idx) => {
+              const xOffset = columnSpacing * (startStatuses.length > 0 ? 1 : 0) + columnSpacing * (intermediateStatuses.length > 0 ? 1 : 0);
               statusPositions.set(statusName, {
                 x: containerPadding + xOffset + nodeRadius,
                 y: containerPadding + (idx + 1) * rowSpacing
               });
             });
             
-            // Render transitions with proper hierarchy
+            // Render transitions
             const transitionElements = transitions.map((tr, i) => {
               const fromPos = statusPositions.get(tr.from_status);
               const toPos = statusPositions.get(tr.to_status);
@@ -253,15 +419,12 @@ const StatusLifecycleGraph: React.FC<{ statuses: TaskStatus[] }> = ({ statuses }
               const startY = fromPos.y;
               const endY = toPos.y;
               
-              // Create smooth curves for transitions
               const midX = (startX + endX) / 2;
-              const controlY1 = startY;
-              const controlY2 = endY;
               
               return (
                 <g key={tr.id}>
                   <path
-                    d={`M ${startX} ${startY} Q ${midX} ${controlY1} ${midX} ${(startY + endY) / 2} Q ${midX} ${controlY2} ${endX} ${endY}`}
+                    d={`M ${startX} ${startY} Q ${midX} ${startY} ${midX} ${(startY + endY) / 2} Q ${midX} ${endY} ${endX} ${endY}`}
                     stroke="#4b5563"
                     strokeWidth="2"
                     fill="none"
@@ -269,7 +432,6 @@ const StatusLifecycleGraph: React.FC<{ statuses: TaskStatus[] }> = ({ statuses }
                     opacity="0.8"
                   />
                   
-                  {/* Delete button positioned along the path */}
                   <foreignObject 
                     x={midX - 12} 
                     y={(startY + endY) / 2 - 12} 
