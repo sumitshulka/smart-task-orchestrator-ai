@@ -12,7 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { fetchTasks, createTask, Task } from "@/integrations/supabase/tasks";
+import { fetchTasks, Task } from "@/integrations/supabase/tasks";
 import { toast } from "@/components/ui/use-toast";
 import useSupabaseSession from "@/hooks/useSupabaseSession";
 import { useTaskStatuses } from "@/hooks/useTaskStatuses";
@@ -265,8 +265,10 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
         taskInput.dependencyTaskId = form.dependencyTaskId;
       }
 
-      // Create the task
-      const newTask = await createTask(taskInput);
+      // Create the task using API client
+      console.log("[DEBUG] Creating task with data:", JSON.stringify(taskInput, null, 2));
+      const response = await apiClient.post("/api/tasks", taskInput);
+      const newTask = response.data;
 
       // Only assign to group if group selected and Is Subtask checked
       if (form.isSubTask && selectedTaskGroup) {

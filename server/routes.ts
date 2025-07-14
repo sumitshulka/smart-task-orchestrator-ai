@@ -161,6 +161,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/tasks", async (req, res) => {
     try {
+      console.log("[DEBUG] Task creation request body:", JSON.stringify(req.body, null, 2));
       const taskData = insertTaskSchema.parse(req.body);
       const task = await storage.createTask(taskData);
       
@@ -174,7 +175,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.status(201).json(task);
     } catch (error) {
-      res.status(400).json({ error: "Invalid task data" });
+      console.error("[ERROR] Task creation failed:", error);
+      if (error instanceof Error) {
+        console.error("[ERROR] Error message:", error.message);
+      }
+      res.status(400).json({ 
+        error: "Invalid task data", 
+        details: error instanceof Error ? error.message : "Unknown error" 
+      });
     }
   });
 
