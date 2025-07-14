@@ -80,6 +80,7 @@ export const taskStatuses = pgTable("task_statuses", {
   color: text("color").default("#6b7280"), // Default gray color
   sequence_order: integer("sequence_order").notNull(),
   is_default: boolean("is_default").default(false), // Only one status can be default
+  can_delete: boolean("can_delete").default(true), // Whether tasks with this status can be deleted
   created_at: timestamp("created_at").defaultNow(),
   updated_at: timestamp("updated_at").defaultNow(),
 });

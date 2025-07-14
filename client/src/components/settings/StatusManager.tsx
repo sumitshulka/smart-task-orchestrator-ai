@@ -18,6 +18,7 @@ type TaskStatus = {
   description: string | null;
   sequence_order: number;
   is_default: boolean;
+  can_delete: boolean;
 };
 
 const ItemType = "STATUS_ROW";
@@ -77,8 +78,8 @@ const ColorPicker: React.FC<{
 const StatusManager: React.FC = () => {
   const { statuses, loading, refreshStatuses } = useTaskStatuses();
   const [editing, setEditing] = useState<{ [id: string]: boolean }>({});
-  const [newStatus, setNewStatus] = useState({ name: "", description: "", color: "#6b7280", is_default: false });
-  const [inputStatus, setInputStatus] = useState<{ [id: string]: { name: string; description: string; color: string; is_default: boolean } }>({});
+  const [newStatus, setNewStatus] = useState({ name: "", description: "", color: "#6b7280", is_default: false, can_delete: true });
+  const [inputStatus, setInputStatus] = useState<{ [id: string]: { name: string; description: string; color: string; is_default: boolean; can_delete: boolean } }>({});
   const { highestRole } = useRole();
 
   // Reordering
@@ -118,9 +119,10 @@ const StatusManager: React.FC = () => {
         color: newStatus.color,
         sequence_order: maxOrder + 1,
         is_default: newStatus.is_default,
+        can_delete: newStatus.can_delete,
       });
       
-      setNewStatus({ name: "", description: "", color: "#6b7280", is_default: false });
+      setNewStatus({ name: "", description: "", color: "#6b7280", is_default: false, can_delete: true });
       refreshStatuses(); // Refresh from API
       toast({ title: "Status added successfully!" });
     } catch (error: any) {
@@ -131,7 +133,7 @@ const StatusManager: React.FC = () => {
   const handleEditStatus = (id: string) => {
     setEditing({ ...editing, [id]: true });
     const st = statuses.find((s) => s.id === id);
-    if (st) setInputStatus({ ...inputStatus, [id]: { name: st.name, description: st.description || "", color: st.color || "#6b7280", is_default: st.is_default || false } });
+    if (st) setInputStatus({ ...inputStatus, [id]: { name: st.name, description: st.description || "", color: st.color || "#6b7280", is_default: st.is_default || false, can_delete: st.can_delete || true } });
   };
 
   const handleSaveStatus = async (id: string) => {
@@ -143,7 +145,8 @@ const StatusManager: React.FC = () => {
         name: upd.name,
         description: upd.description || "",
         color: upd.color || "#6b7280",
-        is_default: upd.is_default
+        is_default: upd.is_default,
+        can_delete: upd.can_delete
       });
       
       setEditing({ ...editing, [id]: false });
@@ -184,6 +187,7 @@ const StatusManager: React.FC = () => {
                       <th className="w-1/4 p-2 font-semibold text-black">Description</th>
                       <th className="w-20 p-2 font-semibold text-black">Color</th>
                       <th className="w-20 p-2 text-center font-semibold text-black">Default</th>
+                      <th className="w-20 p-2 text-center font-semibold text-black">Allow Delete</th>
                       <th className="w-1/4 p-2 text-center font-semibold text-black">
                         {highestRole === "admin" ? "Actions" : ""}
                       </th>
@@ -264,6 +268,25 @@ const StatusManager: React.FC = () => {
                             </span>
                           )}
                         </td>
+                        <td className="p-2 text-center">
+                          {editing[status.id] && highestRole === "admin" ? (
+                            <input
+                              type="checkbox"
+                              checked={inputStatus[status.id]?.can_delete !== false}
+                              onChange={(e) =>
+                                setInputStatus((cur) => ({
+                                  ...cur,
+                                  [status.id]: { ...cur[status.id], can_delete: e.target.checked },
+                                }))
+                              }
+                              className="w-4 h-4"
+                            />
+                          ) : (
+                            <span className={`text-sm font-semibold ${status.can_delete ? 'text-green-600' : 'text-red-600'}`}>
+                              {status.can_delete ? '✓ Allow' : '✗ Block'}
+                            </span>
+                          )}
+                        </td>
                         <td className="p-2">
                           <div className="flex items-center justify-center gap-2">
                             {editing[status.id] && highestRole === "admin" ? (
@@ -330,6 +353,18 @@ const StatusManager: React.FC = () => {
                 />
                 <label htmlFor="default-status" className="text-sm font-medium">
                   Set as Default Status (for new tasks)
+                </label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="can-delete"
+                  checked={newStatus.can_delete}
+                  onChange={(e) => setNewStatus({ ...newStatus, can_delete: e.target.checked })}
+                  className="w-4 h-4"
+                />
+                <label htmlFor="can-delete" className="text-sm font-medium">
+                  Allow task deletion for this status
                 </label>
               </div>
               <Button onClick={handleAddStatus} variant="default" className="w-full sm:w-auto">

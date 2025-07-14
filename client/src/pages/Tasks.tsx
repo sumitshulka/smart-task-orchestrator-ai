@@ -133,8 +133,9 @@ const TasksPage: React.FC = () => {
 
   // Restrict delete to status 'pending' or 'new'
   function canDelete(status: string) {
-    // Allow deletion for tasks in initial states (not started or in progress)
-    return status === "New" || status === "backlog" || status === "planning";
+    // Find the status object and check its can_delete property
+    const statusObj = statuses.find(s => s.name === status);
+    return statusObj?.can_delete || false;
   }
 
   // Task Details Modal Functions

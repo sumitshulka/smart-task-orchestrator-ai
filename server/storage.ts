@@ -77,7 +77,7 @@ export interface IStorage {
   
   // Task status operations
   getAllTaskStatuses(): Promise<TaskStatus[]>;
-  createTaskStatus(status: { name: string; description?: string; color?: string; sequence_order: number; is_default?: boolean }): Promise<TaskStatus>;
+  createTaskStatus(status: { name: string; description?: string; color?: string; sequence_order: number; is_default?: boolean; can_delete?: boolean }): Promise<TaskStatus>;
   updateTaskStatus(id: string, updates: Partial<TaskStatus>): Promise<TaskStatus>;
   deleteTaskStatus(id: string): Promise<void>;
   getDefaultTaskStatus(): Promise<TaskStatus | undefined>;

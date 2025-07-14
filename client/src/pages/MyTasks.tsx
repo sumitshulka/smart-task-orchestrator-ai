@@ -347,9 +347,9 @@ export default function MyTasksPage() {
   }, [tasks, statuses]);
 
   function canDelete(status: string) {
-    const skey = getStatusKey(status);
-    // Allow deletion for tasks in initial states (not started or in progress)
-    return skey === "new" || status === "New" || status === "backlog" || status === "planning";
+    // Find the status object and check its can_delete property
+    const statusObj = statuses.find(s => s.name === status);
+    return statusObj?.can_delete || false;
   }
 
   const CARD_TYPE = "TASK_CARD";
