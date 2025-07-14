@@ -1,4 +1,4 @@
-import { pgTable, text, uuid, timestamp, integer, boolean, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, text, uuid, timestamp, integer, boolean, pgEnum, serial } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { relations } from "drizzle-orm";
@@ -95,6 +95,7 @@ export const taskStatusTransitions = pgTable("task_status_transitions", {
 // Tasks table
 export const tasks = pgTable("tasks", {
   id: uuid("id").primaryKey().defaultRandom(),
+  task_number: serial("task_number").unique(), // Human-readable task ID
   title: text("title").notNull(),
   description: text("description"),
   priority: integer("priority"),

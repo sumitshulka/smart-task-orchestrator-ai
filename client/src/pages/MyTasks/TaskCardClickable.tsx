@@ -17,9 +17,13 @@ function TaskCardClickable({
   statusColor?: string;
 }) {
   return (
-    <div className="cursor-pointer" onClick={onOpen}>
-      <TaskCard task={task} onTaskUpdated={onTaskUpdated} canDelete={canDelete} statusColor={statusColor} />
-    </div>
+    <TaskCard 
+      task={task} 
+      onTaskUpdated={onTaskUpdated} 
+      canDelete={canDelete} 
+      statusColor={statusColor}
+      onOpenDetails={() => onOpen()}
+    />
   );
 }
 export default TaskCardClickable;

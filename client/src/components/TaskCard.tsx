@@ -52,9 +52,10 @@ type TaskCardProps = {
   onTaskUpdated: () => void;
   canDelete: (status: string) => boolean;
   statusColor?: string;
+  onOpenDetails?: (task: Task) => void;
 };
 
-export default function TaskCard({ task, onTaskUpdated, canDelete, statusColor }: TaskCardProps) {
+export default function TaskCard({ task, onTaskUpdated, canDelete, statusColor, onOpenDetails }: TaskCardProps) {
   const { getUserName } = useUserNames();
   const { isTransitionAllowed, getAllowedNextStatuses } = useStatusTransitionValidation();
   const dynamicCardStyling = getDynamicCardStyling(statusColor);
@@ -158,7 +159,22 @@ export default function TaskCard({ task, onTaskUpdated, canDelete, statusColor }
       {/* Card header and summary */}
       <CardHeader className="pb-2">
         <div className="flex justify-between items-center gap-2">
-          <h2 className="font-semibold text-lg truncate">{task.title}</h2>
+          <div className="flex items-center gap-2 min-w-0">
+            {task.task_number && (
+              <span className="text-xs font-mono bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded border flex-shrink-0">
+                #{task.task_number}
+              </span>
+            )}
+            <h2 className="font-semibold text-lg truncate cursor-pointer hover:text-blue-600 transition-colors" 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (onOpenDetails) {
+                    onOpenDetails(task);
+                  }
+                }}>
+              {task.title}
+            </h2>
+          </div>
           <div className="flex gap-2 items-center">
             {/* Priority badge */}
             <span className={`text-xs px-2 py-1 rounded-full ${priorityClass}`}>
