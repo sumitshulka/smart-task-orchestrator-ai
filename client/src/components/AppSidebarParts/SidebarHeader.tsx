@@ -7,7 +7,7 @@ export default function SidebarHeader() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   return (
-    <div className={`${collapsed ? 'flex items-center justify-center w-full' : 'flex items-center'}`}>
+    <div className={`h-full ${collapsed ? 'flex items-center justify-center w-full' : 'flex items-center'}`}>
       <Logo collapsed={collapsed} />
     </div>
   );

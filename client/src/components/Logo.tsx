@@ -3,7 +3,7 @@ import React from "react";
 import { LayoutDashboard } from "lucide-react";
 
 const Logo: React.FC<{ collapsed?: boolean }> = ({ collapsed }) => (
-  <div>
+  <div className="flex items-center h-full">
     {collapsed ? (
       // Only show icon when collapsed, perfectly centered
       <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
