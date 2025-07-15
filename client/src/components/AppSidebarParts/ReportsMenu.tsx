@@ -8,7 +8,7 @@ export default function ReportsMenu({ isUserOnly, collapsed }: { isUserOnly: boo
   const location = useLocation();
   return (
     <SidebarGroup className="mt-6">
-      <SidebarGroupLabel>REPORTS</SidebarGroupLabel>
+      <SidebarGroupLabel>Reports</SidebarGroupLabel>
       <SidebarGroupContent>
         <SidebarMenu>
           <SidebarMenuItem>

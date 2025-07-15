@@ -22,7 +22,7 @@ export default function TaskManagementMenu({ collapsed }: { collapsed: boolean }
                 }
               >
                 <ClipboardList className="w-5 h-5" />
-                {!collapsed && <span>Tasks</span>}
+                {!collapsed && <span>All Tasks</span>}
               </NavLink>
             </SidebarMenuButton>
           </SidebarMenuItem>
