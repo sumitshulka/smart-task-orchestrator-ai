@@ -12,6 +12,7 @@ export interface HelpTopic {
   relatedTopics: string[];
   videoUrl?: string;
   attachments?: string[];
+  customComponent?: string;
 }
 
 export interface HelpCategory {

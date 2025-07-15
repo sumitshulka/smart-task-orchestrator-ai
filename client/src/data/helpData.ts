@@ -588,6 +588,78 @@ The system supports natural language queries like:
     difficulty: 'advanced',
     lastUpdated: '2025-07-15',
     relatedTopics: ['time-tracking', 'reporting', 'user-management']
+  },
+
+  {
+    id: 'benchmarking-query-patterns',
+    title: 'Benchmarking Query Patterns Guide',
+    content: `
+# Benchmarking Query Patterns Guide
+
+## Overview:
+The benchmarking system uses natural language processing to understand and analyze productivity queries. This guide shows all supported query patterns and provides examples for each.
+
+## Query Categories:
+
+### 1. Time-Based Analysis
+Use natural date expressions to filter data:
+- **Examples**: "users from last month", "tasks from this week", "last week performance"
+- **Keywords**: last month, this week, last week, previous month, this month
+
+### 2. Role-Based Analysis
+Filter by user roles:
+- **Manager Analysis**: "show me task data for managers", "manager performance"
+- **Admin Analysis**: "admin task statistics", "administrator workload"
+- **Regular Users**: "regular user performance", "user task analysis"
+
+### 3. Percentage Analysis
+Find performance outliers:
+- **Exceeding Targets**: "users who surpassed hours by more than 20%"
+- **Below Targets**: "users who fell short by more than 15%"
+- **Keywords**: surpass, exceed, short, below, over, under
+
+### 4. Numerical Analysis
+Filter by specific thresholds:
+- **Task Counts**: "users with more than 5 tasks", "less than 3 tasks"
+- **Hour Limits**: "users working over 40 hours", "under 8 hours daily"
+
+### 5. Comparative Analysis
+Compare against averages:
+- **Above Average**: "users performing above average"
+- **Below Average**: "below average performers"
+- **Department Comparison**: "users outperforming department average"
+
+### 6. Advanced Patterns
+Complex analytical queries:
+- **Completion Rates**: "users with high completion rates"
+- **Goal Achievement**: "users achieving goals consistently"
+- **Risk Detection**: "users at risk of burnout"
+- **Workload Distribution**: "workload balance across teams"
+
+## Best Practices:
+- Use natural language - the system understands conversational queries
+- Combine concepts: "managers who worked more than 40 hours last week"
+- Be specific about time periods for accurate results
+- Use percentage queries to find outliers
+- Try different phrasings if a query doesn't work as expected
+
+## Example Queries:
+- "Show me task data for managers in system"
+- "Users who exceeded hours by more than 25%"
+- "Team members below benchmark last month"
+- "Users with high completion rates this week"
+- "Department performance comparison"
+- "Users at risk of burnout"
+`,
+    category: 'benchmarking',
+    role: ['admin', 'manager', 'team_manager'],
+    scenario: ['performance-analysis', 'productivity-tracking'],
+    context: ['benchmarking', 'queries', 'analysis'],
+    tags: ['benchmarking', 'queries', 'natural-language', 'analysis'],
+    difficulty: 'intermediate',
+    lastUpdated: '2025-07-15',
+    relatedTopics: ['benchmarking-setup', 'reporting', 'performance-analysis'],
+    customComponent: 'BenchmarkingQueryGuide'
   }
 ];
 
@@ -860,12 +932,12 @@ export const helpFAQs: FAQ[] = [
   {
     id: 'benchmarking-queries',
     question: 'What kind of queries can I use in the benchmarking report?',
-    answer: 'The benchmarking system supports natural language queries like "users who exceeded 10% more hours", "team members below benchmark", "highest completion rates", and "department performance comparison". You can ask about hours, completion rates, team performance, and efficiency metrics.',
+    answer: 'The benchmarking system supports natural language queries like "users who exceeded 10% more hours", "team members below benchmark", "highest completion rates", and "department performance comparison". You can ask about hours, completion rates, team performance, and efficiency metrics. For detailed patterns, see the Benchmarking Query Guide.',
     category: 'benchmarking',
     roles: ['admin', 'manager', 'team_manager'],
     popularity: 75,
     lastUpdated: '2025-07-15',
-    relatedTopics: ['benchmarking-setup', 'reporting', 'performance-analysis']
+    relatedTopics: ['benchmarking-setup', 'reporting', 'performance-analysis', 'benchmarking-query-patterns']
   },
 
   {

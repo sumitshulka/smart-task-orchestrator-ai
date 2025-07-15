@@ -7,6 +7,7 @@ import { Separator } from '@/components/ui/separator';
 import { HelpTopic } from '@/types/help';
 import useHelp from '@/hooks/useHelp';
 import ReactMarkdown from 'react-markdown';
+import { BenchmarkingQueryGuide } from '@/components/help/BenchmarkingQueryGuide';
 
 interface HelpTopicViewerProps {
   topic: HelpTopic;
@@ -133,9 +134,13 @@ const HelpTopicViewer: React.FC<HelpTopicViewerProps> = ({ topic, onBack }) => {
 
           {/* Main content */}
           <div className="flex-1 p-4 sm:p-6 min-h-0 overflow-y-auto overflow-x-hidden">
-            <div className="prose prose-sm sm:prose max-w-none">
-              <ReactMarkdown>{topic.content}</ReactMarkdown>
-            </div>
+            {topic.customComponent === 'BenchmarkingQueryGuide' ? (
+              <BenchmarkingQueryGuide />
+            ) : (
+              <div className="prose prose-sm sm:prose max-w-none">
+                <ReactMarkdown>{topic.content}</ReactMarkdown>
+              </div>
+            )}
           </div>
         </div>
       </div>
