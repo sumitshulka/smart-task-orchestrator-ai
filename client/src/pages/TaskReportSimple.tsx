@@ -79,6 +79,17 @@ export default function TaskReport() {
       // Enrich tasks with full user data from users array
       const enrichedTasks = tasks.map(task => {
         const userInfo = users.find(u => u.id === task.assigned_to);
+        
+        // Debug logging to understand the matching issue
+        if (task.assigned_to && !userInfo) {
+          console.log('[DEBUG] Task with assigned_to but no user found:', {
+            taskId: task.id,
+            assigned_to: task.assigned_to,
+            availableUserIds: users.map(u => u.id),
+            users: users.length
+          });
+        }
+        
         return {
           ...task,
           assigned_user: userInfo ? {
@@ -138,6 +149,17 @@ export default function TaskReport() {
       const assignedUser = task.assigned_user;
       const employeeName = assignedUser?.user_name || assignedUser?.email || "Unassigned";
       const employeeEmail = assignedUser?.email || "N/A";
+      
+      // Debug logging for unassigned tasks
+      if (task.assigned_to && !assignedUser) {
+        console.log('[DEBUG] Task showing as unassigned:', {
+          taskId: task.id,
+          title: task.title,
+          assigned_to: task.assigned_to,
+          assigned_user: task.assigned_user,
+          employeeName
+        });
+      }
 
       if (!userMap[userId]) {
         userMap[userId] = {
