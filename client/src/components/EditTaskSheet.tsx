@@ -88,7 +88,7 @@ const EditTaskSheet: React.FC<Props> = ({
     }
     if (isManager) {
       // Show all users except self (optionally filter for direct reports, etc)
-      return users.filter((u) => u.id !== currentUser.id);
+      return users.filter((u) => u.id !== currentUser?.id);
     }
     // USER: show only their manager, if set
     if (isUser) {

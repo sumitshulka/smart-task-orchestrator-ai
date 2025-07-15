@@ -129,7 +129,7 @@ const AdminTeams: React.FC = () => {
     // We can't check the actual admin, so we prevent edit if created_by !== current user
     if (currentUserRoles?.includes("manager") || currentUserRoles?.includes("team_manager")) {
       // Managers shouldn't be able to edit if creator is not themselves
-      if (currentUser && team.created_by === currentUser.id) {
+      if (currentUser && team.created_by === currentUser?.id) {
         return true;
       }
       // Otherwise, do not allow edit

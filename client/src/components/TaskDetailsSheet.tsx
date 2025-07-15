@@ -92,6 +92,8 @@ const TaskDetailsSheet: React.FC<Props> = ({
 
   // Status change logic
   async function handleStatusChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    if (!currentUser?.id) return;
+    
     const newStatus = e.target.value;
     setStatus(newStatus);
     try {
@@ -114,6 +116,8 @@ const TaskDetailsSheet: React.FC<Props> = ({
 
   // Assign handler
   async function handleAssign() {
+    if (!currentUser?.id) return;
+    
     setLoading(true);
     try {
       await updateTask(task!.id, { assigned_to: assignTo });
@@ -136,6 +140,8 @@ const TaskDetailsSheet: React.FC<Props> = ({
 
   // Comment handler
   async function handleComment() {
+    if (!currentUser?.id) return;
+    
     try {
       await createTaskActivity({
         task_id: task!.id,
@@ -283,7 +289,7 @@ const TaskDetailsSheet: React.FC<Props> = ({
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-semibold text-gray-700 mb-2">Current Status</label>
-                      {(hasManagerPermissions(currentUser) || task.assigned_to === currentUser.id || task.created_by === currentUser.id) ? (
+                      {(hasManagerPermissions(currentUser) || task.assigned_to === currentUser?.id || task.created_by === currentUser?.id) ? (
                         <EditTaskStatusSelect
                           currentStatus={status}
                           onStatusChange={(newStatus) => {
