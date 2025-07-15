@@ -35,7 +35,7 @@ const AdminUsers: React.FC = () => {
 
   // Get user roles
   const userIds = users.map(user => user.id);
-  const { userRoles, loading: rolesLoading } = useUserRoles(userIds);
+  const { userRoles, loading: rolesLoading, refreshUserRoles } = useUserRoles(userIds);
 
   // Fetch users from API
   const fetchUsers = React.useCallback(async () => {
@@ -73,6 +73,12 @@ const AdminUsers: React.FC = () => {
     setEditUser(user);
     setEditDialogOpen(true);
   }
+
+  // Function to refresh both users and roles data
+  const handleDataRefresh = React.useCallback(async () => {
+    await fetchUsers();
+    await refreshUserRoles();
+  }, [fetchUsers, refreshUserRoles]);
 
   // Helper: Given the user's managerId (manager is now a UUID), find their manager's full user object
   function getManagerInfo(managerId?: string) {
@@ -198,7 +204,7 @@ const AdminUsers: React.FC = () => {
                       </Badge>
                     </td>
                     <td className="p-2 text-right">
-                      <UserTableActions user={user} onEdit={handleEditUser} onRefresh={fetchUsers} />
+                      <UserTableActions user={user} onEdit={handleEditUser} onRefresh={handleDataRefresh} />
                     </td>
                   </tr>
                 );
