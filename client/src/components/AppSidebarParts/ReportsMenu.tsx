@@ -9,7 +9,7 @@ export default function ReportsMenu({ isUserOnly, collapsed }: { isUserOnly: boo
 
   return (
     <div>
-      <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 px-2">Reports</div>
+      <div className="text-xs font-semibold uppercase tracking-wider mb-2 px-2 text-[#021133]">Reports</div>
       <div>
         <ul className="flex w-full min-w-0 flex-col gap-1">
           <li className="group/menu-item relative">
