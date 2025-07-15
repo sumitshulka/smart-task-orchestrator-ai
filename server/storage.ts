@@ -170,12 +170,44 @@ export class DatabaseStorage implements IStorage {
 
   // Team operations
   async getTeam(id: string): Promise<Team | undefined> {
-    const result = await db.select().from(teams).where(eq(teams.id, id)).limit(1);
+    const result = await db
+      .select({
+        id: teams.id,
+        name: teams.name,
+        description: teams.description,
+        created_by: teams.created_by,
+        manager_id: teams.manager_id,
+        created_at: teams.created_at,
+        manager: {
+          id: users.id,
+          user_name: users.user_name,
+          email: users.email,
+        }
+      })
+      .from(teams)
+      .leftJoin(users, eq(teams.manager_id, users.id))
+      .where(eq(teams.id, id))
+      .limit(1);
     return result[0];
   }
 
   async getAllTeams(): Promise<Team[]> {
-    return await db.select().from(teams);
+    return await db
+      .select({
+        id: teams.id,
+        name: teams.name,
+        description: teams.description,
+        created_by: teams.created_by,
+        manager_id: teams.manager_id,
+        created_at: teams.created_at,
+        manager: {
+          id: users.id,
+          user_name: users.user_name,
+          email: users.email,
+        }
+      })
+      .from(teams)
+      .leftJoin(users, eq(teams.manager_id, users.id));
   }
 
   async createTeam(team: InsertTeam): Promise<Team> {
@@ -248,7 +280,22 @@ export class DatabaseStorage implements IStorage {
 
   // Team membership operations
   async getTeamMembers(teamId: string): Promise<TeamMembership[]> {
-    return await db.select().from(teamMemberships).where(eq(teamMemberships.team_id, teamId));
+    return await db
+      .select({
+        id: teamMemberships.id,
+        team_id: teamMemberships.team_id,
+        user_id: teamMemberships.user_id,
+        role_within_team: teamMemberships.role_within_team,
+        joined_at: teamMemberships.joined_at,
+        user: {
+          id: users.id,
+          user_name: users.user_name,
+          email: users.email,
+        }
+      })
+      .from(teamMemberships)
+      .leftJoin(users, eq(teamMemberships.user_id, users.id))
+      .where(eq(teamMemberships.team_id, teamId));
   }
 
   async addTeamMember(teamId: string, userId: string, role?: string): Promise<TeamMembership> {

@@ -41,6 +41,7 @@ export const teams = pgTable("teams", {
   name: text("name").notNull().unique(),
   description: text("description"),
   created_by: uuid("created_by").notNull().references(() => users.id),
+  manager_id: uuid("manager_id").references(() => users.id), // Team manager
   created_at: timestamp("created_at").defaultNow(),
 });
 

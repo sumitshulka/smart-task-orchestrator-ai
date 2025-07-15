@@ -15,6 +15,12 @@ interface Team {
   description: string | null;
   created_at: string | null;
   created_by: string;
+  manager_id?: string | null;
+  manager?: {
+    id: string;
+    user_name: string;
+    email: string;
+  } | null;
 }
 
 const AdminTeams: React.FC = () => {
@@ -44,9 +50,29 @@ const AdminTeams: React.FC = () => {
       const teams = await apiClient.getTeams();
       setTeams(teams || []);
 
-      // For now, set empty maps since team membership API is not fully migrated
-      setMembersMap({});
-      setManagersMap({});
+      // Fetch member counts for each team
+      const newMembersMap: Record<string, string[]> = {};
+      const newManagersMap: Record<string, string> = {};
+      
+      for (const team of teams || []) {
+        try {
+          const members = await apiClient.getTeamMembers(team.id);
+          newMembersMap[team.id] = members.map((m: any) => m.user?.user_name || m.user?.email || m.user_id);
+          
+          // Manager is now included in team data directly
+          if (team.manager?.user_name) {
+            newManagersMap[team.id] = team.manager.user_name;
+          } else if (team.manager?.email) {
+            newManagersMap[team.id] = team.manager.email;
+          }
+        } catch (error) {
+          console.error(`Failed to fetch members for team ${team.id}:`, error);
+          newMembersMap[team.id] = [];
+        }
+      }
+      
+      setMembersMap(newMembersMap);
+      setManagersMap(newManagersMap);
       setLoading(false);
     } catch (error) {
       console.error('Failed to fetch teams:', error);

@@ -240,14 +240,29 @@ const TeamManagerDialog: React.FC<TeamManagerDialogProps> = ({
       }
     }
 
-    // Set manager role
+    // Set manager role - update team with manager_id
     if (teamId && managerId) {
       try {
         await apiClient.updateTeam(teamId, {
           manager_id: managerId,
         });
+        
+        // Also set role_within_team for the manager
+        // Clear all existing manager roles first
+        const allMembers = await apiClient.getTeamMembers(teamId);
+        for (const member of allMembers) {
+          if (member.role_within_team === "manager" && member.user_id !== managerId) {
+            await apiClient.addTeamMember(teamId, member.user_id, null);
+          }
+        }
+        
+        // Set the new manager's role
+        if (selectedUserIds.includes(managerId)) {
+          await apiClient.addTeamMember(teamId, managerId, "manager");
+        }
       } catch (error: any) {
         console.error("Failed to assign manager:", error);
+        toast({ title: "Failed to assign manager", description: error.message });
       }
     }
     toast({ title: isEdit ? "Team updated!" : "Team created!" });
