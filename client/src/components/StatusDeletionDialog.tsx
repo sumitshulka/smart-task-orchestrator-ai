@@ -17,7 +17,6 @@ import { Loader2, AlertTriangle, Trash2, ArrowRight } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
 
-
 interface StatusDeletionDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -213,7 +212,7 @@ export function StatusDeletionDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Trash2 className="h-5 w-5 text-destructive" />
@@ -244,65 +243,68 @@ export function StatusDeletionDialog({
             </div>
           </div>
 
-          {/* Task Handling Options */}
-          {preview.taskCount > 0 && (
-            <div className="space-y-4">
-              <h4 className="font-medium text-sm">What should happen to the {preview.taskCount} tasks?</h4>
+          {/* Task Handling Options - Always show for consistency */}
+          <div className="space-y-4">
+            <h4 className="font-medium text-sm">
+              {preview.taskCount > 0 
+                ? `What should happen to the ${preview.taskCount} tasks?`
+                : 'Task handling options (no tasks currently use this status):'
+              }
+            </h4>
+            
+            <RadioGroup value={action} onValueChange={(value) => setAction(value as any)}>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="reassign_tasks" id="reassign" />
+                <Label htmlFor="reassign" className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <ArrowRight className="h-4 w-4 text-blue-600" />
+                    <span>Reassign tasks to another status</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Move all tasks to a different status (recommended)
+                  </p>
+                </Label>
+              </div>
               
-              <RadioGroup value={action} onValueChange={(value) => setAction(value as any)}>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="reassign_tasks" id="reassign" />
-                  <Label htmlFor="reassign" className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <ArrowRight className="h-4 w-4 text-blue-600" />
-                      <span>Reassign tasks to another status</span>
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Move all tasks to a different status (recommended)
-                    </p>
-                  </Label>
-                </div>
-                
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="delete_tasks" id="delete" />
-                  <Label htmlFor="delete" className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                      <span>Delete all tasks</span>
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Permanently remove all tasks with this status
-                    </p>
-                  </Label>
-                </div>
-              </RadioGroup>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="delete_tasks" id="delete" />
+                <Label htmlFor="delete" className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                    <span>Delete all tasks</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Permanently remove all tasks with this status
+                  </p>
+                </Label>
+              </div>
+            </RadioGroup>
 
-              {/* Status Selection for Reassignment */}
-              {action === 'reassign_tasks' && (
-                <div className="space-y-2">
-                  <Label htmlFor="new-status">Select new status for tasks:</Label>
-                  <Select value={selectedStatusId} onValueChange={setSelectedStatusId}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Choose a status..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {preview.availableStatuses.map((status) => (
-                        <SelectItem key={status.id} value={status.id}>
-                          <div className="flex items-center gap-2">
-                            <div 
-                              className="w-3 h-3 rounded-full" 
-                              style={{ backgroundColor: status.color }}
-                            />
-                            {status.name}
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-            </div>
-          )}
+            {/* Status Selection for Reassignment */}
+            {action === 'reassign_tasks' && (
+              <div className="space-y-2">
+                <Label htmlFor="new-status">Select new status for tasks:</Label>
+                <Select value={selectedStatusId} onValueChange={setSelectedStatusId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Choose a status..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {preview.availableStatuses.map((status) => (
+                      <SelectItem key={status.id} value={status.id}>
+                        <div className="flex items-center gap-2">
+                          <div 
+                            className="w-3 h-3 rounded-full" 
+                            style={{ backgroundColor: status.color }}
+                          />
+                          {status.name}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </div>
 
           {/* Warning for deletion */}
           {(preview.taskCount > 0 && action === 'delete_tasks') && (
@@ -334,7 +336,7 @@ export function StatusDeletionDialog({
           <Button 
             variant="destructive" 
             onClick={handleConfirmDeletion}
-            disabled={isDeleting || (action === 'reassign_tasks' && preview.taskCount > 0 && !selectedStatusId)}
+            disabled={isDeleting || (action === 'reassign_tasks' && !selectedStatusId)}
           >
             {isDeleting ? (
               <>
