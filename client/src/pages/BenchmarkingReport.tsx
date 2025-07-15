@@ -424,14 +424,14 @@ const BenchmarkingReport: React.FC = () => {
         // Pattern matching for different query types
         console.log(`Testing first condition: achieved/surpassed/exceeded + benchmark`);
         if ((lowerQuery.includes("achieved") || lowerQuery.includes("surpassed") || lowerQuery.includes("exceeded")) && lowerQuery.includes("benchmark")) {
-        console.log(`Matched: achieved/surpassed/exceeded benchmark`);
-        matchedUsers = queryBenchmarkingData.filter(user => 
-          user.averageWeeklyHours >= settings?.min_hours_per_week || user.totalHoursInPeriod >= settings?.min_hours_per_week
-        );
-        queryType = "achieved_benchmark";
-        description = "Users who have achieved, surpassed, or exceeded the benchmark";
-        matchedPattern = "achieved/surpassed/exceeded benchmark";
-      }
+          console.log(`Matched: achieved/surpassed/exceeded benchmark`);
+          matchedUsers = queryBenchmarkingData.filter(user => 
+            user.averageWeeklyHours >= settings?.min_hours_per_week || user.totalHoursInPeriod >= settings?.min_hours_per_week
+          );
+          queryType = "achieved_benchmark";
+          description = "Users who have achieved, surpassed, or exceeded the benchmark";
+          matchedPattern = "achieved/surpassed/exceeded benchmark";
+        }
       else if (lowerQuery.includes("consistently below") && lowerQuery.includes("min")) {
         console.log(`Testing condition: consistently below min`);
         matchedUsers = queryBenchmarkingData.filter(user => user.isConsistentlyLow);
