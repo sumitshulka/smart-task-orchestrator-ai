@@ -34,49 +34,28 @@ export function useTaskStatuses() {
 }
 
 export function useStatusTransitions() {
-  const [transitions, setTransitionsState] = useState<StatusTransition[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const loadTransitions = async () => {
-      try {
-        // Get the user ID from the session
-        const userSession = (window as any).currentUser;
-        if (!userSession?.id) {
-          console.log('No user session found, skipping transitions load');
-          setTransitionsState([]);
-          setLoading(false);
-          return;
+  const { data: transitions = [], isLoading: loading, refetch } = useQuery({
+    queryKey: ['/api/task-status-transitions'],
+    queryFn: async () => {
+      const userStr = localStorage.getItem('user');
+      const user = userStr ? JSON.parse(userStr) : null;
+      
+      const response = await fetch('/api/task-status-transitions', {
+        headers: {
+          'x-user-id': user?.id || ''
         }
-
-        const response = await fetch('/api/task-status-transitions', {
-          headers: {
-            'x-user-id': userSession.id
-          }
-        });
-        
-        if (response.ok) {
-          const data = await response.json();
-          setTransitionsState(data);
-        } else {
-          console.error('Failed to fetch transitions:', response.status);
-          setTransitionsState([]);
-        }
-      } catch (error) {
-        console.error('Error loading transitions:', error);
-        setTransitionsState([]);
-      } finally {
-        setLoading(false);
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch transitions');
       }
-    };
-
-    // Add a small delay to ensure currentUser is available
-    const timeout = setTimeout(loadTransitions, 100);
-    return () => clearTimeout(timeout);
-  }, []);
+      return response.json();
+    },
+  });
 
   const setTransitions = async (newTransitions: StatusTransition[]) => {
-    setTransitionsState(newTransitions);
+    // For now, just refetch from the server after changes
+    refetch();
   };
 
   return { transitions, loading, setTransitions };
