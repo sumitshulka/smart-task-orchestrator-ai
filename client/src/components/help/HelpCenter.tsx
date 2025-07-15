@@ -168,7 +168,7 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ initialTopic }) => {
                   <TabsTrigger value="faqs">FAQs</TabsTrigger>
                 </TabsList>
 
-                <div className="px-4 pb-4 flex-1 min-h-0 overflow-hidden flex flex-col">
+                <div className="px-4 pb-4 flex-1 min-h-0 flex flex-col">
                   {/* Categories filter - mobile optimized */}
                   <div className="mb-4 flex-shrink-0">
                     <div className="flex flex-wrap gap-2">
@@ -194,7 +194,7 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ initialTopic }) => {
 
                   {/* Search Results */}
                   {searchQuery && (
-                    <div className="mb-4">
+                    <div className="mb-4 flex-shrink-0">
                       <h3 className="font-semibold mb-2">
                         Search Results ({searchResults.length})
                       </h3>
@@ -223,10 +223,10 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ initialTopic }) => {
                     </div>
                   )}
 
-                  {/* Scrollable content area */}
-                  <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
-                    <TabsContent value="topics" className="mt-0 h-full overflow-y-auto overflow-x-hidden">
-                    <div className="grid gap-4 pb-4">
+                  {/* Scrollable content area - fixed for mobile */}
+                  <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden" style={{ WebkitOverflowScrolling: 'touch' }}>
+                    <TabsContent value="topics" className="mt-0 space-y-4">
+                      <div className="grid gap-4 pb-4">
                       {filteredTopics.length > 0 ? (
                         filteredTopics.map(topic => (
                           <Card key={topic.id} className="cursor-pointer hover:bg-muted/50" onClick={() => setSelectedTopic(topic)}>
@@ -280,8 +280,8 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ initialTopic }) => {
                     </div>
                   </TabsContent>
 
-                  <TabsContent value="scenarios" className="mt-0 h-full overflow-y-auto overflow-x-hidden">
-                    <div className="grid gap-4 pb-4">
+                    <TabsContent value="scenarios" className="mt-0 space-y-4">
+                      <div className="grid gap-4 pb-4">
                       {filteredScenarios.length > 0 ? (
                         filteredScenarios.map(scenario => (
                           <Card key={scenario.id} className="cursor-pointer hover:bg-muted/50" onClick={() => setSelectedScenario(scenario)}>
@@ -336,8 +336,8 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ initialTopic }) => {
                     </div>
                   </TabsContent>
 
-                  <TabsContent value="faqs" className="mt-0 h-full overflow-y-auto overflow-x-hidden">
-                    <div className="grid gap-4 pb-4">
+                    <TabsContent value="faqs" className="mt-0 space-y-4">
+                      <div className="grid gap-4 pb-4">
                       {filteredFAQs.length > 0 ? (
                         filteredFAQs.map(faq => (
                           <Card key={faq.id}>
