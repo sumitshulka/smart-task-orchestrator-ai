@@ -779,7 +779,7 @@ const BenchmarkingReport: React.FC = () => {
         description = "All users benchmarking data";
         matchedPattern = "general query";
       }
-      }
+      } // Closing brace for main else block that contains all pattern matching
       
       console.log(`Pattern matching complete. Matched users: ${matchedUsers.length}, Query type: ${queryType}, Description: ${description}`);
 
