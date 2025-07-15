@@ -39,8 +39,9 @@ export default function TaskOverdueReport() {
         limit: 1000,
       });
       
-      // Filter for overdue tasks
+      // Filter for overdue tasks (due date must be before today, not including today)
       const today = new Date();
+      today.setHours(0, 0, 0, 0); // Set to start of today to exclude today's tasks
       return tasks.filter(task => 
         task.due_date && 
         new Date(task.due_date) < today && 
@@ -84,6 +85,7 @@ export default function TaskOverdueReport() {
     
     const userMap: Record<string, any> = {};
     const today = new Date();
+    today.setHours(0, 0, 0, 0); // Set to start of today for consistent comparison
     
     filteredTasks.forEach(task => {
       const assignedId = task.assigned_to || "unassigned";
