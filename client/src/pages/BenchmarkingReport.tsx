@@ -552,6 +552,7 @@ const BenchmarkingReport: React.FC = () => {
       }
       else if (lowerQuery.includes("surpass") || lowerQuery.includes("exceed") || (lowerQuery.includes("over") && lowerQuery.includes("%"))) {
         console.log(`Matched: surpass/exceed/over with % pattern`);
+        console.log(`Condition breakdown: surpass=${lowerQuery.includes("surpass")}, exceed=${lowerQuery.includes("exceed")}, over=${lowerQuery.includes("over")}, %=${lowerQuery.includes("%")}`);
         // Parse percentage-based performance queries like "surpassed their hours by more than 10%"
         const percentMatch = lowerQuery.match(/(?:more than|over|above)\s+(\d+)%/) || lowerQuery.match(/by\s+more\s+than\s+(\d+)%/);
         console.log(`Percentage match result:`, percentMatch);
@@ -757,12 +758,16 @@ const BenchmarkingReport: React.FC = () => {
         }
       }
       else {
+        console.log(`No patterns matched, falling back to general query. Query was: "${lowerQuery}"`);
+        console.log(`Patterns checked: surpass=${lowerQuery.includes("surpass")}, exceed=${lowerQuery.includes("exceed")}, over=${lowerQuery.includes("over")}, %=${lowerQuery.includes("%")}`);
         // Default to showing all users with some analysis
         matchedUsers = benchmarkingData;
         queryType = "general";
         description = "All users benchmarking data";
         matchedPattern = "general query";
       }
+      
+      console.log(`Pattern matching complete. Matched users: ${matchedUsers.length}, Query type: ${queryType}, Description: ${description}`);
 
       setQueryResult({
         users: matchedUsers,
