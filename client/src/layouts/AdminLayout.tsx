@@ -6,7 +6,7 @@ import Topbar from "@/components/Topbar";
 
 const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <SidebarProvider>
-    <div className="flex w-full h-screen bg-background overflow-hidden" style={{ position: 'relative', top: 0, left: 0, height: '100vh', maxHeight: '100vh' }}>
+    <div className="flex w-full h-screen bg-background overflow-hidden">
       <AppSidebar />
       <div className="flex flex-col flex-1 min-w-0 h-full">
         <Topbar />
