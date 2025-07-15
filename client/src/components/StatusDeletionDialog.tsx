@@ -54,17 +54,16 @@ export function StatusDeletionDialog({
     queryFn: async () => {
       if (!statusId) throw new Error('Status ID is required');
       
-      // Use API client which includes proper authentication headers
+      // Get user ID for authentication
+      const userStr = localStorage.getItem('user');
+      const user = userStr ? JSON.parse(userStr) : null;
+      const userId = user?.id;
+      
       const response = await fetch(`/api/task-statuses/${statusId}/deletion-preview`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
-          // Add user ID header for authentication
-          ...((() => {
-            const userStr = localStorage.getItem('user');
-            const user = userStr ? JSON.parse(userStr) : null;
-            return user?.id ? { 'x-user-id': user.id } : {};
-          })()),
+          ...(userId && { 'x-user-id': userId }),
         },
       });
       
@@ -120,16 +119,16 @@ export function StatusDeletionDialog({
     try {
       const selectedStatus = preview.availableStatuses.find(s => s.id === selectedStatusId);
       
+      // Get user ID for authentication
+      const userStr = localStorage.getItem('user');
+      const user = userStr ? JSON.parse(userStr) : null;
+      const userId = user?.id;
+      
       const response = await fetch(`/api/task-statuses/${statusId}/delete-with-handling`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          // Add user ID header for authentication
-          ...((() => {
-            const userStr = localStorage.getItem('user');
-            const user = userStr ? JSON.parse(userStr) : null;
-            return user?.id ? { 'x-user-id': user.id } : {};
-          })()),
+          ...(userId && { 'x-user-id': userId }),
         },
         body: JSON.stringify({
           action,
