@@ -3,7 +3,6 @@ import { ArrowLeft, Clock, Users, CheckCircle, Circle, ChevronRight } from 'luci
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Progress } from '@/components/ui/progress';
 import { HelpScenario } from '@/types/help';
@@ -84,7 +83,7 @@ const HelpScenarioViewer: React.FC<HelpScenarioViewerProps> = ({ scenario, onBac
         <div className="h-full flex flex-col lg:flex-row">
           {/* Steps sidebar */}
           <div className="w-full lg:w-80 border-b lg:border-b-0 lg:border-r p-4 lg:max-h-full overflow-hidden">
-            <ScrollArea className="h-full max-h-64 lg:max-h-full">
+            <div className="h-full max-h-64 lg:max-h-full overflow-y-auto overflow-x-hidden">
               <div className="space-y-2">
                 {scenario.steps.map((step, index) => (
                   <Card 
@@ -115,7 +114,7 @@ const HelpScenarioViewer: React.FC<HelpScenarioViewerProps> = ({ scenario, onBac
                   </Card>
                 ))}
               </div>
-            </ScrollArea>
+            </div>
           </div>
 
           {/* Current step content */}

@@ -3,7 +3,6 @@ import { ArrowLeft, Clock, Users, BookOpen, Tag, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { HelpTopic } from '@/types/help';
 import useHelp from '@/hooks/useHelp';
@@ -76,7 +75,7 @@ const HelpTopicViewer: React.FC<HelpTopicViewerProps> = ({ topic, onBack }) => {
         <div className="h-full flex flex-col lg:flex-row">
           {/* Related topics sidebar */}
           <div className="w-full lg:w-80 border-b lg:border-b-0 lg:border-r p-4 lg:max-h-full overflow-hidden">
-            <ScrollArea className="h-full max-h-64 lg:max-h-full">
+            <div className="h-full max-h-64 lg:max-h-full overflow-y-auto overflow-x-hidden">
               <div className="space-y-6">
                 {/* Context info */}
                 <div>
@@ -129,7 +128,7 @@ const HelpTopicViewer: React.FC<HelpTopicViewerProps> = ({ topic, onBack }) => {
                   </div>
                 </div>
               </div>
-            </ScrollArea>
+            </div>
           </div>
 
           {/* Main content */}
