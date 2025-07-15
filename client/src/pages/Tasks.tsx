@@ -321,10 +321,10 @@ const TasksPage: React.FC = () => {
             />
             <TasksPagination
               page={page}
+              setPage={setPage}
               pageSize={pageSize}
-              total={totalTasks}
-              onPageChange={setPage}
-              onPageSizeChange={setPageSize}
+              setPageSize={setPageSize}
+              totalTasks={totalTasks}
               pageSizeOptions={pageSizeOptions}
             />
           </>
