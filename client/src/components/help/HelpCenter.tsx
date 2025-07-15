@@ -192,8 +192,6 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ initialTopic }) => {
                     </div>
                   </div>
 
-                  {/* Scrollable content area */}
-                  <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
                   {/* Search Results */}
                   {searchQuery && (
                     <div className="mb-4">
@@ -225,7 +223,9 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ initialTopic }) => {
                     </div>
                   )}
 
-                  <TabsContent value="topics" className="mt-0 h-full overflow-y-auto overflow-x-hidden">
+                  {/* Scrollable content area */}
+                  <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
+                    <TabsContent value="topics" className="mt-0 h-full overflow-y-auto overflow-x-hidden">
                     <div className="grid gap-4 pb-4">
                       {filteredTopics.length > 0 ? (
                         filteredTopics.map(topic => (
