@@ -119,21 +119,20 @@ const HelpScenarioViewer: React.FC<HelpScenarioViewerProps> = ({ scenario, onBac
           </div>
 
           {/* Current step content */}
-          <div className="flex-1 p-4 sm:p-6 min-h-0 overflow-hidden">
-            <ScrollArea className="h-full w-full">
-              {scenario.steps[currentStep] && (
-                <div className="space-y-6 pr-4">
-                  <div>
-                    <h2 className="text-xl font-semibold mb-2">
-                      {scenario.steps[currentStep].title}
-                    </h2>
-                    <p className="text-muted-foreground">
-                      {scenario.steps[currentStep].description}
-                    </p>
-                  </div>
+          <div className="flex-1 p-4 sm:p-6 min-h-0 overflow-y-auto overflow-x-hidden">
+            {scenario.steps[currentStep] && (
+              <div className="space-y-6">
+                <div>
+                  <h2 className="text-xl font-semibold mb-2">
+                    {scenario.steps[currentStep].title}
+                  </h2>
+                  <p className="text-muted-foreground">
+                    {scenario.steps[currentStep].description}
+                  </p>
+                </div>
 
-                  {/* Action */}
-                  {scenario.steps[currentStep].action && (
+                {/* Action */}
+                {scenario.steps[currentStep].action && (
                     <Card className="bg-blue-50 border-blue-200">
                       <CardHeader className="pb-3">
                         <CardTitle className="text-sm text-blue-900">Action Required</CardTitle>
@@ -146,8 +145,8 @@ const HelpScenarioViewer: React.FC<HelpScenarioViewerProps> = ({ scenario, onBac
                     </Card>
                   )}
 
-                  {/* Tips */}
-                  {scenario.steps[currentStep].tips && scenario.steps[currentStep].tips!.length > 0 && (
+                {/* Tips */}
+                {scenario.steps[currentStep].tips && scenario.steps[currentStep].tips!.length > 0 && (
                     <Card className="bg-green-50 border-green-200">
                       <CardHeader className="pb-3">
                         <CardTitle className="text-sm text-green-900">Tips</CardTitle>
@@ -165,8 +164,8 @@ const HelpScenarioViewer: React.FC<HelpScenarioViewerProps> = ({ scenario, onBac
                     </Card>
                   )}
 
-                  {/* Warnings */}
-                  {scenario.steps[currentStep].warnings && scenario.steps[currentStep].warnings!.length > 0 && (
+                {/* Warnings */}
+                {scenario.steps[currentStep].warnings && scenario.steps[currentStep].warnings!.length > 0 && (
                     <Card className="bg-yellow-50 border-yellow-200">
                       <CardHeader className="pb-3">
                         <CardTitle className="text-sm text-yellow-900">Warnings</CardTitle>
@@ -184,8 +183,8 @@ const HelpScenarioViewer: React.FC<HelpScenarioViewerProps> = ({ scenario, onBac
                     </Card>
                   )}
 
-                  {/* Next steps */}
-                  {scenario.steps[currentStep].nextSteps && scenario.steps[currentStep].nextSteps!.length > 0 && (
+                {/* Next steps */}
+                {scenario.steps[currentStep].nextSteps && scenario.steps[currentStep].nextSteps!.length > 0 && (
                     <Card>
                       <CardHeader className="pb-3">
                         <CardTitle className="text-sm">Next Steps</CardTitle>
@@ -203,8 +202,8 @@ const HelpScenarioViewer: React.FC<HelpScenarioViewerProps> = ({ scenario, onBac
                     </Card>
                   )}
 
-                  {/* Step actions */}
-                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-4 pt-4 border-t">
+                {/* Step actions */}
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-4 pt-4 border-t">
                     <Button
                       variant="outline"
                       onClick={() => setCurrentStep(Math.max(0, currentStep - 1))}
@@ -243,10 +242,9 @@ const HelpScenarioViewer: React.FC<HelpScenarioViewerProps> = ({ scenario, onBac
                         Complete Tutorial
                       </Button>
                     )}
-                  </div>
                 </div>
-              )}
-            </ScrollArea>
+              </div>
+            )}
           </div>
         </div>
       </div>
