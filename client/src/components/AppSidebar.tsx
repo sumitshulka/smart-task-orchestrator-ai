@@ -1,10 +1,6 @@
 
 import React from "react";
 import { useLocation } from "react-router-dom";
-import {
-  Sidebar,
-  SidebarContent
-} from "@/components/ui/sidebar";
 import { useCurrentUserRoleAndTeams } from "@/hooks/useCurrentUserRoleAndTeams";
 import DashboardMenu from "./AppSidebarParts/DashboardMenu";
 import TaskManagementMenu from "./AppSidebarParts/TaskManagementMenu";
@@ -26,18 +22,15 @@ export default function AppSidebar() {
   const hasTeams = teams.length > 0;
 
   return (
-    <Sidebar
-      className="w-64 flex flex-col h-full"
-      collapsible="none"
+    <div 
+      className="w-64 flex flex-col h-full bg-sidebar text-sidebar-foreground"
       style={{ 
         backgroundColor: '#f8fafc', 
-        borderRight: '1px solid #e2e8f0',
-        height: 'calc(100% - 56px)',
-        marginTop: '56px'
+        borderRight: '1px solid #e2e8f0'
       }}
     >
       {/* Scrollable content with menu items */}
-      <SidebarContent className="flex min-h-0 flex-1 flex-col gap-2 overflow-auto px-2 py-4 bg-[#e3e2de]" style={{ paddingTop: '16px' }}>
+      <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-auto px-2 py-4 bg-[#e3e2de]" style={{ paddingTop: '16px' }}>
         <div className="space-y-2">
           <DashboardMenu isUserOnly={isUserOnly} collapsed={false} />
           <TaskManagementMenu collapsed={false} />
@@ -45,7 +38,7 @@ export default function AppSidebar() {
           <WarningNoTeams isOnTeams={isOnTeams} loading={loading} isUserOnly={isUserOnly} hasTeams={hasTeams} />
           <ReportsMenu isUserOnly={isUserOnly} collapsed={false} />
         </div>
-      </SidebarContent>
-    </Sidebar>
+      </div>
+    </div>
   );
 }

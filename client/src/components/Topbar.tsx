@@ -6,7 +6,6 @@ import { LogOut } from "lucide-react";
 import { Settings } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRole } from "@/contexts/RoleProvider";
-import { useSidebar } from "@/components/ui/sidebar";
 
 const USER_PLACEHOLDER = {
   name: "Jane Doe",
@@ -25,11 +24,9 @@ const Topbar: React.FC = () => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const { userName, highestRole, loading } = useRole();
-  const { state: sidebarState } = useSidebar();
 
   const displayName = userName || user?.user_name || user?.email || USER_PLACEHOLDER.name;
   const displayEmail = user?.email || USER_PLACEHOLDER.email;
-  const collapsed = sidebarState === "collapsed";
 
   const handleLogout = async () => {
     logout();
