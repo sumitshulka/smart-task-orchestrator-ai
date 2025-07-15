@@ -75,11 +75,10 @@ export default function ManagementMenu({ isAdmin, isManager, collapsed }: { isAd
                   <ShieldCheck className="w-5 h-5" />
                   {!collapsed && <span>Roles & Privileges</span>}
                 </NavLink>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
+          </li>
           )}
-        </SidebarMenu>
-      </SidebarGroupContent>
-    </SidebarGroup>
+        </ul>
+      </div>
+    </div>
   );
 }

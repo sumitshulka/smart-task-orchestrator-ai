@@ -1,67 +1,54 @@
-
 import React from "react";
 import { useLocation, NavLink } from "react-router-dom";
-import { SidebarGroup, SidebarGroupLabel, SidebarGroupContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton } from "../ui/sidebar";
-import { FileText, ChartBar, AlertTriangle } from "lucide-react";
+import { FileText, AlertTriangle } from "lucide-react";
 
-export default function ReportsMenu({ isUserOnly, collapsed }: { isUserOnly: boolean, collapsed: boolean }) {
+interface ReportsMenuProps {
+  isUserOnly: boolean;
+  collapsed: boolean;
+}
+
+export default function ReportsMenu({ isUserOnly, collapsed }: ReportsMenuProps) {
   const location = useLocation();
+
   return (
-    <SidebarGroup className="mt-6">
-      <SidebarGroupLabel>Reports</SidebarGroupLabel>
-      <SidebarGroupContent>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton asChild isActive={location.pathname.startsWith("/admin/reports/task")}>
+    <div className="relative flex w-full min-w-0 flex-col p-2">
+      <div className={`flex h-8 shrink-0 items-center rounded-md px-2 text-xs font-medium text-sidebar-foreground/70 ${collapsed ? "opacity-0" : ""}`}>
+        Reports
+      </div>
+      <div className="w-full text-sm">
+        <ul className="flex w-full min-w-0 flex-col gap-1">
+          {!isUserOnly && (
+            <li className="group/menu-item relative">
               <NavLink
-                to="/admin/reports/task"
+                to="/admin/task-report"
                 end
                 className={({ isActive }) =>
-                  "flex items-center gap-2 py-1.5 px-2 rounded transition " +
-                  (isActive ? "bg-muted text-primary font-semibold" : "hover:bg-muted/50")
+                  "flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm outline-none ring-sidebar-ring transition-[width,height,padding] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 " +
+                  (isActive ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground" : "")
                 }
               >
-                <FileText className="w-5 h-5" />
-                {!collapsed && (
-                  <span>
-                    {isUserOnly ? "My Task Report" : "Task Report"}
-                  </span>
-                )}
+                <FileText className="w-4 h-4 shrink-0" />
+                {!collapsed && <span className="truncate">Task Report</span>}
               </NavLink>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-            <SidebarMenuButton asChild isActive={location.pathname.startsWith("/admin/reports/overdue")}>
+            </li>
+          )}
+          {!isUserOnly && (
+            <li className="group/menu-item relative">
               <NavLink
-                to="/admin/reports/overdue"
+                to="/admin/task-overdue-report"
                 end
                 className={({ isActive }) =>
-                  "flex items-center gap-2 py-1.5 px-2 rounded transition " +
-                  (isActive ? "bg-muted text-primary font-semibold" : "hover:bg-muted/50")
+                  "flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm outline-none ring-sidebar-ring transition-[width,height,padding] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 " +
+                  (isActive ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground" : "")
                 }
               >
-                <AlertTriangle className="w-5 h-5" />
-                {!collapsed && <span>Overdue Report</span>}
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                {!collapsed && <span className="truncate">Overdue Tasks</span>}
               </NavLink>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-            <SidebarMenuButton asChild isActive={location.pathname.startsWith("/admin/reports/analytics")}>
-              <NavLink
-                to="/admin/reports/analytics"
-                end
-                className={({ isActive }) =>
-                  "flex items-center gap-2 py-1.5 px-2 rounded transition " +
-                  (isActive ? "bg-muted text-primary font-semibold" : "hover:bg-muted/50")
-                }
-              >
-                <ChartBar className="w-5 h-5" />
-                {!collapsed && <span>Analytics Report</span>}
-              </NavLink>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
-      </SidebarGroupContent>
-    </SidebarGroup>
+            </li>
+          )}
+        </ul>
+      </div>
+    </div>
   );
 }
