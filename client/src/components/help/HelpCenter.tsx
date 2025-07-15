@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import useHelp from '@/hooks/useHelp';
 import HelpTopicViewer from './HelpTopicViewer';
 import HelpScenarioViewer from './HelpScenarioViewer';
@@ -159,74 +160,72 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ initialTopic }) => {
           />
         ) : (
           <div className="h-full flex flex-col min-h-0">
-            {/* Mobile-first design - tabs first, then content */}
-            <div className="flex-1 min-h-0 flex flex-col">
-              <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
-                <TabsList className="grid w-full grid-cols-3 mx-4 mt-4 flex-shrink-0">
-                  <TabsTrigger value="topics">Topics</TabsTrigger>
-                  <TabsTrigger value="scenarios">Scenarios</TabsTrigger>
-                  <TabsTrigger value="faqs">FAQs</TabsTrigger>
-                </TabsList>
+            {/* Compact header - hamburger menu style */}
+            <div className="flex-shrink-0 p-2 border-b">
+              <div className="flex items-center gap-2">
+                <Select value={activeTab} onValueChange={setActiveTab}>
+                  <SelectTrigger className="w-20 h-8 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="topics">Topics</SelectItem>
+                    <SelectItem value="scenarios">Scenarios</SelectItem>
+                    <SelectItem value="faqs">FAQs</SelectItem>
+                  </SelectContent>
+                </Select>
+                
+                <Select value={selectedCategory || "all"} onValueChange={(value) => setSelectedCategory(value === "all" ? null : value)}>
+                  <SelectTrigger className="w-20 h-8 text-xs">
+                    <SelectValue placeholder="Filter" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All</SelectItem>
+                    {availableCategories.map(category => (
+                      <SelectItem key={category.id} value={category.id}>
+                        {category.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
 
-                <div className="px-4 pb-4 flex-1 min-h-0 flex flex-col">
-                  {/* Categories filter - mobile optimized */}
-                  <div className="mb-4 flex-shrink-0">
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        variant={!selectedCategory ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => setSelectedCategory(null)}
-                      >
-                        All
-                      </Button>
-                      {availableCategories.map(category => (
-                        <Button
-                          key={category.id}
-                          variant={selectedCategory === category.id ? "default" : "outline"}
-                          size="sm"
-                          onClick={() => setSelectedCategory(category.id)}
-                        >
-                          {category.name}
-                        </Button>
+            {/* Maximized content area */}
+            <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-2" style={{ WebkitOverflowScrolling: 'touch' }}>
+              {/* Search Results */}
+              {searchQuery && (
+                <div className="mb-3">
+                  <h3 className="font-medium text-sm mb-2">
+                    Search Results ({searchResults.length})
+                  </h3>
+                  <div className="h-32 overflow-y-auto overflow-x-hidden">
+                    <div className="space-y-2">
+                      {searchResults.map((result, index) => (
+                        <Card key={index} className="p-2 cursor-pointer hover:bg-muted/50">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1 min-w-0">
+                              <div className="font-medium text-sm truncate">
+                                {'title' in result.item ? result.item.title : 
+                                 'question' in result.item ? result.item.question : result.item.name}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {result.type} • Relevance: {result.relevanceScore}
+                              </div>
+                            </div>
+                            <Badge variant="secondary" className="text-xs ml-2 flex-shrink-0">
+                              {result.type}
+                            </Badge>
+                          </div>
+                        </Card>
                       ))}
                     </div>
                   </div>
+                </div>
+              )}
 
-                  {/* Search Results */}
-                  {searchQuery && (
-                    <div className="mb-4 flex-shrink-0">
-                      <h3 className="font-semibold mb-2">
-                        Search Results ({searchResults.length})
-                      </h3>
-                      <div className="h-32 sm:h-40 overflow-y-auto overflow-x-hidden">
-                        <div className="space-y-2">
-                          {searchResults.map((result, index) => (
-                            <Card key={index} className="p-3 cursor-pointer hover:bg-muted/50">
-                              <div className="flex items-start justify-between">
-                                <div className="flex-1 min-w-0">
-                                  <div className="font-medium text-sm truncate">
-                                    {'title' in result.item ? result.item.title : 
-                                     'question' in result.item ? result.item.question : result.item.name}
-                                  </div>
-                                  <div className="text-xs text-muted-foreground">
-                                    {result.type} • Relevance: {result.relevanceScore}
-                                  </div>
-                                </div>
-                                <Badge variant="secondary" className="text-xs ml-2 flex-shrink-0">
-                                  {result.type}
-                                </Badge>
-                              </div>
-                            </Card>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Scrollable content area - fixed for mobile */}
-                  <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden" style={{ WebkitOverflowScrolling: 'touch' }}>
-                    <TabsContent value="topics" className="mt-0 space-y-4">
-                      <div className="grid gap-4 pb-4">
+              {/* Content sections */}
+              {activeTab === "topics" && (
+                <div className="space-y-2">
                       {filteredTopics.length > 0 ? (
                         filteredTopics.map(topic => (
                           <Card key={topic.id} className="cursor-pointer hover:bg-muted/50" onClick={() => setSelectedTopic(topic)}>
@@ -277,11 +276,11 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ initialTopic }) => {
                           </Button>
                         </div>
                       )}
-                    </div>
-                  </TabsContent>
+                </div>
+              )}
 
-                    <TabsContent value="scenarios" className="mt-0 space-y-4">
-                      <div className="grid gap-4 pb-4">
+              {activeTab === "scenarios" && (
+                <div className="space-y-2">
                       {filteredScenarios.length > 0 ? (
                         filteredScenarios.map(scenario => (
                           <Card key={scenario.id} className="cursor-pointer hover:bg-muted/50" onClick={() => setSelectedScenario(scenario)}>
@@ -333,11 +332,11 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ initialTopic }) => {
                           </Button>
                         </div>
                       )}
-                    </div>
-                  </TabsContent>
+                </div>
+              )}
 
-                    <TabsContent value="faqs" className="mt-0 space-y-4">
-                      <div className="grid gap-4 pb-4">
+              {activeTab === "faqs" && (
+                <div className="space-y-2">
                       {filteredFAQs.length > 0 ? (
                         filteredFAQs.map(faq => (
                           <Card key={faq.id}>
@@ -380,11 +379,8 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ initialTopic }) => {
                           </Button>
                         </div>
                       )}
-                    </div>
-                  </TabsContent>
-                  </div>
                 </div>
-              </Tabs>
+              )}
             </div>
           </div>
         )}
