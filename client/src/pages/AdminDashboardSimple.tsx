@@ -6,18 +6,27 @@ import { useUsersAndTeams } from "@/hooks/useUsersAndTeams";
 import { useCurrentUserRoleAndTeams } from "@/hooks/useCurrentUserRoleAndTeams";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import { Users, Building2, ClipboardList, CheckCircle } from "lucide-react";
 import ActiveTimersBar from "@/components/ActiveTimersBar";
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
 
-function StatCard({ label, value }: { label: string; value: number | string }) {
+function StatCard({ label, value, icon: Icon, bgColor }: { 
+  label: string; 
+  value: number | string; 
+  icon: React.ElementType;
+  bgColor: string;
+}) {
   return (
-    <Card className="flex-1 min-w-[140px]">
-      <CardHeader>
-        <CardTitle className="text-base">{label}</CardTitle>
+    <Card className={`flex-1 min-w-[140px] ${bgColor} border-0 shadow-sm`}>
+      <CardHeader className="pb-2">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-sm font-medium text-gray-600">{label}</CardTitle>
+          <Icon className="h-4 w-4 text-gray-500" />
+        </div>
       </CardHeader>
-      <CardContent>
-        <div className="text-2xl font-bold">{value}</div>
+      <CardContent className="pt-0">
+        <div className="text-2xl font-bold text-gray-800">{value}</div>
       </CardContent>
     </Card>
   );
@@ -91,17 +100,52 @@ const AdminDashboard = () => {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <StatCard label="Total Users" value={users.length} />
-        <StatCard label="Total Teams" value={teams.length} />
-        <StatCard label="Total Tasks" value={stats.totalTasks} />
-        <StatCard label="Completed Tasks" value={stats.completedTasks} />
+        <StatCard 
+          label="Total Users" 
+          value={users.length} 
+          icon={Users}
+          bgColor="bg-gray-50"
+        />
+        <StatCard 
+          label="Total Teams" 
+          value={teams.length} 
+          icon={Building2}
+          bgColor="bg-slate-50"
+        />
+        <StatCard 
+          label="Total Tasks" 
+          value={stats.totalTasks} 
+          icon={ClipboardList}
+          bgColor="bg-zinc-50"
+        />
+        <StatCard 
+          label="Completed Tasks" 
+          value={stats.completedTasks} 
+          icon={CheckCircle}
+          bgColor="bg-stone-50"
+        />
       </div>
 
       {/* Secondary Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-        <StatCard label="New Tasks" value={stats.newTasks} />
-        <StatCard label="Overdue Tasks" value={stats.overdueTasks} />
-        <StatCard label="Completion Rate" value={`${stats.totalTasks > 0 ? Math.round((stats.completedTasks / stats.totalTasks) * 100) : 0}%`} />
+        <StatCard 
+          label="New Tasks" 
+          value={stats.newTasks} 
+          icon={ClipboardList}
+          bgColor="bg-gray-100"
+        />
+        <StatCard 
+          label="Overdue Tasks" 
+          value={stats.overdueTasks} 
+          icon={CheckCircle}
+          bgColor="bg-red-50"
+        />
+        <StatCard 
+          label="Completion Rate" 
+          value={`${stats.totalTasks > 0 ? Math.round((stats.completedTasks / stats.totalTasks) * 100) : 0}%`} 
+          icon={CheckCircle}
+          bgColor="bg-green-50"
+        />
       </div>
 
       {/* Charts Section */}

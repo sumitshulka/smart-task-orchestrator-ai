@@ -281,7 +281,9 @@ export class DatabaseStorage implements IStorage {
   }
 
   async logTaskActivity(activity: Omit<TaskActivity, 'id' | 'created_at'>): Promise<TaskActivity> {
+    console.log("[DEBUG] Logging task activity:", activity);
     const result = await db.insert(taskActivity).values(activity).returning();
+    console.log("[DEBUG] Task activity logged successfully:", result[0]);
     return result[0];
   }
 

@@ -245,8 +245,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Log various activity changes
       if (oldTask) {
+        console.log("[DEBUG] Checking for activity changes - userId:", userId);
         // Status change
         if (req.body.status && oldTask.status !== req.body.status) {
+          console.log("[DEBUG] Status change detected:", oldTask.status, "->", req.body.status);
           await storage.logTaskActivity({
             task_id: task.id,
             action_type: "status_changed",
@@ -254,6 +256,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             new_value: req.body.status,
             acted_by: userId,
           });
+          console.log("[DEBUG] Status change activity logged");
         }
         
         // Assignment change
