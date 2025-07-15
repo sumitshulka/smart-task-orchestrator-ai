@@ -1,5 +1,7 @@
 import React from "react";
-import { MoreVertical, User, Edit, UserCheck, UserX } from "lucide-react";
+import { MoreVertical, User, Edit, UserCheck, UserX, Trash2, AlertTriangle } from "lucide-react";
+import { useMutation } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
 import EditUserDialog from "./EditUserDialog";
 import ResetUserPasswordDialog from "./ResetUserPasswordDialog";
 import EditUserRoleDialog from "./EditUserRoleDialog";
@@ -11,7 +13,19 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { apiClient } from "@/lib/api";
 
 interface UserTableActionsProps {
   user: {
@@ -31,6 +45,50 @@ const UserTableActions: React.FC<UserTableActionsProps> = ({ user, onEdit, onRef
   // Dialog open states
   const [resetDialogOpen, setResetDialogOpen] = React.useState(false);
   const [editRoleDialogOpen, setEditRoleDialogOpen] = React.useState(false);
+  const [deactivateDialogOpen, setDeactivateDialogOpen] = React.useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false);
+
+  const { toast } = useToast();
+
+  // Deactivate user mutation
+  const deactivateUserMutation = useMutation({
+    mutationFn: () => apiClient.deactivateUser(user.id),
+    onSuccess: () => {
+      toast({
+        title: "User deactivated",
+        description: `${user.user_name || user.email} has been deactivated successfully.`,
+      });
+      onRefresh?.();
+      setDeactivateDialogOpen(false);
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: `Failed to deactivate user: ${error.message}`,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Delete user mutation
+  const deleteUserMutation = useMutation({
+    mutationFn: () => apiClient.deleteUser(user.id),
+    onSuccess: (result) => {
+      toast({
+        title: "User deleted",
+        description: `${user.user_name || user.email} and ${result.deletedTasksCount} associated tasks have been moved to the deleted users repository.`,
+      });
+      onRefresh?.();
+      setDeleteDialogOpen(false);
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: `Failed to delete user: ${error.message}`,
+        variant: "destructive",
+      });
+    },
+  });
 
   function handleEditUser() {
     onEdit(user);
@@ -40,9 +98,12 @@ const UserTableActions: React.FC<UserTableActionsProps> = ({ user, onEdit, onRef
     setEditRoleDialogOpen(true);
   }
   
-  function handleToggleActive() {
-    // TODO: Implement user activation/deactivation
-    alert(`${user.is_active ? "Deactivate" : "Activate"}: ${user.user_name || user.id}`);
+  function handleDeactivateUser() {
+    setDeactivateDialogOpen(true);
+  }
+
+  function handleDeleteUser() {
+    setDeleteDialogOpen(true);
   }
 
   function handleResetPassword() {
@@ -68,18 +129,15 @@ const UserTableActions: React.FC<UserTableActionsProps> = ({ user, onEdit, onRef
             Edit Role
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={handleToggleActive} className={user.is_active ? "text-destructive" : "text-green-600"}>
-            {user.is_active ? (
-              <>
-                <UserX className="w-4 h-4 mr-2" />
-                Deactivate
-              </>
-            ) : (
-              <>
-                <UserCheck className="w-4 h-4 mr-2" />
-                Activate
-              </>
-            )}
+          {user.is_active && (
+            <DropdownMenuItem onClick={handleDeactivateUser} className="text-orange-600">
+              <UserX className="w-4 h-4 mr-2" />
+              Deactivate User
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuItem onClick={handleDeleteUser} className="text-destructive">
+            <Trash2 className="w-4 h-4 mr-2" />
+            Delete User
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={handleResetPassword}>
@@ -103,6 +161,77 @@ const UserTableActions: React.FC<UserTableActionsProps> = ({ user, onEdit, onRef
         user={user}
         onRolesUpdated={onRefresh}
       />
+
+      {/* Deactivate User Confirmation Dialog */}
+      <AlertDialog open={deactivateDialogOpen} onOpenChange={setDeactivateDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <UserX className="w-5 h-5 text-orange-600" />
+              Deactivate User
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to deactivate <strong>{user.user_name || user.email}</strong>?
+              <br /><br />
+              <div className="bg-orange-50 border border-orange-200 rounded-md p-3 text-sm">
+                <strong>What happens when you deactivate a user:</strong>
+                <ul className="mt-2 space-y-1 list-disc list-inside">
+                  <li>User will not be able to log in to the system</li>
+                  <li>Existing tasks will remain active and visible</li>
+                  <li>User will not be assigned new tasks</li>
+                  <li>User data is preserved and can be reactivated later</li>
+                </ul>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deactivateUserMutation.mutate()}
+              disabled={deactivateUserMutation.isPending}
+              className="bg-orange-600 hover:bg-orange-700"
+            >
+              {deactivateUserMutation.isPending ? "Deactivating..." : "Deactivate User"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete User Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-destructive" />
+              Delete User - Permanent Action
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to permanently delete <strong>{user.user_name || user.email}</strong>?
+              <br /><br />
+              <div className="bg-red-50 border border-red-200 rounded-md p-3 text-sm">
+                <strong>⚠️ This action cannot be undone:</strong>
+                <ul className="mt-2 space-y-1 list-disc list-inside">
+                  <li>User account will be permanently removed</li>
+                  <li>All user's tasks will be moved to deleted tasks repository</li>
+                  <li>User will be removed from all teams and task groups</li>
+                  <li>Admin can view deleted data in the Deleted Users section</li>
+                  <li>Historical data is preserved for compliance purposes</li>
+                </ul>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteUserMutation.mutate()}
+              disabled={deleteUserMutation.isPending}
+              className="bg-destructive hover:bg-destructive/90"
+            >
+              {deleteUserMutation.isPending ? "Deleting..." : "Delete User"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 };

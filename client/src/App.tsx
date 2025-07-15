@@ -11,6 +11,7 @@ import AuthPage from "@/pages/Auth";
 import AdminLayout from "@/layouts/AdminLayout";
 import AdminUsers from "@/pages/AdminUsers";
 import AdminTeams from "@/pages/AdminTeams";
+import DeletedUsers from "@/pages/DeletedUsers";
 import AdminSettings from "./pages/AdminSettings";
 import TasksPage from "./pages/Tasks";
 import MyTasksPage from "./pages/MyTasks";
@@ -49,6 +50,14 @@ const App = () => (
               element={
                 <AdminLayout>
                   <AdminTeams />
+                </AdminLayout>
+              }
+            />
+            <Route
+              path="/admin/deleted-users"
+              element={
+                <AdminLayout>
+                  <DeletedUsers />
                 </AdminLayout>
               }
             />

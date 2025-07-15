@@ -123,6 +123,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Deactivate user (admin only)
+  app.patch("/api/users/:id/deactivate", requireAdmin, async (req, res) => {
+    try {
+      const user = await storage.deactivateUser(req.params.id);
+      res.json(user);
+    } catch (error) {
+      console.error("Error deactivating user:", error);
+      res.status(500).json({ error: "Failed to deactivate user" });
+    }
+  });
+
+  // Delete user (admin only)
+  app.delete("/api/users/:id", requireAdmin, async (req, res) => {
+    try {
+      const deletedBy = req.user?.id;
+      if (!deletedBy) {
+        return res.status(401).json({ error: "User not authenticated" });
+      }
+      
+      const result = await storage.deleteUser(req.params.id, deletedBy);
+      res.json(result);
+    } catch (error) {
+      console.error("Error deleting user:", error);
+      res.status(500).json({ error: "Failed to delete user" });
+    }
+  });
+
+  // Get deleted users (admin only)
+  app.get("/api/deleted-users", requireAdmin, async (req, res) => {
+    try {
+      const deletedUsers = await storage.getAllDeletedUsers();
+      res.json(deletedUsers);
+    } catch (error) {
+      console.error("Error fetching deleted users:", error);
+      res.status(500).json({ error: "Failed to fetch deleted users" });
+    }
+  });
+
+  // Get deleted user tasks (admin only)
+  app.get("/api/deleted-users/:id/tasks", requireAdmin, async (req, res) => {
+    try {
+      const tasks = await storage.getDeletedUserTasks(req.params.id);
+      res.json(tasks);
+    } catch (error) {
+      console.error("Error fetching deleted user tasks:", error);
+      res.status(500).json({ error: "Failed to fetch deleted user tasks" });
+    }
+  });
+
   // Bulk user upload (replacing Supabase Edge Function)
   app.post("/api/admin/bulk-upload-users", async (req, res) => {
     try {

@@ -16,6 +16,48 @@ export const users = pgTable("users", {
   updated_at: timestamp("updated_at").defaultNow(),
 });
 
+// Deleted users table for admin-only access
+export const deletedUsers = pgTable("deleted_users", {
+  id: uuid("id").primaryKey(),
+  email: text("email").notNull(),
+  user_name: text("user_name"),
+  department: text("department"),
+  phone: text("phone"),
+  manager: text("manager"),
+  created_at: timestamp("created_at").notNull(),
+  updated_at: timestamp("updated_at").notNull(),
+  deleted_at: timestamp("deleted_at").defaultNow().notNull(),
+  deleted_by: uuid("deleted_by").notNull(),
+});
+
+// Deleted tasks table for admin-only access
+export const deletedTasks = pgTable("deleted_tasks", {
+  id: uuid("id").primaryKey(),
+  task_number: integer("task_number").notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  priority: text("priority").notNull().default("medium"),
+  status: text("status").notNull().default("new"),
+  due_date: timestamp("due_date"),
+  estimated_hours: integer("estimated_hours"),
+  actual_hours: integer("actual_hours").default(0),
+  assigned_to: uuid("assigned_to"),
+  assigned_to_name: text("assigned_to_name"),
+  created_by: uuid("created_by").notNull(),
+  created_by_name: text("created_by_name").notNull(),
+  team_id: uuid("team_id"),
+  team_name: text("team_name"),
+  task_group_id: uuid("task_group_id"),
+  task_group_name: text("task_group_name"),
+  start_date: timestamp("start_date"),
+  completion_date: timestamp("completion_date"),
+  created_at: timestamp("created_at").notNull(),
+  updated_at: timestamp("updated_at").notNull(),
+  deleted_at: timestamp("deleted_at").defaultNow().notNull(),
+  deleted_by: uuid("deleted_by").notNull(),
+  original_user_id: uuid("original_user_id").notNull(),
+});
+
 // Roles table
 export const roles = pgTable("roles", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -329,6 +371,14 @@ export const insertRolePermissionSchema = createInsertSchema(rolePermissions).om
   permission_level: z.number().min(0).max(4).default(0)
 });
 
+export const insertDeletedUserSchema = createInsertSchema(deletedUsers).omit({
+  deleted_at: true,
+});
+
+export const insertDeletedTaskSchema = createInsertSchema(deletedTasks).omit({
+  deleted_at: true,
+});
+
 // Types
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
@@ -347,3 +397,7 @@ export type UserRole = typeof userRoles.$inferSelect;
 export type TaskActivity = typeof taskActivity.$inferSelect;
 export type TaskStatus = typeof taskStatuses.$inferSelect;
 export type TaskGroupMember = typeof taskGroupMembers.$inferSelect;
+export type DeletedUser = typeof deletedUsers.$inferSelect;
+export type DeletedTask = typeof deletedTasks.$inferSelect;
+export type InsertDeletedUser = z.infer<typeof insertDeletedUserSchema>;
+export type InsertDeletedTask = z.infer<typeof insertDeletedTaskSchema>;

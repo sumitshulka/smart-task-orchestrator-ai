@@ -13,6 +13,8 @@ import {
   taskActivity, 
   taskStatuses,
   rolePermissions,
+  deletedUsers,
+  deletedTasks,
   User, 
   InsertUser, 
   Task, 
@@ -28,7 +30,11 @@ import {
   TaskActivity,
   TaskStatus,
   RolePermission,
-  InsertRolePermission
+  InsertRolePermission,
+  DeletedUser,
+  DeletedTask,
+  InsertDeletedUser,
+  InsertDeletedTask
 } from "@shared/schema";
 
 export interface IStorage {
@@ -38,6 +44,13 @@ export interface IStorage {
   createUser(user: InsertUser): Promise<User>;
   updateUser(id: string, updates: Partial<User>): Promise<User>;
   getAllUsers(): Promise<User[]>;
+  deactivateUser(id: string): Promise<User>;
+  deleteUser(id: string, deletedBy: string): Promise<{ deletedUser: any; deletedTasksCount: number }>;
+  
+  // Deleted user operations (admin only)
+  getAllDeletedUsers(): Promise<any[]>;
+  getDeletedUserTasks(userId: string): Promise<any[]>;
+  restoreDeletedUser(id: string): Promise<User>;
   
   // Task operations
   getTask(id: string): Promise<Task | undefined>;
@@ -132,6 +145,108 @@ export class DatabaseStorage implements IStorage {
 
   async getAllUsers(): Promise<User[]> {
     return await db.select().from(users);
+  }
+
+  async deactivateUser(id: string): Promise<User> {
+    const result = await db.update(users).set({
+      is_active: false,
+      updated_at: new Date()
+    }).where(eq(users.id, id)).returning();
+    return result[0];
+  }
+
+  async deleteUser(id: string, deletedBy: string): Promise<{ deletedUser: any; deletedTasksCount: number }> {
+    // Get user data before deletion
+    const user = await this.getUser(id);
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    // Get user's tasks before deletion
+    const userTasks = await db.select().from(tasks).where(eq(tasks.assigned_to, id));
+
+    // Move user to deleted_users table
+    const deletedUser = await db.insert(deletedUsers).values({
+      id: user.id,
+      email: user.email,
+      user_name: user.user_name,
+      department: user.department,
+      phone: user.phone,
+      manager: user.manager,
+      created_at: user.created_at!,
+      updated_at: user.updated_at!,
+      deleted_by: deletedBy
+    }).returning();
+
+    // Move user's tasks to deleted_tasks table
+    let deletedTasksCount = 0;
+    for (const task of userTasks) {
+      // Get additional task information
+      const assignedUser = task.assigned_to ? await this.getUser(task.assigned_to) : null;
+      const createdUser = await this.getUser(task.created_by);
+      const team = task.team_id ? await this.getTeam(task.team_id) : null;
+
+      await db.insert(deletedTasks).values({
+        id: task.id,
+        task_number: task.task_number,
+        title: task.title,
+        description: task.description,
+        priority: task.priority,
+        status: task.status,
+        due_date: task.due_date,
+        estimated_hours: task.estimated_hours,
+        actual_hours: task.actual_hours,
+        assigned_to: task.assigned_to,
+        assigned_to_name: assignedUser?.user_name || null,
+        created_by: task.created_by,
+        created_by_name: createdUser?.user_name || 'Unknown',
+        team_id: task.team_id,
+        team_name: team?.name || null,
+        task_group_id: task.task_group_id,
+        task_group_name: null, // Will get from task groups later if needed
+        start_date: task.start_date,
+        completion_date: task.actual_completion_date,
+        created_at: task.created_at!,
+        updated_at: task.updated_at!,
+        deleted_by: deletedBy,
+        original_user_id: id
+      });
+      deletedTasksCount++;
+    }
+
+    // Delete user's tasks from active tasks table
+    await db.delete(tasks).where(eq(tasks.assigned_to, id));
+
+    // Remove user from teams
+    await db.delete(teamMemberships).where(eq(teamMemberships.user_id, id));
+
+    // Remove user from task groups
+    await db.delete(taskGroupMembers).where(eq(taskGroupMembers.user_id, id));
+
+    // Remove user roles
+    await db.delete(userRoles).where(eq(userRoles.user_id, id));
+
+    // Finally delete the user
+    await db.delete(users).where(eq(users.id, id));
+
+    return { deletedUser: deletedUser[0], deletedTasksCount };
+  }
+
+  async getAllDeletedUsers(): Promise<any[]> {
+    const result = await db.select().from(deletedUsers).orderBy(desc(deletedUsers.deleted_at));
+    return result;
+  }
+
+  async getDeletedUserTasks(userId: string): Promise<any[]> {
+    const result = await db.select().from(deletedTasks)
+      .where(eq(deletedTasks.original_user_id, userId))
+      .orderBy(desc(deletedTasks.created_at));
+    return result;
+  }
+
+  async restoreDeletedUser(id: string): Promise<User> {
+    // This could be implemented later if needed
+    throw new Error('User restoration not implemented yet');
   }
 
   // Task operations

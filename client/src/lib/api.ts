@@ -58,6 +58,26 @@ class ApiClient {
     });
   }
 
+  async deactivateUser(id: string) {
+    return this.request(`/users/${id}/deactivate`, {
+      method: 'PATCH',
+    });
+  }
+
+  async deleteUser(id: string) {
+    return this.request(`/users/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async getDeletedUsers() {
+    return this.request('/deleted-users');
+  }
+
+  async getDeletedUserTasks(id: string) {
+    return this.request(`/deleted-users/${id}/tasks`);
+  }
+
   // Task management
   async getTasks() {
     return this.request('/tasks');
