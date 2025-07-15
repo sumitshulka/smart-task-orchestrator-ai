@@ -479,7 +479,20 @@ export class DatabaseStorage implements IStorage {
 
   // Task group operations
   async getAllTaskGroups(): Promise<TaskGroup[]> {
-    return await db.select().from(taskGroups);
+    return await db.select({
+      id: taskGroups.id,
+      name: taskGroups.name,
+      description: taskGroups.description,
+      visibility: taskGroups.visibility,
+      owner_id: taskGroups.owner_id,
+      created_at: taskGroups.created_at,
+      owner: {
+        id: users.id,
+        user_name: users.user_name,
+        email: users.email,
+      }
+    }).from(taskGroups)
+    .leftJoin(users, eq(taskGroups.owner_id, users.id));
   }
 
   // Get task groups visible to a specific user based on their role and permissions
@@ -487,9 +500,24 @@ export class DatabaseStorage implements IStorage {
     const userRoles = await this.getUserRoles(userId);
     const roleNames = userRoles.map(ur => ur.role?.name).filter(Boolean);
     
+    const baseSelect = {
+      id: taskGroups.id,
+      name: taskGroups.name,
+      description: taskGroups.description,
+      visibility: taskGroups.visibility,
+      owner_id: taskGroups.owner_id,
+      created_at: taskGroups.created_at,
+      owner: {
+        id: users.id,
+        user_name: users.user_name,
+        email: users.email,
+      }
+    };
+    
     // Admin can see all task groups
     if (roleNames.includes('admin')) {
-      return await db.select().from(taskGroups);
+      return await db.select(baseSelect).from(taskGroups)
+        .leftJoin(users, eq(taskGroups.owner_id, users.id));
     }
     
     // For managers and team managers, they can see:
@@ -497,27 +525,29 @@ export class DatabaseStorage implements IStorage {
     // 2. Public task groups (all_team_members)
     // 3. Manager-only task groups (managers_admin_only)
     if (roleNames.includes('manager') || roleNames.includes('team_manager')) {
-      return await db.select().from(taskGroups).where(
-        or(
-          eq(taskGroups.owner_id, userId), // Own task groups
-          eq(taskGroups.visibility, 'all_team_members'), // Public groups
-          eq(taskGroups.visibility, 'managers_admin_only') // Manager-only groups
-        )
-      );
+      return await db.select(baseSelect).from(taskGroups)
+        .leftJoin(users, eq(taskGroups.owner_id, users.id))
+        .where(
+          or(
+            eq(taskGroups.owner_id, userId), // Own task groups
+            eq(taskGroups.visibility, 'all_team_members'), // Public groups
+            eq(taskGroups.visibility, 'managers_admin_only') // Manager-only groups
+          )
+        );
     }
     
     // Regular users can only see:
     // 1. Their own task groups
     // 2. Public task groups (all_team_members)
     // 3. Task groups they are explicitly members of
-    const userGroups = await db.select().from(taskGroups).where(
-      or(
-        eq(taskGroups.owner_id, userId), // Own task groups
-        eq(taskGroups.visibility, 'all_team_members') // Public groups
-      )
-    );
-    
-    return userGroups;
+    return await db.select(baseSelect).from(taskGroups)
+      .leftJoin(users, eq(taskGroups.owner_id, users.id))
+      .where(
+        or(
+          eq(taskGroups.owner_id, userId), // Own task groups
+          eq(taskGroups.visibility, 'all_team_members') // Public groups
+        )
+      );
   }
 
   async createTaskGroup(group: InsertTaskGroup): Promise<TaskGroup> {
@@ -530,7 +560,22 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getTaskGroupDetails(id: string): Promise<any> {
-    const group = await db.select().from(taskGroups).where(eq(taskGroups.id, id)).limit(1);
+    const group = await db.select({
+      id: taskGroups.id,
+      name: taskGroups.name,
+      description: taskGroups.description,
+      visibility: taskGroups.visibility,
+      owner_id: taskGroups.owner_id,
+      created_at: taskGroups.created_at,
+      owner: {
+        id: users.id,
+        user_name: users.user_name,
+        email: users.email,
+      }
+    }).from(taskGroups)
+    .leftJoin(users, eq(taskGroups.owner_id, users.id))
+    .where(eq(taskGroups.id, id)).limit(1);
+    
     if (group.length === 0) {
       throw new Error('Task group not found');
     }

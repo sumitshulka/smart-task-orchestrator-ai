@@ -104,8 +104,16 @@ export default function TaskGroupsPage() {
     }
   }
 
-  const getOwnerInfo = (ownerId: string) => {
-    const owner = users.find(u => u.id === ownerId);
+  const getOwnerInfo = (group: TaskGroup) => {
+    if (group.owner) {
+      return {
+        name: group.owner.user_name || group.owner.email || "Unknown",
+        email: group.owner.email || "No email"
+      };
+    }
+    
+    // Fallback to user lookup if owner data is not available
+    const owner = users.find(u => u.id === group.owner_id);
     return {
       name: owner?.user_name || owner?.email || "Unknown",
       email: owner?.email || "No email"
@@ -280,7 +288,7 @@ export default function TaskGroupsPage() {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredGroups.map(group => {
-            const ownerInfo = getOwnerInfo(group.owner_id);
+            const ownerInfo = getOwnerInfo(group);
             return (
               <TaskGroupCard
                 key={group.id}

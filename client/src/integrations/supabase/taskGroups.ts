@@ -9,6 +9,11 @@ export type TaskGroup = {
   owner_id: string;
   created_at: string;
   task_count?: number;
+  owner?: {
+    id: string;
+    user_name: string;
+    email: string;
+  };
 };
 
 export type TaskGroupTask = {
