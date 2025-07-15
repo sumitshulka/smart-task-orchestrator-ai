@@ -30,31 +30,30 @@ export default function AppSidebar() {
   const hasTeams = teams.length > 0;
 
   return (
-    <div className="flex flex-col h-full" style={{ backgroundColor: '#f8fafc', borderRight: '1px solid #e2e8f0' }}>
+    <Sidebar
+      className={`${collapsed ? "w-14" : "w-64 min-w-14"} flex flex-col h-full`}
+      collapsible="icon"
+      style={{ 
+        backgroundColor: '#f8fafc', 
+        borderRight: '1px solid #e2e8f0',
+        height: '100%'
+      }}
+    >
       {/* Header section that aligns with topbar */}
       <div className="flex items-center justify-start px-4 border-b border-gray-200 bg-[#66655833] w-full" style={{ height: '56px', minHeight: '56px', maxHeight: '56px' }}>
         <SidebarHeader />
       </div>
       
-      {/* Sidebar content with menu items */}
-      <Sidebar
-        className={`${collapsed ? "w-14" : "w-64 min-w-14"} flex-1 border-0`}
-        collapsible="icon"
-        style={{ 
-          backgroundColor: 'transparent',
-          border: 'none'
-        }}
-      >
-        <SidebarContent className="flex min-h-0 flex-1 flex-col gap-2 overflow-auto group-data-[collapsible=icon]:overflow-hidden px-2 py-4 bg-[#e3e2de]">
-          <div className="space-y-2">
-            <DashboardMenu isUserOnly={isUserOnly} collapsed={collapsed} />
-            <TaskManagementMenu collapsed={collapsed} />
-            <ManagementMenu isAdmin={isAdmin} isManager={isManager} collapsed={collapsed} />
-            <WarningNoTeams isOnTeams={isOnTeams} loading={loading} isUserOnly={isUserOnly} hasTeams={hasTeams} />
-            <ReportsMenu isUserOnly={isUserOnly} collapsed={collapsed} />
-          </div>
-        </SidebarContent>
-      </Sidebar>
-    </div>
+      {/* Scrollable content with menu items */}
+      <SidebarContent className="flex min-h-0 flex-1 flex-col gap-2 overflow-auto group-data-[collapsible=icon]:overflow-hidden px-2 py-4 bg-[#e3e2de]">
+        <div className="space-y-2">
+          <DashboardMenu isUserOnly={isUserOnly} collapsed={collapsed} />
+          <TaskManagementMenu collapsed={collapsed} />
+          <ManagementMenu isAdmin={isAdmin} isManager={isManager} collapsed={collapsed} />
+          <WarningNoTeams isOnTeams={isOnTeams} loading={loading} isUserOnly={isUserOnly} hasTeams={hasTeams} />
+          <ReportsMenu isUserOnly={isUserOnly} collapsed={collapsed} />
+        </div>
+      </SidebarContent>
+    </Sidebar>
   );
 }
