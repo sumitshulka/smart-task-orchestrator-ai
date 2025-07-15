@@ -27,6 +27,7 @@ import BenchmarkingReport from "./pages/BenchmarkingReport";
 import { RoleProvider } from "@/contexts/RoleProvider";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { queryClient } from "@/lib/queryClient";
+import HelpPage from "@/pages/HelpPage";
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -185,6 +186,15 @@ const App = () => (
               element={
                 <AdminLayout>
                   <Benchmarking />
+                </AdminLayout>
+              }
+            />
+            {/* Help page route */}
+            <Route
+              path="/help"
+              element={
+                <AdminLayout>
+                  <HelpPage />
                 </AdminLayout>
               }
             />

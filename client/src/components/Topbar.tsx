@@ -2,11 +2,11 @@ import React from "react";
 import { useNavigate } from "react-router-dom";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
-import { LogOut } from "lucide-react";
-import { Settings } from "lucide-react";
+import { LogOut, Settings } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRole } from "@/contexts/RoleProvider";
 import { useRolePermissions } from "@/hooks/useRolePermissions";
+import HelpButton from "@/components/help/HelpButton";
 
 const USER_PLACEHOLDER = {
   name: "Jane Doe",
@@ -48,6 +48,9 @@ const Topbar: React.FC = () => {
             Welcome {displayName}, you are logged in with role as: <span className="font-semibold">{highestRole || "unknown"}</span>
           </span>
         )}
+        {/* Help Button */}
+        <HelpButton variant="ghost" size="sm" showText={false} />
+        
         {canViewSettings && (
           <button
             aria-label="Settings"
