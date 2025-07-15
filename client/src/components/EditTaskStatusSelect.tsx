@@ -12,21 +12,24 @@ interface EditTaskStatusSelectProps {
 export function EditTaskStatusSelect({ currentStatus, onStatusChange, disabled }: EditTaskStatusSelectProps) {
   const { getAllowedNextStatuses, isTransitionAllowed } = useStatusTransitionValidation();
   
-  const allowedStatuses = getAllowedNextStatuses(currentStatus);
+  // Ensure we have a valid current status
+  const validCurrentStatus = currentStatus || "New";
   
-  // Include current status and allowed next statuses
-  const availableStatuses = [currentStatus, ...allowedStatuses];
+  const allowedStatuses = getAllowedNextStatuses(validCurrentStatus);
+  
+  // Include current status and allowed next statuses, filter out empty values
+  const availableStatuses = [validCurrentStatus, ...allowedStatuses].filter(status => status && status.trim().length > 0);
   
   const handleStatusChange = (newStatus: string) => {
-    if (newStatus === currentStatus) {
+    if (newStatus === validCurrentStatus) {
       // No change needed
       return;
     }
     
-    if (!isTransitionAllowed(currentStatus, newStatus)) {
+    if (!isTransitionAllowed(validCurrentStatus, newStatus)) {
       toast({ 
         title: "Invalid Status Transition", 
-        description: `Cannot move from "${currentStatus}" to "${newStatus}". This transition is not allowed in the configured workflow.`,
+        description: `Cannot move from "${validCurrentStatus}" to "${newStatus}". This transition is not allowed in the configured workflow.`,
         variant: "destructive"
       });
       return;
@@ -37,7 +40,7 @@ export function EditTaskStatusSelect({ currentStatus, onStatusChange, disabled }
 
   return (
     <Select 
-      value={currentStatus} 
+      value={validCurrentStatus} 
       onValueChange={handleStatusChange}
       disabled={disabled}
     >
@@ -45,10 +48,10 @@ export function EditTaskStatusSelect({ currentStatus, onStatusChange, disabled }
         <SelectValue placeholder="Select status" />
       </SelectTrigger>
       <SelectContent>
-        <SelectItem value={currentStatus}>
-          {currentStatus} (current)
+        <SelectItem value={validCurrentStatus}>
+          {validCurrentStatus} (current)
         </SelectItem>
-        {allowedStatuses.map((status) => (
+        {allowedStatuses.filter(status => status !== validCurrentStatus).map((status) => (
           <SelectItem key={status} value={status}>
             {status}
           </SelectItem>

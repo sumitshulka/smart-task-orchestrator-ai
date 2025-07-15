@@ -1,0 +1,122 @@
+
+#TaskRep
+Dashboard
+Task Management
+Tasks
+Task Groups
+My Tasks
+Historical Tasks
+Management
+User Management
+Team Management
+Roles & Privileges
+REPORTS
+Task Report
+Overdue Report
+Analytics Report
+Toggle Sidebar
+Welcome Sumit Shukla, you are logged in with role as: admin
+
+
+SS
+My Tasks
+Filters
+List
+Kanban
+Create Task
+Active Timers
+(1/2)
+First Task - Time Managed
+#11010
+0h 5m
+Search my tasks by title, description...
+
+
+
+#11010
+First Task - Time Managed
+Medium
+In Time
+Time managed task to check timer functionality.
+Status: New
+Due: 15/07/2025
+Created: 15/07/2025
+Assigned To: Sumit Shukla
+0h 5m
+Est: 4h
+Running
+
+
+
+
+
+#11009
+Test 5-Digit Task ID
+High
+In Time
+Testing the new 5-digit task numbering system
+Status: in_progress
+Due: 15/07/2025
+Created: 14/07/2025
+Assigned To: Sumit Shukla
+
+
+
+#11008
+First Task Again
+Medium
+Overdue
+This is another attempt to create the first task after replit migration. I am not sure why supabase migration is such a big task
+Status: New
+Due: 14/07/2025
+Created: 14/07/2025
+Assigned To: Sumit Shukla
+
+
+
+#11001
+Setup Database Migration
+High
+Migrate all data from Supabase to PostgreSQL
+Status: completed
+Due: 20/07/2025
+Created: 14/07/2025
+Assigned To: Sumit Shukla
+
+
+
+#11007
+Fix Role-Based Access Control
+Medium
+In Time
+Ensure admin users have proper access to all features
+Status: in_progress
+Due: 30/07/2025
+Created: 14/07/2025
+Assigned To: Sumit Shukla
+
+
+
+#11006
+Mobile App Development
+Low
+In Time
+Develop companion mobile app for task management
+Status: planning
+Due: 01/09/2025
+Created: 14/07/2025
+Assigned To: Sumit Shukla
+
+
+
+#11002
+Implement Authentication System
+High
+Replace Supabase Auth with custom authentication
+Status: completed
+Due: 25/07/2025
+Created: 14/07/2025
+Assigned To: Sumit Shukla
+[plugin:runtime-error-plugin] A <Select.Item /> must have a value prop that is not an empty string. This is because the Select value can be set to an empty string to clear the selection and show the placeholder.
+Click outside, press Esc key, or fix the code to dismiss.
+You can also disable this overlay by setting server.hmr.overlay to false in vite.config.js.

@@ -77,12 +77,26 @@ export default function TaskTimer({ task, onTaskUpdated, compact = false }: Task
   }
 
   if (compact) {
+    const estimatedMinutes = (task.estimated_hours || 0) * 60;
+    const timeRemaining = Math.max(0, estimatedMinutes - currentTime);
+    const isLowTime = timeRemaining > 0 && timeRemaining < 15;
+    
     return (
       <div className="flex items-center gap-2">
-        <Badge variant="outline" className="flex items-center gap-1">
-          <Clock className="h-3 w-3" />
-          {formatTime(currentTime)}
-        </Badge>
+        <div className="flex items-center gap-1">
+          <Clock className="h-3 w-3 text-muted-foreground" />
+          <span className="text-sm">{formatTime(currentTime)}</span>
+          {task.estimated_hours && (
+            <span className="text-xs text-muted-foreground">
+              / {formatTime(estimatedMinutes)}
+            </span>
+          )}
+        </div>
+        {task.estimated_hours && (
+          <div className={`text-xs ${isLowTime ? 'text-red-600 font-medium' : 'text-muted-foreground'}`}>
+            {formatTime(timeRemaining)} left
+          </div>
+        )}
         {task.timer_state === 'running' && (
           <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
         )}
@@ -90,6 +104,11 @@ export default function TaskTimer({ task, onTaskUpdated, compact = false }: Task
     );
   }
 
+  // Calculate time allocation details
+  const estimatedMinutes = (task.estimated_hours || 0) * 60;
+  const timeRemaining = Math.max(0, estimatedMinutes - currentTime);
+  const isLowTime = timeRemaining > 0 && timeRemaining < 15;
+  
   return (
     <Card className="w-full">
       <CardContent className="p-4">
@@ -99,8 +118,13 @@ export default function TaskTimer({ task, onTaskUpdated, compact = false }: Task
             <div>
               <div className="font-medium">{formatTime(currentTime)}</div>
               {task.estimated_hours && (
-                <div className="text-sm text-muted-foreground">
-                  Est: {task.estimated_hours}h
+                <div className="space-y-1">
+                  <div className="text-sm text-muted-foreground">
+                    Total: {formatTime(estimatedMinutes)}
+                  </div>
+                  <div className={`text-sm ${isLowTime ? 'text-red-600 font-medium' : 'text-muted-foreground'}`}>
+                    Remaining: {formatTime(timeRemaining)}
+                  </div>
                 </div>
               )}
             </div>
