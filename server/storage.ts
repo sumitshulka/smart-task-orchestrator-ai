@@ -404,6 +404,18 @@ export class DatabaseStorage implements IStorage {
   }
 
   async addTaskGroupMember(groupId: string, userId: string, role: string = 'member'): Promise<any> {
+    // Check if user is already a member
+    const existingMember = await db.select().from(taskGroupMembers)
+      .where(and(
+        eq(taskGroupMembers.group_id, groupId),
+        eq(taskGroupMembers.user_id, userId)
+      ))
+      .limit(1);
+    
+    if (existingMember.length > 0) {
+      throw new Error('User is already a member of this group');
+    }
+    
     const result = await db.insert(taskGroupMembers).values({
       group_id: groupId,
       user_id: userId,

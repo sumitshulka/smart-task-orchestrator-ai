@@ -62,6 +62,7 @@ Preferred communication style: Simple, everyday language.
 ✓ **Task Group Details Modal Redesign**: Completely redesigned TaskGroupDetailsSheet with modern card-based layout, status statistics, visual badges, icons, and comprehensive task information display matching application design theme
 ✓ **Task Group Member Management System**: Implemented comprehensive member management with database schema, API endpoints, and UI for adding/removing members with role-based permissions (member/manager roles)
 ✓ **Team Management System Complete**: Fixed manager assignment functionality, added manager_id to teams table, enhanced AdminTeams page to show member counts and manager names, and implemented full team CRUD operations with proper API integration
+✓ **Task Group Member Management Enhancement**: Implemented comprehensive duplicate prevention with frontend filtering and backend validation, automatic refresh after adding/removing members, and improved user experience with proper error handling and success messages
 
 ## System Architecture
 

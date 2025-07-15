@@ -133,15 +133,27 @@ export default function TaskGroupDetailsSheet({ open, onOpenChange, group }: Pro
       // Get team members
       const teamMembers = await apiClient.getTeamMembers(selectedTeamId);
       
-      // Add all team members to the task group
-      for (const member of teamMembers) {
+      // Filter out members already in the group
+      const currentMemberIds = group?.members?.map((m: any) => m.user_id) || [];
+      const newMembers = teamMembers.filter((member: any) => !currentMemberIds.includes(member.user_id));
+      
+      if (newMembers.length === 0) {
+        toast({
+          title: "No new members to add",
+          description: "All team members are already in this group.",
+        });
+        setSelectedTeamId("");
+        return;
+      }
+      
+      // Add only new team members to the task group
+      for (const member of newMembers) {
         await apiClient.addTaskGroupMember(group.id, member.user_id, selectedRole);
       }
       
       // Get team tasks and assign them to the group
       const teamTasks = await apiClient.getTeamTasks(selectedTeamId);
       for (const task of teamTasks) {
-        // Add task to group (you'll need to implement this API endpoint)
         try {
           await apiClient.addTaskToGroup(group.id, task.id);
         } catch (error) {
@@ -149,12 +161,15 @@ export default function TaskGroupDetailsSheet({ open, onOpenChange, group }: Pro
         }
       }
       
+      // Refresh the group details immediately
       queryClient.invalidateQueries({ queryKey: ['/api/task-groups'] });
+      queryClient.invalidateQueries({ queryKey: [`/api/task-groups/${group.id}/details`] });
+      
       setSelectedTeamId("");
       setSelectedRole("member");
       toast({
         title: "Team added successfully",
-        description: `All team members and their tasks have been added to the group.`,
+        description: `${newMembers.length} new team members and their tasks have been added to the group.`,
       });
     } catch (error: any) {
       toast({
@@ -169,13 +184,26 @@ export default function TaskGroupDetailsSheet({ open, onOpenChange, group }: Pro
     if (!group?.id || selectedUserIds.length === 0) return;
     
     try {
-      // Add selected users to the task group
-      for (const userId of selectedUserIds) {
+      // Filter out users already in the group
+      const currentMemberIds = group?.members?.map((m: any) => m.user_id) || [];
+      const newUserIds = selectedUserIds.filter(userId => !currentMemberIds.includes(userId));
+      
+      if (newUserIds.length === 0) {
+        toast({
+          title: "No new members to add",
+          description: "All selected users are already in this group.",
+        });
+        setSelectedUserIds([]);
+        return;
+      }
+      
+      // Add only new users to the task group
+      for (const userId of newUserIds) {
         await apiClient.addTaskGroupMember(group.id, userId, selectedRole);
       }
       
       // Get user tasks and assign them to the group
-      for (const userId of selectedUserIds) {
+      for (const userId of newUserIds) {
         const userTasks = await apiClient.getUserTasks(userId);
         // Filter out personal tasks - only add team/work tasks
         const workTasks = userTasks.filter((task: any) => task.team_id || !task.is_personal);
@@ -189,12 +217,15 @@ export default function TaskGroupDetailsSheet({ open, onOpenChange, group }: Pro
         }
       }
       
+      // Refresh the group details immediately
       queryClient.invalidateQueries({ queryKey: ['/api/task-groups'] });
+      queryClient.invalidateQueries({ queryKey: [`/api/task-groups/${group.id}/details`] });
+      
       setSelectedUserIds([]);
       setSelectedRole("member");
       toast({
         title: "Members added successfully",
-        description: `${selectedUserIds.length} member(s) and their work tasks have been added to the group.`,
+        description: `${newUserIds.length} new member(s) and their work tasks have been added to the group.`,
       });
     } catch (error: any) {
       toast({
@@ -210,7 +241,9 @@ export default function TaskGroupDetailsSheet({ open, onOpenChange, group }: Pro
     
     try {
       await apiClient.removeTaskGroupMember(group.id, userId);
+      // Refresh the group details immediately
       queryClient.invalidateQueries({ queryKey: ['/api/task-groups'] });
+      queryClient.invalidateQueries({ queryKey: [`/api/task-groups/${group.id}/details`] });
       toast({
         title: "Member removed successfully",
         description: "The user has been removed from the task group.",
