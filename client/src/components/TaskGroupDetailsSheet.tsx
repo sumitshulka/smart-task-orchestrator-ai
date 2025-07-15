@@ -78,7 +78,7 @@ export default function TaskGroupDetailsSheet({ open, onOpenChange, group }: Pro
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-[90vw] max-w-[900px] overflow-y-auto">
+      <SheetContent side="right" className="w-[95vw] max-w-[1200px] overflow-y-auto">
         <SheetHeader className="pb-6 border-b">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-blue-100 rounded-lg">
@@ -96,35 +96,35 @@ export default function TaskGroupDetailsSheet({ open, onOpenChange, group }: Pro
         {/* Group Summary */}
         <div className="py-6 space-y-6">
           {/* Stats Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <Card className="bg-blue-50 border-blue-200">
-              <CardContent className="p-4 text-center">
-                <div className="text-2xl font-bold text-blue-700">{group?.tasks?.length || 0}</div>
-                <div className="text-xs text-blue-600">Total Tasks</div>
+              <CardContent className="p-6 text-center">
+                <div className="text-2xl font-bold text-blue-700 mb-1">{group?.tasks?.length || 0}</div>
+                <div className="text-sm text-blue-600 whitespace-nowrap">Total Tasks</div>
               </CardContent>
             </Card>
             <Card className="bg-green-50 border-green-200">
-              <CardContent className="p-4 text-center">
-                <div className="text-2xl font-bold text-green-700">
+              <CardContent className="p-6 text-center">
+                <div className="text-2xl font-bold text-green-700 mb-1">
                   {group?.tasks?.filter((t: any) => t.task?.status?.toLowerCase() === 'completed').length || 0}
                 </div>
-                <div className="text-xs text-green-600">Completed</div>
+                <div className="text-sm text-green-600 whitespace-nowrap">Completed</div>
               </CardContent>
             </Card>
             <Card className="bg-orange-50 border-orange-200">
-              <CardContent className="p-4 text-center">
-                <div className="text-2xl font-bold text-orange-700">
+              <CardContent className="p-6 text-center">
+                <div className="text-2xl font-bold text-orange-700 mb-1">
                   {group?.tasks?.filter((t: any) => t.task?.status?.toLowerCase() === 'in_progress').length || 0}
                 </div>
-                <div className="text-xs text-orange-600">In Progress</div>
+                <div className="text-sm text-orange-600 whitespace-nowrap">In Progress</div>
               </CardContent>
             </Card>
             <Card className="bg-gray-50 border-gray-200">
-              <CardContent className="p-4 text-center">
-                <div className="text-2xl font-bold text-gray-700">
+              <CardContent className="p-6 text-center">
+                <div className="text-2xl font-bold text-gray-700 mb-1">
                   {group?.tasks?.filter((t: any) => t.task?.status?.toLowerCase() === 'new').length || 0}
                 </div>
-                <div className="text-xs text-gray-600">New</div>
+                <div className="text-sm text-gray-600 whitespace-nowrap">New</div>
               </CardContent>
             </Card>
           </div>
