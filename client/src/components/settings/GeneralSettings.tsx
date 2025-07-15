@@ -93,19 +93,33 @@ const GeneralSettings: React.FC = () => {
   // Create or update organization settings
   const saveSettingsMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
+      console.log("Saving settings data:", data);
+      console.log("Settings ID exists:", settings?.id);
+      
       if (settings?.id) {
+        console.log("Updating existing settings with ID:", settings.id);
         return apiClient.patch(`/api/organization-settings/${settings.id}`, data);
       } else {
+        console.log("Creating new settings");
         return apiClient.post('/api/organization-settings', data);
       }
     },
-    onSuccess: () => {
+    onSuccess: (response) => {
+      console.log("Settings saved successfully:", response);
       queryClient.invalidateQueries({ queryKey: ['/api/organization-settings'] });
       toast({ title: "Success", description: "Organization settings saved successfully" });
     },
     onError: (error: any) => {
       console.error("Error saving settings:", error);
-      toast({ title: "Error", description: "Failed to save organization settings" });
+      console.error("Error response:", error.response?.data);
+      console.error("Error status:", error.response?.status);
+      
+      const errorMessage = error.response?.data?.details || error.response?.data?.error || error.message || "Unknown error";
+      toast({ 
+        title: "Error", 
+        description: `Failed to save organization settings: ${errorMessage}`,
+        variant: "destructive"
+      });
     }
   });
 

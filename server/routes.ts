@@ -993,12 +993,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/organization-settings", requireAdmin, async (req, res) => {
     try {
       console.log("Creating organization settings with data:", req.body);
-      const settings = await storage.createOrganizationSettings(req.body);
+      
+      // Validate the request body
+      const { insertOrganizationSettingsSchema } = await import("../shared/schema");
+      const validatedData = insertOrganizationSettingsSchema.parse(req.body);
+      console.log("Validated data:", validatedData);
+      
+      const settings = await storage.createOrganizationSettings(validatedData);
       res.status(201).json(settings);
     } catch (error) {
       console.error("Failed to create organization settings:", error);
       console.error("Request body:", req.body);
-      res.status(500).json({ error: "Failed to create organization settings", details: error.message });
+      if (error.name === 'ZodError') {
+        res.status(400).json({ error: "Validation error", details: error.errors });
+      } else {
+        res.status(500).json({ error: "Failed to create organization settings", details: error.message });
+      }
     }
   });
 
@@ -1006,12 +1016,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       console.log("Updating organization settings with ID:", id, "and data:", req.body);
-      const settings = await storage.updateOrganizationSettings(id, req.body);
+      
+      // Validate the request body (partial update)
+      const { insertOrganizationSettingsSchema } = await import("../shared/schema");
+      const validatedData = insertOrganizationSettingsSchema.partial().parse(req.body);
+      console.log("Validated data:", validatedData);
+      
+      const settings = await storage.updateOrganizationSettings(id, validatedData);
       res.json(settings);
     } catch (error) {
       console.error("Failed to update organization settings:", error);
       console.error("Request body:", req.body);
-      res.status(500).json({ error: "Failed to update organization settings", details: error.message });
+      if (error.name === 'ZodError') {
+        res.status(400).json({ error: "Validation error", details: error.errors });
+      } else {
+        res.status(500).json({ error: "Failed to update organization settings", details: error.message });
+      }
     }
   });
 
