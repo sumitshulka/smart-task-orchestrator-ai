@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { AlertCircle, Search, TrendingDown, TrendingUp, Target, Calendar, Users } from "lucide-react";
 import { apiClient } from "@/lib/api";
 import { useCurrentUserRoleAndTeams } from "@/hooks/useCurrentUserRoleAndTeams";
-import { format, subDays, subWeeks, subMonths, parseISO, startOfDay, endOfDay } from "date-fns";
+import { format, subDays, subWeeks, subMonths, parseISO, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from "date-fns";
 
 type User = {
   id: string;
@@ -103,21 +103,38 @@ const BenchmarkingReport: React.FC = () => {
     }
   });
 
+  // Get the current date range being analyzed
+  const getAnalysisDateRange = () => {
+    const endDate = new Date();
+    let startDate;
+    
+    if (timeRange === "week") {
+      // Last 4 weeks
+      startDate = subWeeks(endDate, 4);
+    } else if (timeRange === "month") {
+      // Last 3 months
+      startDate = subMonths(endDate, 3);
+    } else {
+      // Last 30 days
+      startDate = subDays(endDate, 30);
+    }
+    
+    return { startDate, endDate };
+  };
+
+  const { startDate: analysisStartDate, endDate: analysisEndDate } = getAnalysisDateRange();
+
   // Calculate benchmarking data for all users
   const benchmarkingData = useMemo(() => {
     if (!settings || !users.length || !allTasks.length) return [];
-
-    const endDate = new Date();
-    const startDate = timeRange === "week" ? subWeeks(endDate, 4) : 
-                     timeRange === "month" ? subMonths(endDate, 3) : subDays(endDate, 30);
 
     console.log("Benchmarking calculation debug:", {
       settingsEnabled: settings.benchmarking_enabled,
       usersCount: users.length,
       allTasksCount: allTasks.length,
       timeRange,
-      startDate,
-      endDate
+      analysisStartDate: format(analysisStartDate, 'yyyy-MM-dd'),
+      analysisEndDate: format(analysisEndDate, 'yyyy-MM-dd')
     });
 
     return users.map(user => {
@@ -126,7 +143,7 @@ const BenchmarkingReport: React.FC = () => {
 
       const relevantTasks = userTasks.filter(task => {
         const taskDate = parseISO(task.updated_at || task.created_at);
-        const isInRange = taskDate >= startDate && taskDate <= endDate;
+        const isInRange = taskDate >= analysisStartDate && taskDate <= analysisEndDate;
         if (task.assigned_to === user.id) {
           console.log(`Task ${task.title}: date=${format(taskDate, 'yyyy-MM-dd')}, inRange=${isInRange}, timeSpent=${task.time_spent_minutes}, estimated=${task.estimated_hours}, status=${task.status}`);
         }
@@ -161,16 +178,23 @@ const BenchmarkingReport: React.FC = () => {
           }
 
           const dateKey = format(taskDate, 'yyyy-MM-dd');
-          const weekKey = format(startOfDay(taskDate), 'yyyy-MM-dd');
-          const monthKey = format(new Date(taskDate.getFullYear(), taskDate.getMonth(), 1), 'yyyy-MM-dd');
+          // Use startOfWeek with Sunday as the first day (options: { weekStartsOn: 0 })
+          const weekKey = format(startOfWeek(taskDate, { weekStartsOn: 0 }), 'yyyy-MM-dd');
+          const monthKey = format(startOfMonth(taskDate), 'yyyy-MM-dd');
 
           dailyHours[dateKey] = (dailyHours[dateKey] || 0) + hours;
           weeklyHours[weekKey] = (weeklyHours[weekKey] || 0) + hours;
           monthlyHours[monthKey] = (monthlyHours[monthKey] || 0) + hours;
 
-          console.log(`Added ${hours} hours for user ${user.user_name || user.email} on ${dateKey}`);
+          console.log(`Added ${hours} hours for user ${user.user_name || user.email} on ${dateKey} (week: ${weekKey})`);
         }
       });
+
+      // Log detailed weekly breakdown for debugging
+      if (user.user_name === "Sumit Shukla" || user.email === "ss@sumits.me") {
+        console.log(`${user.user_name || user.email} weekly hours breakdown:`, weeklyHours);
+        console.log(`${user.user_name || user.email} daily hours breakdown:`, dailyHours);
+      }
 
       const dailyValues = Object.values(dailyHours);
       const weeklyValues = Object.values(weeklyHours);
@@ -225,13 +249,13 @@ const BenchmarkingReport: React.FC = () => {
 
     try {
       // Pattern matching for different query types
-      if ((lowerQuery.includes("achieved") || lowerQuery.includes("surpassed")) && lowerQuery.includes("benchmark")) {
+      if ((lowerQuery.includes("achieved") || lowerQuery.includes("surpassed") || lowerQuery.includes("exceeded")) && lowerQuery.includes("benchmark")) {
         matchedUsers = benchmarkingData.filter(user => 
           user.averageWeeklyHours >= settings?.min_hours_per_week
         );
         queryType = "achieved_benchmark";
-        description = "Users who have achieved or surpassed the benchmark";
-        matchedPattern = "achieved/surpassed benchmark";
+        description = "Users who have achieved, surpassed, or exceeded the benchmark";
+        matchedPattern = "achieved/surpassed/exceeded benchmark";
       }
       else if (lowerQuery.includes("consistently below") && lowerQuery.includes("min")) {
         matchedUsers = benchmarkingData.filter(user => user.isConsistentlyLow);
@@ -452,6 +476,7 @@ const BenchmarkingReport: React.FC = () => {
               <p><strong>Query:</strong> "{query}"</p>
               <p><strong>Matched Pattern:</strong> {queryResult.matchedPattern}</p>
               <p><strong>Description:</strong> {queryResult.description}</p>
+              <p><strong>Analysis Period:</strong> {format(analysisStartDate, 'MMM dd, yyyy')} - {format(analysisEndDate, 'MMM dd, yyyy')} ({timeRange === "week" ? "4 weeks" : timeRange === "month" ? "3 months" : "30 days"})</p>
             </div>
           </CardHeader>
           <CardContent>
