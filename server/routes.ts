@@ -241,16 +241,78 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const updateData = insertTaskSchema.partial().parse(req.body);
       
       const task = await storage.updateTask(req.params.id, updateData);
+      const userId = req.headers['x-user-id'] as string || task.assigned_to || task.created_by;
       
-      // Log task update activity
-      if (oldTask && req.body.status && oldTask.status !== req.body.status) {
-        await storage.logTaskActivity({
-          task_id: task.id,
-          action_type: "status_changed",
-          old_value: oldTask.status,
-          new_value: req.body.status,
-          acted_by: req.body.updated_by || task.assigned_to || task.created_by,
-        });
+      // Log various activity changes
+      if (oldTask) {
+        // Status change
+        if (req.body.status && oldTask.status !== req.body.status) {
+          await storage.logTaskActivity({
+            task_id: task.id,
+            action_type: "status_changed",
+            old_value: oldTask.status,
+            new_value: req.body.status,
+            acted_by: userId,
+          });
+        }
+        
+        // Assignment change
+        if (req.body.assigned_to && oldTask.assigned_to !== req.body.assigned_to) {
+          const oldUser = oldTask.assigned_to ? await storage.getUser(oldTask.assigned_to) : null;
+          const newUser = req.body.assigned_to ? await storage.getUser(req.body.assigned_to) : null;
+          await storage.logTaskActivity({
+            task_id: task.id,
+            action_type: "assignment_changed",
+            old_value: oldUser?.user_name || "Unassigned",
+            new_value: newUser?.user_name || "Unassigned",
+            acted_by: userId,
+          });
+        }
+        
+        // Priority change
+        if (req.body.priority !== undefined && oldTask.priority !== req.body.priority) {
+          const priorityNames = { 1: "Low", 2: "Medium", 3: "High", 4: "Critical" };
+          await storage.logTaskActivity({
+            task_id: task.id,
+            action_type: "priority_changed",
+            old_value: priorityNames[oldTask.priority as keyof typeof priorityNames] || `${oldTask.priority}`,
+            new_value: priorityNames[req.body.priority as keyof typeof priorityNames] || `${req.body.priority}`,
+            acted_by: userId,
+          });
+        }
+        
+        // Due date change
+        if (req.body.due_date && oldTask.due_date !== req.body.due_date) {
+          await storage.logTaskActivity({
+            task_id: task.id,
+            action_type: "due_date_changed",
+            old_value: oldTask.due_date ? new Date(oldTask.due_date).toLocaleDateString() : "No due date",
+            new_value: new Date(req.body.due_date).toLocaleDateString(),
+            acted_by: userId,
+          });
+        }
+        
+        // Title change
+        if (req.body.title && oldTask.title !== req.body.title) {
+          await storage.logTaskActivity({
+            task_id: task.id,
+            action_type: "title_changed",
+            old_value: oldTask.title,
+            new_value: req.body.title,
+            acted_by: userId,
+          });
+        }
+        
+        // Description change
+        if (req.body.description && oldTask.description !== req.body.description) {
+          await storage.logTaskActivity({
+            task_id: task.id,
+            action_type: "description_changed",
+            old_value: oldTask.description || "No description",
+            new_value: req.body.description,
+            acted_by: userId,
+          });
+        }
       }
       
       res.json(task);
@@ -268,6 +330,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/tasks/:id", requireAnyAuthenticated, async (req, res) => {
     try {
+      const task = await storage.getTask(req.params.id);
+      const userId = req.headers['x-user-id'] as string;
+      
+      if (task) {
+        // Log task deletion activity before deleting
+        await storage.logTaskActivity({
+          task_id: task.id,
+          action_type: "deleted",
+          new_value: `Task "${task.title}" was deleted`,
+          acted_by: userId,
+        });
+      }
+      
       await storage.deleteTask(req.params.id);
       res.status(204).send();
     } catch (error) {
@@ -299,6 +374,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.headers['x-user-id'] as string;
       const task = await storage.startTaskTimer(req.params.id, userId);
+      
+      // Log timer start activity
+      await storage.logTaskActivity({
+        task_id: task.id,
+        action_type: "timer_started",
+        new_value: "Timer started",
+        acted_by: userId,
+      });
+      
       res.json(task);
     } catch (error) {
       res.status(400).json({ error: error instanceof Error ? error.message : "Failed to start timer" });
@@ -309,6 +393,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.headers['x-user-id'] as string;
       const task = await storage.pauseTaskTimer(req.params.id, userId);
+      
+      // Log timer pause activity
+      await storage.logTaskActivity({
+        task_id: task.id,
+        action_type: "timer_paused",
+        new_value: "Timer paused",
+        acted_by: userId,
+      });
+      
       res.json(task);
     } catch (error) {
       res.status(400).json({ error: error instanceof Error ? error.message : "Failed to pause timer" });
@@ -319,6 +412,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.headers['x-user-id'] as string;
       const task = await storage.stopTaskTimer(req.params.id, userId);
+      
+      // Log timer stop activity
+      await storage.logTaskActivity({
+        task_id: task.id,
+        action_type: "timer_stopped",
+        new_value: `Timer stopped (Total: ${task.time_spent_minutes}m)`,
+        acted_by: userId,
+      });
+      
       res.json(task);
     } catch (error) {
       res.status(400).json({ error: error instanceof Error ? error.message : "Failed to stop timer" });

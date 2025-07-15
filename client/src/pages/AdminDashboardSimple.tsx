@@ -1,10 +1,12 @@
 import React from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api";
+import { queryClient } from "@/lib/queryClient";
 import { useUsersAndTeams } from "@/hooks/useUsersAndTeams";
 import { useCurrentUserRoleAndTeams } from "@/hooks/useCurrentUserRoleAndTeams";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import ActiveTimersBar from "@/components/ActiveTimersBar";
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
 
@@ -75,9 +77,17 @@ const AdminDashboard = () => {
     );
   }
 
+  const handleTaskUpdated = () => {
+    // Invalidate and refetch tasks when timer updates occur
+    queryClient.invalidateQueries({ queryKey: ["/api/tasks"] });
+  };
+
   return (
     <div className="p-6">
       <h1 className="text-2xl font-semibold mb-6">Dashboard</h1>
+
+      {/* Active Timers Bar */}
+      <ActiveTimersBar onTaskUpdated={handleTaskUpdated} />
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
