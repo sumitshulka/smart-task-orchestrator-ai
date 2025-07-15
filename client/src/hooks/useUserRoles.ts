@@ -5,9 +5,15 @@ interface UserRole {
   id: string;
   user_id: string;
   role_id: string;
-  role_name: string;
-  assigned_by: string;
-  created_at: string;
+  assigned_by: string | null;
+  assigned_at: string;
+  role: {
+    id: string;
+    name: string;
+    description: string;
+    created_at: string;
+    updated_at: string;
+  };
 }
 
 interface UseUserRolesResult {

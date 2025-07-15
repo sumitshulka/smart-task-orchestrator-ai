@@ -168,7 +168,7 @@ const AdminUsers: React.FC = () => {
                               variant="outline"
                               className="text-xs"
                             >
-                              {role.role_name}
+                              {role.role.name}
                             </Badge>
                           ))}
                         </div>
