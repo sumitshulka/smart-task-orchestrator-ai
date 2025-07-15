@@ -347,6 +347,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log("[DEBUG] Task update request body:", JSON.stringify(req.body, null, 2));
       const oldTask = await storage.getTask(req.params.id);
       
+      // Check daily hour limit if task is being completed
+      if (req.body.status === "completed" && oldTask && oldTask.status !== "completed") {
+        const userId = req.headers['x-user-id'] as string || oldTask.assigned_to || oldTask.created_by;
+        const settings = await storage.getOrganizationSettings();
+        
+        if (settings?.daily_hour_limit_enabled) {
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          const tomorrow = new Date(today);
+          tomorrow.setDate(tomorrow.getDate() + 1);
+          
+          // Get all user tasks for today
+          const userTasks = await storage.getTasksByUser(userId);
+          const todayTasks = userTasks.filter(task => {
+            const taskDate = task.updated_at ? new Date(task.updated_at) : new Date(task.created_at);
+            return taskDate >= today && taskDate < tomorrow;
+          });
+          
+          // Calculate current daily hours
+          let currentDailyHours = 0;
+          for (const task of todayTasks) {
+            if (task.id === oldTask.id) continue; // Skip the current task being updated
+            
+            if (task.is_time_managed && task.time_spent_minutes > 0) {
+              currentDailyHours += task.time_spent_minutes / 60;
+            } else if (!task.is_time_managed && task.status === 'completed' && task.estimated_hours > 0) {
+              currentDailyHours += task.estimated_hours;
+            }
+          }
+          
+          // Calculate hours for current task being completed
+          let taskHours = 0;
+          if (oldTask.is_time_managed && oldTask.time_spent_minutes > 0) {
+            taskHours = oldTask.time_spent_minutes / 60;
+          } else if (!oldTask.is_time_managed && oldTask.estimated_hours > 0) {
+            taskHours = oldTask.estimated_hours;
+          }
+          
+          const totalHours = currentDailyHours + taskHours;
+          
+          if (totalHours > settings.max_daily_hours_limit) {
+            return res.status(400).json({
+              error: "Daily hour limit exceeded",
+              details: `Completing this task would result in ${totalHours.toFixed(1)} hours for today, which exceeds the daily limit of ${settings.max_daily_hours_limit} hours. Current daily hours: ${currentDailyHours.toFixed(1)}, Task hours: ${taskHours.toFixed(1)}.`
+            });
+          }
+        }
+      }
+      
       // Validate the update data using the insert schema (partial update)
       const updateData = insertTaskSchema.partial().parse(req.body);
       

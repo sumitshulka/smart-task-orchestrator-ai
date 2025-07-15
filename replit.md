@@ -79,6 +79,8 @@ Preferred communication style: Simple, everyday language.
 ✓ **Enhanced Timer Delayed State Display**: Fixed delayed state calculation in ActiveTimersBar to account for real-time running timer elapsed time instead of stored minutes
 ✓ **Real-time Active Timer Updates**: Added 1-second interval updates to ActiveTimersBar component for accurate delayed state visualization with red styling
 ✓ **Comprehensive Timer Action Restrictions**: Implemented display-only mode for timer controls when task status is "completed" or "review" with informative messaging
+✓ **Daily Hour Limit System**: Implemented configurable daily hour limits (default 14 hours) to prevent task completion when it would exceed daily work limits, preventing inflated task hours with validation in backend and UI controls in General Settings
+✓ **Benchmarking Calculation Enhancement**: Fixed benchmarking logic to include both time-managed tasks (actual time spent) and completed non-time-managed tasks (estimated hours as effort time)
 
 ## System Architecture
 

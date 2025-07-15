@@ -9,6 +9,9 @@ export const organizationSettings = pgTable("organization_settings", {
   organization_name: text("organization_name").notNull().default("My Organization"),
   date_format: text("date_format").notNull().default("MM/dd/yyyy"),
   time_zone: text("time_zone").notNull().default("UTC"),
+  // Daily hour limit settings (separate from benchmarking)
+  daily_hour_limit_enabled: boolean("daily_hour_limit_enabled").default(true),
+  max_daily_hours_limit: integer("max_daily_hours_limit").default(14),
   // Benchmarking settings
   benchmarking_enabled: boolean("benchmarking_enabled").default(false),
   min_hours_per_day: integer("min_hours_per_day").default(0),

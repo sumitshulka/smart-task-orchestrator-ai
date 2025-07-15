@@ -15,6 +15,8 @@ type OrganizationSettings = {
   organization_name: string;
   date_format: string;
   time_zone: string;
+  daily_hour_limit_enabled: boolean;
+  max_daily_hours_limit: number;
   benchmarking_enabled: boolean;
   min_hours_per_day: number;
   max_hours_per_day: number;
@@ -61,6 +63,8 @@ const GeneralSettings: React.FC = () => {
     organization_name: "",
     date_format: "MM/dd/yyyy",
     time_zone: "UTC",
+    daily_hour_limit_enabled: true,
+    max_daily_hours_limit: 14,
     benchmarking_enabled: false,
     min_hours_per_day: 0,
     max_hours_per_day: 8,
@@ -78,6 +82,8 @@ const GeneralSettings: React.FC = () => {
         organization_name: settings.organization_name || "",
         date_format: settings.date_format || "MM/dd/yyyy",
         time_zone: settings.time_zone || "UTC",
+        daily_hour_limit_enabled: settings.daily_hour_limit_enabled !== undefined ? settings.daily_hour_limit_enabled : true,
+        max_daily_hours_limit: settings.max_daily_hours_limit || 14,
         benchmarking_enabled: settings.benchmarking_enabled || false,
         min_hours_per_day: settings.min_hours_per_day || 0,
         max_hours_per_day: settings.max_hours_per_day || 8,
@@ -219,6 +225,47 @@ const GeneralSettings: React.FC = () => {
               </SelectContent>
             </Select>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Daily Hour Limit Settings */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Daily Hour Limit</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center space-x-2">
+            <Switch
+              id="daily-hour-limit-enabled"
+              checked={formData.daily_hour_limit_enabled}
+              onCheckedChange={(checked) => handleFormChange('daily_hour_limit_enabled', checked)}
+            />
+            <Label htmlFor="daily-hour-limit-enabled">Enable Daily Hour Limit</Label>
+          </div>
+          
+          {formData.daily_hour_limit_enabled && (
+            <div className="space-y-2">
+              <Label htmlFor="max-daily-hours">Maximum Hours Per Day</Label>
+              <div className="flex items-center space-x-2">
+                <Input
+                  id="max-daily-hours"
+                  type="number"
+                  min="1"
+                  max="24"
+                  value={formData.max_daily_hours_limit}
+                  onChange={(e) => handleFormChange('max_daily_hours_limit', parseInt(e.target.value) || 14)}
+                  className="w-24"
+                />
+                <span className="text-sm text-muted-foreground">
+                  hours (prevents task completion if daily limit would be exceeded)
+                </span>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Users will be prevented from completing tasks that would cause them to exceed this daily hour limit.
+                This helps prevent inflated task hours and ensures reasonable work limits.
+              </p>
+            </div>
+          )}
         </CardContent>
       </Card>
 
