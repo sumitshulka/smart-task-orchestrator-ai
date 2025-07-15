@@ -67,6 +67,9 @@ type QueryResult = {
   queryType: string;
   description: string;
   matchedPattern: string;
+  queryStartDate?: Date;
+  queryEndDate?: Date;
+  timeToken?: string | null;
 };
 
 const BenchmarkingReport: React.FC = () => {
@@ -235,6 +238,79 @@ const BenchmarkingReport: React.FC = () => {
     });
   }, [settings, users, allTasks, timeRange]);
 
+  // Parse time-related tokens from the query
+  const parseTimeTokens = (queryText: string) => {
+    const lowerQuery = queryText.toLowerCase();
+    
+    // Check for specific time periods in the query
+    if (lowerQuery.includes("this week") || lowerQuery.includes("current week")) {
+      return "current_week";
+    } else if (lowerQuery.includes("last week") || lowerQuery.includes("previous week")) {
+      return "last_week";
+    } else if (lowerQuery.includes("this month") || lowerQuery.includes("current month")) {
+      return "current_month";
+    } else if (lowerQuery.includes("last month") || lowerQuery.includes("previous month")) {
+      return "last_month";
+    } else if (lowerQuery.includes("today")) {
+      return "today";
+    } else if (lowerQuery.includes("yesterday")) {
+      return "yesterday";
+    } else if (lowerQuery.includes("week") && !lowerQuery.includes("weeks")) {
+      // Generic "week" reference defaults to current week
+      return "current_week";
+    } else if (lowerQuery.includes("month") && !lowerQuery.includes("months")) {
+      // Generic "month" reference defaults to current month
+      return "current_month";
+    }
+    
+    // No specific time token found, use default time range
+    return null;
+  };
+
+  // Calculate dynamic date range based on query tokens
+  const getQueryBasedDateRange = (timeToken: string | null) => {
+    const now = new Date();
+    
+    switch (timeToken) {
+      case "current_week":
+        return {
+          startDate: startOfWeek(now, { weekStartsOn: 0 }),
+          endDate: endOfWeek(now, { weekStartsOn: 0 })
+        };
+      case "last_week":
+        const lastWeek = subWeeks(now, 1);
+        return {
+          startDate: startOfWeek(lastWeek, { weekStartsOn: 0 }),
+          endDate: endOfWeek(lastWeek, { weekStartsOn: 0 })
+        };
+      case "current_month":
+        return {
+          startDate: startOfMonth(now),
+          endDate: endOfMonth(now)
+        };
+      case "last_month":
+        const lastMonth = subMonths(now, 1);
+        return {
+          startDate: startOfMonth(lastMonth),
+          endDate: endOfMonth(lastMonth)
+        };
+      case "today":
+        return {
+          startDate: startOfDay(now),
+          endDate: endOfDay(now)
+        };
+      case "yesterday":
+        const yesterday = subDays(now, 1);
+        return {
+          startDate: startOfDay(yesterday),
+          endDate: endOfDay(yesterday)
+        };
+      default:
+        // Fall back to default time range setting
+        return { startDate: analysisStartDate, endDate: analysisEndDate };
+    }
+  };
+
   // NLP Query Processing
   const processNaturalLanguageQuery = async () => {
     if (!query.trim()) return;
@@ -242,7 +318,84 @@ const BenchmarkingReport: React.FC = () => {
     setIsProcessing(true);
     const lowerQuery = query.toLowerCase();
 
-    let matchedUsers: BenchmarkData[] = [];
+    // Parse time tokens from the query
+    const timeToken = parseTimeTokens(query);
+    const { startDate: queryStartDate, endDate: queryEndDate } = getQueryBasedDateRange(timeToken);
+
+    // Recalculate benchmarking data based on query-specific date range
+    const queryBenchmarkingData = users.map(user => {
+      const userTasks = allTasks.filter(task => task.assigned_to === user.id);
+      const relevantTasks = userTasks.filter(task => {
+        const taskDate = parseISO(task.updated_at || task.created_at);
+        return taskDate >= queryStartDate && taskDate <= queryEndDate;
+      });
+
+      const dailyHours: { [date: string]: number } = {};
+      const weeklyHours: { [weekStart: string]: number } = {};
+      const monthlyHours: { [monthStart: string]: number } = {};
+
+      relevantTasks.forEach(task => {
+        let hours = 0;
+        
+        if (task.is_time_managed && task.time_spent_minutes > 0) {
+          hours = task.time_spent_minutes / 60;
+        } else if (!task.is_time_managed && task.status === 'completed' && task.estimated_hours > 0) {
+          hours = task.estimated_hours;
+        }
+
+        if (hours > 0) {
+          let taskDate;
+          if (task.actual_completion_date) {
+            taskDate = parseISO(task.actual_completion_date);
+          } else if (task.updated_at) {
+            taskDate = parseISO(task.updated_at);
+          } else {
+            taskDate = parseISO(task.created_at);
+          }
+
+          const dateKey = format(taskDate, 'yyyy-MM-dd');
+          const weekKey = format(startOfWeek(taskDate, { weekStartsOn: 0 }), 'yyyy-MM-dd');
+          const monthKey = format(startOfMonth(taskDate), 'yyyy-MM-dd');
+
+          dailyHours[dateKey] = (dailyHours[dateKey] || 0) + hours;
+          weeklyHours[weekKey] = (weeklyHours[weekKey] || 0) + hours;
+          monthlyHours[monthKey] = (monthlyHours[monthKey] || 0) + hours;
+        }
+      });
+
+      const dailyValues = Object.values(dailyHours);
+      const weeklyValues = Object.values(weeklyHours);
+      const monthlyValues = Object.values(monthlyHours);
+
+      const averageDailyHours = dailyValues.length > 0 ? dailyValues.reduce((a, b) => a + b, 0) / dailyValues.length : 0;
+      const averageWeeklyHours = weeklyValues.length > 0 ? weeklyValues.reduce((a, b) => a + b, 0) / weeklyValues.length : 0;
+      const averageMonthlyHours = monthlyValues.length > 0 ? monthlyValues.reduce((a, b) => a + b, 0) / monthlyValues.length : 0;
+
+      const totalHoursInPeriod = dailyValues.reduce((a, b) => a + b, 0);
+
+      return {
+        userId: user.id,
+        userName: user.user_name || user.email,
+        department: user.department || "Unknown",
+        dailyHours,
+        weeklyHours,
+        monthlyHours,
+        totalTasks: relevantTasks.length,
+        averageDailyHours,
+        averageWeeklyHours,
+        averageMonthlyHours,
+        totalHoursInPeriod,
+        daysAboveMax: dailyValues.filter(h => h > settings?.max_hours_per_day).length,
+        daysBelowMin: dailyValues.filter(h => h > 0 && h < settings?.min_hours_per_day).length,
+        weeksAboveMax: weeklyValues.filter(h => h > settings?.max_hours_per_week).length,
+        weeksBelowMin: weeklyValues.filter(h => h > 0 && h < settings?.min_hours_per_week).length,
+        isConsistentlyLow: weeklyValues.length >= 1 && weeklyValues.every(h => h < settings?.min_hours_per_week),
+        isConsistentlyHigh: weeklyValues.length >= 1 && weeklyValues.every(h => h > settings?.max_hours_per_week),
+        isExactHours: weeklyValues.some(h => h === settings?.max_hours_per_week || h === settings?.min_hours_per_week)
+      };
+    });
+
+    let matchedUsers: any[] = [];
     let queryType = "unknown";
     let description = "";
     let matchedPattern = "";
@@ -250,21 +403,21 @@ const BenchmarkingReport: React.FC = () => {
     try {
       // Pattern matching for different query types
       if ((lowerQuery.includes("achieved") || lowerQuery.includes("surpassed") || lowerQuery.includes("exceeded")) && lowerQuery.includes("benchmark")) {
-        matchedUsers = benchmarkingData.filter(user => 
-          user.averageWeeklyHours >= settings?.min_hours_per_week
+        matchedUsers = queryBenchmarkingData.filter(user => 
+          user.averageWeeklyHours >= settings?.min_hours_per_week || user.totalHoursInPeriod >= settings?.min_hours_per_week
         );
         queryType = "achieved_benchmark";
         description = "Users who have achieved, surpassed, or exceeded the benchmark";
         matchedPattern = "achieved/surpassed/exceeded benchmark";
       }
       else if (lowerQuery.includes("consistently below") && lowerQuery.includes("min")) {
-        matchedUsers = benchmarkingData.filter(user => user.isConsistentlyLow);
+        matchedUsers = queryBenchmarkingData.filter(user => user.isConsistentlyLow);
         queryType = "consistently_below_min";
         description = "Users who are consistently below minimum benchmark";
         matchedPattern = "consistently below min benchmark";
       }
       else if (lowerQuery.includes("consistently above") || lowerQuery.includes("always above")) {
-        matchedUsers = benchmarkingData.filter(user => user.isConsistentlyHigh);
+        matchedUsers = queryBenchmarkingData.filter(user => user.isConsistentlyHigh);
         queryType = "consistently_above_max";
         description = "Users who are consistently above maximum benchmark";
         matchedPattern = "consistently/always above benchmark";
@@ -326,7 +479,10 @@ const BenchmarkingReport: React.FC = () => {
         users: matchedUsers,
         queryType,
         description,
-        matchedPattern
+        matchedPattern,
+        queryStartDate,
+        queryEndDate,
+        timeToken
       });
 
     } catch (error) {
@@ -335,7 +491,10 @@ const BenchmarkingReport: React.FC = () => {
         users: [],
         queryType: "error",
         description: "Error processing query",
-        matchedPattern: "error"
+        matchedPattern: "error",
+        queryStartDate,
+        queryEndDate,
+        timeToken
       });
     } finally {
       setIsProcessing(false);
@@ -476,7 +635,7 @@ const BenchmarkingReport: React.FC = () => {
               <p><strong>Query:</strong> "{query}"</p>
               <p><strong>Matched Pattern:</strong> {queryResult.matchedPattern}</p>
               <p><strong>Description:</strong> {queryResult.description}</p>
-              <p><strong>Analysis Period:</strong> {format(analysisStartDate, 'MMM dd, yyyy')} - {format(analysisEndDate, 'MMM dd, yyyy')} ({timeRange === "week" ? "4 weeks" : timeRange === "month" ? "3 months" : "30 days"})</p>
+              <p><strong>Analysis Period:</strong> {queryResult.queryStartDate && queryResult.queryEndDate ? `${format(queryResult.queryStartDate, 'MMM dd, yyyy')} - ${format(queryResult.queryEndDate, 'MMM dd, yyyy')}` : `${format(analysisStartDate, 'MMM dd, yyyy')} - ${format(analysisEndDate, 'MMM dd, yyyy')}`} ({queryResult.timeToken ? queryResult.timeToken.replace('_', ' ') : (timeRange === "week" ? "4 weeks" : timeRange === "month" ? "3 months" : "30 days")})</p>
             </div>
           </CardHeader>
           <CardContent>
