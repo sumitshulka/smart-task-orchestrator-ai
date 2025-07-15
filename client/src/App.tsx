@@ -143,6 +143,15 @@ const App = () => (
                 </AdminLayout>
               }
             />
+            {/* Admin Benchmarking route */}
+            <Route
+              path="/admin/benchmarking"
+              element={
+                <AdminLayout>
+                  <Benchmarking />
+                </AdminLayout>
+              }
+            />
             {/* Tasks page for regular users */}
             <Route
               path="/tasks"
