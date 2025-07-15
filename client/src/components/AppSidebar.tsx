@@ -1,4 +1,3 @@
-
 import React from "react";
 import { useLocation } from "react-router-dom";
 import { useCurrentUserRoleAndTeams } from "@/hooks/useCurrentUserRoleAndTeams";
@@ -30,11 +29,21 @@ export default function AppSidebar() {
         borderRight: '1px solid #e2e8f0'
       }}
     >
-      {/* Fixed header section with logo - aligned with topbar */}
-      <div className="flex h-14 items-center px-4 bg-[#f8fafc] border-b border-sidebar-border">
-        <SidebarHeader />
+      {/* Header section with logo */}
+      <div 
+        className="flex items-center px-6 border-b border-gray-200 bg-[#66655833]" 
+        style={{ height: '56px', minHeight: '56px', maxHeight: '56px' }}
+      >
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+            <span className="text-white font-bold text-sm">#</span>
+          </div>
+          <span className="text-lg font-semibold text-gray-800">
+            TaskRep
+          </span>
+        </div>
       </div>
-      
+
       {/* Scrollable content with menu items */}
       <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-auto px-2 py-4 bg-[#e3e2de]" style={{ paddingTop: '16px' }}>
         <div className="space-y-2">

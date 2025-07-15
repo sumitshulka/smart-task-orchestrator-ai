@@ -35,16 +35,8 @@ const Topbar: React.FC = () => {
 
   return (
     <header className="flex items-center justify-between border-b px-6 gap-4 bg-[#66655833] border-gray-200" style={{ height: '56px', minHeight: '56px', maxHeight: '56px' }}>
-      {/* Left: Sidebar toggle and Logo */}
+      {/* Left: Empty space for alignment */}
       <div className="flex items-center gap-3">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-            <span className="text-white font-bold text-sm">#</span>
-          </div>
-          <span className="text-lg font-semibold text-gray-800">
-            TaskRep
-          </span>
-        </div>
       </div>
       {/* Right: Welcome/role text, then settings, avatar, menu */}
       <div className="flex items-center gap-4 ml-auto">
