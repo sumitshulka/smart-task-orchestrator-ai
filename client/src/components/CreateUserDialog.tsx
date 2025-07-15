@@ -11,6 +11,7 @@ import { useDepartments } from "@/hooks/useDepartments";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { apiCreateUser } from "@/integrations/supabase/apiCreateUser";
 import { useUserList } from "@/hooks/useUserList";
+import { useQuery } from "@tanstack/react-query";
 
 interface CreateUserDialogProps {
   onUserCreated?: () => void;
