@@ -218,6 +218,10 @@ export default function MyTasksPage() {
   const [teamFilter, setTeamFilter] = useState<string>("all");
   const [dateRange, setDateRange] = useState(defaultDateRange());
   const [preset, setPreset] = useState<string>("This Month");
+  
+  // Sort states
+  const [sortBy, setSortBy] = useState<string>("created_at");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
 
   function handlePresetChange(range: { from: Date | null; to: Date | null }, p: string) {
     setPreset(p);
@@ -332,7 +336,44 @@ export default function MyTasksPage() {
   useEffect(() => {
     load();
     // eslint-disable-next-line
-  }, [user?.id, page, pageSize, priorityFilter, statusFilter, userFilter, teamFilter, dateRange]);
+  }, [user?.id, page, pageSize, priorityFilter, statusFilter, userFilter, teamFilter, dateRange, sortBy, sortOrder]);
+
+  // Sort tasks based on selected criteria
+  const sortedTasks = useMemo(() => {
+    if (!tasks.length) return tasks;
+    
+    const sorted = [...tasks].sort((a, b) => {
+      let comparison = 0;
+      
+      switch (sortBy) {
+        case "priority":
+          // Priority: 1 = High, 2 = Medium, 3 = Low
+          comparison = (a.priority || 999) - (b.priority || 999);
+          break;
+        case "due_date":
+          const aDate = a.due_date ? new Date(a.due_date) : new Date(8640000000000000); // Far future
+          const bDate = b.due_date ? new Date(b.due_date) : new Date(8640000000000000);
+          comparison = aDate.getTime() - bDate.getTime();
+          break;
+        case "estimated_hours":
+          comparison = (a.estimated_hours || 0) - (b.estimated_hours || 0);
+          break;
+        case "status":
+          comparison = (a.status || "").localeCompare(b.status || "");
+          break;
+        case "created_at":
+        default:
+          const aCreated = new Date(a.created_at);
+          const bCreated = new Date(b.created_at);
+          comparison = aCreated.getTime() - bCreated.getTime();
+          break;
+      }
+      
+      return sortOrder === "asc" ? comparison : -comparison;
+    });
+    
+    return sorted;
+  }, [tasks, sortBy, sortOrder]);
 
   // Grouped tasks for Kanban
   const tasksByStatus = useMemo(() => {
@@ -341,13 +382,13 @@ export default function MyTasksPage() {
       const key = getStatusKey(statusObj.name);
       columns[key] = [];
     });
-    tasks.forEach((task) => {
+    sortedTasks.forEach((task) => {
       const key = getStatusKey(task.status || "new");
       if (!columns[key]) columns[key] = [];
       columns[key].push(task);
     });
     return columns;
-  }, [tasks, statuses]);
+  }, [sortedTasks, statuses]);
 
   function canDelete(status: string) {
     // Find the status object and check its can_delete property
@@ -469,15 +510,43 @@ export default function MyTasksPage() {
 
       {/* Search and Filters */}
       <div className="mb-6 space-y-4">
-        {/* Search Bar */}
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-          <Input
-            placeholder="Search my tasks by title, description..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10"
-          />
+        {/* Search Bar and Sort Controls */}
+        <div className="flex gap-4">
+          {/* Search Bar */}
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+            <Input
+              placeholder="Search my tasks by title, description..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+          
+          {/* Sort Controls */}
+          <div className="flex gap-2">
+            <Select value={sortBy} onValueChange={setSortBy}>
+              <SelectTrigger className="w-[140px]">
+                <SelectValue placeholder="Sort by" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="created_at">Created Date</SelectItem>
+                <SelectItem value="priority">Priority</SelectItem>
+                <SelectItem value="due_date">Due Date</SelectItem>
+                <SelectItem value="estimated_hours">Effort (Hours)</SelectItem>
+                <SelectItem value="status">Status</SelectItem>
+              </SelectContent>
+            </Select>
+            
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
+              className="px-3"
+            >
+              {sortOrder === "asc" ? "↑" : "↓"}
+            </Button>
+          </div>
         </div>
 
         {/* Advanced Filters */}
@@ -567,7 +636,7 @@ export default function MyTasksPage() {
           <div className="text-muted-foreground mb-4 text-center">Loading...</div>
         )}
 
-        {!loading && !statusesLoading && !showTooManyWarning && tasks.length === 0 && (
+        {!loading && !statusesLoading && !showTooManyWarning && sortedTasks.length === 0 && (
           <div className="flex flex-col items-center justify-center mt-16">
             <div className="w-40 h-40 bg-gray-100 rounded-lg mb-4 flex items-center justify-center">
               <Search className="w-16 h-16 text-gray-400" />
@@ -577,9 +646,9 @@ export default function MyTasksPage() {
           </div>
         )}
 
-            {!loading && !statusesLoading && !showTooManyWarning && tasks.length > 0 && view === "list" && (
+            {!loading && !statusesLoading && !showTooManyWarning && sortedTasks.length > 0 && view === "list" && (
               <div className="grid grid-cols-1 gap-6">
-                {tasks.map((task) => {
+                {sortedTasks.map((task) => {
                   const statusObj = statuses.find(s => getStatusKey(s.name) === getStatusKey(task.status));
                   return (
                     <TaskCardClickable
