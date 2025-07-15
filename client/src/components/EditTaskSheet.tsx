@@ -255,15 +255,15 @@ const EditTaskSheet: React.FC<Props> = ({
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       {children && <SheetTrigger asChild>{children}</SheetTrigger>}
-      <SheetContent side="right" className="w-[50vw] min-w-[800px] flex flex-col p-0">
-        <form className="flex-1 flex flex-col p-4 gap-4 overflow-y-auto" onSubmit={handleSubmit} style={{ minHeight: 0 }}>
+      <SheetContent side="right" className="w-full sm:w-[90vw] md:w-[70vw] lg:w-[50vw] lg:min-w-[800px] flex flex-col p-0">
+        <form className="flex-1 flex flex-col p-3 sm:p-4 gap-3 sm:gap-4 overflow-y-auto" onSubmit={handleSubmit} style={{ minHeight: 0 }}>
           <SheetHeader>
-            <SheetTitle className="text-base">Edit Task</SheetTitle>
-            <SheetDescription>
+            <SheetTitle className="text-base sm:text-lg">Edit Task</SheetTitle>
+            <SheetDescription className="text-sm sm:text-base">
               Modify the fields below and click Update to save changes.
             </SheetDescription>
           </SheetHeader>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             {/* Task Title (editable if not restricted to user) */}
             <div>
               <label className="block mb-1 text-sm font-medium">Task Title</label>

@@ -209,27 +209,27 @@ const TaskDetailsSheet: React.FC<Props> = ({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-[50vw] min-w-[800px] max-w-none overflow-y-auto">
-        <form className="p-6 space-y-8" onSubmit={e => e.preventDefault()}>
-          <SheetHeader className="space-y-4 pb-6 border-b border-gray-200">
-            <div className="flex items-center justify-between">
+      <SheetContent side="right" className="w-full sm:w-[90vw] md:w-[70vw] lg:w-[50vw] lg:min-w-[800px] max-w-none overflow-y-auto">
+        <form className="p-3 sm:p-6 space-y-4 sm:space-y-8" onSubmit={e => e.preventDefault()}>
+          <SheetHeader className="space-y-2 sm:space-y-4 pb-4 sm:pb-6 border-b border-gray-200">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div className="space-y-2">
-                <div className="flex items-center gap-2">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2">
                   {task?.task_number && (
-                    <span className="text-xs font-mono bg-gray-100 px-2 py-1 rounded border">
+                    <span className="text-xs font-mono bg-gray-100 px-2 py-1 rounded border w-fit">
                       #{task.task_number}
                     </span>
                   )}
-                  <SheetTitle className="text-3xl font-bold text-gray-900">
+                  <SheetTitle className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900">
                     {task?.title || "Task Details"}
                   </SheetTitle>
                 </div>
-                <SheetDescription className="text-lg text-gray-600">
+                <SheetDescription className="text-sm sm:text-base lg:text-lg text-gray-600">
                   View and manage all task information, status, and activity.
                 </SheetDescription>
               </div>
               {onEdit && (
-                <Button onClick={() => onEdit(task!)} variant="outline" className="ml-4">
+                <Button onClick={() => onEdit(task!)} variant="outline" className="sm:ml-4 w-full sm:w-auto">
                   Edit Task
                 </Button>
               )}
@@ -243,13 +243,13 @@ const TaskDetailsSheet: React.FC<Props> = ({
           ) : (
             <>
               {/* SECTION 1: BASIC INFORMATION */}
-              <div className="space-y-4">
-                <div className="bg-blue-50 p-4 rounded-lg">
-                  <h3 className="text-base font-medium text-gray-800 mb-3 flex items-center">
-                    <span className="bg-blue-100 text-blue-800 rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold mr-2">1</span>
+              <div className="space-y-3 sm:space-y-4">
+                <div className="bg-blue-50 p-3 sm:p-4 rounded-lg">
+                  <h3 className="text-sm sm:text-base font-medium text-gray-800 mb-3 flex items-center">
+                    <span className="bg-blue-100 text-blue-800 rounded-full w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center text-xs font-bold mr-2">1</span>
                     Task Information
                   </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                     <div className="md:col-span-2">
                       <label className="block text-sm font-semibold text-gray-700 mb-2">Description</label>
                       <div className="bg-white p-3 rounded border min-h-[80px]">
