@@ -8,6 +8,8 @@ import {
   userRoles, 
   teamMemberships, 
   taskGroups, 
+  taskGroupTasks,
+  taskGroupMembers,
   taskActivity, 
   taskStatuses,
   rolePermissions,
@@ -20,6 +22,7 @@ import {
   Role,
   TaskGroup,
   InsertTaskGroup,
+  TaskGroupMember,
   UserRole,
   TeamMembership,
   TaskActivity,
@@ -70,6 +73,10 @@ export interface IStorage {
   getAllTaskGroups(): Promise<TaskGroup[]>;
   createTaskGroup(group: InsertTaskGroup): Promise<TaskGroup>;
   deleteTaskGroup(id: string): Promise<void>;
+  getTaskGroupDetails(id: string): Promise<any>;
+  getTaskGroupMembers(groupId: string): Promise<any[]>;
+  addTaskGroupMember(groupId: string, userId: string, role?: string): Promise<any>;
+  removeTaskGroupMember(groupId: string, userId: string): Promise<void>;
   
   // Task activity operations
   getTaskActivity(taskId: string): Promise<TaskActivity[]>;
@@ -271,6 +278,97 @@ export class DatabaseStorage implements IStorage {
 
   async deleteTaskGroup(id: string): Promise<void> {
     await db.delete(taskGroups).where(eq(taskGroups.id, id));
+  }
+
+  async getTaskGroupDetails(id: string): Promise<any> {
+    const group = await db.select().from(taskGroups).where(eq(taskGroups.id, id)).limit(1);
+    if (group.length === 0) {
+      throw new Error('Task group not found');
+    }
+
+    // Get group tasks with task details
+    const groupTasks = await db
+      .select({
+        id: taskGroupTasks.id,
+        task: {
+          id: tasks.id,
+          task_number: tasks.task_number,
+          title: tasks.title,
+          description: tasks.description,
+          priority: tasks.priority,
+          status: tasks.status,
+          due_date: tasks.due_date,
+          estimated_hours: tasks.estimated_hours,
+          assigned_to: tasks.assigned_to,
+          assigned_user: {
+            id: users.id,
+            user_name: users.user_name,
+            email: users.email,
+          }
+        }
+      })
+      .from(taskGroupTasks)
+      .innerJoin(tasks, eq(taskGroupTasks.task_id, tasks.id))
+      .leftJoin(users, eq(tasks.assigned_to, users.id))
+      .where(eq(taskGroupTasks.group_id, id));
+
+    // Get group members
+    const groupMembers = await db
+      .select({
+        id: taskGroupMembers.id,
+        user_id: taskGroupMembers.user_id,
+        role: taskGroupMembers.role,
+        created_at: taskGroupMembers.created_at,
+        user: {
+          id: users.id,
+          user_name: users.user_name,
+          email: users.email,
+          department: users.department,
+        }
+      })
+      .from(taskGroupMembers)
+      .innerJoin(users, eq(taskGroupMembers.user_id, users.id))
+      .where(eq(taskGroupMembers.group_id, id));
+
+    return {
+      ...group[0],
+      tasks: groupTasks,
+      members: groupMembers,
+    };
+  }
+
+  async getTaskGroupMembers(groupId: string): Promise<any[]> {
+    return await db
+      .select({
+        id: taskGroupMembers.id,
+        user_id: taskGroupMembers.user_id,
+        role: taskGroupMembers.role,
+        created_at: taskGroupMembers.created_at,
+        user: {
+          id: users.id,
+          user_name: users.user_name,
+          email: users.email,
+          department: users.department,
+        }
+      })
+      .from(taskGroupMembers)
+      .innerJoin(users, eq(taskGroupMembers.user_id, users.id))
+      .where(eq(taskGroupMembers.group_id, groupId));
+  }
+
+  async addTaskGroupMember(groupId: string, userId: string, role: string = 'member'): Promise<any> {
+    const result = await db.insert(taskGroupMembers).values({
+      group_id: groupId,
+      user_id: userId,
+      role,
+    }).returning();
+    return result[0];
+  }
+
+  async removeTaskGroupMember(groupId: string, userId: string): Promise<void> {
+    await db.delete(taskGroupMembers).where(
+      and(eq(taskGroupMembers.group_id, groupId), eq(taskGroupMembers.user_id, userId))
+    );
   }
 
   // Task activity operations

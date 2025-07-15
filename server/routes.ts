@@ -614,6 +614,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/task-groups/:id/details", async (req, res) => {
+    try {
+      const details = await storage.getTaskGroupDetails(req.params.id);
+      res.json(details);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch task group details" });
+    }
+  });
+
+  app.get("/api/task-groups/:id/members", async (req, res) => {
+    try {
+      const members = await storage.getTaskGroupMembers(req.params.id);
+      res.json(members);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch task group members" });
+    }
+  });
+
+  app.post("/api/task-groups/:id/members", requireManagerOrAdmin, async (req, res) => {
+    try {
+      const { userId, role } = req.body;
+      const member = await storage.addTaskGroupMember(req.params.id, userId, role);
+      res.status(201).json(member);
+    } catch (error) {
+      res.status(400).json({ error: "Failed to add task group member" });
+    }
+  });
+
+  app.delete("/api/task-groups/:id/members/:userId", requireManagerOrAdmin, async (req, res) => {
+    try {
+      await storage.removeTaskGroupMember(req.params.id, req.params.userId);
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ error: "Failed to remove task group member" });
+    }
+  });
+
   // Task status routes - Read open, modify admin only
   app.get("/api/task-statuses", requireAnyAuthenticated, async (req, res) => {
     try {

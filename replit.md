@@ -60,6 +60,7 @@ Preferred communication style: Simple, everyday language.
 ✓ **Smart Sorting Logic**: High-to-Low priority ordering, null date handling, visual arrow indicators, and cross-view persistence between List and Kanban modes
 ✓ **Enhanced Dashboard Tasks Due Today**: Implemented comprehensive dashboard section displaying tasks due today with priority badges, time remaining indicators, clickable navigation to My Tasks page, and "All caught up!" empty state
 ✓ **Task Group Details Modal Redesign**: Completely redesigned TaskGroupDetailsSheet with modern card-based layout, status statistics, visual badges, icons, and comprehensive task information display matching application design theme
+✓ **Task Group Member Management System**: Implemented comprehensive member management with database schema, API endpoints, and UI for adding/removing members with role-based permissions (member/manager roles)
 
 ## System Architecture
 

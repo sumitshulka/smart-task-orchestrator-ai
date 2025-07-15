@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   Sheet,
   SheetContent,
@@ -12,6 +12,16 @@ import { TaskGroup } from "@/integrations/supabase/taskGroups";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { 
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useToast } from "@/hooks/use-toast";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { 
   FolderKanban, 
   Clock, 
@@ -20,8 +30,13 @@ import {
   AlertCircle,
   CheckCircle2,
   Play,
-  Pause
+  Pause,
+  UserPlus,
+  UserMinus,
+  Crown,
+  Users
 } from "lucide-react";
+import { addTaskGroupMember, removeTaskGroupMember } from "@/integrations/supabase/taskGroups";
 
 type Props = {
   open: boolean;
@@ -30,6 +45,17 @@ type Props = {
 };
 
 export default function TaskGroupDetailsSheet({ open, onOpenChange, group }: Props) {
+  const [selectedUserId, setSelectedUserId] = useState<string>("");
+  const [selectedRole, setSelectedRole] = useState<string>("member");
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  // Fetch all users for member selection
+  const { data: users = [] } = useQuery({
+    queryKey: ['/api/users'],
+    enabled: open,
+  });
+
   const getStatusColor = (status: string) => {
     switch (status.toLowerCase()) {
       case 'completed': return 'bg-green-100 text-green-800 border-green-200';
@@ -74,6 +100,59 @@ export default function TaskGroupDetailsSheet({ open, onOpenChange, group }: Pro
       day: 'numeric',
       year: 'numeric'
     });
+  };
+
+  const handleAddMember = async () => {
+    if (!selectedUserId || !group?.id) return;
+    
+    try {
+      await addTaskGroupMember(group.id, selectedUserId, selectedRole);
+      queryClient.invalidateQueries({ queryKey: ['/api/task-groups'] });
+      toast({
+        title: "Member added successfully",
+        description: "The user has been added to the task group.",
+      });
+      setSelectedUserId("");
+      setSelectedRole("member");
+    } catch (error: any) {
+      toast({
+        title: "Failed to add member",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleRemoveMember = async (userId: string) => {
+    if (!group?.id) return;
+    
+    try {
+      await removeTaskGroupMember(group.id, userId);
+      queryClient.invalidateQueries({ queryKey: ['/api/task-groups'] });
+      toast({
+        title: "Member removed successfully",
+        description: "The user has been removed from the task group.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Failed to remove member",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const getRoleIcon = (role: string) => {
+    return role === 'manager' ? Crown : User;
+  };
+
+  const getRoleColor = (role: string) => {
+    return role === 'manager' ? 'bg-purple-100 text-purple-800 border-purple-200' : 'bg-blue-100 text-blue-800 border-blue-200';
+  };
+
+  const getAvailableUsers = () => {
+    const currentMemberIds = group?.members?.map((m: any) => m.user_id) || [];
+    return users.filter((user: any) => !currentMemberIds.includes(user.id));
   };
 
   return (
@@ -127,6 +206,113 @@ export default function TaskGroupDetailsSheet({ open, onOpenChange, group }: Pro
                 <div className="text-sm text-gray-600 font-medium">New</div>
               </CardContent>
             </Card>
+          </div>
+
+          {/* Members Section */}
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <h3 className="text-lg font-semibold">Group Members</h3>
+                <Badge variant="secondary" className="text-xs">
+                  {group?.members?.length || 0} members
+                </Badge>
+              </div>
+              <div className="flex items-center gap-2">
+                <Select value={selectedUserId} onValueChange={setSelectedUserId}>
+                  <SelectTrigger className="w-48">
+                    <SelectValue placeholder="Select user..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {getAvailableUsers().map((user: any) => (
+                      <SelectItem key={user.id} value={user.id}>
+                        {user.user_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select value={selectedRole} onValueChange={setSelectedRole}>
+                  <SelectTrigger className="w-32">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="member">Member</SelectItem>
+                    <SelectItem value="manager">Manager</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button 
+                  onClick={handleAddMember}
+                  disabled={!selectedUserId}
+                  size="sm"
+                >
+                  <UserPlus className="h-4 w-4 mr-1" />
+                  Add
+                </Button>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              {group?.members?.length ? (
+                group.members.map((member: any) => {
+                  const RoleIcon = getRoleIcon(member.role);
+                  
+                  return (
+                    <Card key={member.id} className="hover:shadow-md transition-shadow">
+                      <CardContent className="p-4">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <Avatar className="h-10 w-10">
+                              <AvatarFallback>
+                                {member.user?.user_name?.charAt(0)?.toUpperCase() || 'U'}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div>
+                              <div className="font-medium text-gray-900">
+                                {member.user?.user_name || 'Unknown User'}
+                              </div>
+                              <div className="text-sm text-gray-500">
+                                {member.user?.email || 'No email'}
+                              </div>
+                              {member.user?.department && (
+                                <div className="text-xs text-gray-400">
+                                  {member.user.department}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Badge 
+                              variant="outline"
+                              className={`text-xs ${getRoleColor(member.role)}`}
+                            >
+                              <RoleIcon className="h-3 w-3 mr-1" />
+                              {member.role.charAt(0).toUpperCase() + member.role.slice(1)}
+                            </Badge>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleRemoveMember(member.user_id)}
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            >
+                              <UserMinus className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })
+              ) : (
+                <Card className="text-center py-8">
+                  <CardContent>
+                    <Users className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+                    <h4 className="text-lg font-medium text-gray-900 mb-2">No members yet</h4>
+                    <p className="text-sm text-gray-500">
+                      Add team members to this group to start collaborating.
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
           </div>
 
           {/* Tasks Section */}

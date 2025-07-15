@@ -181,6 +181,14 @@ export const taskGroupTasks = pgTable("task_group_tasks", {
   created_at: timestamp("created_at").defaultNow(),
 });
 
+export const taskGroupMembers = pgTable("task_group_members", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  group_id: uuid("group_id").notNull().references(() => taskGroups.id),
+  user_id: uuid("user_id").notNull().references(() => users.id),
+  role: text("role").default("member"), // "member" or "manager"
+  created_at: timestamp("created_at").defaultNow(),
+});
+
 // Role permissions for granular access control
 export const rolePermissions = pgTable("role_permissions", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -256,11 +264,17 @@ export const taskActivityRelations = relations(taskActivity, ({ one }) => ({
 export const taskGroupsRelations = relations(taskGroups, ({ one, many }) => ({
   owner: one(users, { fields: [taskGroups.owner_id], references: [users.id] }),
   groupTasks: many(taskGroupTasks),
+  groupMembers: many(taskGroupMembers),
 }));
 
 export const taskGroupTasksRelations = relations(taskGroupTasks, ({ one }) => ({
   group: one(taskGroups, { fields: [taskGroupTasks.group_id], references: [taskGroups.id] }),
   task: one(tasks, { fields: [taskGroupTasks.task_id], references: [tasks.id] }),
+}));
+
+export const taskGroupMembersRelations = relations(taskGroupMembers, ({ one }) => ({
+  group: one(taskGroups, { fields: [taskGroupMembers.group_id], references: [taskGroups.id] }),
+  user: one(users, { fields: [taskGroupMembers.user_id], references: [users.id] }),
 }));
 
 export const rolePermissionsRelations = relations(rolePermissions, ({ one }) => ({
@@ -331,3 +345,4 @@ export type TeamMembership = typeof teamMemberships.$inferSelect;
 export type UserRole = typeof userRoles.$inferSelect;
 export type TaskActivity = typeof taskActivity.$inferSelect;
 export type TaskStatus = typeof taskStatuses.$inferSelect;
+export type TaskGroupMember = typeof taskGroupMembers.$inferSelect;

@@ -50,23 +50,60 @@ export async function deleteTaskGroup(id: string) {
 
 export async function fetchTaskGroupDetails(groupId: string) {
   try {
-    // For now, use the API client to get basic group info
-    // In a real implementation, this would fetch group details with associated tasks
-    const groups = await apiClient.getTaskGroups();
-    const group = groups.find((g: any) => g.id === groupId);
-    
-    if (!group) {
-      throw new Error("Group not found.");
+    const response = await fetch(`/api/task-groups/${groupId}/details`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch group details: ${response.statusText}`);
     }
-
-    // For now, return empty tasks array since we don't have task-group associations in API yet
-    // In a real implementation, this would fetch associated tasks via API
-    return {
-      ...group,
-      tasks: [], // TODO: implement task-group associations in API
-    };
+    return await response.json();
   } catch (error: any) {
     throw new Error(`Failed to fetch group details: ${error.message}`);
+  }
+}
+
+export async function fetchTaskGroupMembers(groupId: string) {
+  try {
+    const response = await fetch(`/api/task-groups/${groupId}/members`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch group members: ${response.statusText}`);
+    }
+    return await response.json();
+  } catch (error: any) {
+    throw new Error(`Failed to fetch group members: ${error.message}`);
+  }
+}
+
+export async function addTaskGroupMember(groupId: string, userId: string, role: string = 'member') {
+  try {
+    const response = await fetch(`/api/task-groups/${groupId}/members`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+      },
+      body: JSON.stringify({ userId, role }),
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to add group member: ${response.statusText}`);
+    }
+    return await response.json();
+  } catch (error: any) {
+    throw new Error(`Failed to add group member: ${error.message}`);
+  }
+}
+
+export async function removeTaskGroupMember(groupId: string, userId: string) {
+  try {
+    const response = await fetch(`/api/task-groups/${groupId}/members/${userId}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+      },
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to remove group member: ${response.statusText}`);
+    }
+  } catch (error: any) {
+    throw new Error(`Failed to remove group member: ${error.message}`);
   }
 }
 
