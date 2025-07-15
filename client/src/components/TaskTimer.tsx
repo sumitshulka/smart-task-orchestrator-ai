@@ -80,6 +80,7 @@ export default function TaskTimer({ task, onTaskUpdated, compact = false }: Task
     const estimatedMinutes = (task.estimated_hours || 0) * 60;
     const timeRemaining = Math.max(0, estimatedMinutes - currentTime);
     const isLowTime = timeRemaining > 0 && timeRemaining < 15;
+    const isDelayed = task.estimated_hours && currentTime > estimatedMinutes && task.timer_state === 'running';
     
     return (
       <div className="flex items-center gap-2">
@@ -92,13 +93,18 @@ export default function TaskTimer({ task, onTaskUpdated, compact = false }: Task
             </span>
           )}
         </div>
-        {task.estimated_hours && (
+        {task.estimated_hours && !isDelayed && (
           <div className={`text-xs ${isLowTime ? 'text-red-600 font-medium' : 'text-muted-foreground'}`}>
             {formatTime(timeRemaining)} left
           </div>
         )}
+        {isDelayed && (
+          <Badge variant="destructive" className="text-xs py-0 px-1">
+            Delayed
+          </Badge>
+        )}
         {task.timer_state === 'running' && (
-          <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+          <div className={`w-2 h-2 rounded-full animate-pulse ${isDelayed ? 'bg-red-500' : 'bg-green-500'}`} />
         )}
       </div>
     );
@@ -108,9 +114,10 @@ export default function TaskTimer({ task, onTaskUpdated, compact = false }: Task
   const estimatedMinutes = (task.estimated_hours || 0) * 60;
   const timeRemaining = Math.max(0, estimatedMinutes - currentTime);
   const isLowTime = timeRemaining > 0 && timeRemaining < 15;
+  const isDelayed = task.estimated_hours && currentTime > estimatedMinutes && task.timer_state === 'running';
   
   return (
-    <Card className="w-full">
+    <Card className={`w-full ${isDelayed ? 'border-red-500 bg-red-50' : ''}`}>
       <CardContent className="p-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -122,15 +129,27 @@ export default function TaskTimer({ task, onTaskUpdated, compact = false }: Task
                   <div className="text-sm text-muted-foreground">
                     Total: {formatTime(estimatedMinutes)}
                   </div>
-                  <div className={`text-sm ${isLowTime ? 'text-red-600 font-medium' : 'text-muted-foreground'}`}>
-                    Remaining: {formatTime(timeRemaining)}
-                  </div>
+                  {!isDelayed && (
+                    <div className={`text-sm ${isLowTime ? 'text-red-600 font-medium' : 'text-muted-foreground'}`}>
+                      Remaining: {formatTime(timeRemaining)}
+                    </div>
+                  )}
+                  {isDelayed && (
+                    <div className="text-sm text-red-600 font-medium">
+                      Exceeded by: {formatTime(currentTime - estimatedMinutes)}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
           </div>
           
           <div className="flex items-center gap-2">
+            {isDelayed && (
+              <Badge variant="destructive">
+                Delayed
+              </Badge>
+            )}
             <Badge variant={
               task.timer_state === 'running' ? 'default' : 
               task.timer_state === 'paused' ? 'secondary' : 'outline'

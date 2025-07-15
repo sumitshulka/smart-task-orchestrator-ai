@@ -41,29 +41,36 @@ export default function ActiveTimersBar({ onTaskUpdated }: ActiveTimersBarProps)
       </div>
       
       <div className="grid gap-4 md:grid-cols-2">
-        {activeTimers.map((task) => (
-          <Card key={task.id} className="border-blue-200 bg-blue-50/50 dark:bg-blue-950/20 dark:border-blue-800">
-            <CardContent className="p-4">
-              <div className="space-y-3">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <h4 className="font-medium text-sm leading-tight">{task.title}</h4>
-                    <div className="text-xs text-muted-foreground mt-1">
-                      #{task.task_number || task.id.slice(0, 8)}
+        {activeTimers.map((task) => {
+          // Calculate if timer is delayed
+          const currentTime = task.time_spent_minutes || 0;
+          const estimatedMinutes = (task.estimated_hours || 0) * 60;
+          const isDelayed = task.estimated_hours && currentTime > estimatedMinutes && task.timer_state === 'running';
+          
+          return (
+            <Card key={task.id} className={`${isDelayed ? 'border-red-500 bg-red-50/50 dark:bg-red-950/20 dark:border-red-800' : 'border-blue-200 bg-blue-50/50 dark:bg-blue-950/20 dark:border-blue-800'}`}>
+              <CardContent className="p-4">
+                <div className="space-y-3">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <h4 className="font-medium text-sm leading-tight">{task.title}</h4>
+                      <div className="text-xs text-muted-foreground mt-1">
+                        #{task.task_number || task.id.slice(0, 8)}
+                      </div>
                     </div>
+                    <div className={`w-3 h-3 rounded-full animate-pulse ml-3 mt-1 ${isDelayed ? 'bg-red-500' : 'bg-green-500'}`} />
                   </div>
-                  <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse ml-3 mt-1" />
+                  
+                  <TaskTimer 
+                    task={task} 
+                    onTaskUpdated={handleTaskUpdated}
+                    compact={true}
+                  />
                 </div>
-                
-                <TaskTimer 
-                  task={task} 
-                  onTaskUpdated={handleTaskUpdated}
-                  compact={true}
-                />
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
     </div>
   );
