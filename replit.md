@@ -100,6 +100,8 @@ Preferred communication style: Simple, everyday language.
 ✓ **Benchmarking Report Access Fixed**: Resolved "benchmarking disabled" error for managers by allowing manager role to read organization settings - managers can now access benchmarking reports while maintaining security restrictions
 ✓ **Critical Task Group Security Vulnerability Fixed**: Resolved major security issue where managers could access private task groups of other users - implemented proper role-based visibility filtering in task groups API endpoint with getTaskGroupsForUser method
 ✓ **Task Group Assignment System Complete**: Fixed broken task assignment to task groups by implementing proper API endpoints (/api/task-groups/:groupId/tasks) with database persistence, replacing simulated frontend-only assignments
+✓ **Status Transition System Database Migration**: Fixed critical workflow issue by migrating status transitions from localStorage to proper database storage with API endpoints (/api/task-status-transitions)
+✓ **Proper Workflow Validation**: Implemented database-driven status transition validation using actual task statuses (New→in_progress→review→completed) with logical backward flows for corrections
 
 ## System Architecture
 
