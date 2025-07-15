@@ -191,6 +191,12 @@ const EditTaskSheet: React.FC<Props> = ({
       await queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
       await queryClient.invalidateQueries({ queryKey: ['overdue-tasks'] });
       await queryClient.invalidateQueries({ queryKey: ['analytics-tasks'] });
+      await queryClient.invalidateQueries({ queryKey: ['task-activity'] });
+      await queryClient.invalidateQueries({ queryKey: ['my-tasks'] });
+      await queryClient.invalidateQueries({ queryKey: ['dashboard-tasks'] });
+      
+      // Force refetch of tasks to ensure UI updates
+      await queryClient.refetchQueries({ queryKey: ['/api/tasks'] });
       
       onOpenChange(false);
       if (typeof onUpdated === 'function') {
@@ -238,6 +244,12 @@ const EditTaskSheet: React.FC<Props> = ({
       await queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
       await queryClient.invalidateQueries({ queryKey: ['overdue-tasks'] });
       await queryClient.invalidateQueries({ queryKey: ['analytics-tasks'] });
+      await queryClient.invalidateQueries({ queryKey: ['task-activity'] });
+      await queryClient.invalidateQueries({ queryKey: ['my-tasks'] });
+      await queryClient.invalidateQueries({ queryKey: ['dashboard-tasks'] });
+      
+      // Force refetch of tasks to ensure UI updates
+      await queryClient.refetchQueries({ queryKey: ['/api/tasks'] });
       
       onOpenChange(false);
       if (typeof onUpdated === 'function') {
@@ -292,11 +304,19 @@ const EditTaskSheet: React.FC<Props> = ({
             </div>
             <div>
               <label className="block mb-1 text-sm font-medium">Status</label>
-              <EditTaskStatusSelect
-                currentStatus={form.status}
-                onStatusChange={(newStatus) => setForm({ ...form, status: newStatus })}
+              <select
+                name="status"
+                value={form.status}
+                onChange={handleChange}
+                className="w-full border rounded p-2"
                 disabled={statusesLoading || statuses.length === 0}
-              />
+              >
+                {statuses.map((status) => (
+                  <option key={status.id} value={status.name}>
+                    {status.name}
+                  </option>
+                ))}
+              </select>
             </div>
             <div className="sm:col-span-2">
               <label className="block mb-1 text-sm font-medium">Description</label>
