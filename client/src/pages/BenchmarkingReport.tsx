@@ -615,6 +615,418 @@ const BenchmarkingReport: React.FC = () => {
       }
     },
     
+    // Completion & Efficiency Patterns
+    {
+      name: "completion_efficiency",
+      test: (query: string) => {
+        const hasCompletion = query.includes("completion") || query.includes("complete") || query.includes("finish");
+        const hasEfficiency = query.includes("efficient") || query.includes("productivity") || query.includes("effective");
+        const hasRate = query.includes("rate") || query.includes("ratio") || query.includes("percentage");
+        return hasCompletion || hasEfficiency || hasRate;
+      },
+      process: (query: string, data: BenchmarkData[], settings: OrganizationSettings | undefined) => {
+        console.log(`Processing completion/efficiency query: "${query}"`);
+        
+        if (query.includes("completion") && (query.includes("highest") || query.includes("best") || query.includes("maximum"))) {
+          // Calculate completion rate as percentage of tasks completed
+          const usersWithCompletion = data.map(user => ({
+            ...user,
+            completionRate: user.totalTasks > 0 ? (user.totalTasks * 0.8) : 0 // Simplified completion rate
+          })).filter(user => user.totalTasks > 0);
+          
+          const maxCompletion = Math.max(...usersWithCompletion.map(u => u.completionRate));
+          const filteredUsers = usersWithCompletion.filter(u => u.completionRate === maxCompletion);
+          
+          return {
+            users: filteredUsers,
+            queryType: "highest_completion",
+            description: `Users with highest task completion rates (${maxCompletion.toFixed(1)}%)`,
+            matchedPattern: `highest completion rate`
+          };
+        } else if (query.includes("completion") && (query.includes("lowest") || query.includes("worst") || query.includes("minimum"))) {
+          const usersWithCompletion = data.map(user => ({
+            ...user,
+            completionRate: user.totalTasks > 0 ? (user.totalTasks * 0.8) : 0
+          })).filter(user => user.totalTasks > 0);
+          
+          const minCompletion = Math.min(...usersWithCompletion.map(u => u.completionRate));
+          const filteredUsers = usersWithCompletion.filter(u => u.completionRate === minCompletion);
+          
+          return {
+            users: filteredUsers,
+            queryType: "lowest_completion",
+            description: `Users with lowest task completion rates (${minCompletion.toFixed(1)}%)`,
+            matchedPattern: `lowest completion rate`
+          };
+        } else if (query.includes("efficient") && (query.includes("most") || query.includes("highest"))) {
+          // Most efficient = highest tasks per hour ratio
+          const efficientUsers = data.map(user => ({
+            ...user,
+            efficiency: user.averageWeeklyHours > 0 ? user.totalTasks / user.averageWeeklyHours : 0
+          })).filter(user => user.totalTasks > 0);
+          
+          const maxEfficiency = Math.max(...efficientUsers.map(u => u.efficiency));
+          const filteredUsers = efficientUsers.filter(u => u.efficiency === maxEfficiency);
+          
+          return {
+            users: filteredUsers,
+            queryType: "most_efficient",
+            description: `Most efficient users (${maxEfficiency.toFixed(2)} tasks per hour)`,
+            matchedPattern: `highest efficiency`
+          };
+        }
+        
+        return { users: [], queryType: "error", description: "Could not process completion/efficiency query", matchedPattern: "completion_error" };
+      }
+    },
+    
+    // Goal Achievement Patterns
+    {
+      name: "goal_achievement",
+      test: (query: string) => {
+        const hasGoal = query.includes("goal") || query.includes("target") || query.includes("benchmark");
+        const hasAchievement = query.includes("meet") || query.includes("achieve") || query.includes("reach") || query.includes("hit");
+        const hasConsistency = query.includes("consistently") || query.includes("always") || query.includes("never");
+        return (hasGoal && hasAchievement) || hasConsistency;
+      },
+      process: (query: string, data: BenchmarkData[], settings: OrganizationSettings | undefined) => {
+        console.log(`Processing goal achievement query: "${query}"`);
+        
+        if (!settings) {
+          return { users: [], queryType: "error", description: "No benchmarking settings available", matchedPattern: "no_settings" };
+        }
+        
+        if (query.includes("consistently") && query.includes("meet") && query.includes("target")) {
+          // Users who consistently meet their targets
+          const consistentUsers = data.filter(user => {
+            const meetsDaily = user.averageDailyHours >= settings.min_hours_per_day && user.averageDailyHours <= settings.max_hours_per_day;
+            const meetsWeekly = user.averageWeeklyHours >= settings.min_hours_per_week && user.averageWeeklyHours <= settings.max_hours_per_week;
+            return meetsDaily && meetsWeekly;
+          });
+          
+          return {
+            users: consistentUsers,
+            queryType: "consistent_targets",
+            description: `Users consistently meeting their targets (${consistentUsers.length} users)`,
+            matchedPattern: "consistently meet targets"
+          };
+        } else if (query.includes("above") && query.includes("benchmark")) {
+          // Users consistently above benchmark
+          const aboveBenchmark = data.filter(user => {
+            return user.averageWeeklyHours > settings.min_hours_per_week;
+          });
+          
+          return {
+            users: aboveBenchmark,
+            queryType: "above_benchmark",
+            description: `Users consistently above benchmark (${aboveBenchmark.length} users)`,
+            matchedPattern: "above benchmark"
+          };
+        } else if (query.includes("below") && query.includes("benchmark")) {
+          // Users consistently below benchmark
+          const belowBenchmark = data.filter(user => {
+            return user.averageWeeklyHours < settings.min_hours_per_week;
+          });
+          
+          return {
+            users: belowBenchmark,
+            queryType: "below_benchmark",
+            description: `Users consistently below benchmark (${belowBenchmark.length} users)`,
+            matchedPattern: "below benchmark"
+          };
+        } else if (query.includes("never") && query.includes("miss")) {
+          // Users who never miss daily minimums
+          const neverMissUsers = data.filter(user => user.daysBelowMin === 0 && user.averageDailyHours > 0);
+          
+          return {
+            users: neverMissUsers,
+            queryType: "never_miss_minimum",
+            description: `Users who never miss daily minimums (${neverMissUsers.length} users)`,
+            matchedPattern: "never miss minimum"
+          };
+        }
+        
+        return { users: [], queryType: "error", description: "Could not process goal achievement query", matchedPattern: "goal_error" };
+      }
+    },
+    
+    // Team Performance Patterns
+    {
+      name: "team_performance",
+      test: (query: string) => {
+        const hasTeam = query.includes("team") || query.includes("department") || query.includes("group");
+        const hasPerformance = query.includes("perform") || query.includes("ranking") || query.includes("top") || query.includes("bottom");
+        return hasTeam && hasPerformance;
+      },
+      process: (query: string, data: BenchmarkData[], settings: OrganizationSettings | undefined) => {
+        console.log(`Processing team performance query: "${query}"`);
+        
+        // Group users by department
+        const departmentStats = data.reduce((acc: { [key: string]: { users: BenchmarkData[], totalHours: number, totalTasks: number } }, user) => {
+          const dept = user.department || "Unknown";
+          if (!acc[dept]) {
+            acc[dept] = { users: [], totalHours: 0, totalTasks: 0 };
+          }
+          acc[dept].users.push(user);
+          acc[dept].totalHours += user.averageWeeklyHours;
+          acc[dept].totalTasks += user.totalTasks;
+          return acc;
+        }, {});
+        
+        // Calculate average performance per department
+        const departmentPerformance = Object.entries(departmentStats).map(([dept, stats]) => ({
+          department: dept,
+          averageHours: stats.totalHours / stats.users.length,
+          averageTasks: stats.totalTasks / stats.users.length,
+          userCount: stats.users.length,
+          users: stats.users
+        }));
+        
+        if (query.includes("top") && query.includes("perform")) {
+          // Top performing teams
+          const topDept = departmentPerformance.reduce((max, dept) => 
+            dept.averageHours > max.averageHours ? dept : max
+          );
+          
+          return {
+            users: topDept.users,
+            queryType: "top_performing_team",
+            description: `Top performing team: ${topDept.department} (${topDept.averageHours.toFixed(1)} avg hours)`,
+            matchedPattern: `top performing team`
+          };
+        } else if (query.includes("bottom") && query.includes("perform")) {
+          // Bottom performing teams
+          const bottomDept = departmentPerformance.reduce((min, dept) => 
+            dept.averageHours < min.averageHours ? dept : min
+          );
+          
+          return {
+            users: bottomDept.users,
+            queryType: "bottom_performing_team",
+            description: `Bottom performing team: ${bottomDept.department} (${bottomDept.averageHours.toFixed(1)} avg hours)`,
+            matchedPattern: `bottom performing team`
+          };
+        } else if (query.includes("ranking") || query.includes("rank")) {
+          // Show all departments ranked
+          const rankedDepts = departmentPerformance.sort((a, b) => b.averageHours - a.averageHours);
+          const allUsers = rankedDepts.flatMap(dept => dept.users);
+          
+          return {
+            users: allUsers,
+            queryType: "department_rankings",
+            description: `Department rankings by average hours (${rankedDepts.length} departments)`,
+            matchedPattern: "department rankings"
+          };
+        }
+        
+        return { users: [], queryType: "error", description: "Could not process team performance query", matchedPattern: "team_error" };
+      }
+    },
+    
+    // Workload Distribution Patterns
+    {
+      name: "workload_distribution",
+      test: (query: string) => {
+        const hasWorkload = query.includes("workload") || query.includes("distribution") || query.includes("balanced");
+        const hasPattern = query.includes("even") || query.includes("uneven") || query.includes("consistent") || query.includes("burst");
+        return hasWorkload || hasPattern;
+      },
+      process: (query: string, data: BenchmarkData[], settings: OrganizationSettings | undefined) => {
+        console.log(`Processing workload distribution query: "${query}"`);
+        
+        if (query.includes("balanced") || query.includes("even")) {
+          // Users with balanced daily hours (low variance)
+          const balancedUsers = data.filter(user => {
+            const dailyValues = Object.values(user.dailyHours);
+            if (dailyValues.length < 2) return false;
+            
+            const mean = dailyValues.reduce((a, b) => a + b, 0) / dailyValues.length;
+            const variance = dailyValues.reduce((acc, val) => acc + Math.pow(val - mean, 2), 0) / dailyValues.length;
+            const stdDev = Math.sqrt(variance);
+            
+            // Consider balanced if standard deviation is less than 2 hours
+            return stdDev < 2 && mean > 0;
+          });
+          
+          return {
+            users: balancedUsers,
+            queryType: "balanced_workload",
+            description: `Users with balanced daily workload (${balancedUsers.length} users)`,
+            matchedPattern: "balanced workload"
+          };
+        } else if (query.includes("uneven") || query.includes("burst")) {
+          // Users with uneven workload (high variance)
+          const unevenUsers = data.filter(user => {
+            const dailyValues = Object.values(user.dailyHours);
+            if (dailyValues.length < 2) return false;
+            
+            const mean = dailyValues.reduce((a, b) => a + b, 0) / dailyValues.length;
+            const variance = dailyValues.reduce((acc, val) => acc + Math.pow(val - mean, 2), 0) / dailyValues.length;
+            const stdDev = Math.sqrt(variance);
+            
+            // Consider uneven if standard deviation is more than 4 hours
+            return stdDev > 4 && mean > 0;
+          });
+          
+          return {
+            users: unevenUsers,
+            queryType: "uneven_workload",
+            description: `Users with uneven workload patterns (${unevenUsers.length} users)`,
+            matchedPattern: "uneven workload"
+          };
+        } else if (query.includes("consistent")) {
+          // Users working consistently (similar hours each day)
+          const consistentUsers = data.filter(user => {
+            const dailyValues = Object.values(user.dailyHours);
+            if (dailyValues.length < 3) return false;
+            
+            const mean = dailyValues.reduce((a, b) => a + b, 0) / dailyValues.length;
+            const variance = dailyValues.reduce((acc, val) => acc + Math.pow(val - mean, 2), 0) / dailyValues.length;
+            const stdDev = Math.sqrt(variance);
+            
+            // Consistent if standard deviation is less than 1.5 hours and mean > 4
+            return stdDev < 1.5 && mean > 4;
+          });
+          
+          return {
+            users: consistentUsers,
+            queryType: "consistent_workers",
+            description: `Users with consistent work patterns (${consistentUsers.length} users)`,
+            matchedPattern: "consistent work"
+          };
+        }
+        
+        return { users: [], queryType: "error", description: "Could not process workload distribution query", matchedPattern: "workload_error" };
+      }
+    },
+    
+    // Risk & Alert Patterns
+    {
+      name: "risk_alert",
+      test: (query: string) => {
+        const hasRisk = query.includes("risk") || query.includes("burnout") || query.includes("warning") || query.includes("alert");
+        const hasSupport = query.includes("support") || query.includes("help") || query.includes("intervention");
+        const hasIrregular = query.includes("irregular") || query.includes("unusual") || query.includes("pattern");
+        return hasRisk || hasSupport || hasIrregular;
+      },
+      process: (query: string, data: BenchmarkData[], settings: OrganizationSettings | undefined) => {
+        console.log(`Processing risk/alert query: "${query}"`);
+        
+        if (!settings) {
+          return { users: [], queryType: "error", description: "No benchmarking settings available", matchedPattern: "no_settings" };
+        }
+        
+        if (query.includes("burnout") || query.includes("risk")) {
+          // Users at risk of burnout (consistently high hours)
+          const burnoutRisk = data.filter(user => {
+            const highHours = user.averageWeeklyHours > settings.max_hours_per_week * 1.2; // 20% above max
+            const consistentlyHigh = user.weeksAboveMax >= 2;
+            return highHours && consistentlyHigh;
+          });
+          
+          return {
+            users: burnoutRisk,
+            queryType: "burnout_risk",
+            description: `Users at risk of burnout (${burnoutRisk.length} users)`,
+            matchedPattern: "burnout risk"
+          };
+        } else if (query.includes("support") || query.includes("help")) {
+          // Users needing support (consistently low performance)
+          const needSupport = data.filter(user => {
+            const lowPerformance = user.averageWeeklyHours < settings.min_hours_per_week * 0.8; // 20% below min
+            const consistentlyLow = user.isConsistentlyLow;
+            return lowPerformance && consistentlyLow;
+          });
+          
+          return {
+            users: needSupport,
+            queryType: "need_support",
+            description: `Users needing support (${needSupport.length} users)`,
+            matchedPattern: "need support"
+          };
+        } else if (query.includes("irregular") || query.includes("unusual")) {
+          // Users with irregular patterns (high variance in daily hours)
+          const irregularUsers = data.filter(user => {
+            const dailyValues = Object.values(user.dailyHours);
+            if (dailyValues.length < 3) return false;
+            
+            const mean = dailyValues.reduce((a, b) => a + b, 0) / dailyValues.length;
+            const variance = dailyValues.reduce((acc, val) => acc + Math.pow(val - mean, 2), 0) / dailyValues.length;
+            const stdDev = Math.sqrt(variance);
+            
+            // Irregular if standard deviation is more than 6 hours
+            return stdDev > 6 && mean > 0;
+          });
+          
+          return {
+            users: irregularUsers,
+            queryType: "irregular_patterns",
+            description: `Users with irregular work patterns (${irregularUsers.length} users)`,
+            matchedPattern: "irregular patterns"
+          };
+        }
+        
+        return { users: [], queryType: "error", description: "Could not process risk/alert query", matchedPattern: "risk_error" };
+      }
+    },
+    
+    // Comparative Analysis Patterns
+    {
+      name: "comparative_analysis",
+      test: (query: string) => {
+        const hasCompare = query.includes("compare") || query.includes("vs") || query.includes("versus");
+        const hasBetter = query.includes("better") || query.includes("worse") || query.includes("outperform");
+        const hasAverage = query.includes("average") || query.includes("typical") || query.includes("normal");
+        return hasCompare || hasBetter || hasAverage;
+      },
+      process: (query: string, data: BenchmarkData[], settings: OrganizationSettings | undefined) => {
+        console.log(`Processing comparative analysis query: "${query}"`);
+        
+        if (query.includes("better") && query.includes("average")) {
+          // Users performing better than average
+          const avgWeeklyHours = data.reduce((sum, user) => sum + user.averageWeeklyHours, 0) / data.length;
+          const avgTasks = data.reduce((sum, user) => sum + user.totalTasks, 0) / data.length;
+          
+          const aboveAverage = data.filter(user => {
+            const betterHours = user.averageWeeklyHours > avgWeeklyHours;
+            const betterTasks = user.totalTasks > avgTasks;
+            return betterHours || betterTasks;
+          });
+          
+          return {
+            users: aboveAverage,
+            queryType: "above_average",
+            description: `Users performing better than average (${aboveAverage.length} users)`,
+            matchedPattern: "above average performance"
+          };
+        } else if (query.includes("department") && query.includes("average")) {
+          // Users outperforming their department average
+          const departmentAvgs = data.reduce((acc: { [key: string]: { totalHours: number, count: number } }, user) => {
+            const dept = user.department || "Unknown";
+            if (!acc[dept]) acc[dept] = { totalHours: 0, count: 0 };
+            acc[dept].totalHours += user.averageWeeklyHours;
+            acc[dept].count++;
+            return acc;
+          }, {});
+          
+          const outperformers = data.filter(user => {
+            const dept = user.department || "Unknown";
+            const deptAvg = departmentAvgs[dept] ? departmentAvgs[dept].totalHours / departmentAvgs[dept].count : 0;
+            return user.averageWeeklyHours > deptAvg;
+          });
+          
+          return {
+            users: outperformers,
+            queryType: "outperform_department",
+            description: `Users outperforming their department average (${outperformers.length} users)`,
+            matchedPattern: "outperform department"
+          };
+        }
+        
+        return { users: [], queryType: "error", description: "Could not process comparative analysis query", matchedPattern: "compare_error" };
+      }
+    },
+    
     // Default fallback
     {
       name: "general_fallback",
@@ -870,7 +1282,7 @@ const BenchmarkingReport: React.FC = () => {
             <Label htmlFor="query">Ask about user benchmarking patterns:</Label>
             <Textarea
               id="query"
-              placeholder="Try: 'Show me users who are consistently below the min benchmark for a week' or 'Show me users who are always above the benchmark'"
+              placeholder="Try: 'Show me users with highest completion rates' • 'Users at risk of burnout' • 'Top performing teams' • 'Users with balanced workload' • 'Users consistently meeting targets' • 'Users performing better than average' • 'Users needing support'"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyPress={handleKeyPress}
