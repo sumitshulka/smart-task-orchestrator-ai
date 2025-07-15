@@ -20,8 +20,9 @@ html, body {
 
 /* Fix sidebar positioning to prevent overlap with browser chrome in new tabs */
 .group.peer > div:last-child {
-  top: 0 !important;
+  top: 56px !important;
   position: fixed !important;
+  height: calc(100vh - 56px) !important;
 }
 
 /* Definition of the design system. All colors, gradients, fonts, etc should be defined here. */
