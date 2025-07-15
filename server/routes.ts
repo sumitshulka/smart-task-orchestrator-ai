@@ -6,6 +6,12 @@ import { db } from "./db";
 import bcrypt from "bcrypt";
 
 // Role-based access control middleware
+// Cache roles and user roles to avoid repeated database calls
+let rolesCache: any[] = [];
+let rolesCacheTime = 0;
+const userRolesCache = new Map<string, { roles: string[]; time: number }>();
+const CACHE_TTL = 60000; // 1 minute cache
+
 function requireRole(allowedRoles: string[]) {
   return async (req: any, res: any, next: any) => {
     try {
@@ -14,14 +20,32 @@ function requireRole(allowedRoles: string[]) {
         return res.status(401).json({ error: "Authentication required" });
       }
 
-      // Get user roles
-      const userRoles = await storage.getUserRoles(userId);
-      const allRoles = await storage.getAllRoles();
+      // Check user roles cache first
+      const userCacheEntry = userRolesCache.get(userId);
+      let roleNames: string[];
       
-      const roleNames = userRoles.map(ur => {
-        const role = allRoles.find(r => r.id === ur.role_id);
-        return role?.name;
-      }).filter(Boolean);
+      if (userCacheEntry && Date.now() - userCacheEntry.time < CACHE_TTL) {
+        roleNames = userCacheEntry.roles;
+      } else {
+        // Get user roles (this query is already optimized with indexes)
+        const userRoles = await storage.getUserRoles(userId);
+        
+        // Use cached roles if available and fresh
+        let allRoles = rolesCache;
+        if (!allRoles.length || Date.now() - rolesCacheTime > CACHE_TTL) {
+          allRoles = await storage.getAllRoles();
+          rolesCache = allRoles;
+          rolesCacheTime = Date.now();
+        }
+        
+        roleNames = userRoles.map(ur => {
+          const role = allRoles.find(r => r.id === ur.role_id);
+          return role?.name;
+        }).filter(Boolean);
+        
+        // Cache user roles
+        userRolesCache.set(userId, { roles: roleNames, time: Date.now() });
+      }
 
       // Check if user has any of the allowed roles
       const hasPermission = allowedRoles.some(role => roleNames.includes(role)) || 

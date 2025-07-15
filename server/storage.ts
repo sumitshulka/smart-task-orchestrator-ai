@@ -386,7 +386,8 @@ export class DatabaseStorage implements IStorage {
       })
       .from(userRoles)
       .leftJoin(roles, eq(userRoles.role_id, roles.id))
-      .where(eq(userRoles.user_id, userId));
+      .where(eq(userRoles.user_id, userId))
+      .limit(10); // Add limit to prevent runaway queries
   }
 
   async assignUserRole(userId: string, roleId: string): Promise<UserRole> {
