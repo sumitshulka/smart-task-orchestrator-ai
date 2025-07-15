@@ -5,6 +5,52 @@ import { insertUserSchema, insertTaskSchema, insertTeamSchema, insertTaskGroupSc
 import { db } from "./db";
 import bcrypt from "bcrypt";
 
+// Role-based access control middleware
+function requireRole(allowedRoles: string[]) {
+  return async (req: any, res: any, next: any) => {
+    try {
+      const userId = req.headers['x-user-id'];
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      // Get user roles
+      const userRoles = await storage.getUserRoles(userId);
+      const allRoles = await storage.getAllRoles();
+      
+      const roleNames = userRoles.map(ur => {
+        const role = allRoles.find(r => r.id === ur.role_id);
+        return role?.name;
+      }).filter(Boolean);
+
+      // Check if user has any of the allowed roles
+      const hasPermission = allowedRoles.some(role => roleNames.includes(role)) || 
+                           roleNames.includes('admin'); // Admin always has access
+
+      if (!hasPermission) {
+        return res.status(403).json({ error: "Insufficient permissions" });
+      }
+
+      req.userRoles = roleNames;
+      next();
+    } catch (error) {
+      console.error('Role check error:', error);
+      return res.status(500).json({ error: "Authorization failed" });
+    }
+  };
+}
+
+// Convenience middleware functions
+const requireAdmin = requireRole(['admin']);
+const requireManagerOrAdmin = requireRole(['admin', 'manager', 'team_manager']);
+const requireAnyAuthenticated = async (req: any, res: any, next: any) => {
+  const userId = req.headers['x-user-id'];
+  if (!userId) {
+    return res.status(401).json({ error: "Authentication required" });
+  }
+  next();
+};
+
 export async function registerRoutes(app: Express): Promise<Server> {
   // Authentication routes
   app.post("/api/auth/login", async (req, res) => {
@@ -36,8 +82,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // User management routes
-  app.get("/api/users", async (req, res) => {
+  // User management routes - Admin/Manager only
+  app.get("/api/users", requireManagerOrAdmin, async (req, res) => {
     try {
       const users = await storage.getAllUsers();
       res.json(users);
@@ -58,7 +104,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/users", async (req, res) => {
+  app.post("/api/users", requireAdmin, async (req, res) => {
     try {
       const userData = insertUserSchema.parse(req.body);
       const user = await storage.createUser(userData);
@@ -68,7 +114,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch("/api/users/:id", async (req, res) => {
+  app.patch("/api/users/:id", requireManagerOrAdmin, async (req, res) => {
     try {
       const user = await storage.updateUser(req.params.id, req.body);
       res.json(user);
@@ -137,8 +183,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Task management routes
-  app.get("/api/tasks", async (req, res) => {
+  // Task management routes - Authenticated access
+  app.get("/api/tasks", requireAnyAuthenticated, async (req, res) => {
     try {
       const tasks = await storage.getAllTasks();
       res.json(tasks);
@@ -159,7 +205,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/tasks", async (req, res) => {
+  app.post("/api/tasks", requireAnyAuthenticated, async (req, res) => {
     try {
       console.log("[DEBUG] Task creation request body:", JSON.stringify(req.body, null, 2));
       const taskData = insertTaskSchema.parse(req.body);
@@ -186,7 +232,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch("/api/tasks/:id", async (req, res) => {
+  app.patch("/api/tasks/:id", requireAnyAuthenticated, async (req, res) => {
     try {
       console.log("[DEBUG] Task update request body:", JSON.stringify(req.body, null, 2));
       const oldTask = await storage.getTask(req.params.id);
@@ -220,7 +266,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/tasks/:id", async (req, res) => {
+  app.delete("/api/tasks/:id", requireAnyAuthenticated, async (req, res) => {
     try {
       await storage.deleteTask(req.params.id);
       res.status(204).send();
@@ -239,8 +285,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Team management routes
-  app.get("/api/teams", async (req, res) => {
+  // Team management routes - Manager/Admin only
+  app.get("/api/teams", requireManagerOrAdmin, async (req, res) => {
     try {
       const teams = await storage.getAllTeams();
       res.json(teams);
@@ -261,7 +307,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/teams", async (req, res) => {
+  app.post("/api/teams", requireManagerOrAdmin, async (req, res) => {
     try {
       const teamData = insertTeamSchema.parse(req.body);
       const team = await storage.createTeam(teamData);
@@ -271,7 +317,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch("/api/teams/:id", async (req, res) => {
+  app.patch("/api/teams/:id", requireManagerOrAdmin, async (req, res) => {
     try {
       const team = await storage.updateTeam(req.params.id, req.body);
       res.json(team);
@@ -280,7 +326,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/teams/:id", async (req, res) => {
+  app.delete("/api/teams/:id", requireAdmin, async (req, res) => {
     try {
       await storage.deleteTeam(req.params.id);
       res.status(204).send();
@@ -318,8 +364,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Role management routes
-  app.get("/api/roles", async (req, res) => {
+  // Role management routes - Admin only for modifications, authenticated for read
+  app.get("/api/roles", requireAnyAuthenticated, async (req, res) => {
     try {
       const roles = await storage.getAllRoles();
       res.json(roles);
@@ -328,7 +374,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/roles", async (req, res) => {
+  app.post("/api/roles", requireAdmin, async (req, res) => {
     try {
       const roleData = insertRoleSchema.parse(req.body);
       const role = await storage.createRole(roleData);
@@ -338,7 +384,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/roles/:id", async (req, res) => {
+  app.put("/api/roles/:id", requireAdmin, async (req, res) => {
     try {
       const role = await storage.updateRole(req.params.id, req.body);
       res.json(role);
@@ -347,7 +393,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/roles/:id", async (req, res) => {
+  app.delete("/api/roles/:id", requireAdmin, async (req, res) => {
     try {
       await storage.deleteRole(req.params.id);
       res.status(204).send();
@@ -375,7 +421,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/users/:userId/roles", async (req, res) => {
+  app.post("/api/users/:userId/roles", requireAdmin, async (req, res) => {
     try {
       const { roleId } = req.body;
       const userRole = await storage.assignUserRole(req.params.userId, roleId);
@@ -385,7 +431,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/users/:userId/roles/:roleId", async (req, res) => {
+  app.delete("/api/users/:userId/roles/:roleId", requireAdmin, async (req, res) => {
     try {
       await storage.removeUserRole(req.params.userId, req.params.roleId);
       res.status(204).send();
@@ -404,7 +450,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/task-groups", async (req, res) => {
+  app.post("/api/task-groups", requireManagerOrAdmin, async (req, res) => {
     try {
       const groupData = insertTaskGroupSchema.parse(req.body);
       const group = await storage.createTaskGroup(groupData);
@@ -414,7 +460,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/task-groups/:id", async (req, res) => {
+  app.delete("/api/task-groups/:id", requireManagerOrAdmin, async (req, res) => {
     try {
       await storage.deleteTaskGroup(req.params.id);
       res.status(204).send();
@@ -423,8 +469,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Task status routes
-  app.get("/api/task-statuses", async (req, res) => {
+  // Task status routes - Read open, modify admin only
+  app.get("/api/task-statuses", requireAnyAuthenticated, async (req, res) => {
     try {
       const statuses = await storage.getAllTaskStatuses();
       res.json(statuses);
@@ -475,7 +521,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/role-permissions", async (req, res) => {
+  app.post("/api/role-permissions", requireAdmin, async (req, res) => {
     try {
       const permission = await storage.createRolePermission(req.body);
       res.json(permission);
@@ -484,7 +530,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch("/api/role-permissions/:id", async (req, res) => {
+  app.patch("/api/role-permissions/:id", requireAdmin, async (req, res) => {
     try {
       const { id } = req.params;
       const permission = await storage.updateRolePermission(id, req.body);
@@ -494,7 +540,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/role-permissions/:id", async (req, res) => {
+  app.delete("/api/role-permissions/:id", requireAdmin, async (req, res) => {
     try {
       const { id } = req.params;
       await storage.deleteRolePermission(id);
@@ -514,8 +560,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Task status management routes
-  app.post("/api/task-statuses", async (req, res) => {
+  // Task status management routes - Admin only
+  app.post("/api/task-statuses", requireAdmin, async (req, res) => {
     try {
       const { name, description, color, sequence_order } = req.body;
       if (!name || typeof sequence_order !== 'number') {
@@ -535,7 +581,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch("/api/task-statuses/:id", async (req, res) => {
+  app.patch("/api/task-statuses/:id", requireAdmin, async (req, res) => {
     try {
       const { id } = req.params;
       const status = await storage.updateTaskStatus(id, req.body);
@@ -546,7 +592,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/task-statuses/:id", async (req, res) => {
+  app.delete("/api/task-statuses/:id", requireAdmin, async (req, res) => {
     try {
       const { id } = req.params;
       await storage.deleteTaskStatus(id);

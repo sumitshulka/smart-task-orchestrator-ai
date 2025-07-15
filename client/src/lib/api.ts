@@ -6,9 +6,15 @@ const API_BASE = import.meta.env.VITE_API_BASE || '';
 class ApiClient {
   private async request(endpoint: string, options: RequestInit = {}) {
     const url = `${API_BASE}/api${endpoint}`;
+    
+    // Get current user for authentication
+    const userStr = localStorage.getItem('user');
+    const user = userStr ? JSON.parse(userStr) : null;
+    
     const response = await fetch(url, {
       headers: {
         'Content-Type': 'application/json',
+        ...(user?.id && { 'x-user-id': user.id }),
         ...options.headers,
       },
       ...options,
