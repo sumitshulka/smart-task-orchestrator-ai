@@ -23,6 +23,7 @@ import TaskOverdueReport from "@/pages/TaskOverdueReportAdvanced";
 import TaskGroupsPage from "./pages/TaskGroups";
 import MyTeams from "./pages/MyTeams";
 import Benchmarking from "./pages/Benchmarking";
+import BenchmarkingReport from "./pages/BenchmarkingReport";
 import { RoleProvider } from "@/contexts/RoleProvider";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { queryClient } from "@/lib/queryClient";
@@ -140,6 +141,14 @@ const App = () => (
               element={
                 <AdminLayout>
                   <AnalyticsReport />
+                </AdminLayout>
+              }
+            />
+            <Route
+              path="/admin/reports/benchmarking"
+              element={
+                <AdminLayout>
+                  <BenchmarkingReport />
                 </AdminLayout>
               }
             />
