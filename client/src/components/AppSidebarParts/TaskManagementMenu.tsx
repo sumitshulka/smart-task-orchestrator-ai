@@ -12,7 +12,7 @@ export default function TaskManagementMenu({ collapsed }: { collapsed: boolean }
         <ul className="flex w-full min-w-0 flex-col gap-1">
           <li className="group/menu-item relative">
             <NavLink
-              to="/tasks"
+              to="/admin/tasks"
               end
               className={({ isActive }) =>
                 "flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm outline-none transition-[width,height,padding] hover:bg-gray-100 focus-visible:ring-2 " +
@@ -25,7 +25,7 @@ export default function TaskManagementMenu({ collapsed }: { collapsed: boolean }
           </li>
           <li className="group/menu-item relative">
             <NavLink
-              to="/task-groups"
+              to="/admin/task-groups"
               end
               className={({ isActive }) =>
                 "flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm outline-none transition-[width,height,padding] hover:bg-gray-100 focus-visible:ring-2 " +
@@ -38,7 +38,7 @@ export default function TaskManagementMenu({ collapsed }: { collapsed: boolean }
           </li>
           <li className="group/menu-item relative">
             <NavLink
-              to="/my-tasks"
+              to="/admin/my-tasks"
               end
               className={({ isActive }) =>
                 "flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm outline-none transition-[width,height,padding] hover:bg-gray-100 focus-visible:ring-2 " +
@@ -51,7 +51,7 @@ export default function TaskManagementMenu({ collapsed }: { collapsed: boolean }
           </li>
           <li className="group/menu-item relative">
             <NavLink
-              to="/historical-tasks"
+              to="/admin/historical-tasks"
               end
               className={({ isActive }) =>
                 "flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm outline-none transition-[width,height,padding] hover:bg-gray-100 focus-visible:ring-2 " +

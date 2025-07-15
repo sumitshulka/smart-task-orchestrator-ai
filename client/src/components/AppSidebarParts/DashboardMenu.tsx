@@ -12,7 +12,7 @@ export default function DashboardMenu({ isUserOnly, collapsed }: { isUserOnly: b
         <ul className="flex w-full min-w-0 flex-col gap-1">
           <li className="group/menu-item relative">
             <NavLink
-              to="/"
+              to="/admin/dashboard"
               end
               className={({ isActive }) =>
                 "flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm outline-none transition-[width,height,padding] hover:bg-gray-100 focus-visible:ring-2 " +
@@ -20,24 +20,10 @@ export default function DashboardMenu({ isUserOnly, collapsed }: { isUserOnly: b
               }
             >
               <Home className="w-4 h-4 shrink-0" />
-              {!collapsed && <span className="truncate">Home</span>}
+              {!collapsed && <span className="truncate">Dashboard</span>}
             </NavLink>
           </li>
-          {!isUserOnly && (
-            <li className="group/menu-item relative">
-              <NavLink
-                to="/analytics"
-                end
-                className={({ isActive }) =>
-                  "flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm outline-none transition-[width,height,padding] hover:bg-gray-100 focus-visible:ring-2 " +
-                  (isActive ? "bg-gray-100 font-medium" : "")
-                }
-              >
-                <BarChart3 className="w-4 h-4 shrink-0" />
-                {!collapsed && <span className="truncate">Analytics</span>}
-              </NavLink>
-            </li>
-          )}
+
         </ul>
       </div>
     </div>
