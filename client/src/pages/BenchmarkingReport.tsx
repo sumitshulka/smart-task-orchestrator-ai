@@ -315,6 +315,160 @@ const BenchmarkingReport: React.FC = () => {
     }
   };
 
+  // Pattern-based Query Processors
+  interface QueryProcessor {
+    name: string;
+    test: (query: string) => boolean;
+    process: (query: string, data: BenchmarkData[], settings: OrganizationSettings | undefined) => {
+      users: BenchmarkData[];
+      queryType: string;
+      description: string;
+      matchedPattern: string;
+    };
+  }
+
+  const queryProcessors: QueryProcessor[] = [
+    // Percentage-based performance analysis
+    {
+      name: "surpass_exceed_percentage",
+      test: (query: string) => {
+        const hasAction = query.includes("surpass") || query.includes("exceed") || query.includes("over");
+        const hasPercentage = query.includes("%");
+        const hasTime = query.includes("hour") || query.includes("week") || query.includes("day");
+        return hasAction && hasPercentage && hasTime;
+      },
+      process: (query: string, data: BenchmarkData[], settings: OrganizationSettings | undefined) => {
+        console.log(`Processing surpass/exceed percentage query: "${query}"`);
+        
+        const percentMatch = query.match(/(?:more than|over|above)\s+(\d+)%/) || query.match(/by\s+more\s+than\s+(\d+)%/);
+        if (!percentMatch) {
+          return { users: [], queryType: "error", description: "Could not parse percentage", matchedPattern: "percentage_parse_error" };
+        }
+        
+        const percentThreshold = parseInt(percentMatch[1]);
+        console.log(`Extracted percentage threshold: ${percentThreshold}%`);
+        
+        if (query.includes("week") || query.includes("weekly")) {
+          const targetHours = settings?.min_hours_per_week || 35;
+          console.log(`Using weekly target: ${targetHours} hours`);
+          
+          const filteredUsers = data.filter(user => {
+            const actualHours = user.averageWeeklyHours;
+            const exceedPercentage = ((actualHours - targetHours) / targetHours) * 100;
+            const matches = exceedPercentage > percentThreshold;
+            console.log(`User ${user.userName}: ${actualHours}h vs ${targetHours}h target = ${exceedPercentage.toFixed(1)}% (${matches ? 'MATCH' : 'no match'})`);
+            return matches;
+          });
+          
+          return {
+            users: filteredUsers,
+            queryType: "weekly_hours_exceed_percent",
+            description: `Users who exceeded weekly hour targets by more than ${percentThreshold}%`,
+            matchedPattern: `weekly hours exceed > ${percentThreshold}%`
+          };
+        } else if (query.includes("day") || query.includes("daily")) {
+          const targetHours = settings?.min_hours_per_day || 8;
+          const filteredUsers = data.filter(user => {
+            const actualHours = user.averageDailyHours;
+            const exceedPercentage = ((actualHours - targetHours) / targetHours) * 100;
+            return exceedPercentage > percentThreshold;
+          });
+          
+          return {
+            users: filteredUsers,
+            queryType: "daily_hours_exceed_percent",
+            description: `Users who exceeded daily hour targets by more than ${percentThreshold}%`,
+            matchedPattern: `daily hours exceed > ${percentThreshold}%`
+          };
+        }
+        
+        return { users: [], queryType: "error", description: "Could not determine time period", matchedPattern: "time_period_error" };
+      }
+    },
+    
+    // Hours-based filtering
+    {
+      name: "hours_above_threshold",
+      test: (query: string) => {
+        return query.includes("hour") && (query.includes("more than") || query.includes("over") || query.includes("above")) && !query.includes("%");
+      },
+      process: (query: string, data: BenchmarkData[], settings: OrganizationSettings | undefined) => {
+        const hoursMatch = query.match(/(?:more than|over|above)\s+(\d+)\s+hour/);
+        if (!hoursMatch) return { users: [], queryType: "error", description: "Could not parse hours", matchedPattern: "hours_parse_error" };
+        
+        const threshold = parseInt(hoursMatch[1]);
+        let filteredUsers: BenchmarkData[];
+        
+        if (query.includes("week")) {
+          filteredUsers = data.filter(user => user.averageWeeklyHours > threshold);
+          return {
+            users: filteredUsers,
+            queryType: "hours_above",
+            description: `Users with more than ${threshold} hours per week`,
+            matchedPattern: `weekly hours > ${threshold}`
+          };
+        } else {
+          filteredUsers = data.filter(user => user.averageDailyHours > threshold);
+          return {
+            users: filteredUsers,
+            queryType: "hours_above",
+            description: `Users with more than ${threshold} hours per day`,
+            matchedPattern: `daily hours > ${threshold}`
+          };
+        }
+      }
+    },
+    
+    // Department/Team filtering
+    {
+      name: "department_filter",
+      test: (query: string) => query.includes("department") || query.includes("team"),
+      process: (query: string, data: BenchmarkData[], settings: OrganizationSettings | undefined) => {
+        let dept = null;
+        const patterns = [
+          /(?:department|team)\s+(\w+)/,
+          /(?:from|in)\s+(\w+)\s+(?:department|team)/,
+          /(\w+)\s+(?:department|team)/
+        ];
+        
+        for (const pattern of patterns) {
+          const match = query.match(pattern);
+          if (match) {
+            dept = match[1];
+            break;
+          }
+        }
+        
+        if (!dept) return { users: [], queryType: "error", description: "Could not extract department", matchedPattern: "dept_parse_error" };
+        
+        const filteredUsers = data.filter(user => 
+          user.department.toLowerCase().includes(dept.toLowerCase())
+        );
+        
+        return {
+          users: filteredUsers,
+          queryType: "department_filter",
+          description: `Users from ${dept} department/team`,
+          matchedPattern: `department/team: ${dept}`
+        };
+      }
+    },
+    
+    // Default fallback
+    {
+      name: "general_fallback",
+      test: (query: string) => true, // Always matches as fallback
+      process: (query: string, data: BenchmarkData[], settings: OrganizationSettings | undefined) => {
+        return {
+          users: data,
+          queryType: "general",
+          description: "All users benchmarking data",
+          matchedPattern: "general query"
+        };
+      }
+    }
+  ];
+
   // NLP Query Processing
   const processNaturalLanguageQuery = async () => {
     if (!query.trim()) return;
@@ -411,7 +565,6 @@ const BenchmarkingReport: React.FC = () => {
     try {
       console.log(`Starting pattern matching for query: "${lowerQuery}"`);
       console.log(`Data available: queryBenchmarkingData has ${queryBenchmarkingData?.length || 0} users`);
-      console.log(`QueryBenchmarkingData:`, queryBenchmarkingData);
       
       if (!queryBenchmarkingData || queryBenchmarkingData.length === 0) {
         console.log(`No data available for analysis, using fallback`);
@@ -420,368 +573,21 @@ const BenchmarkingReport: React.FC = () => {
         description = "No benchmarking data available";
         matchedPattern = "no data";
       } else {
-        console.log(`Data exists, proceeding with pattern matching`);
-        // Pattern matching for different query types
-        console.log(`Testing first condition: achieved/surpassed/exceeded + benchmark`);
-        if ((lowerQuery.includes("achieved") || lowerQuery.includes("surpassed") || lowerQuery.includes("exceeded")) && lowerQuery.includes("benchmark")) {
-          console.log(`Matched: achieved/surpassed/exceeded benchmark`);
-          matchedUsers = queryBenchmarkingData.filter(user => 
-            user.averageWeeklyHours >= settings?.min_hours_per_week || user.totalHoursInPeriod >= settings?.min_hours_per_week
-          );
-          queryType = "achieved_benchmark";
-          description = "Users who have achieved, surpassed, or exceeded the benchmark";
-          matchedPattern = "achieved/surpassed/exceeded benchmark";
-        }
-        else if (lowerQuery.includes("consistently below") && lowerQuery.includes("min")) {
-          console.log(`Testing condition: consistently below min`);
-          matchedUsers = queryBenchmarkingData.filter(user => user.isConsistentlyLow);
-          queryType = "consistently_below_min";
-          description = "Users who are consistently below minimum benchmark";
-          matchedPattern = "consistently below min benchmark";
-        }
-        else if (lowerQuery.includes("consistently above") || lowerQuery.includes("always above")) {
-          matchedUsers = queryBenchmarkingData.filter(user => user.isConsistentlyHigh);
-          queryType = "consistently_above_max";
-          description = "Users who are consistently above maximum benchmark";
-          matchedPattern = "consistently/always above benchmark";
-        }
-        else if (lowerQuery.includes("exact") && (lowerQuery.includes("hours") || lowerQuery.includes("benchmark"))) {
-          matchedUsers = queryBenchmarkingData.filter(user => user.isExactHours);
-          queryType = "exact_hours";
-          description = "Users showing exact benchmark hours";
-          matchedPattern = "exact hours/benchmark";
-        }
-        else if (lowerQuery.includes("below") && lowerQuery.includes("min")) {
-          matchedUsers = queryBenchmarkingData.filter(user => user.weeksBelowMin > 0);
-          queryType = "below_min";
-          description = "Users with weeks below minimum benchmark";
-          matchedPattern = "below min";
-        }
-        else if (lowerQuery.includes("above") && lowerQuery.includes("max")) {
-          matchedUsers = queryBenchmarkingData.filter(user => user.weeksAboveMax > 0);
-          queryType = "above_max";
-          description = "Users with weeks above maximum benchmark";
-          matchedPattern = "above max";
-        }
-        else if (lowerQuery.includes("low perform") || lowerQuery.includes("underperform")) {
-        matchedUsers = queryBenchmarkingData.filter(user => 
-          user.averageWeeklyHours < settings?.min_hours_per_week || user.daysBelowMin > user.daysAboveMax
-        );
-        queryType = "low_performance";
-        description = "Low performing users";
-        matchedPattern = "low perform/underperform";
-      }
-      else if (lowerQuery.includes("high perform") || lowerQuery.includes("overperform")) {
-        matchedUsers = queryBenchmarkingData.filter(user => 
-          user.averageWeeklyHours > settings?.max_hours_per_week || user.daysAboveMax > user.daysBelowMin
-        );
-        queryType = "high_performance";
-        description = "High performing users";
-        matchedPattern = "high perform/overperform";
-      }
-      else if (lowerQuery.includes("task") && (lowerQuery.includes("more than") || lowerQuery.includes("greater than") || lowerQuery.includes("over") || lowerQuery.includes("above"))) {
-        // Parse numerical task count conditions like "more than 5 tasks"
-        const taskCountMatch = lowerQuery.match(/(?:more than|greater than|over|above)\s+(\d+)\s+task/);
-        if (taskCountMatch) {
-          const threshold = parseInt(taskCountMatch[1]);
-          matchedUsers = queryBenchmarkingData.filter(user => user.totalTasks > threshold);
-          queryType = "task_count_above";
-          description = `Users with more than ${threshold} tasks`;
-          matchedPattern = `task count > ${threshold}`;
-          console.log(`Task count filtering: threshold=${threshold}, matched=${matchedUsers.length} users`);
-        }
-      }
-      else if (lowerQuery.includes("task") && (lowerQuery.includes("less than") || lowerQuery.includes("fewer than") || lowerQuery.includes("under") || lowerQuery.includes("below"))) {
-        // Parse numerical task count conditions like "less than 3 tasks"
-        const taskCountMatch = lowerQuery.match(/(?:less than|fewer than|under|below)\s+(\d+)\s+task/);
-        if (taskCountMatch) {
-          const threshold = parseInt(taskCountMatch[1]);
-          matchedUsers = queryBenchmarkingData.filter(user => user.totalTasks < threshold);
-          queryType = "task_count_below";
-          description = `Users with less than ${threshold} tasks`;
-          matchedPattern = `task count < ${threshold}`;
-          console.log(`Task count filtering: threshold=${threshold}, matched=${matchedUsers.length} users`);
-        }
-      }
-      else if (lowerQuery.includes("task") && (lowerQuery.includes("exactly") || lowerQuery.includes("equal") || lowerQuery.match(/\b(\d+)\s+task/))) {
-        // Parse exact task count like "exactly 5 tasks" or "5 tasks"
-        let taskCountMatch = lowerQuery.match(/exactly\s+(\d+)\s+task/) || lowerQuery.match(/equal\s+to\s+(\d+)\s+task/);
-        if (!taskCountMatch) {
-          taskCountMatch = lowerQuery.match(/\b(\d+)\s+task/);
-        }
-        if (taskCountMatch) {
-          const exactCount = parseInt(taskCountMatch[1]);
-          matchedUsers = queryBenchmarkingData.filter(user => user.totalTasks === exactCount);
-          queryType = "task_count_exact";
-          description = `Users with exactly ${exactCount} tasks`;
-          matchedPattern = `task count = ${exactCount}`;
-          console.log(`Task count filtering: exactCount=${exactCount}, matched=${matchedUsers.length} users`);
-        }
-      }
-      else if (lowerQuery.includes("hour") && (lowerQuery.includes("more than") || lowerQuery.includes("greater than") || lowerQuery.includes("over") || lowerQuery.includes("above"))) {
-        // Parse numerical hours conditions like "more than 20 hours per week"
-        const hoursMatch = lowerQuery.match(/(?:more than|greater than|over|above)\s+(\d+)\s+hour/);
-        if (hoursMatch) {
-          const threshold = parseInt(hoursMatch[1]);
-          if (lowerQuery.includes("week")) {
-            matchedUsers = queryBenchmarkingData.filter(user => user.averageWeeklyHours > threshold);
-            description = `Users with more than ${threshold} hours per week`;
-            matchedPattern = `weekly hours > ${threshold}`;
-          } else if (lowerQuery.includes("day")) {
-            matchedUsers = queryBenchmarkingData.filter(user => user.averageDailyHours > threshold);
-            description = `Users with more than ${threshold} hours per day`;
-            matchedPattern = `daily hours > ${threshold}`;
-          } else {
-            matchedUsers = queryBenchmarkingData.filter(user => user.averageWeeklyHours > threshold);
-            description = `Users with more than ${threshold} hours (weekly average)`;
-            matchedPattern = `weekly hours > ${threshold}`;
-          }
-          queryType = "hours_above";
-          console.log(`Hours filtering: threshold=${threshold}, matched=${matchedUsers.length} users`);
-        }
-      }
-      else if (lowerQuery.includes("hour") && (lowerQuery.includes("less than") || lowerQuery.includes("fewer than") || lowerQuery.includes("under") || lowerQuery.includes("below"))) {
-        // Parse numerical hours conditions like "less than 10 hours per week"
-        const hoursMatch = lowerQuery.match(/(?:less than|fewer than|under|below)\s+(\d+)\s+hour/);
-        if (hoursMatch) {
-          const threshold = parseInt(hoursMatch[1]);
-          if (lowerQuery.includes("week")) {
-            matchedUsers = queryBenchmarkingData.filter(user => user.averageWeeklyHours < threshold);
-            description = `Users with less than ${threshold} hours per week`;
-            matchedPattern = `weekly hours < ${threshold}`;
-          } else if (lowerQuery.includes("day")) {
-            matchedUsers = queryBenchmarkingData.filter(user => user.averageDailyHours < threshold);
-            description = `Users with less than ${threshold} hours per day`;
-            matchedPattern = `daily hours < ${threshold}`;
-          } else {
-            matchedUsers = queryBenchmarkingData.filter(user => user.averageWeeklyHours < threshold);
-            description = `Users with less than ${threshold} hours (weekly average)`;
-            matchedPattern = `weekly hours < ${threshold}`;
-          }
-          queryType = "hours_below";
-          console.log(`Hours filtering: threshold=${threshold}, matched=${matchedUsers.length} users`);
-        }
-        }
-        else if (lowerQuery.includes("surpass") || lowerQuery.includes("exceed") || (lowerQuery.includes("over") && lowerQuery.includes("%"))) {
-        console.log(`*** TESTING SURPASS CONDITION: query="${lowerQuery}" ***`);
-        console.log(`*** SURPASS CHECK: includes surpass=${lowerQuery.includes("surpass")}, includes exceed=${lowerQuery.includes("exceed")}, includes over=${lowerQuery.includes("over")}, includes %=${lowerQuery.includes("%")} ***`);
-        console.log(`*** ENTERING SURPASS/EXCEED CONDITION ***`);
-        console.log(`Matched: surpass/exceed/over with % pattern`);
-        console.log(`Condition breakdown: surpass=${lowerQuery.includes("surpass")}, exceed=${lowerQuery.includes("exceed")}, over=${lowerQuery.includes("over")}, %=${lowerQuery.includes("%")}`);
-        // Parse percentage-based performance queries like "surpassed their hours by more than 10%"
-        const percentMatch = lowerQuery.match(/(?:more than|over|above)\s+(\d+)%/) || lowerQuery.match(/by\s+more\s+than\s+(\d+)%/);
-        console.log(`Percentage match result:`, percentMatch);
-        console.log(`Query contains: surpass=${lowerQuery.includes("surpass")}, exceed=${lowerQuery.includes("exceed")}, over=${lowerQuery.includes("over")}, %=${lowerQuery.includes("%")}`);
-        if (percentMatch) {
-          const percentThreshold = parseInt(percentMatch[1]);
-          
-          if (lowerQuery.includes("hour") && (lowerQuery.includes("week") || lowerQuery.includes("weekly"))) {
-            // Users who exceeded weekly hour targets by X%
-            matchedUsers = queryBenchmarkingData.filter(user => {
-              const targetHours = settings?.min_hours_per_week || 35;
-              const actualHours = user.averageWeeklyHours;
-              const exceedPercentage = ((actualHours - targetHours) / targetHours) * 100;
-              return exceedPercentage > percentThreshold;
-            });
-            queryType = "weekly_hours_exceed_percent";
-            description = `Users who exceeded weekly hour targets by more than ${percentThreshold}%`;
-            matchedPattern = `weekly hours exceed > ${percentThreshold}%`;
-          } else if (lowerQuery.includes("hour") && (lowerQuery.includes("day") || lowerQuery.includes("daily"))) {
-            // Users who exceeded daily hour targets by X%
-            matchedUsers = queryBenchmarkingData.filter(user => {
-              const targetHours = settings?.min_hours_per_day || 8;
-              const actualHours = user.averageDailyHours;
-              const exceedPercentage = ((actualHours - targetHours) / targetHours) * 100;
-              return exceedPercentage > percentThreshold;
-            });
-            queryType = "daily_hours_exceed_percent";
-            description = `Users who exceeded daily hour targets by more than ${percentThreshold}%`;
-            matchedPattern = `daily hours exceed > ${percentThreshold}%`;
-          } else {
-            // Default to weekly hours
-            matchedUsers = queryBenchmarkingData.filter(user => {
-              const targetHours = settings?.min_hours_per_week || 35;
-              const actualHours = user.averageWeeklyHours;
-              const exceedPercentage = ((actualHours - targetHours) / targetHours) * 100;
-              return exceedPercentage > percentThreshold;
-            });
-            queryType = "hours_exceed_percent";
-            description = `Users who exceeded hour targets by more than ${percentThreshold}%`;
-            matchedPattern = `hours exceed > ${percentThreshold}%`;
-          }
-          console.log(`Percentage filtering: threshold=${percentThreshold}%, matched=${matchedUsers.length} users`);
-        } else {
-          console.log(`No percentage match found in query: "${lowerQuery}"`);
-        }
-      }
-      else if (lowerQuery.includes("underperform") || lowerQuery.includes("below") && lowerQuery.includes("%")) {
-        // Parse percentage-based underperformance queries like "below target by more than 20%"
-        const percentMatch = lowerQuery.match(/(?:more than|over|above|by)\s+(\d+)%/);
-        if (percentMatch) {
-          const percentThreshold = parseInt(percentMatch[1]);
-          
-          if (lowerQuery.includes("hour") && (lowerQuery.includes("week") || lowerQuery.includes("weekly"))) {
-            matchedUsers = benchmarkingData.filter(user => {
-              const targetHours = settings?.min_hours_per_week || 35;
-              const actualHours = user.averageWeeklyHours;
-              const underPercentage = ((targetHours - actualHours) / targetHours) * 100;
-              return underPercentage > percentThreshold;
-            });
-            queryType = "weekly_hours_under_percent";
-            description = `Users below weekly hour targets by more than ${percentThreshold}%`;
-            matchedPattern = `weekly hours under > ${percentThreshold}%`;
-          } else {
-            matchedUsers = benchmarkingData.filter(user => {
-              const targetHours = settings?.min_hours_per_week || 35;
-              const actualHours = user.averageWeeklyHours;
-              const underPercentage = ((targetHours - actualHours) / targetHours) * 100;
-              return underPercentage > percentThreshold;
-            });
-            queryType = "hours_under_percent";
-            description = `Users below hour targets by more than ${percentThreshold}%`;
-            matchedPattern = `hours under > ${percentThreshold}%`;
-          }
-          console.log(`Under-performance filtering: threshold=${percentThreshold}%, matched=${matchedUsers.length} users`);
-        }
-      }
-      else if (lowerQuery.includes("team") && (lowerQuery.includes("best") || lowerQuery.includes("top") || lowerQuery.includes("highest"))) {
-        // Team performance analysis - top performing teams/departments
-        const departmentStats = benchmarkingData.reduce((acc, user) => {
-          const dept = user.department;
-          if (!acc[dept]) {
-            acc[dept] = { users: [], totalHours: 0, totalTasks: 0, count: 0 };
-          }
-          acc[dept].users.push(user);
-          acc[dept].totalHours += user.averageWeeklyHours;
-          acc[dept].totalTasks += user.totalTasks;
-          acc[dept].count += 1;
-          return acc;
-        }, {} as Record<string, { users: any[], totalHours: number, totalTasks: number, count: number }>);
+        console.log(`Data exists, proceeding with processor-based pattern matching`);
         
-        const topDept = Object.entries(departmentStats)
-          .sort(([,a], [,b]) => (b.totalHours / b.count) - (a.totalHours / a.count))[0];
+        // Find the first matching processor
+        const processor = queryProcessors.find(p => p.test(lowerQuery));
+        console.log(`Found matching processor: ${processor?.name || 'none'}`);
         
-        if (topDept) {
-          matchedUsers = topDept[1].users;
-          queryType = "top_team_performance";
-          description = `Users from ${topDept[0]} department (highest performing team)`;
-          matchedPattern = `top team: ${topDept[0]}`;
-          console.log(`Team performance analysis: top department=${topDept[0]}, avg hours=${(topDept[1].totalHours / topDept[1].count).toFixed(1)}`);
+        if (processor) {
+          const result = processor.process(lowerQuery, queryBenchmarkingData, settings);
+          matchedUsers = result.users;
+          queryType = result.queryType;
+          description = result.description;
+          matchedPattern = result.matchedPattern;
+          console.log(`Processor result: ${matchedUsers.length} users matched, type: ${queryType}`);
         }
       }
-      else if (lowerQuery.includes("team") && (lowerQuery.includes("worst") || lowerQuery.includes("bottom") || lowerQuery.includes("lowest"))) {
-        // Team performance analysis - bottom performing teams/departments
-        const departmentStats = benchmarkingData.reduce((acc, user) => {
-          const dept = user.department;
-          if (!acc[dept]) {
-            acc[dept] = { users: [], totalHours: 0, totalTasks: 0, count: 0 };
-          }
-          acc[dept].users.push(user);
-          acc[dept].totalHours += user.averageWeeklyHours;
-          acc[dept].totalTasks += user.totalTasks;
-          acc[dept].count += 1;
-          return acc;
-        }, {} as Record<string, { users: any[], totalHours: number, totalTasks: number, count: number }>);
-        
-        const bottomDept = Object.entries(departmentStats)
-          .sort(([,a], [,b]) => (a.totalHours / a.count) - (b.totalHours / b.count))[0];
-        
-        if (bottomDept) {
-          matchedUsers = bottomDept[1].users;
-          queryType = "bottom_team_performance";
-          description = `Users from ${bottomDept[0]} department (lowest performing team)`;
-          matchedPattern = `bottom team: ${bottomDept[0]}`;
-          console.log(`Team performance analysis: bottom department=${bottomDept[0]}, avg hours=${(bottomDept[1].totalHours / bottomDept[1].count).toFixed(1)}`);
-        }
-      }
-      else if (lowerQuery.includes("completion") && lowerQuery.includes("%")) {
-        // Task completion rate analysis
-        const percentMatch = lowerQuery.match(/(?:more than|over|above|less than|below|under)\s+(\d+)%/);
-        const isAbove = lowerQuery.includes("more than") || lowerQuery.includes("over") || lowerQuery.includes("above");
-        
-        if (percentMatch) {
-          const percentThreshold = parseInt(percentMatch[1]);
-          // For now, use a proxy metric - users with tasks vs target task load
-          const avgTaskCount = benchmarkingData.reduce((sum, user) => sum + user.totalTasks, 0) / benchmarkingData.length;
-          
-          if (isAbove) {
-            matchedUsers = benchmarkingData.filter(user => {
-              const completionRate = avgTaskCount > 0 ? (user.totalTasks / avgTaskCount) * 100 : 0;
-              return completionRate > 100 + percentThreshold;
-            });
-            description = `Users with task completion above average by ${percentThreshold}%`;
-            matchedPattern = `completion rate > avg+${percentThreshold}%`;
-          } else {
-            matchedUsers = benchmarkingData.filter(user => {
-              const completionRate = avgTaskCount > 0 ? (user.totalTasks / avgTaskCount) * 100 : 0;
-              return completionRate < 100 - percentThreshold;
-            });
-            description = `Users with task completion below average by ${percentThreshold}%`;
-            matchedPattern = `completion rate < avg-${percentThreshold}%`;
-          }
-          queryType = "completion_rate_analysis";
-          console.log(`Completion rate filtering: threshold=${percentThreshold}%, matched=${matchedUsers.length} users`);
-        }
-      }
-      else if (lowerQuery.includes("group") && (lowerQuery.includes("performance") || lowerQuery.includes("hour") || lowerQuery.includes("task"))) {
-        // Group performance analysis
-        if (lowerQuery.includes("above") || lowerQuery.includes("top")) {
-          matchedUsers = benchmarkingData.filter(user => 
-            user.averageWeeklyHours > (settings?.min_hours_per_week || 35) && user.totalTasks > 0
-          );
-          queryType = "group_above_target";
-          description = "Users in above-target performance group";
-          matchedPattern = "group performance: above target";
-        } else if (lowerQuery.includes("below") || lowerQuery.includes("bottom")) {
-          matchedUsers = queryBenchmarkingData.filter(user => 
-            user.averageWeeklyHours < (settings?.min_hours_per_week || 35) || user.totalTasks === 0
-          );
-          queryType = "group_below_target";
-          description = "Users in below-target performance group";
-          matchedPattern = "group performance: below target";
-        }
-      }
-      else if (lowerQuery.includes("department") || lowerQuery.includes("team")) {
-        // Try multiple patterns to extract department name
-        let dept = null;
-        
-        // Pattern 1: "department administration" or "team sales"
-        let match = lowerQuery.match(/(?:department|team)\s+(\w+)/);
-        if (match) dept = match[1];
-        
-        // Pattern 2: "from administration department" or "in sales team"
-        if (!dept) {
-          match = lowerQuery.match(/(?:from|in)\s+(\w+)\s+(?:department|team)/);
-          if (match) dept = match[1];
-        }
-        
-        // Pattern 3: "administration department" or "sales team" (just department name + word)
-        if (!dept) {
-          match = lowerQuery.match(/(\w+)\s+(?:department|team)/);
-          if (match) dept = match[1];
-        }
-        
-        console.log(`Department query processing: original="${query}", extracted="${dept}"`);
-        
-        if (dept) {
-          matchedUsers = queryBenchmarkingData.filter(user => 
-            user.department.toLowerCase().includes(dept.toLowerCase())
-          );
-          queryType = "department_filter";
-          description = `Users from ${dept} department/team`;
-          matchedPattern = `department/team: ${dept}`;
-        }
-      }
-      else {
-        console.log(`No patterns matched, falling back to general query. Query was: "${lowerQuery}"`);
-        console.log(`Patterns checked: surpass=${lowerQuery.includes("surpass")}, exceed=${lowerQuery.includes("exceed")}, over=${lowerQuery.includes("over")}, %=${lowerQuery.includes("%")}`);
-        // Default to showing all users with some analysis
-        matchedUsers = queryBenchmarkingData;
-        queryType = "general";
-        description = "All users benchmarking data";
-        matchedPattern = "general query";
-      }
-      } // Closing brace for main else block that contains all pattern matching
       
       console.log(`Pattern matching complete. Matched users: ${matchedUsers.length}, Query type: ${queryType}, Description: ${description}`);
 
