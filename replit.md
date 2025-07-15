@@ -97,6 +97,7 @@ Preferred communication style: Simple, everyday language.
 ✓ **User Management Interface Enhancement**: Enhanced user management table to display assigned roles for each user and reorganized layout with user names prominently displayed and email addresses below, matching the manager display format for consistent UI design
 ✓ **Single Role Constraint Implementation**: Enforced single role per user system by modifying assignUserRole function to replace existing roles rather than adding multiple roles, updated UI to reflect single role display and management
 ✓ **Critical Benchmarking Security Vulnerability Fixed**: Resolved major data breach in /api/users endpoint where managers could access all users including admin data - implemented proper role-based visibility filtering so managers only see direct reports and team members
+✓ **Benchmarking Report Access Fixed**: Resolved "benchmarking disabled" error for managers by allowing manager role to read organization settings - managers can now access benchmarking reports while maintaining security restrictions
 
 ## System Architecture
 

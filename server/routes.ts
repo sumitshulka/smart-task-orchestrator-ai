@@ -1144,8 +1144,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Organization settings routes - Admin only
-  app.get("/api/organization-settings", requireAdmin, async (req, res) => {
+  // Organization settings routes - Managers can read, Admin can modify
+  app.get("/api/organization-settings", requireManagerOrAdmin, async (req, res) => {
     try {
       const settings = await storage.getOrganizationSettings();
       res.json(settings);
