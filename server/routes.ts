@@ -1172,6 +1172,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Task status transition endpoints
+  app.get("/api/task-status-transitions", requireAnyAuthenticated, async (req, res) => {
+    try {
+      const transitions = await storage.getAllTaskStatusTransitions();
+      res.json(transitions);
+    } catch (error) {
+      console.error("Failed to get task status transitions:", error);
+      res.status(500).json({ error: "Failed to get task status transitions" });
+    }
+  });
+
+  app.post("/api/task-status-transitions", requireAdmin, async (req, res) => {
+    try {
+      const { from_status, to_status } = req.body;
+      if (!from_status || !to_status) {
+        return res.status(400).json({ error: "from_status and to_status are required" });
+      }
+      
+      const transition = await storage.createTaskStatusTransition({
+        from_status,
+        to_status
+      });
+      res.status(201).json(transition);
+    } catch (error) {
+      console.error("Failed to create task status transition:", error);
+      res.status(500).json({ error: "Failed to create task status transition" });
+    }
+  });
+
+  app.delete("/api/task-status-transitions/:id", requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      await storage.deleteTaskStatusTransition(id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Failed to delete task status transition:", error);
+      res.status(500).json({ error: "Failed to delete task status transition" });
+    }
+  });
+
   // Organization settings routes - Managers can read, Admin can modify
   app.get("/api/organization-settings", requireManagerOrAdmin, async (req, res) => {
     try {

@@ -12,6 +12,7 @@ import {
   taskGroupMembers,
   taskActivity, 
   taskStatuses,
+  taskStatusTransitions,
   rolePermissions,
   deletedUsers,
   deletedTasks,
@@ -30,6 +31,8 @@ import {
   TeamMembership,
   TaskActivity,
   TaskStatus,
+  TaskStatusTransition,
+  InsertTaskStatusTransition,
   RolePermission,
   InsertRolePermission,
   DeletedUser,
@@ -132,6 +135,11 @@ export interface IStorage {
   getOrganizationSettings(): Promise<OrganizationSettings | undefined>;
   createOrganizationSettings(settings: InsertOrganizationSettings): Promise<OrganizationSettings>;
   updateOrganizationSettings(id: string, updates: Partial<OrganizationSettings>): Promise<OrganizationSettings>;
+
+  // Task status transition operations
+  getAllTaskStatusTransitions(): Promise<TaskStatusTransition[]>;
+  createTaskStatusTransition(transition: InsertTaskStatusTransition): Promise<TaskStatusTransition>;
+  deleteTaskStatusTransition(id: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -979,6 +987,20 @@ export class DatabaseStorage implements IStorage {
       updated_at: new Date()
     }).where(eq(organizationSettings.id, id)).returning();
     return result[0];
+  }
+
+  // Task status transition operations
+  async getAllTaskStatusTransitions(): Promise<TaskStatusTransition[]> {
+    return await db.select().from(taskStatusTransitions).orderBy(taskStatusTransitions.created_at);
+  }
+
+  async createTaskStatusTransition(transition: InsertTaskStatusTransition): Promise<TaskStatusTransition> {
+    const result = await db.insert(taskStatusTransitions).values(transition).returning();
+    return result[0];
+  }
+
+  async deleteTaskStatusTransition(id: string): Promise<void> {
+    await db.delete(taskStatusTransitions).where(eq(taskStatusTransitions.id, id));
   }
 }
 

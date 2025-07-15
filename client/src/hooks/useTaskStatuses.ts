@@ -38,51 +38,45 @@ export function useStatusTransitions() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Load transitions from localStorage
-    const loadTransitions = () => {
+    const loadTransitions = async () => {
       try {
-        const savedTransitions = localStorage.getItem('status_transitions');
-        if (savedTransitions) {
-          setTransitionsState(JSON.parse(savedTransitions));
+        // Get the user ID from the session
+        const userSession = (window as any).currentUser;
+        if (!userSession?.id) {
+          console.log('No user session found, skipping transitions load');
+          setTransitionsState([]);
+          setLoading(false);
+          return;
+        }
+
+        const response = await fetch('/api/task-status-transitions', {
+          headers: {
+            'x-user-id': userSession.id
+          }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          setTransitionsState(data);
         } else {
-          // Default transitions for a forward-only workflow
-          const defaultTransitions = [
-            {
-              id: "trans-1",
-              from_status: "pending",
-              to_status: "in_progress",
-              created_at: new Date().toISOString(),
-            },
-            {
-              id: "trans-2",
-              from_status: "in_progress", 
-              to_status: "review",
-              created_at: new Date().toISOString(),
-            },
-            {
-              id: "trans-3",
-              from_status: "review",
-              to_status: "completed",
-              created_at: new Date().toISOString(),
-            }
-          ];
-          localStorage.setItem('status_transitions', JSON.stringify(defaultTransitions));
-          setTransitionsState(defaultTransitions);
+          console.error('Failed to fetch transitions:', response.status);
+          setTransitionsState([]);
         }
       } catch (error) {
-        console.error("Error loading status transitions:", error);
+        console.error('Error loading transitions:', error);
         setTransitionsState([]);
       } finally {
         setLoading(false);
       }
     };
 
-    loadTransitions();
+    // Add a small delay to ensure currentUser is available
+    const timeout = setTimeout(loadTransitions, 100);
+    return () => clearTimeout(timeout);
   }, []);
 
-  const setTransitions = (newTransitions: StatusTransition[]) => {
+  const setTransitions = async (newTransitions: StatusTransition[]) => {
     setTransitionsState(newTransitions);
-    localStorage.setItem('status_transitions', JSON.stringify(newTransitions));
   };
 
   return { transitions, loading, setTransitions };

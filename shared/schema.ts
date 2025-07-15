@@ -161,8 +161,8 @@ export const taskStatuses = pgTable("task_statuses", {
 // Task status transitions
 export const taskStatusTransitions = pgTable("task_status_transitions", {
   id: uuid("id").primaryKey().defaultRandom(),
-  from_status: uuid("from_status").references(() => taskStatuses.id),
-  to_status: uuid("to_status").references(() => taskStatuses.id),
+  from_status: text("from_status").notNull(), // Store status names directly
+  to_status: text("to_status").notNull(), // Store status names directly
   created_at: timestamp("created_at").defaultNow(),
 });
 
@@ -415,6 +415,11 @@ export const insertOrganizationSettingsSchema = createInsertSchema(organizationS
   updated_at: true,
 });
 
+export const insertTaskStatusTransitionSchema = createInsertSchema(taskStatusTransitions).omit({
+  id: true,
+  created_at: true,
+});
+
 // Types
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
@@ -439,3 +444,5 @@ export type InsertDeletedUser = z.infer<typeof insertDeletedUserSchema>;
 export type InsertDeletedTask = z.infer<typeof insertDeletedTaskSchema>;
 export type InsertOrganizationSettings = z.infer<typeof insertOrganizationSettingsSchema>;
 export type OrganizationSettings = typeof organizationSettings.$inferSelect;
+export type InsertTaskStatusTransition = z.infer<typeof insertTaskStatusTransitionSchema>;
+export type TaskStatusTransition = typeof taskStatusTransitions.$inferSelect;
