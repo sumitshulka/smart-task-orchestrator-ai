@@ -1,4 +1,4 @@
-import { eq, desc, and, or } from "drizzle-orm";
+import { eq, desc, and, or, ne } from "drizzle-orm";
 import { db } from "./db";
 import { 
   users, 

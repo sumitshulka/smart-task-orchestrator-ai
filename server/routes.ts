@@ -606,11 +606,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/task-statuses/:id/deletion-preview", requireAdmin, async (req, res) => {
     try {
       const { id } = req.params;
+      console.log("Getting deletion preview for status ID:", id);
       const preview = await storage.getStatusDeletionPreview(id);
+      console.log("Deletion preview result:", preview);
       res.json(preview);
     } catch (error) {
       console.error("Failed to get status deletion preview:", error);
-      res.status(500).json({ error: "Failed to get status deletion preview" });
+      console.error("Error details:", error.message, error.stack);
+      res.status(500).json({ error: "Failed to get status deletion preview", details: error.message });
     }
   });
 

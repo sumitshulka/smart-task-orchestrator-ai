@@ -50,6 +50,24 @@ export function StatusDeletionDialog({
   // Fetch deletion preview data
   const { data: preview, isLoading, error } = useQuery<DeletionPreview>({
     queryKey: ['/api/task-statuses', statusId, 'deletion-preview'],
+    queryFn: async () => {
+      if (!statusId) throw new Error('Status ID is required');
+      
+      const response = await fetch(`/api/task-statuses/${statusId}/deletion-preview`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include', // Include session cookies for authentication
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      return response.json();
+    },
     enabled: open && !!statusId,
   });
 
@@ -100,6 +118,7 @@ export function StatusDeletionDialog({
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include', // Include session cookies for authentication
         body: JSON.stringify({
           action,
           newStatusName: action === 'reassign_tasks' ? selectedStatus?.name : undefined
@@ -156,6 +175,7 @@ export function StatusDeletionDialog({
   }
 
   if (error || !preview) {
+    console.error("StatusDeletionDialog error:", error);
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="sm:max-w-md">
@@ -163,6 +183,11 @@ export function StatusDeletionDialog({
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription>
               Failed to load status information. Please try again.
+              {error && (
+                <div className="mt-2 text-xs">
+                  Error: {error.message || "Unknown error"}
+                </div>
+              )}
             </AlertDescription>
           </Alert>
           <DialogFooter>
