@@ -285,6 +285,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Timer routes
+  app.get("/api/users/:userId/active-timers", requireAnyAuthenticated, async (req, res) => {
+    try {
+      const activeTasks = await storage.getActiveTimerTasks(req.params.userId);
+      res.json(activeTasks);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch active timers" });
+    }
+  });
+
+  app.post("/api/tasks/:id/timer/start", requireAnyAuthenticated, async (req, res) => {
+    try {
+      const userId = req.headers['x-user-id'] as string;
+      const task = await storage.startTaskTimer(req.params.id, userId);
+      res.json(task);
+    } catch (error) {
+      res.status(400).json({ error: error instanceof Error ? error.message : "Failed to start timer" });
+    }
+  });
+
+  app.post("/api/tasks/:id/timer/pause", requireAnyAuthenticated, async (req, res) => {
+    try {
+      const userId = req.headers['x-user-id'] as string;
+      const task = await storage.pauseTaskTimer(req.params.id, userId);
+      res.json(task);
+    } catch (error) {
+      res.status(400).json({ error: error instanceof Error ? error.message : "Failed to pause timer" });
+    }
+  });
+
+  app.post("/api/tasks/:id/timer/stop", requireAnyAuthenticated, async (req, res) => {
+    try {
+      const userId = req.headers['x-user-id'] as string;
+      const task = await storage.stopTaskTimer(req.params.id, userId);
+      res.json(task);
+    } catch (error) {
+      res.status(400).json({ error: error instanceof Error ? error.message : "Failed to stop timer" });
+    }
+  });
+
   // Team management routes - Manager/Admin only
   app.get("/api/teams", requireManagerOrAdmin, async (req, res) => {
     try {

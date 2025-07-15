@@ -92,6 +92,13 @@ export interface IStorage {
   createRolePermission(permission: InsertRolePermission): Promise<RolePermission>;
   updateRolePermission(id: string, updates: Partial<RolePermission>): Promise<RolePermission>;
   deleteRolePermission(id: string): Promise<void>;
+
+  // Timer operations
+  getActiveTimerTasks(userId: string): Promise<Task[]>;
+  startTaskTimer(taskId: string, userId: string): Promise<Task>;
+  pauseTaskTimer(taskId: string, userId: string): Promise<Task>;
+  stopTaskTimer(taskId: string, userId: string): Promise<Task>;
+  updateTaskTimer(taskId: string, updates: { time_spent_minutes?: number; timer_state?: string; timer_started_at?: Date | null; timer_session_data?: string }): Promise<Task>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -420,6 +427,120 @@ export class DatabaseStorage implements IStorage {
 
   async deleteRolePermission(id: string): Promise<void> {
     await db.delete(rolePermissions).where(eq(rolePermissions.id, id));
+  }
+
+  // Timer operations
+  async getActiveTimerTasks(userId: string): Promise<Task[]> {
+    const result = await db.select().from(tasks)
+      .where(and(
+        eq(tasks.assigned_to, userId),
+        eq(tasks.timer_state, 'running'),
+        eq(tasks.is_time_managed, true)
+      ));
+    return result;
+  }
+
+  async startTaskTimer(taskId: string, userId: string): Promise<Task> {
+    // First check if user already has 2 active timers
+    const activeTasks = await this.getActiveTimerTasks(userId);
+    if (activeTasks.length >= 2) {
+      throw new Error('Maximum of 2 active timers allowed. Please stop another timer first.');
+    }
+
+    const result = await db.update(tasks).set({
+      timer_state: 'running',
+      timer_started_at: new Date(),
+      updated_at: new Date()
+    }).where(eq(tasks.id, taskId)).returning();
+
+    // Log activity
+    await this.logTaskActivity({
+      task_id: taskId,
+      action_type: 'timer_started',
+      old_value: 'stopped',
+      new_value: 'running',
+      acted_by: userId
+    });
+
+    return result[0];
+  }
+
+  async pauseTaskTimer(taskId: string, userId: string): Promise<Task> {
+    const task = await this.getTask(taskId);
+    if (!task) {
+      throw new Error('Task not found');
+    }
+
+    let timeSpent = task.time_spent_minutes || 0;
+    
+    // Calculate time since timer started if it's running
+    if (task.timer_state === 'running' && task.timer_started_at) {
+      const now = new Date();
+      const startTime = new Date(task.timer_started_at);
+      const elapsedMinutes = Math.floor((now.getTime() - startTime.getTime()) / (1000 * 60));
+      timeSpent += elapsedMinutes;
+    }
+
+    const result = await db.update(tasks).set({
+      timer_state: 'paused',
+      time_spent_minutes: timeSpent,
+      timer_started_at: null,
+      updated_at: new Date()
+    }).where(eq(tasks.id, taskId)).returning();
+
+    // Log activity
+    await this.logTaskActivity({
+      task_id: taskId,
+      action_type: 'timer_paused',
+      old_value: 'running',
+      new_value: 'paused',
+      acted_by: userId
+    });
+
+    return result[0];
+  }
+
+  async stopTaskTimer(taskId: string, userId: string): Promise<Task> {
+    const task = await this.getTask(taskId);
+    if (!task) {
+      throw new Error('Task not found');
+    }
+
+    let timeSpent = task.time_spent_minutes || 0;
+    
+    // Calculate time since timer started if it's running
+    if (task.timer_state === 'running' && task.timer_started_at) {
+      const now = new Date();
+      const startTime = new Date(task.timer_started_at);
+      const elapsedMinutes = Math.floor((now.getTime() - startTime.getTime()) / (1000 * 60));
+      timeSpent += elapsedMinutes;
+    }
+
+    const result = await db.update(tasks).set({
+      timer_state: 'stopped',
+      time_spent_minutes: timeSpent,
+      timer_started_at: null,
+      updated_at: new Date()
+    }).where(eq(tasks.id, taskId)).returning();
+
+    // Log activity
+    await this.logTaskActivity({
+      task_id: taskId,
+      action_type: 'timer_stopped',
+      old_value: task.timer_state,
+      new_value: 'stopped',
+      acted_by: userId
+    });
+
+    return result[0];
+  }
+
+  async updateTaskTimer(taskId: string, updates: { time_spent_minutes?: number; timer_state?: string; timer_started_at?: Date | null; timer_session_data?: string }): Promise<Task> {
+    const result = await db.update(tasks).set({
+      ...updates,
+      updated_at: new Date()
+    }).where(eq(tasks.id, taskId)).returning();
+    return result[0];
   }
 }
 

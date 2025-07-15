@@ -3,13 +3,14 @@ import React from "react";
 import { Button } from "@/components/ui/button";
 import EditTaskSheet from "@/components/EditTaskSheet";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
-import { Edit, Trash2, Check, Link2, List } from "lucide-react";
+import { Edit, Trash2, Check, Link2, List, Clock } from "lucide-react";
 import { Task, deleteTask, updateTask } from "@/integrations/supabase/tasks";
 import { toast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { formatOrgDate } from "@/lib/dateUtils";
 import { useUserNames } from "@/hooks/useUserName";
 import { useStatusTransitionValidation } from "@/hooks/useStatusTransitionValidation";
+import TaskTimer from "./TaskTimer";
 
 // Utility to convert hex to RGB for lighter colors
 const hexToRgb = (hex: string) => {
@@ -243,6 +244,13 @@ export default function TaskCard({ task, onTaskUpdated, canDelete, statusColor, 
             </div>
           )}
         </div>
+        
+        {/* Timer component for time-managed tasks */}
+        {task.is_time_managed && (
+          <div className="mt-4">
+            <TaskTimer task={task} onTaskUpdated={onTaskUpdated} compact={true} />
+          </div>
+        )}
       </CardContent>
     </Card>
   );

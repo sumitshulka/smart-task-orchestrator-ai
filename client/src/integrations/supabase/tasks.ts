@@ -20,6 +20,12 @@ export type Task = {
     user_name: string | null;
   } | null;
   actual_completion_date: string | null;
+  // Timer fields
+  is_time_managed?: boolean;
+  timer_state?: string; // 'stopped', 'running', 'paused'
+  time_spent_minutes?: number;
+  timer_started_at?: string | null;
+  timer_session_data?: string | null;
   // NEW FIELDS from tasks_with_extras
   group_ids?: string[];           // array of group_ids this task belongs to (subtasks)
   is_dependent?: boolean;         // true if this task is a dependent
@@ -52,6 +58,64 @@ export async function updateTask(id: string, updates: Partial<Task>) {
 // Delete a task
 export async function deleteTask(id: string) {
   return await apiClient.deleteTask(id);
+}
+
+// Timer functions
+export async function getActiveTimers(userId: string): Promise<Task[]> {
+  const response = await fetch(`/api/users/${userId}/active-timers`, {
+    headers: {
+      'x-user-id': userId,
+    }
+  });
+  if (!response.ok) {
+    throw new Error('Failed to fetch active timers');
+  }
+  return response.json();
+}
+
+export async function startTaskTimer(taskId: string, userId: string): Promise<Task> {
+  const response = await fetch(`/api/tasks/${taskId}/timer/start`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-user-id': userId,
+    }
+  });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to start timer');
+  }
+  return response.json();
+}
+
+export async function pauseTaskTimer(taskId: string, userId: string): Promise<Task> {
+  const response = await fetch(`/api/tasks/${taskId}/timer/pause`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-user-id': userId,
+    }
+  });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to pause timer');
+  }
+  return response.json();
+}
+
+export async function stopTaskTimer(taskId: string, userId: string): Promise<Task> {
+  const response = await fetch(`/api/tasks/${taskId}/timer/stop`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-user-id': userId,
+    }
+  });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to stop timer');
+  }
+  return response.json();
 }
 
 // New: Paginated and filterable fetch for tasks

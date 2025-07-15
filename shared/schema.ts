@@ -110,6 +110,12 @@ export const tasks = pgTable("tasks", {
   team_id: uuid("team_id").references(() => teams.id),
   dependencyTaskId: uuid("dependencyTaskId"),
   actual_completion_date: timestamp("actual_completion_date"),
+  // Timer-related fields
+  is_time_managed: boolean("is_time_managed").default(false),
+  timer_state: text("timer_state").default("stopped"), // stopped, running, paused
+  time_spent_minutes: integer("time_spent_minutes").default(0), // Total time spent in minutes
+  timer_started_at: timestamp("timer_started_at"), // When current timer session started
+  timer_session_data: text("timer_session_data"), // JSON data for timer sessions
   created_at: timestamp("created_at").defaultNow(),
   updated_at: timestamp("updated_at").defaultNow(),
 });

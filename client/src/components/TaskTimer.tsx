@@ -1,0 +1,157 @@
+import React, { useState, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Clock, Play, Pause, Square } from 'lucide-react';
+import { Task, startTaskTimer, pauseTaskTimer, stopTaskTimer } from '@/integrations/supabase/tasks';
+import { toast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
+
+interface TaskTimerProps {
+  task: Task;
+  onTaskUpdated?: () => void;
+  compact?: boolean;
+}
+
+export default function TaskTimer({ task, onTaskUpdated, compact = false }: TaskTimerProps) {
+  const { user } = useAuth();
+  const [currentTime, setCurrentTime] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Calculate current elapsed time
+  useEffect(() => {
+    if (task.timer_state === 'running' && task.timer_started_at) {
+      const interval = setInterval(() => {
+        const startTime = new Date(task.timer_started_at!).getTime();
+        const now = new Date().getTime();
+        const elapsedMinutes = Math.floor((now - startTime) / (1000 * 60));
+        const totalMinutes = (task.time_spent_minutes || 0) + elapsedMinutes;
+        setCurrentTime(totalMinutes);
+      }, 1000);
+
+      return () => clearInterval(interval);
+    } else {
+      setCurrentTime(task.time_spent_minutes || 0);
+    }
+  }, [task.timer_state, task.timer_started_at, task.time_spent_minutes]);
+
+  const formatTime = (minutes: number) => {
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    return `${hours}h ${mins}m`;
+  };
+
+  const handleTimerAction = async (action: 'start' | 'pause' | 'stop') => {
+    if (!user?.id) return;
+    
+    setIsLoading(true);
+    try {
+      switch (action) {
+        case 'start':
+          await startTaskTimer(task.id, user.id);
+          toast({ title: 'Timer started', description: `Timer started for "${task.title}"` });
+          break;
+        case 'pause':
+          await pauseTaskTimer(task.id, user.id);
+          toast({ title: 'Timer paused', description: `Timer paused for "${task.title}"` });
+          break;
+        case 'stop':
+          await stopTaskTimer(task.id, user.id);
+          toast({ title: 'Timer stopped', description: `Timer stopped for "${task.title}"` });
+          break;
+      }
+      onTaskUpdated?.();
+    } catch (error) {
+      toast({ 
+        title: 'Timer action failed', 
+        description: error instanceof Error ? error.message : 'Unknown error',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  if (!task.is_time_managed) {
+    return null;
+  }
+
+  if (compact) {
+    return (
+      <div className="flex items-center gap-2">
+        <Badge variant="outline" className="flex items-center gap-1">
+          <Clock className="h-3 w-3" />
+          {formatTime(currentTime)}
+        </Badge>
+        {task.timer_state === 'running' && (
+          <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <Card className="w-full">
+      <CardContent className="p-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Clock className="h-5 w-5 text-muted-foreground" />
+            <div>
+              <div className="font-medium">{formatTime(currentTime)}</div>
+              {task.estimated_hours && (
+                <div className="text-sm text-muted-foreground">
+                  Est: {task.estimated_hours}h
+                </div>
+              )}
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-2">
+            <Badge variant={
+              task.timer_state === 'running' ? 'default' : 
+              task.timer_state === 'paused' ? 'secondary' : 'outline'
+            }>
+              {task.timer_state === 'running' ? 'Running' : 
+               task.timer_state === 'paused' ? 'Paused' : 'Stopped'}
+            </Badge>
+            
+            <div className="flex gap-1">
+              {task.timer_state !== 'running' && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleTimerAction('start')}
+                  disabled={isLoading}
+                >
+                  <Play className="h-4 w-4" />
+                </Button>
+              )}
+              
+              {task.timer_state === 'running' && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleTimerAction('pause')}
+                  disabled={isLoading}
+                >
+                  <Pause className="h-4 w-4" />
+                </Button>
+              )}
+              
+              {task.timer_state !== 'stopped' && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleTimerAction('stop')}
+                  disabled={isLoading}
+                >
+                  <Square className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}

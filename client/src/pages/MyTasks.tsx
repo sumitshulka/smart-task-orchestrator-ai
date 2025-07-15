@@ -23,6 +23,7 @@ import EditTaskSheet from "@/components/EditTaskSheet";
 import { apiClient } from "@/lib/api";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import DateRangePresetSelector from "@/components/DateRangePresetSelector";
+import ActiveTimersBar from "@/components/ActiveTimersBar";
 
 function defaultDateRange() {
   const now = new Date();
@@ -462,6 +463,9 @@ export default function MyTasksPage() {
           </CreateTaskSheet>
         </div>
       </div>
+
+      {/* Active Timers Bar */}
+      <ActiveTimersBar onTaskUpdated={load} />
 
       {/* Search and Filters */}
       <div className="mb-6 space-y-4">

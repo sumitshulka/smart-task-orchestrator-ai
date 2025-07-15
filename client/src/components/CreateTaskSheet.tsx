@@ -70,6 +70,7 @@ const initialForm = {
   isSubTask: false,
   isDependent: false,
   dependencyTaskId: "",
+  is_time_managed: false,
 };
 
 const priorityOptions = [
@@ -280,6 +281,11 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
         estimated_hours: form.estimated_hours ? Number(form.estimated_hours) : null,
         team_id: null,
         actual_completion_date: null,
+        is_time_managed: form.is_time_managed || false,
+        timer_state: 'stopped',
+        time_spent_minutes: 0,
+        timer_started_at: null,
+        timer_session_data: null,
       };
 
       // Dependency support
@@ -512,6 +518,19 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
                     placeholder="e.g., 8.5"
                     className="text-base h-12"
                   />
+                </div>
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="is_time_managed"
+                    name="is_time_managed"
+                    checked={form.is_time_managed}
+                    onChange={handleChange}
+                    className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                  />
+                  <label htmlFor="is_time_managed" className="text-sm font-medium text-gray-700">
+                    Enable Time Tracking
+                  </label>
                 </div>
               </div>
             </div>
