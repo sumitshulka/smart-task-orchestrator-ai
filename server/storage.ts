@@ -145,7 +145,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getAllUsers(): Promise<User[]> {
-    return await db.select().from(users);
+    return await db.select().from(users).orderBy(users.user_name);
   }
 
   async deactivateUser(id: string): Promise<User> {
@@ -331,7 +331,8 @@ export class DatabaseStorage implements IStorage {
         }
       })
       .from(teams)
-      .leftJoin(users, eq(teams.manager_id, users.id));
+      .leftJoin(users, eq(teams.manager_id, users.id))
+      .orderBy(teams.name);
   }
 
   async createTeam(team: InsertTeam): Promise<Team> {
