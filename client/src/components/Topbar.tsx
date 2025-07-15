@@ -6,6 +6,7 @@ import { LogOut } from "lucide-react";
 import { Settings } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRole } from "@/contexts/RoleProvider";
+import { useRolePermissions } from "@/hooks/useRolePermissions";
 
 const USER_PLACEHOLDER = {
   name: "Jane Doe",
@@ -24,6 +25,7 @@ const Topbar: React.FC = () => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const { userName, highestRole, loading } = useRole();
+  const { canViewSettings } = useRolePermissions();
 
   const displayName = userName || user?.user_name || user?.email || USER_PLACEHOLDER.name;
   const displayEmail = user?.email || USER_PLACEHOLDER.email;
@@ -46,13 +48,15 @@ const Topbar: React.FC = () => {
             Welcome {displayName}, you are logged in with role as: <span className="font-semibold">{highestRole || "unknown"}</span>
           </span>
         )}
-        <button
-          aria-label="Settings"
-          onClick={() => navigate("/admin/settings")}
-          className="rounded-full p-1.5 hover:bg-accent text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-        >
-          <Settings className="w-6 h-6" />
-        </button>
+        {canViewSettings && (
+          <button
+            aria-label="Settings"
+            onClick={() => navigate("/admin/settings")}
+            className="rounded-full p-1.5 hover:bg-accent text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+          >
+            <Settings className="w-6 h-6" />
+          </button>
+        )}
         <DropdownMenu>
           <DropdownMenuTrigger className="outline-none rounded-full focus:ring-2 focus:ring-primary/50">
             <Avatar>
