@@ -38,7 +38,7 @@ const Topbar: React.FC = () => {
   };
 
   return (
-    <header className="flex items-center justify-between border-b h-14 px-6 gap-4 bg-[#66655833]">
+    <header className="flex items-center justify-between border-b h-14 px-6 gap-4 bg-[#66655833] border-gray-200">
       {/* Left: Sidebar toggle and TaskRep text when sidebar is collapsed */}
       <div className="flex items-center gap-3">
         <SidebarTrigger className="hover:bg-gray-200 transition-colors duration-200 rounded-md p-1" />
