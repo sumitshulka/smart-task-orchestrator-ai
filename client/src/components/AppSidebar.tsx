@@ -33,7 +33,15 @@ export default function AppSidebar() {
     <Sidebar
       className={`${collapsed ? "w-14" : "w-64 min-w-14"}`}
       collapsible="icon"
-      style={{ backgroundColor: '#f8fafc', borderRight: '1px solid #e2e8f0', position: 'relative', top: 0 }}
+      style={{ 
+        backgroundColor: '#f8fafc', 
+        borderRight: '1px solid #e2e8f0',
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        height: '100vh',
+        zIndex: 40
+      }}
     >
       <div className="flex items-center justify-start px-4 border-b border-gray-200 bg-[#66655833] w-full sticky top-0 z-10" style={{ height: '56px', minHeight: '56px', maxHeight: '56px' }}>
         <SidebarHeader />
