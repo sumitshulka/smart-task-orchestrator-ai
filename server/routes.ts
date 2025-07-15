@@ -979,6 +979,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Organization settings routes - Admin only
+  app.get("/api/organization-settings", requireAdmin, async (req, res) => {
+    try {
+      const settings = await storage.getOrganizationSettings();
+      res.json(settings);
+    } catch (error) {
+      console.error("Failed to fetch organization settings:", error);
+      res.status(500).json({ error: "Failed to fetch organization settings" });
+    }
+  });
+
+  app.post("/api/organization-settings", requireAdmin, async (req, res) => {
+    try {
+      const settings = await storage.createOrganizationSettings(req.body);
+      res.status(201).json(settings);
+    } catch (error) {
+      console.error("Failed to create organization settings:", error);
+      res.status(500).json({ error: "Failed to create organization settings" });
+    }
+  });
+
+  app.patch("/api/organization-settings/:id", requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const settings = await storage.updateOrganizationSettings(id, req.body);
+      res.json(settings);
+    } catch (error) {
+      console.error("Failed to update organization settings:", error);
+      res.status(500).json({ error: "Failed to update organization settings" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

@@ -3,6 +3,25 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { relations } from "drizzle-orm";
 
+// Organization settings table
+export const organizationSettings = pgTable("organization_settings", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organization_name: text("organization_name").notNull().default("My Organization"),
+  date_format: text("date_format").notNull().default("MM/dd/yyyy"),
+  time_zone: text("time_zone").notNull().default("UTC"),
+  // Benchmarking settings
+  benchmarking_enabled: boolean("benchmarking_enabled").default(false),
+  min_hours_per_day: integer("min_hours_per_day").default(0),
+  max_hours_per_day: integer("max_hours_per_day").default(8),
+  min_hours_per_week: integer("min_hours_per_week").default(0),
+  max_hours_per_week: integer("max_hours_per_week").default(40),
+  min_hours_per_month: integer("min_hours_per_month").default(0),
+  max_hours_per_month: integer("max_hours_per_month").default(160),
+  allow_user_level_override: boolean("allow_user_level_override").default(false),
+  created_at: timestamp("created_at").defaultNow(),
+  updated_at: timestamp("updated_at").defaultNow(),
+});
+
 // Core users table (integrates with Supabase Auth)
 export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(), // matches auth.users.id from Supabase
@@ -12,6 +31,14 @@ export const users = pgTable("users", {
   phone: text("phone"),
   manager: text("manager"),
   is_active: boolean("is_active").default(true),
+  // Benchmarking fields (only used if organization allows user-level override)
+  benchmarking_excluded: boolean("benchmarking_excluded").default(false),
+  custom_min_hours_per_day: integer("custom_min_hours_per_day"),
+  custom_max_hours_per_day: integer("custom_max_hours_per_day"),
+  custom_min_hours_per_week: integer("custom_min_hours_per_week"),
+  custom_max_hours_per_week: integer("custom_max_hours_per_week"),
+  custom_min_hours_per_month: integer("custom_min_hours_per_month"),
+  custom_max_hours_per_month: integer("custom_max_hours_per_month"),
   created_at: timestamp("created_at").defaultNow(),
   updated_at: timestamp("updated_at").defaultNow(),
 });
@@ -379,6 +406,12 @@ export const insertDeletedTaskSchema = createInsertSchema(deletedTasks).omit({
   deleted_at: true,
 });
 
+export const insertOrganizationSettingsSchema = createInsertSchema(organizationSettings).omit({
+  id: true,
+  created_at: true,
+  updated_at: true,
+});
+
 // Types
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
@@ -401,3 +434,5 @@ export type DeletedUser = typeof deletedUsers.$inferSelect;
 export type DeletedTask = typeof deletedTasks.$inferSelect;
 export type InsertDeletedUser = z.infer<typeof insertDeletedUserSchema>;
 export type InsertDeletedTask = z.infer<typeof insertDeletedTaskSchema>;
+export type InsertOrganizationSettings = z.infer<typeof insertOrganizationSettingsSchema>;
+export type OrganizationSettings = typeof organizationSettings.$inferSelect;

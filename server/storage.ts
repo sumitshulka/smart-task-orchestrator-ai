@@ -15,6 +15,7 @@ import {
   rolePermissions,
   deletedUsers,
   deletedTasks,
+  organizationSettings,
   User, 
   InsertUser, 
   Task, 
@@ -34,7 +35,9 @@ import {
   DeletedUser,
   DeletedTask,
   InsertDeletedUser,
-  InsertDeletedTask
+  InsertDeletedTask,
+  OrganizationSettings,
+  InsertOrganizationSettings
 } from "@shared/schema";
 
 export interface IStorage {
@@ -120,6 +123,11 @@ export interface IStorage {
   pauseTaskTimer(taskId: string, userId: string): Promise<Task>;
   stopTaskTimer(taskId: string, userId: string): Promise<Task>;
   updateTaskTimer(taskId: string, updates: { time_spent_minutes?: number; timer_state?: string; timer_started_at?: Date | null; timer_session_data?: string }): Promise<Task>;
+
+  // Organization settings operations
+  getOrganizationSettings(): Promise<OrganizationSettings | undefined>;
+  createOrganizationSettings(settings: InsertOrganizationSettings): Promise<OrganizationSettings>;
+  updateOrganizationSettings(id: string, updates: Partial<OrganizationSettings>): Promise<OrganizationSettings>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -825,6 +833,25 @@ export class DatabaseStorage implements IStorage {
       ...updates,
       updated_at: new Date()
     }).where(eq(tasks.id, taskId)).returning();
+    return result[0];
+  }
+
+  // Organization settings operations
+  async getOrganizationSettings(): Promise<OrganizationSettings | undefined> {
+    const result = await db.select().from(organizationSettings).limit(1);
+    return result[0] || undefined;
+  }
+
+  async createOrganizationSettings(settings: InsertOrganizationSettings): Promise<OrganizationSettings> {
+    const result = await db.insert(organizationSettings).values(settings).returning();
+    return result[0];
+  }
+
+  async updateOrganizationSettings(id: string, updates: Partial<OrganizationSettings>): Promise<OrganizationSettings> {
+    const result = await db.update(organizationSettings).set({
+      ...updates,
+      updated_at: new Date()
+    }).where(eq(organizationSettings.id, id)).returning();
     return result[0];
   }
 }

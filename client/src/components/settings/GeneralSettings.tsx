@@ -4,14 +4,25 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Switch } from "@/components/ui/switch";
+import { Separator } from "@/components/ui/separator";
 import { toast } from "@/hooks/use-toast";
 import { apiClient } from "@/lib/api";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 type OrganizationSettings = {
   id: string;
   organization_name: string;
   date_format: string;
   time_zone: string;
+  benchmarking_enabled: boolean;
+  min_hours_per_day: number;
+  max_hours_per_day: number;
+  min_hours_per_week: number;
+  max_hours_per_week: number;
+  min_hours_per_month: number;
+  max_hours_per_month: number;
+  allow_user_level_override: boolean;
   created_at: string;
   updated_at: string;
 };
@@ -35,68 +46,71 @@ const TIMEZONES = [
 ];
 
 const GeneralSettings: React.FC = () => {
-  const [settings, setSettings] = useState<OrganizationSettings | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const queryClient = useQueryClient();
+  
+  // Fetch organization settings
+  const { data: settings, isLoading } = useQuery<OrganizationSettings>({
+    queryKey: ['/api/organization-settings'],
+    queryFn: async () => {
+      const response = await apiClient.get('/api/organization-settings');
+      return response.data;
+    }
+  });
+
   const [formData, setFormData] = useState({
     organization_name: "",
     date_format: "MM/dd/yyyy",
     time_zone: "UTC",
+    benchmarking_enabled: false,
+    min_hours_per_day: 0,
+    max_hours_per_day: 8,
+    min_hours_per_week: 0,
+    max_hours_per_week: 40,
+    min_hours_per_month: 0,
+    max_hours_per_month: 160,
+    allow_user_level_override: false,
   });
 
+  // Update form data when settings are loaded
   useEffect(() => {
-    fetchSettings();
-  }, []);
-
-  const fetchSettings = async () => {
-    try {
-      // For now, use localStorage to store organization settings
-      const savedSettings = localStorage.getItem('organization_settings');
-      if (savedSettings) {
-        const parsed = JSON.parse(savedSettings);
-        setSettings(parsed);
-        setFormData({
-          organization_name: parsed.organization_name || "",
-          date_format: parsed.date_format || "MM/dd/yyyy",
-          time_zone: parsed.time_zone || "UTC",
-        });
-      } else {
-        // Default settings
-        setFormData({
-          organization_name: "My Organization",
-          date_format: "MM/dd/yyyy",
-          time_zone: "UTC",
-        });
-      }
-    } catch (error) {
-      console.error("Error fetching settings:", error);
-      toast({ title: "Error", description: "Failed to load organization settings" });
-    } finally {
-      setLoading(false);
+    if (settings) {
+      setFormData({
+        organization_name: settings.organization_name || "",
+        date_format: settings.date_format || "MM/dd/yyyy",
+        time_zone: settings.time_zone || "UTC",
+        benchmarking_enabled: settings.benchmarking_enabled || false,
+        min_hours_per_day: settings.min_hours_per_day || 0,
+        max_hours_per_day: settings.max_hours_per_day || 8,
+        min_hours_per_week: settings.min_hours_per_week || 0,
+        max_hours_per_week: settings.max_hours_per_week || 40,
+        min_hours_per_month: settings.min_hours_per_month || 0,
+        max_hours_per_month: settings.max_hours_per_month || 160,
+        allow_user_level_override: settings.allow_user_level_override || false,
+      });
     }
-  };
+  }, [settings]);
 
-  const handleSave = async () => {
-    setSaving(true);
-    try {
-      const newSettings = {
-        id: settings?.id || "default",
-        ...formData,
-        created_at: settings?.created_at || new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-
-      // Save to localStorage for now
-      localStorage.setItem('organization_settings', JSON.stringify(newSettings));
-      setSettings(newSettings);
-      
-      toast({ title: "Settings saved successfully" });
-    } catch (error) {
+  // Create or update organization settings
+  const saveSettingsMutation = useMutation({
+    mutationFn: async (data: typeof formData) => {
+      if (settings?.id) {
+        return apiClient.patch(`/api/organization-settings/${settings.id}`, data);
+      } else {
+        return apiClient.post('/api/organization-settings', data);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/organization-settings'] });
+      toast({ title: "Success", description: "Organization settings saved successfully" });
+    },
+    onError: (error: any) => {
       console.error("Error saving settings:", error);
       toast({ title: "Error", description: "Failed to save organization settings" });
-    } finally {
-      setSaving(false);
     }
+  });
+
+  const handleSave = () => {
+    saveSettingsMutation.mutate(formData);
   };
 
   const formatPreview = (format: string) => {
@@ -122,7 +136,11 @@ const GeneralSettings: React.FC = () => {
     }
   };
 
-  if (loading) {
+  const handleFormChange = (field: string, value: any) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  if (isLoading) {
     return (
       <Card>
         <CardContent className="p-6">
@@ -133,18 +151,19 @@ const GeneralSettings: React.FC = () => {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>General Settings</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        <div className="grid gap-4">
+    <div className="space-y-6">
+      {/* Basic Organization Settings */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Organization Settings</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="org-name">Organization Name</Label>
             <Input
               id="org-name"
               value={formData.organization_name}
-              onChange={(e) => setFormData({ ...formData, organization_name: e.target.value })}
+              onChange={(e) => handleFormChange('organization_name', e.target.value)}
               placeholder="Enter organization name"
             />
           </div>
@@ -153,7 +172,7 @@ const GeneralSettings: React.FC = () => {
             <Label htmlFor="date-format">Date Format</Label>
             <Select
               value={formData.date_format}
-              onValueChange={(value) => setFormData({ ...formData, date_format: value })}
+              onValueChange={(value) => handleFormChange('date_format', value)}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Select date format" />
@@ -172,7 +191,7 @@ const GeneralSettings: React.FC = () => {
             <Label htmlFor="timezone">Time Zone</Label>
             <Select
               value={formData.time_zone}
-              onValueChange={(value) => setFormData({ ...formData, time_zone: value })}
+              onValueChange={(value) => handleFormChange('time_zone', value)}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Select timezone" />
@@ -186,15 +205,149 @@ const GeneralSettings: React.FC = () => {
               </SelectContent>
             </Select>
           </div>
+        </CardContent>
+      </Card>
 
-          <div className="pt-4">
-            <Button onClick={handleSave} disabled={saving}>
-              {saving ? "Saving..." : "Save Settings"}
-            </Button>
+      {/* Benchmarking Settings */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Benchmarking Settings</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center space-x-2">
+            <Switch
+              id="benchmarking-enabled"
+              checked={formData.benchmarking_enabled}
+              onCheckedChange={(checked) => handleFormChange('benchmarking_enabled', checked)}
+            />
+            <Label htmlFor="benchmarking-enabled">Enable Benchmarking</Label>
           </div>
-        </div>
-      </CardContent>
-    </Card>
+
+          {formData.benchmarking_enabled && (
+            <div className="space-y-6 pl-4 border-l-2 border-muted">
+              {/* Daily Hours */}
+              <div className="space-y-3">
+                <Label className="text-sm font-medium">Daily Hours Requirements</Label>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="min-hours-day">Minimum Hours/Day</Label>
+                    <Input
+                      id="min-hours-day"
+                      type="number"
+                      min="0"
+                      max="24"
+                      value={formData.min_hours_per_day}
+                      onChange={(e) => handleFormChange('min_hours_per_day', parseInt(e.target.value) || 0)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="max-hours-day">Maximum Hours/Day</Label>
+                    <Input
+                      id="max-hours-day"
+                      type="number"
+                      min="0"
+                      max="24"
+                      value={formData.max_hours_per_day}
+                      onChange={(e) => handleFormChange('max_hours_per_day', parseInt(e.target.value) || 0)}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <Separator />
+
+              {/* Weekly Hours */}
+              <div className="space-y-3">
+                <Label className="text-sm font-medium">Weekly Hours Requirements</Label>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="min-hours-week">Minimum Hours/Week</Label>
+                    <Input
+                      id="min-hours-week"
+                      type="number"
+                      min="0"
+                      max="168"
+                      value={formData.min_hours_per_week}
+                      onChange={(e) => handleFormChange('min_hours_per_week', parseInt(e.target.value) || 0)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="max-hours-week">Maximum Hours/Week</Label>
+                    <Input
+                      id="max-hours-week"
+                      type="number"
+                      min="0"
+                      max="168"
+                      value={formData.max_hours_per_week}
+                      onChange={(e) => handleFormChange('max_hours_per_week', parseInt(e.target.value) || 0)}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <Separator />
+
+              {/* Monthly Hours */}
+              <div className="space-y-3">
+                <Label className="text-sm font-medium">Monthly Hours Requirements</Label>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="min-hours-month">Minimum Hours/Month</Label>
+                    <Input
+                      id="min-hours-month"
+                      type="number"
+                      min="0"
+                      max="744"
+                      value={formData.min_hours_per_month}
+                      onChange={(e) => handleFormChange('min_hours_per_month', parseInt(e.target.value) || 0)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="max-hours-month">Maximum Hours/Month</Label>
+                    <Input
+                      id="max-hours-month"
+                      type="number"
+                      min="0"
+                      max="744"
+                      value={formData.max_hours_per_month}
+                      onChange={(e) => handleFormChange('max_hours_per_month', parseInt(e.target.value) || 0)}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <Separator />
+
+              {/* User Level Override */}
+              <div className="space-y-3">
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="user-override"
+                    checked={formData.allow_user_level_override}
+                    onCheckedChange={(checked) => handleFormChange('allow_user_level_override', checked)}
+                  />
+                  <Label htmlFor="user-override">Allow User-Level Override</Label>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  When enabled, admins can exclude individual users from benchmarking or set custom hour requirements per user.
+                </p>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Save Button */}
+      <div className="flex justify-end">
+        <Button 
+          onClick={handleSave} 
+          disabled={saveSettingsMutation.isPending}
+          size="lg"
+        >
+          {saveSettingsMutation.isPending ? "Saving..." : "Save Settings"}
+        </Button>
+      </div>
+    </div>
   );
 };
 
