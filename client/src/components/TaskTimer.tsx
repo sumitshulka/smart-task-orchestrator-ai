@@ -44,6 +44,17 @@ export default function TaskTimer({ task, onTaskUpdated, compact = false }: Task
   const handleTimerAction = async (action: 'start' | 'pause' | 'stop') => {
     if (!user?.id) return;
     
+    // Check if task is in a final state where timer should not be allowed
+    const finalStatuses = ['completed', 'review'];
+    if (finalStatuses.includes(task.status.toLowerCase())) {
+      toast({ 
+        title: 'Timer unavailable', 
+        description: 'Timer actions are not allowed for completed or review tasks',
+        variant: 'destructive'
+      });
+      return;
+    }
+    
     setIsLoading(true);
     try {
       switch (action) {
@@ -116,6 +127,10 @@ export default function TaskTimer({ task, onTaskUpdated, compact = false }: Task
   const isLowTime = timeRemaining > 0 && timeRemaining < 15;
   const isDelayed = task.estimated_hours && currentTime > estimatedMinutes && task.timer_state === 'running';
   
+  // Check if task is in final state where timer controls should be disabled
+  const finalStatuses = ['completed', 'review'];
+  const isTimerDisabled = finalStatuses.includes(task.status.toLowerCase());
+  
   return (
     <Card className={`w-full ${isDelayed ? 'border-red-500 bg-red-50' : ''}`}>
       <CardContent className="p-4">
@@ -158,40 +173,48 @@ export default function TaskTimer({ task, onTaskUpdated, compact = false }: Task
                task.timer_state === 'paused' ? 'Paused' : 'Stopped'}
             </Badge>
             
-            <div className="flex gap-1">
-              {task.timer_state !== 'running' && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => handleTimerAction('start')}
-                  disabled={isLoading}
-                >
-                  <Play className="h-4 w-4" />
-                </Button>
-              )}
-              
-              {task.timer_state === 'running' && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => handleTimerAction('pause')}
-                  disabled={isLoading}
-                >
-                  <Pause className="h-4 w-4" />
-                </Button>
-              )}
-              
-              {task.timer_state !== 'stopped' && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => handleTimerAction('stop')}
-                  disabled={isLoading}
-                >
-                  <Square className="h-4 w-4" />
-                </Button>
-              )}
-            </div>
+            {!isTimerDisabled && (
+              <div className="flex gap-1">
+                {task.timer_state !== 'running' && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleTimerAction('start')}
+                    disabled={isLoading}
+                  >
+                    <Play className="h-4 w-4" />
+                  </Button>
+                )}
+                
+                {task.timer_state === 'running' && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleTimerAction('pause')}
+                    disabled={isLoading}
+                  >
+                    <Pause className="h-4 w-4" />
+                  </Button>
+                )}
+                
+                {task.timer_state !== 'stopped' && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleTimerAction('stop')}
+                    disabled={isLoading}
+                  >
+                    <Square className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+            )}
+            
+            {isTimerDisabled && (
+              <div className="text-xs text-muted-foreground px-2">
+                Timer controls disabled for {task.status} tasks
+              </div>
+            )}
           </div>
         </div>
       </CardContent>
