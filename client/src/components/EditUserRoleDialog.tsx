@@ -110,32 +110,9 @@ export default function EditUserRoleDialog({
     }
   };
 
-  const handleRemoveRole = async (roleId: string) => {
-    if (!user) return;
-    
-    setSaving(true);
-    try {
-      await apiClient.removeUserRole(user.id, roleId);
-      toast({
-        title: 'Role removed',
-        description: 'Role has been successfully removed from the user',
-      });
-      await loadData();
-      onRolesUpdated?.();
-    } catch (error) {
-      console.error('Failed to remove role:', error);
-      toast({
-        title: 'Error removing role',
-        description: 'Failed to remove role from user',
-        variant: 'destructive',
-      });
-    } finally {
-      setSaving(false);
-    }
-  };
 
-  const assignedRoleIds = userRoles.map(ur => ur.role_id);
-  const unassignedRoles = availableRoles.filter(role => !assignedRoleIds.includes(role.id));
+
+
 
   if (!user) return null;
 
@@ -143,7 +120,7 @@ export default function EditUserRoleDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Edit Roles for {user.user_name || user.email}</DialogTitle>
+          <DialogTitle>Edit Role for {user.user_name || user.email}</DialogTitle>
         </DialogHeader>
         
         <div className="space-y-4">
@@ -151,59 +128,47 @@ export default function EditUserRoleDialog({
             <div className="text-center py-4">Loading roles...</div>
           ) : (
             <>
-              {/* Current Roles */}
+              {/* Current Role */}
               <div>
-                <h4 className="text-sm font-medium mb-2">Current Roles</h4>
+                <h4 className="text-sm font-medium mb-2">Current Role</h4>
                 {userRoles.length === 0 ? (
-                  <p className="text-muted-foreground text-sm">No roles assigned</p>
+                  <p className="text-muted-foreground text-sm">No role assigned</p>
                 ) : (
-                  <div className="space-y-2">
-                    {userRoles.map((userRole) => (
-                      <div key={userRole.role_id} className="flex items-center justify-between">
-                        <Badge variant="secondary">
-                          {userRole.role.name}
-                        </Badge>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleRemoveRole(userRole.role_id)}
-                          disabled={saving}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ))}
+                  <div className="flex items-center gap-2">
+                    <Badge variant="secondary">
+                      {userRoles[0].role.name}
+                    </Badge>
                   </div>
                 )}
               </div>
 
-              {/* Assign New Role */}
-              {unassignedRoles.length > 0 && (
-                <div>
-                  <h4 className="text-sm font-medium mb-2">Assign New Role</h4>
-                  <div className="flex gap-2">
-                    <Select value={selectedRoleId} onValueChange={setSelectedRoleId}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a role" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {unassignedRoles.map((role) => (
-                          <SelectItem key={role.id} value={role.id}>
-                            {role.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Button
-                      onClick={handleAssignRole}
-                      disabled={!selectedRoleId || saving}
-                      size="sm"
-                    >
-                      {saving ? 'Assigning...' : 'Assign'}
-                    </Button>
-                  </div>
+              {/* Change Role */}
+              <div>
+                <h4 className="text-sm font-medium mb-2">
+                  {userRoles.length === 0 ? 'Assign Role' : 'Change Role'}
+                </h4>
+                <div className="flex gap-2">
+                  <Select value={selectedRoleId} onValueChange={setSelectedRoleId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a role" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableRoles.map((role) => (
+                        <SelectItem key={role.id} value={role.id}>
+                          {role.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    onClick={handleAssignRole}
+                    disabled={!selectedRoleId || saving}
+                    size="sm"
+                  >
+                    {saving ? 'Updating...' : (userRoles.length === 0 ? 'Assign' : 'Change')}
+                  </Button>
                 </div>
-              )}
+              </div>
             </>
           )}
         </div>

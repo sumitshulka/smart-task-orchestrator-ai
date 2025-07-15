@@ -95,6 +95,7 @@ Preferred communication style: Simple, everyday language.
 ✓ **Critical RBAC Security Vulnerability Fixed**: Resolved major security issue where users with "user" visibility scope could see all tasks - implemented proper task visibility enforcement based on user role scope
 ✓ **Settings Menu RBAC Implementation**: Added comprehensive Settings menu permissions system with database-level role permissions, useRolePermissions hook, and proper UI visibility controls in sidebar and topbar
 ✓ **User Management Interface Enhancement**: Enhanced user management table to display assigned roles for each user and reorganized layout with user names prominently displayed and email addresses below, matching the manager display format for consistent UI design
+✓ **Single Role Constraint Implementation**: Enforced single role per user system by modifying assignUserRole function to replace existing roles rather than adding multiple roles, updated UI to reflect single role display and management
 
 ## System Architecture
 

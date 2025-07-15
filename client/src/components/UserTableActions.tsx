@@ -151,7 +151,7 @@ const UserTableActions: React.FC<UserTableActionsProps> = ({ user, onEdit, onRef
           </DropdownMenuItem>
           <DropdownMenuItem onClick={handleEditRole}>
             <User className="w-4 h-4 mr-2" />
-            Edit Role
+            Change Role
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           {user.is_active ? (

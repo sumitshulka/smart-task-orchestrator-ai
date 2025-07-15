@@ -167,19 +167,14 @@ const AdminUsers: React.FC = () => {
                       {rolesLoading ? (
                         <span className="text-muted-foreground">Loading...</span>
                       ) : roles.length > 0 ? (
-                        <div className="flex flex-wrap gap-1">
-                          {roles.map((role) => (
-                            <Badge
-                              key={role.id}
-                              variant="outline"
-                              className="text-xs"
-                            >
-                              {role.role.name}
-                            </Badge>
-                          ))}
-                        </div>
+                        <Badge
+                          variant="outline"
+                          className="text-xs"
+                        >
+                          {roles[0].role.name}
+                        </Badge>
                       ) : (
-                        <span className="text-muted-foreground">No roles</span>
+                        <span className="text-muted-foreground">No role</span>
                       )}
                     </td>
                     <td className="p-2">{user.department || "--"}</td>
