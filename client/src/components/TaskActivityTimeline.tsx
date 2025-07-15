@@ -7,10 +7,20 @@ const typeToColor = (type: string) =>
     ? "bg-green-100 text-green-800"
     : type === "status_changed"
     ? "bg-blue-100 text-blue-800"
-    : type === "assigned"
+    : type === "assigned" || type === "assignment_changed"
     ? "bg-violet-100 text-violet-800"
     : type === "edit"
     ? "bg-yellow-100 text-yellow-800"
+    : type.includes("timer_")
+    ? "bg-orange-100 text-orange-800"
+    : type === "priority_changed"
+    ? "bg-red-100 text-red-800"
+    : type === "due_date_changed"
+    ? "bg-purple-100 text-purple-800"
+    : type === "title_changed" || type === "description_changed"
+    ? "bg-cyan-100 text-cyan-800"
+    : type === "comment"
+    ? "bg-indigo-100 text-indigo-800"
     : "bg-gray-100 text-gray-700";
 
 const actionLabel = (action: TaskActivity) => {
@@ -20,7 +30,22 @@ const actionLabel = (action: TaskActivity) => {
     case "status_changed":
       return `Status changed from "${action.old_value}" to "${action.new_value}"`;
     case "assigned":
-      return `Assigned from "${action.old_value || "-"}" to "${action.new_value || "-"}"`;
+    case "assignment_changed":
+      return `Assigned from "${action.old_value || "Unassigned"}" to "${action.new_value || "Unassigned"}"`;
+    case "priority_changed":
+      return `Priority changed from "${action.old_value}" to "${action.new_value}"`;
+    case "due_date_changed":
+      return `Due date changed from "${action.old_value}" to "${action.new_value}"`;
+    case "title_changed":
+      return `Title changed from "${action.old_value}" to "${action.new_value}"`;
+    case "description_changed":
+      return `Description changed from "${action.old_value}" to "${action.new_value}"`;
+    case "timer_started":
+      return "Timer started";
+    case "timer_paused":
+      return "Timer paused";
+    case "timer_stopped":
+      return "Timer stopped";
     case "edit":
       // For edit, we expect field name to be prepended to old_value in some way
       // Example: use format: old_value: "<field>:<old>", new_value: "<field>:<new>"
@@ -44,7 +69,7 @@ const actionLabel = (action: TaskActivity) => {
     case "comment":
       return action.new_value ? `Comment: "${action.new_value}"` : "Comment added";
     default:
-      return "";
+      return action.new_value || `Unknown action: ${action.action_type}`;
   }
 };
 

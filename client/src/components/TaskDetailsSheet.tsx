@@ -56,6 +56,14 @@ const TaskDetailsSheet: React.FC<Props> = ({
   const { statuses, loading: statusesLoading } = useTaskStatuses();
   const { activity, reload: reloadActivity, loading: activityLoading } = useTaskActivity(task?.id || null);
 
+  // Reload activity when task changes or when modal opens/closes
+  useEffect(() => {
+    if (open && task?.id) {
+      console.log("[DEBUG] TaskDetailsSheet opened for task:", task.id);
+      reloadActivity();
+    }
+  }, [open, task?.id, reloadActivity]);
+
   // new: reload usersById for activity log
   const usersById = useMemo(() => {
     const obj: Record<string, { email: string; user_name: string | null }> = {};
