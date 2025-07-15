@@ -5,7 +5,9 @@ const API_BASE = import.meta.env.VITE_API_BASE || '';
 
 class ApiClient {
   private async request(endpoint: string, options: RequestInit = {}) {
-    const url = `${API_BASE}/api${endpoint}`;
+    // Remove leading slash from endpoint if present to avoid double slashes
+    const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+    const url = `${API_BASE}/api${cleanEndpoint}`;
 
     // Get current user for authentication
     const userStr = localStorage.getItem('user');
@@ -25,7 +27,20 @@ class ApiClient {
       throw new Error(error.error || `HTTP ${response.status}`);
     }
 
-    return response.json();
+    // Handle empty response
+    const contentType = response.headers.get('content-type');
+    if (contentType && contentType.includes('application/json')) {
+      return response.json();
+    } else {
+      const text = await response.text();
+      if (!text) return {};
+      try {
+        return JSON.parse(text);
+      } catch (e) {
+        console.error('Failed to parse response as JSON:', text);
+        throw new Error('Invalid JSON response from server');
+      }
+    }
   }
 
   // User management
