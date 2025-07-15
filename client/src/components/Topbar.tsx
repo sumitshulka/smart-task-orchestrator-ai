@@ -48,12 +48,11 @@ const Topbar: React.FC = () => {
           </span>
         )}
       </div>
-      
       {/* Right: Welcome/role text, then settings, avatar, menu */}
       <div className="flex items-center gap-4 ml-auto">
         {/* Welcome text (always display if logged in, and not loading) */}
         {user && !loading && (
-          <span className="text-xs text-muted-foreground whitespace-nowrap mr-2">
+          <span className="text-xs whitespace-nowrap mr-2 font-bold text-[#003c96]">
             Welcome {displayName}, you are logged in with role as: <span className="font-semibold">{highestRole || "unknown"}</span>
           </span>
         )}
