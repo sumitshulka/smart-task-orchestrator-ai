@@ -92,12 +92,19 @@ export default function TaskTimer({ task, onTaskUpdated, compact = false }: Task
     const timeRemaining = Math.max(0, estimatedMinutes - currentTime);
     const isLowTime = timeRemaining > 0 && timeRemaining < 15;
     const isDelayed = task.estimated_hours && currentTime > estimatedMinutes && task.timer_state === 'running';
+    const isTimeExceeded = task.estimated_hours && currentTime > estimatedMinutes;
     
     return (
       <div className="flex items-center gap-2">
         <div className="flex items-center gap-1">
           <Clock className="h-3 w-3 text-muted-foreground" />
-          <span className="text-sm">{formatTime(currentTime)}</span>
+          <span className={`text-sm ${
+            isTimeExceeded 
+              ? 'text-red-600 dark:text-red-400 font-medium' 
+              : 'text-green-600 dark:text-green-400 font-medium'
+          }`}>
+            {formatTime(currentTime)}
+          </span>
           {task.estimated_hours && (
             <span className="text-xs text-muted-foreground">
               / {formatTime(estimatedMinutes)}
@@ -126,6 +133,7 @@ export default function TaskTimer({ task, onTaskUpdated, compact = false }: Task
   const timeRemaining = Math.max(0, estimatedMinutes - currentTime);
   const isLowTime = timeRemaining > 0 && timeRemaining < 15;
   const isDelayed = task.estimated_hours && currentTime > estimatedMinutes && task.timer_state === 'running';
+  const isTimeExceeded = task.estimated_hours && currentTime > estimatedMinutes;
   
   // Check if task is in final state where timer controls should be disabled
   const finalStatuses = ['completed', 'review'];
@@ -138,7 +146,13 @@ export default function TaskTimer({ task, onTaskUpdated, compact = false }: Task
           <div className="flex items-center gap-3">
             <Clock className="h-5 w-5 text-muted-foreground" />
             <div>
-              <div className="font-medium">{formatTime(currentTime)}</div>
+              <div className={`font-medium ${
+                isTimeExceeded 
+                  ? 'text-red-600 dark:text-red-400' 
+                  : 'text-green-600 dark:text-green-400'
+              }`}>
+                {formatTime(currentTime)}
+              </div>
               {task.estimated_hours && (
                 <div className="space-y-1">
                   <div className="text-sm text-muted-foreground">
