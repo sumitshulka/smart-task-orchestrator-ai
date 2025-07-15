@@ -181,75 +181,74 @@ const TeamManagerDialog: React.FC<TeamManagerDialogProps> = ({
     let teamId = team?.id;
     // If new team, first create it
     if (!teamId) {
-      const { data, error } = await supabase.from("teams").insert({
-        name: teamName,
-        description: teamDesc,
-        created_by: (await supabase.auth.getUser()).data.user?.id,
-      }).select().single();
-      if (error) {
+      try {
+        const newTeam = await apiClient.createTeam({
+          name: teamName,
+          description: teamDesc,
+        });
+        teamId = newTeam.id;
+      } catch (error: any) {
         toast({ title: "Failed to create team", description: error.message });
         setSaving(false);
         return;
       }
-      teamId = data.id;
     } else {
       // Update team name/desc
-      const { error } = await supabase.from("teams").update({
-        name: teamName,
-        description: teamDesc,
-      }).eq("id", teamId);
-      if (error) {
+      try {
+        await apiClient.updateTeam(teamId, {
+          name: teamName,
+          description: teamDesc,
+        });
+      } catch (error: any) {
         toast({ title: "Failed to update team", description: error.message });
         setSaving(false);
         return;
       }
     }
 
-    // Get memberships for this team
-    const { data: currentMemberships, error: memErr } = await supabase
-      .from("team_memberships")
-      .select("*")
-      .eq("team_id", teamId);
-
-    if (memErr) {
-      toast({ title: "Failed to load memberships", description: memErr.message });
+    // Get current memberships for this team
+    let currentMemberships: any[] = [];
+    try {
+      currentMemberships = await apiClient.getTeamMembers(teamId!);
+    } catch (error: any) {
+      toast({ title: "Failed to load memberships", description: error.message });
       setSaving(false);
       return;
     }
 
-    const currentUserIds = (currentMemberships ?? []).map((m: any) => m.user_id);
+    const currentUserIds = currentMemberships.map((m: any) => m.user_id);
 
     // Add/Remove members as needed
     const usersToAdd = selectedUserIds.filter(id => !currentUserIds.includes(id));
     const usersToRemove = currentUserIds.filter(id => !selectedUserIds.includes(id));
 
     // Remove memberships
-    if (usersToRemove.length > 0) {
-      await supabase.from("team_memberships")
-        .delete()
-        .eq("team_id", teamId)
-        .in("user_id", usersToRemove);
+    for (const userId of usersToRemove) {
+      try {
+        await apiClient.removeTeamMember(teamId!, userId);
+      } catch (error: any) {
+        console.error(`Failed to remove user ${userId}:`, error);
+      }
     }
-    // Add memberships (new entries have role_within_team: null)
-    if (usersToAdd.length > 0) {
-      const toInsert = usersToAdd.map(user_id => ({ team_id: teamId, user_id, role_within_team: null }));
-      await supabase.from("team_memberships").insert(toInsert);
+    
+    // Add memberships
+    for (const userId of usersToAdd) {
+      try {
+        await apiClient.addTeamMember(teamId!, userId);
+      } catch (error: any) {
+        console.error(`Failed to add user ${userId}:`, error);
+      }
     }
 
-    // Ensure the selected manager gets role_within_team = 'manager'
-    // and everyone else is set to null.
-    // (There should only be one manager per team)
-    const roleUpdates = selectedUserIds.map(user_id => ({
-      team_id: teamId,
-      user_id,
-      role_within_team: user_id === managerId ? "manager" : null,
-    }));
-
-    for (const update of roleUpdates) {
-      await supabase.from("team_memberships")
-        .update({ role_within_team: update.role_within_team })
-        .eq("team_id", teamId)
-        .eq("user_id", update.user_id);
+    // Set manager role
+    if (teamId && managerId) {
+      try {
+        await apiClient.updateTeam(teamId, {
+          manager_id: managerId,
+        });
+      } catch (error: any) {
+        console.error("Failed to assign manager:", error);
+      }
     }
     toast({ title: isEdit ? "Team updated!" : "Team created!" });
     setSaving(false);
@@ -261,33 +260,18 @@ const TeamManagerDialog: React.FC<TeamManagerDialogProps> = ({
   async function handleDeleteTeam() {
     if (!team || !team.id) return;
     setSaving(true);
-    // First, delete memberships tied to the team (to avoid FK constraints)
-    const { error: memErr } = await supabase
-      .from("team_memberships")
-      .delete()
-      .eq("team_id", team.id);
-
-    if (memErr) {
-      toast({ title: "Failed to delete team memberships", description: memErr.message });
+    
+    try {
+      await apiClient.deleteTeam(team.id);
+      toast({ title: "Team deleted" });
       setSaving(false);
-      return;
-    }
-    // Then, delete the team itself
-    const { error: teamErr } = await supabase
-      .from("teams")
-      .delete()
-      .eq("id", team.id);
-
-    if (teamErr) {
-      toast({ title: "Failed to delete team", description: teamErr.message });
+      setDeleteOpen(false);
+      onOpenChange(false);
+      if (onTeamUpdated) onTeamUpdated();
+    } catch (error: any) {
+      toast({ title: "Failed to delete team", description: error.message });
       setSaving(false);
-      return;
     }
-    toast({ title: "Team deleted" });
-    setSaving(false);
-    setDeleteOpen(false);
-    onOpenChange(false);
-    if (onTeamUpdated) onTeamUpdated();
   }
 
   // UI: member assignment as a big select with checkboxes

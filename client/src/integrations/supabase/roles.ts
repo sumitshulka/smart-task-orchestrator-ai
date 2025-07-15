@@ -1,6 +1,4 @@
 
-import { supabase } from "@/integrations/supabase/client";
-
 export type Role = {
   id: string;
   name: string;
@@ -19,39 +17,65 @@ export type UserRole = {
 };
 
 export async function fetchRoles() {
-  const { data, error } = await supabase
-    .from("roles")
-    .select("*")
-    .order("name", { ascending: true });
-  if (error) throw error;
-  return data as Role[];
+  try {
+    const response = await fetch('/api/roles');
+    if (!response.ok) {
+      throw new Error(`Failed to fetch roles: ${response.statusText}`);
+    }
+    return await response.json() as Role[];
+  } catch (error: any) {
+    throw new Error(error.message ?? "Failed to fetch roles");
+  }
 }
 
 // Fetch all user_roles with role info for each user
 export async function fetchUserRoles() {
-  const { data, error } = await supabase
-    .from("user_roles")
-    .select("*, role:roles(*)");
-  if (error) throw error;
-  return data as UserRole[];
+  try {
+    const response = await fetch('/api/user-roles');
+    if (!response.ok) {
+      throw new Error(`Failed to fetch user roles: ${response.statusText}`);
+    }
+    return await response.json() as UserRole[];
+  } catch (error: any) {
+    throw new Error(error.message ?? "Failed to fetch user roles");
+  }
 }
 
 // Assign role to user
 export async function addRoleToUser(user_id: string, role_id: string, assigned_by: string | null) {
-  const { data, error } = await supabase
-    .from("user_roles")
-    .insert([{ user_id, role_id, assigned_by }]);
-  if (error) throw error;
-  return data;
+  try {
+    const response = await fetch('/api/user-roles', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+      },
+      body: JSON.stringify({ user_id, role_id, assigned_by }),
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to assign role: ${response.statusText}`);
+    }
+    return await response.json();
+  } catch (error: any) {
+    throw new Error(error.message ?? "Failed to assign role");
+  }
 }
 
 // Remove role from user
 export async function removeRoleFromUser(user_id: string, role_id: string) {
-  const { data, error } = await supabase
-    .from("user_roles")
-    .delete()
-    .match({ user_id, role_id });
-  if (error) throw error;
-  return data;
+  try {
+    const response = await fetch(`/api/user-roles/${user_id}/${role_id}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+      },
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to remove role: ${response.statusText}`);
+    }
+    return await response.json();
+  } catch (error: any) {
+    throw new Error(error.message ?? "Failed to remove role");
+  }
 }
 

@@ -52,33 +52,17 @@ const DepartmentsManager: React.FC = () => {
     const editedDept = editingDepartments[id];
     if (!editedDept || !editedDept.name.trim()) return;
 
-    const { error } = await supabase
-      .from("departments")
-      .update({ name: editedDept.name, description: editedDept.description })
-      .eq("id", id);
-
-    if (error) {
-      toast({ title: "Error", description: error.message });
-      return;
-    }
-
-    setEditing({ ...editing, [id]: false });
-    refetch();
-    toast({ title: "Department updated successfully" });
+    // Note: Department management should be done via localStorage for now
+    // since we don't have API endpoints for departments yet
+    toast({ title: "Feature not implemented", description: "Department editing via API not yet available" });
   };
 
   const handleDeleteDepartment = async (id: string) => {
     if (!window.confirm("Are you sure you want to delete this department?")) return;
 
-    const { error } = await supabase.from("departments").delete().eq("id", id);
-
-    if (error) {
-      toast({ title: "Error", description: error.message });
-      return;
-    }
-
-    refetch();
-    toast({ title: "Department deleted successfully" });
+    // Note: Department management should be done via localStorage for now
+    // since we don't have API endpoints for departments yet
+    toast({ title: "Feature not implemented", description: "Department deletion via API not yet available" });
   };
 
   return (
