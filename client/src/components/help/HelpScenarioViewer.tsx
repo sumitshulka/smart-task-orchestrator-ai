@@ -119,10 +119,10 @@ const HelpScenarioViewer: React.FC<HelpScenarioViewerProps> = ({ scenario, onBac
           </div>
 
           {/* Current step content */}
-          <div className="flex-1 p-4 sm:p-6 min-h-0">
-            <ScrollArea className="h-full">
+          <div className="flex-1 p-4 sm:p-6 min-h-0 overflow-hidden">
+            <ScrollArea className="h-full w-full">
               {scenario.steps[currentStep] && (
-                <div className="space-y-6">
+                <div className="space-y-6 pr-4">
                   <div>
                     <h2 className="text-xl font-semibold mb-2">
                       {scenario.steps[currentStep].title}

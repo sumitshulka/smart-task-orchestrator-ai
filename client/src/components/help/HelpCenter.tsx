@@ -246,8 +246,8 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ initialTopic }) => {
                       <h3 className="font-semibold mb-2">
                         Search Results ({searchResults.length})
                       </h3>
-                      <ScrollArea className="h-32 sm:h-40">
-                        <div className="space-y-2">
+                      <ScrollArea className="h-32 sm:h-40 w-full">
+                        <div className="space-y-2 pr-4">
                           {searchResults.map((result, index) => (
                             <Card key={index} className="p-3 cursor-pointer hover:bg-muted/50">
                               <div className="flex items-start justify-between">
@@ -271,9 +271,9 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ initialTopic }) => {
                     </div>
                   )}
 
-                  <TabsContent value="topics" className="mt-0 flex-1 min-h-0">
-                    <ScrollArea className="h-full">
-                      <div className="grid gap-4">
+                  <TabsContent value="topics" className="mt-0 flex-1 min-h-0 overflow-hidden">
+                    <ScrollArea className="h-full w-full">
+                      <div className="grid gap-4 pr-4">
                         {filteredTopics.map(topic => (
                           <Card key={topic.id} className="cursor-pointer hover:bg-muted/50" onClick={() => setSelectedTopic(topic)}>
                             <CardHeader className="pb-3">
@@ -307,9 +307,9 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ initialTopic }) => {
                     </ScrollArea>
                   </TabsContent>
 
-                  <TabsContent value="scenarios" className="mt-0 flex-1 min-h-0">
-                    <ScrollArea className="h-full">
-                      <div className="grid gap-4">
+                  <TabsContent value="scenarios" className="mt-0 flex-1 min-h-0 overflow-hidden">
+                    <ScrollArea className="h-full w-full">
+                      <div className="grid gap-4 pr-4">
                         {filteredScenarios.map(scenario => (
                           <Card key={scenario.id} className="cursor-pointer hover:bg-muted/50" onClick={() => setSelectedScenario(scenario)}>
                             <CardHeader className="pb-3">
@@ -344,9 +344,9 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ initialTopic }) => {
                     </ScrollArea>
                   </TabsContent>
 
-                  <TabsContent value="faqs" className="mt-0 flex-1 min-h-0">
-                    <ScrollArea className="h-full">
-                      <div className="grid gap-4">
+                  <TabsContent value="faqs" className="mt-0 flex-1 min-h-0 overflow-hidden">
+                    <ScrollArea className="h-full w-full">
+                      <div className="grid gap-4 pr-4">
                         {filteredFAQs.map(faq => (
                           <Card key={faq.id}>
                             <CardHeader className="pb-3">
