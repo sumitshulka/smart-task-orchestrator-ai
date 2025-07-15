@@ -107,9 +107,27 @@ const BenchmarkingReport: React.FC = () => {
       const rolePromises = users.map(async (user) => {
         try {
           const roles = await apiClient.get(`/users/${user.id}/roles`);
+          console.log(`Raw roles for user ${user.id}:`, roles);
+          
+          // Handle the case where roles might be nested or have different structure
+          const roleNames = roles.map((role: any) => {
+            if (role.name) {
+              return role.name;
+            } else if (role.role && role.role.name) {
+              return role.role.name;
+            } else if (typeof role === 'string') {
+              return role;
+            } else {
+              console.warn(`Unknown role format for user ${user.id}:`, role);
+              return null;
+            }
+          }).filter(Boolean); // Remove null/undefined values
+          
+          console.log(`Processed role names for user ${user.id}:`, roleNames);
+          
           return {
             userId: user.id,
-            roleNames: roles.map((role: any) => role.name)
+            roleNames: roleNames
           };
         } catch (error) {
           console.error(`Error fetching roles for user ${user.id}:`, error);
