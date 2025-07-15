@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, AlertTriangle, Trash2, ArrowRight } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
+import { apiClient } from "@/lib/api";
 
 interface StatusDeletionDialogProps {
   open: boolean;
@@ -53,12 +54,18 @@ export function StatusDeletionDialog({
     queryFn: async () => {
       if (!statusId) throw new Error('Status ID is required');
       
+      // Use API client which includes proper authentication headers
       const response = await fetch(`/api/task-statuses/${statusId}/deletion-preview`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
+          // Add user ID header for authentication
+          ...((() => {
+            const userStr = localStorage.getItem('user');
+            const user = userStr ? JSON.parse(userStr) : null;
+            return user?.id ? { 'x-user-id': user.id } : {};
+          })()),
         },
-        credentials: 'include', // Include session cookies for authentication
       });
       
       if (!response.ok) {
@@ -117,8 +124,13 @@ export function StatusDeletionDialog({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          // Add user ID header for authentication
+          ...((() => {
+            const userStr = localStorage.getItem('user');
+            const user = userStr ? JSON.parse(userStr) : null;
+            return user?.id ? { 'x-user-id': user.id } : {};
+          })()),
         },
-        credentials: 'include', // Include session cookies for authentication
         body: JSON.stringify({
           action,
           newStatusName: action === 'reassign_tasks' ? selectedStatus?.name : undefined
