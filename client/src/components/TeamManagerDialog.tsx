@@ -106,58 +106,47 @@ const TeamManagerDialog: React.FC<TeamManagerDialogProps> = ({
     }
 
     async function fetchMembers() {
-      // First fetch memberships (no join)
-      const { data: membershipsRaw, error } = await supabase
-        .from("team_memberships")
-        .select("id, joined_at, role_within_team, user_id")
-        .eq("team_id", team.id);
+      try {
+        // Fetch team members using API client
+        const teamMembers = await apiClient.getTeamMembers(team.id);
+        
+        if (!teamMembers || teamMembers.length === 0) {
+          setMembers([]);
+          setSelectedUserIds([]);
+          return;
+        }
 
-      if (error) {
+        // Gather all user ids for later join
+        const memberUserIds: string[] = teamMembers.map((m: any) => m.user_id);
+
+        // Fetch user metadata for those IDs
+        const allUsers = await apiClient.getUsers();
+        const usersById: Record<string, User> = {};
+        allUsers.forEach((u: any) => {
+          usersById[u.id] = u;
+        });
+
+        // Build full members, filtering out any memberships where no user found
+        const enrichedMembers: TeamMember[] = (teamMembers || [])
+          .filter((m: any) => usersById[m.user_id])
+          .map((m: any) => ({
+            id: m.id,
+            joined_at: m.joined_at,
+            role_within_team: m.role_within_team,
+            user_id: m.user_id,
+            user: usersById[m.user_id],
+          }));
+
+        setMembers(enrichedMembers);
+        setSelectedUserIds(enrichedMembers.map(m => m.user_id));
+      } catch (error: any) {
+        console.error('Failed to fetch team members:', error);
         toast({ title: "Failed to load team members", description: error.message });
         setMembers([]);
         setSelectedUserIds([]);
-        return;
       }
-      if (!membershipsRaw || membershipsRaw.length === 0) {
-        setMembers([]);
-        setSelectedUserIds([]);
-        return;
-      }
-      // Gather all user ids for later join
-      const memberUserIds: string[] = membershipsRaw.map((m: any) => m.user_id);
-
-      // Now fetch user metadata for those IDs (from public.users)
-      const { data: usersData, error: userLoadErr } = await supabase
-        .from("users")
-        .select("id, email, user_name")
-        .in("id", memberUserIds);
-
-      if (userLoadErr) {
-        toast({ title: "Failed to load member user data", description: userLoadErr.message });
-        setMembers([]);
-        setSelectedUserIds([]);
-        return;
-      }
-      // Map user_id -> user
-      const usersById: Record<string, User> = {};
-      (usersData || []).forEach((u: any) => {
-        usersById[u.id] = u;
-      });
-
-      // Build full members, filtering out any memberships where no user found
-      const enrichedMembers: TeamMember[] = (membershipsRaw || [])
-        .filter((m: any) => usersById[m.user_id])
-        .map((m: any) => ({
-          id: m.id,
-          joined_at: m.joined_at,
-          role_within_team: m.role_within_team,
-          user_id: m.user_id,
-          user: usersById[m.user_id],
-        }));
-
-      setMembers(enrichedMembers);
-      setSelectedUserIds(enrichedMembers.map(m => m.user_id));
     }
+    
     fetchMembers();
   }, [open, team]);
 
