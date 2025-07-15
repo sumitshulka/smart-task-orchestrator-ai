@@ -126,47 +126,47 @@ export default function TaskCard({ task, onTaskUpdated, canDelete, statusColor, 
       style={dynamicCardStyling}
     >
       {/* Floating top/center actions visible on hover */}
-      <div className="absolute left-1/2 top-2 -translate-x-1/2 z-10 flex gap-4 opacity-0 group-hover:opacity-100 transition-all">
+      <div className="absolute left-1/2 top-2 -translate-x-1/2 z-10 flex gap-2 sm:gap-4 opacity-0 group-hover:opacity-100 transition-all">
         {/* Edit icon always present */}
         <EditTaskSheet task={task} onUpdated={onTaskUpdated}>
-          <Button size="icon" variant="ghost" className="text-gray-400 hover:text-blue-600" title="Edit Task">
-            <Edit size={20} />
+          <Button size="icon" variant="ghost" className="text-gray-400 hover:text-blue-600 h-8 w-8 sm:h-10 sm:w-10" title="Edit Task">
+            <Edit size={16} className="sm:w-5 sm:h-5" />
           </Button>
         </EditTaskSheet>
         {/* Delete icon */}
         <Button
           size="icon"
           variant="ghost"
-          className={`text-gray-400 ${canDelete(task.status) ? "hover:text-red-600" : "opacity-60 cursor-not-allowed"}`}
+          className={`text-gray-400 h-8 w-8 sm:h-10 sm:w-10 ${canDelete(task.status) ? "hover:text-red-600" : "opacity-60 cursor-not-allowed"}`}
           title={canDelete(task.status) ? "Delete Task" : "Cannot delete tasks with this status"}
           onClick={() => canDelete(task.status) && handleDeleteTask(task.id)}
           disabled={!canDelete(task.status)}
         >
-          <Trash2 size={20} />
+          <Trash2 size={16} className="sm:w-5 sm:h-5" />
         </Button>
         {/* Mark complete */}
         <Button
           size="icon"
           variant="ghost"
-          className={`text-gray-400 hover:text-green-700`}
+          className={`text-gray-400 hover:text-green-700 h-8 w-8 sm:h-10 sm:w-10`}
           title={task.status === "completed" ? "Already completed" : "Mark as Complete"}
           onClick={() => handleCompleteTask(task)}
           disabled={task.status === "completed"}
         >
-          <Check size={20} />
+          <Check size={16} className="sm:w-5 sm:h-5" />
         </Button>
       </div>
 
       {/* Card header and summary */}
       <CardHeader className="pb-2">
-        <div className="flex justify-between items-center gap-2">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
           <div className="flex items-center gap-2 min-w-0">
             {task.task_number && (
               <span className="text-xs font-mono bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded border flex-shrink-0">
                 #{task.task_number}
               </span>
             )}
-            <h2 className="font-semibold text-lg truncate cursor-pointer hover:text-blue-600 transition-colors" 
+            <h2 className="font-semibold text-base sm:text-lg truncate cursor-pointer hover:text-blue-600 transition-colors" 
                 onClick={(e) => {
                   e.stopPropagation();
                   if (onOpenDetails) {
@@ -176,7 +176,7 @@ export default function TaskCard({ task, onTaskUpdated, canDelete, statusColor, 
               {task.title}
             </h2>
           </div>
-          <div className="flex gap-2 items-center">
+          <div className="flex gap-1 sm:gap-2 items-center flex-wrap">
             {/* Priority badge */}
             <span className={`text-xs px-2 py-1 rounded-full ${priorityClass}`}>
               {task.priority === 1
@@ -198,13 +198,13 @@ export default function TaskCard({ task, onTaskUpdated, canDelete, statusColor, 
             )}
             {/* Subtask and Dependency Badges */}
             {isSubTask && (
-              <Badge className="bg-purple-100 text-purple-700 flex items-center gap-1" variant="secondary" title="Subtask in Group">
-                <List size={14} /> Subtask
+              <Badge className="bg-purple-100 text-purple-700 flex items-center gap-1 text-xs" variant="secondary" title="Subtask in Group">
+                <List size={12} /> <span className="hidden sm:inline">Subtask</span>
               </Badge>
             )}
             {isDependent && (
-              <Badge className="bg-blue-100 text-blue-700 flex items-center gap-1" variant="secondary" title="Dependent task">
-                <Link2 size={14} /> Dependent
+              <Badge className="bg-blue-100 text-blue-700 flex items-center gap-1 text-xs" variant="secondary" title="Dependent task">
+                <Link2 size={12} /> <span className="hidden sm:inline">Dependent</span>
               </Badge>
             )}
           </div>

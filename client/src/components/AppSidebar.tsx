@@ -29,9 +29,9 @@ export default function AppSidebar() {
         borderRight: '1px solid #e2e8f0'
       }}
     >
-      {/* Header section with logo */}
+      {/* Header section with logo - hidden on mobile (shown in topbar) */}
       <div 
-        className="flex items-center px-6 border-b border-gray-200 bg-[#66655833]" 
+        className="hidden lg:flex items-center px-6 border-b border-gray-200 bg-[#66655833]" 
         style={{ height: '56px', minHeight: '56px', maxHeight: '56px' }}
       >
         <div className="flex items-center gap-2">
@@ -45,7 +45,7 @@ export default function AppSidebar() {
       </div>
 
       {/* Scrollable content with menu items */}
-      <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-auto px-2 py-4 bg-[#e3e2de]" style={{ paddingTop: '16px' }}>
+      <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-auto px-2 py-4 bg-[#e3e2de] lg:pt-4 pt-6" style={{ paddingTop: '16px' }}>
         <div className="space-y-2">
           <DashboardMenu isUserOnly={isUserOnly} collapsed={false} />
           <TaskManagementMenu collapsed={false} />
