@@ -29,17 +29,17 @@ const HelpTopicViewer: React.FC<HelpTopicViewerProps> = ({ topic, onBack }) => {
   const relatedTopics = getRelatedTopics(topic.id);
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col min-h-0">
       {/* Header */}
-      <div className="p-6 border-b">
+      <div className="p-4 sm:p-6 border-b flex-shrink-0">
         <div className="flex items-center gap-4 mb-4">
           <Button variant="ghost" size="sm" onClick={onBack} className="gap-2">
             <ArrowLeft className="h-4 w-4" />
             Back
           </Button>
-          <div className="flex-1">
-            <h1 className="text-2xl font-bold">{topic.title}</h1>
-            <div className="flex items-center gap-2 mt-2">
+          <div className="flex-1 min-w-0">
+            <h1 className="text-xl sm:text-2xl font-bold truncate">{topic.title}</h1>
+            <div className="flex flex-wrap items-center gap-2 mt-2">
               <Badge className={getDifficultyColor(topic.difficulty)}>
                 {topic.difficulty}
               </Badge>
@@ -47,14 +47,14 @@ const HelpTopicViewer: React.FC<HelpTopicViewerProps> = ({ topic, onBack }) => {
                 <BookOpen className="h-3 w-3 mr-1" />
                 {topic.category}
               </Badge>
-              <Badge variant="outline">
+              <Badge variant="outline" className="hidden sm:flex">
                 <Calendar className="h-3 w-3 mr-1" />
                 {topic.lastUpdated}
               </Badge>
-              <Separator orientation="vertical" className="h-4" />
+              <Separator orientation="vertical" className="h-4 hidden sm:block" />
               <span className="text-sm text-muted-foreground flex items-center gap-1">
                 <Users className="h-3 w-3" />
-                {topic.role.join(', ')}
+                <span className="truncate">{topic.role.join(', ')}</span>
               </span>
             </div>
           </div>
@@ -72,11 +72,11 @@ const HelpTopicViewer: React.FC<HelpTopicViewerProps> = ({ topic, onBack }) => {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-hidden">
-        <div className="h-full flex">
+      <div className="flex-1 overflow-hidden min-h-0">
+        <div className="h-full flex flex-col lg:flex-row">
           {/* Related topics sidebar */}
-          <div className="w-80 border-r p-4">
-            <ScrollArea className="h-full">
+          <div className="w-full lg:w-80 border-b lg:border-b-0 lg:border-r p-4 lg:max-h-full overflow-hidden">
+            <ScrollArea className="h-full max-h-64 lg:max-h-full">
               <div className="space-y-6">
                 {/* Context info */}
                 <div>
@@ -84,13 +84,13 @@ const HelpTopicViewer: React.FC<HelpTopicViewerProps> = ({ topic, onBack }) => {
                   <div className="space-y-2">
                     <div className="text-sm">
                       <span className="font-medium">Scenarios:</span>
-                      <div className="text-muted-foreground">
+                      <div className="text-muted-foreground text-xs">
                         {topic.scenario.join(', ')}
                       </div>
                     </div>
                     <div className="text-sm">
                       <span className="font-medium">Best used in:</span>
-                      <div className="text-muted-foreground">
+                      <div className="text-muted-foreground text-xs">
                         {topic.context.join(', ')}
                       </div>
                     </div>
@@ -104,7 +104,7 @@ const HelpTopicViewer: React.FC<HelpTopicViewerProps> = ({ topic, onBack }) => {
                     <div className="space-y-2">
                       {relatedTopics.map(relatedTopic => (
                         <Card key={relatedTopic.id} className="p-3 cursor-pointer hover:bg-muted/50">
-                          <div className="font-medium text-sm">{relatedTopic.title}</div>
+                          <div className="font-medium text-sm truncate">{relatedTopic.title}</div>
                           <div className="text-xs text-muted-foreground">
                             {relatedTopic.difficulty} • {relatedTopic.category}
                           </div>
@@ -133,9 +133,9 @@ const HelpTopicViewer: React.FC<HelpTopicViewerProps> = ({ topic, onBack }) => {
           </div>
 
           {/* Main content */}
-          <div className="flex-1 p-6">
+          <div className="flex-1 p-4 sm:p-6 min-h-0">
             <ScrollArea className="h-full">
-              <div className="prose max-w-none">
+              <div className="prose prose-sm sm:prose max-w-none">
                 <ReactMarkdown>{topic.content}</ReactMarkdown>
               </div>
             </ScrollArea>

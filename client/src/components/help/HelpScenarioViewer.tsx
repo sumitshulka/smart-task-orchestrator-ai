@@ -41,18 +41,18 @@ const HelpScenarioViewer: React.FC<HelpScenarioViewerProps> = ({ scenario, onBac
   const progress = (completedSteps.length / scenario.steps.length) * 100;
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col min-h-0">
       {/* Header */}
-      <div className="p-6 border-b">
+      <div className="p-4 sm:p-6 border-b flex-shrink-0">
         <div className="flex items-center gap-4 mb-4">
           <Button variant="ghost" size="sm" onClick={onBack} className="gap-2">
             <ArrowLeft className="h-4 w-4" />
             Back
           </Button>
-          <div className="flex-1">
-            <h1 className="text-2xl font-bold">{scenario.name}</h1>
-            <p className="text-muted-foreground mt-1">{scenario.description}</p>
-            <div className="flex items-center gap-2 mt-2">
+          <div className="flex-1 min-w-0">
+            <h1 className="text-xl sm:text-2xl font-bold truncate">{scenario.name}</h1>
+            <p className="text-muted-foreground mt-1 text-sm line-clamp-2">{scenario.description}</p>
+            <div className="flex flex-wrap items-center gap-2 mt-2">
               <Badge className={getDifficultyColor(scenario.difficulty)}>
                 {scenario.difficulty}
               </Badge>
@@ -60,10 +60,10 @@ const HelpScenarioViewer: React.FC<HelpScenarioViewerProps> = ({ scenario, onBac
                 <Clock className="h-3 w-3 mr-1" />
                 {scenario.estimatedTime}
               </Badge>
-              <Separator orientation="vertical" className="h-4" />
+              <Separator orientation="vertical" className="h-4 hidden sm:block" />
               <span className="text-sm text-muted-foreground flex items-center gap-1">
                 <Users className="h-3 w-3" />
-                {scenario.roles.join(', ')}
+                <span className="truncate">{scenario.roles.join(', ')}</span>
               </span>
             </div>
           </div>
@@ -80,11 +80,11 @@ const HelpScenarioViewer: React.FC<HelpScenarioViewerProps> = ({ scenario, onBac
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-hidden">
-        <div className="h-full flex">
+      <div className="flex-1 overflow-hidden min-h-0">
+        <div className="h-full flex flex-col lg:flex-row">
           {/* Steps sidebar */}
-          <div className="w-80 border-r p-4">
-            <ScrollArea className="h-full">
+          <div className="w-full lg:w-80 border-b lg:border-b-0 lg:border-r p-4 lg:max-h-full overflow-hidden">
+            <ScrollArea className="h-full max-h-64 lg:max-h-full">
               <div className="space-y-2">
                 {scenario.steps.map((step, index) => (
                   <Card 
@@ -97,18 +97,18 @@ const HelpScenarioViewer: React.FC<HelpScenarioViewerProps> = ({ scenario, onBac
                     <CardHeader className="pb-2">
                       <div className="flex items-center gap-2">
                         {completedSteps.includes(step.id) ? (
-                          <CheckCircle className="h-4 w-4 text-green-600" />
+                          <CheckCircle className="h-4 w-4 text-green-600 flex-shrink-0" />
                         ) : (
-                          <Circle className="h-4 w-4 text-muted-foreground" />
+                          <Circle className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                         )}
-                        <div className="flex-1">
-                          <CardTitle className="text-sm">{step.title}</CardTitle>
+                        <div className="flex-1 min-w-0">
+                          <CardTitle className="text-sm truncate">{step.title}</CardTitle>
                           <div className="text-xs text-muted-foreground">
                             Step {index + 1} of {scenario.steps.length}
                           </div>
                         </div>
                         {currentStep === index && (
-                          <ChevronRight className="h-4 w-4 text-primary" />
+                          <ChevronRight className="h-4 w-4 text-primary flex-shrink-0" />
                         )}
                       </div>
                     </CardHeader>
@@ -119,7 +119,7 @@ const HelpScenarioViewer: React.FC<HelpScenarioViewerProps> = ({ scenario, onBac
           </div>
 
           {/* Current step content */}
-          <div className="flex-1 p-6">
+          <div className="flex-1 p-4 sm:p-6 min-h-0">
             <ScrollArea className="h-full">
               {scenario.steps[currentStep] && (
                 <div className="space-y-6">
@@ -204,11 +204,12 @@ const HelpScenarioViewer: React.FC<HelpScenarioViewerProps> = ({ scenario, onBac
                   )}
 
                   {/* Step actions */}
-                  <div className="flex items-center gap-4 pt-4 border-t">
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-4 pt-4 border-t">
                     <Button
                       variant="outline"
                       onClick={() => setCurrentStep(Math.max(0, currentStep - 1))}
                       disabled={currentStep === 0}
+                      className="w-full sm:w-auto"
                     >
                       Previous
                     </Button>
@@ -216,7 +217,7 @@ const HelpScenarioViewer: React.FC<HelpScenarioViewerProps> = ({ scenario, onBac
                     {!completedSteps.includes(scenario.steps[currentStep].id) && (
                       <Button
                         onClick={() => handleStepComplete(scenario.steps[currentStep].id)}
-                        className="gap-2"
+                        className="gap-2 w-full sm:w-auto"
                       >
                         <CheckCircle className="h-4 w-4" />
                         Mark Complete
@@ -226,6 +227,7 @@ const HelpScenarioViewer: React.FC<HelpScenarioViewerProps> = ({ scenario, onBac
                     <Button
                       onClick={() => setCurrentStep(Math.min(scenario.steps.length - 1, currentStep + 1))}
                       disabled={currentStep === scenario.steps.length - 1}
+                      className="w-full sm:w-auto"
                     >
                       Next
                     </Button>
@@ -234,7 +236,7 @@ const HelpScenarioViewer: React.FC<HelpScenarioViewerProps> = ({ scenario, onBac
                      !completedTutorials.includes(scenario.id) && (
                       <Button
                         onClick={handleScenarioComplete}
-                        className="gap-2 ml-auto"
+                        className="gap-2 w-full sm:w-auto sm:ml-auto"
                         variant="default"
                       >
                         <CheckCircle className="h-4 w-4" />

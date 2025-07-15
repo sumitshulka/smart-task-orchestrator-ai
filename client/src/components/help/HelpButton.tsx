@@ -31,11 +31,11 @@ const HelpButton: React.FC<HelpButtonProps> = ({
           {showText && 'Help'}
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-6xl h-[80vh] p-0">
-        <DialogHeader className="p-6 pb-0">
+      <DialogContent className="max-w-[95vw] sm:max-w-6xl h-[90vh] sm:h-[80vh] p-0 m-2 sm:m-4">
+        <DialogHeader className="p-4 sm:p-6 pb-0 flex-shrink-0">
           <DialogTitle>Help Center</DialogTitle>
         </DialogHeader>
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 overflow-hidden min-h-0">
           <HelpCenter initialTopic={contextualTopic} />
         </div>
       </DialogContent>

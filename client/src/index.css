@@ -124,3 +124,38 @@ html, body {
     @apply bg-background text-foreground;
   }
 }
+
+/* Mobile-friendly help system scrolling */
+@media (max-width: 1024px) {
+  .help-dialog-content {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  .help-scroll-area {
+    max-height: 50vh;
+    overflow-y: auto;
+  }
+}
+
+/* Line clamp utility */
+.line-clamp-1 {
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.line-clamp-3 {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}

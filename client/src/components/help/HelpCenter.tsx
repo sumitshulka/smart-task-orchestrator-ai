@@ -78,11 +78,11 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ initialTopic }) => {
   };
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col min-h-0">
       {/* Header with search and filters */}
-      <div className="p-6 border-b">
-        <div className="flex items-center gap-4 mb-4">
-          <div className="relative flex-1">
+      <div className="p-4 sm:p-6 border-b flex-shrink-0">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 mb-4">
+          <div className="relative flex-1 min-w-0">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Search help topics, FAQs, or scenarios..."
@@ -91,26 +91,28 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ initialTopic }) => {
               className="pl-10"
             />
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowFilters(!showFilters)}
-            className="gap-2"
-          >
-            <Filter className="h-4 w-4" />
-            Filters
-          </Button>
-          {(searchQuery || selectedCategory) && (
+          <div className="flex gap-2">
             <Button
               variant="outline"
               size="sm"
-              onClick={clearFilters}
+              onClick={() => setShowFilters(!showFilters)}
               className="gap-2"
             >
-              <X className="h-4 w-4" />
-              Clear
+              <Filter className="h-4 w-4" />
+              Filters
             </Button>
-          )}
+            {(searchQuery || selectedCategory) && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={clearFilters}
+                className="gap-2"
+              >
+                <X className="h-4 w-4" />
+                Clear
+              </Button>
+            )}
+          </div>
         </div>
 
         {/* Filters */}
@@ -130,20 +132,22 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ initialTopic }) => {
         )}
 
         {/* Role and context info */}
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <span>Your role:</span>
-          {helpContext.userRole.map(role => (
-            <Badge key={role} variant="secondary" className="text-xs">
-              {role}
-            </Badge>
-          ))}
-          <Separator orientation="vertical" className="h-4" />
-          <span>Current page: {helpContext.currentPage}</span>
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 text-sm text-muted-foreground">
+          <div className="flex items-center gap-2">
+            <span>Your role:</span>
+            {helpContext.userRole.map(role => (
+              <Badge key={role} variant="secondary" className="text-xs">
+                {role}
+              </Badge>
+            ))}
+          </div>
+          <Separator orientation="vertical" className="h-4 hidden sm:block" />
+          <span className="truncate">Current page: {helpContext.currentPage}</span>
         </div>
       </div>
 
       {/* Main content */}
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1 overflow-hidden min-h-0">
         {selectedTopic ? (
           <HelpTopicViewer
             topic={selectedTopic}
@@ -155,10 +159,10 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ initialTopic }) => {
             onBack={() => setSelectedScenario(null)}
           />
         ) : (
-          <div className="h-full flex">
-            {/* Sidebar with contextual help */}
-            <div className="w-80 border-r p-4">
-              <ScrollArea className="h-full">
+          <div className="h-full flex flex-col lg:flex-row min-h-0">
+            {/* Sidebar with contextual help - collapsible on mobile */}
+            <div className="w-full lg:w-80 border-b lg:border-b-0 lg:border-r p-4 lg:max-h-full overflow-hidden">
+              <ScrollArea className="h-full max-h-64 lg:max-h-full">
                 {/* Contextual help */}
                 {contextualHelp.topics.length > 0 && (
                   <div className="mb-6">
@@ -197,7 +201,7 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ initialTopic }) => {
                       {contextualHelp.faqs.map(faq => (
                         <Card key={faq.id} className="p-3">
                           <div className="font-medium text-sm mb-1">{faq.question}</div>
-                          <div className="text-xs text-muted-foreground">{faq.answer}</div>
+                          <div className="text-xs text-muted-foreground line-clamp-2">{faq.answer}</div>
                         </Card>
                       ))}
                     </div>
@@ -212,7 +216,7 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ initialTopic }) => {
                       <Button
                         key={category.id}
                         variant={selectedCategory === category.id ? "default" : "ghost"}
-                        className="w-full justify-start"
+                        className="w-full justify-start text-xs sm:text-sm"
                         onClick={() => {
                           setSelectedCategory(category.id);
                           setActiveTab('topics');
@@ -227,28 +231,28 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ initialTopic }) => {
             </div>
 
             {/* Main content area */}
-            <div className="flex-1">
-              <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full">
-                <TabsList className="grid w-full grid-cols-3 m-4">
+            <div className="flex-1 min-h-0 flex flex-col">
+              <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
+                <TabsList className="grid w-full grid-cols-3 m-4 flex-shrink-0">
                   <TabsTrigger value="topics">Topics</TabsTrigger>
                   <TabsTrigger value="scenarios">Scenarios</TabsTrigger>
                   <TabsTrigger value="faqs">FAQs</TabsTrigger>
                 </TabsList>
 
-                <div className="px-4 pb-4 h-full">
+                <div className="px-4 pb-4 flex-1 min-h-0">
                   {/* Search Results */}
                   {searchQuery && (
                     <div className="mb-4">
                       <h3 className="font-semibold mb-2">
                         Search Results ({searchResults.length})
                       </h3>
-                      <ScrollArea className="h-40">
+                      <ScrollArea className="h-32 sm:h-40">
                         <div className="space-y-2">
                           {searchResults.map((result, index) => (
                             <Card key={index} className="p-3 cursor-pointer hover:bg-muted/50">
                               <div className="flex items-start justify-between">
-                                <div className="flex-1">
-                                  <div className="font-medium text-sm">
+                                <div className="flex-1 min-w-0">
+                                  <div className="font-medium text-sm truncate">
                                     {'title' in result.item ? result.item.title : 
                                      'question' in result.item ? result.item.question : result.item.name}
                                   </div>
@@ -256,7 +260,7 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ initialTopic }) => {
                                     {result.type} • Relevance: {result.relevanceScore}
                                   </div>
                                 </div>
-                                <Badge variant="secondary" className="text-xs">
+                                <Badge variant="secondary" className="text-xs ml-2 flex-shrink-0">
                                   {result.type}
                                 </Badge>
                               </div>
@@ -267,20 +271,20 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ initialTopic }) => {
                     </div>
                   )}
 
-                  <TabsContent value="topics" className="mt-0 h-full">
+                  <TabsContent value="topics" className="mt-0 flex-1 min-h-0">
                     <ScrollArea className="h-full">
                       <div className="grid gap-4">
                         {filteredTopics.map(topic => (
                           <Card key={topic.id} className="cursor-pointer hover:bg-muted/50" onClick={() => setSelectedTopic(topic)}>
                             <CardHeader className="pb-3">
-                              <div className="flex items-start justify-between">
-                                <div className="flex-1">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex-1 min-w-0">
                                   <CardTitle className="text-base">{topic.title}</CardTitle>
-                                  <CardDescription className="mt-1">
+                                  <CardDescription className="mt-1 line-clamp-2">
                                     {topic.content.substring(0, 150)}...
                                   </CardDescription>
                                 </div>
-                                <div className="flex gap-2">
+                                <div className="flex flex-col gap-1 flex-shrink-0">
                                   <Badge variant="secondary" className="text-xs">
                                     {topic.difficulty}
                                   </Badge>
@@ -291,10 +295,10 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ initialTopic }) => {
                               </div>
                             </CardHeader>
                             <CardContent className="pt-0">
-                              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 text-xs text-muted-foreground">
                                 <span>Updated: {topic.lastUpdated}</span>
-                                <Separator orientation="vertical" className="h-3" />
-                                <span>{topic.tags.slice(0, 3).join(', ')}</span>
+                                <Separator orientation="vertical" className="h-3 hidden sm:block" />
+                                <span className="truncate">{topic.tags.slice(0, 3).join(', ')}</span>
                               </div>
                             </CardContent>
                           </Card>
@@ -303,23 +307,23 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ initialTopic }) => {
                     </ScrollArea>
                   </TabsContent>
 
-                  <TabsContent value="scenarios" className="mt-0 h-full">
+                  <TabsContent value="scenarios" className="mt-0 flex-1 min-h-0">
                     <ScrollArea className="h-full">
                       <div className="grid gap-4">
                         {filteredScenarios.map(scenario => (
                           <Card key={scenario.id} className="cursor-pointer hover:bg-muted/50" onClick={() => setSelectedScenario(scenario)}>
                             <CardHeader className="pb-3">
-                              <div className="flex items-start justify-between">
-                                <div className="flex-1">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex-1 min-w-0">
                                   <CardTitle className="text-base flex items-center gap-2">
-                                    <Play className="h-4 w-4" />
-                                    {scenario.name}
+                                    <Play className="h-4 w-4 flex-shrink-0" />
+                                    <span className="truncate">{scenario.name}</span>
                                   </CardTitle>
-                                  <CardDescription className="mt-1">
+                                  <CardDescription className="mt-1 line-clamp-2">
                                     {scenario.description}
                                   </CardDescription>
                                 </div>
-                                <div className="flex gap-2">
+                                <div className="flex flex-col gap-1 flex-shrink-0">
                                   <Badge variant="secondary" className="text-xs">
                                     {scenario.difficulty}
                                   </Badge>
@@ -340,18 +344,18 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ initialTopic }) => {
                     </ScrollArea>
                   </TabsContent>
 
-                  <TabsContent value="faqs" className="mt-0 h-full">
+                  <TabsContent value="faqs" className="mt-0 flex-1 min-h-0">
                     <ScrollArea className="h-full">
                       <div className="grid gap-4">
                         {filteredFAQs.map(faq => (
                           <Card key={faq.id}>
                             <CardHeader className="pb-3">
-                              <div className="flex items-start justify-between">
-                                <CardTitle className="text-base flex items-center gap-2">
-                                  <MessageSquare className="h-4 w-4" />
-                                  {faq.question}
+                              <div className="flex items-start justify-between gap-2">
+                                <CardTitle className="text-base flex items-center gap-2 min-w-0">
+                                  <MessageSquare className="h-4 w-4 flex-shrink-0" />
+                                  <span className="truncate">{faq.question}</span>
                                 </CardTitle>
-                                <Badge variant="secondary" className="text-xs">
+                                <Badge variant="secondary" className="text-xs flex-shrink-0">
                                   {faq.popularity}% helpful
                                 </Badge>
                               </div>
