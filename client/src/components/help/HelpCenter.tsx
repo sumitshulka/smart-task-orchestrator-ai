@@ -161,7 +161,7 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ initialTopic }) => {
           <div className="h-full flex flex-col lg:flex-row min-h-0">
             {/* Sidebar with contextual help - collapsible on mobile */}
             <div className="w-full lg:w-80 border-b lg:border-b-0 lg:border-r p-4 lg:max-h-full overflow-hidden">
-              <ScrollArea className="h-full max-h-64 lg:max-h-full">
+              <div className="h-full max-h-64 lg:max-h-full overflow-y-auto overflow-x-hidden">
                 {/* Contextual help */}
                 {contextualHelp.topics.length > 0 && (
                   <div className="mb-6">
@@ -226,7 +226,7 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ initialTopic }) => {
                     ))}
                   </div>
                 </div>
-              </ScrollArea>
+              </div>
             </div>
 
             {/* Main content area */}
