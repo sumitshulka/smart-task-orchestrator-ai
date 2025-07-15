@@ -45,6 +45,7 @@ export interface IStorage {
   updateUser(id: string, updates: Partial<User>): Promise<User>;
   getAllUsers(): Promise<User[]>;
   deactivateUser(id: string): Promise<User>;
+  activateUser(id: string): Promise<User>;
   deleteUser(id: string, deletedBy: string): Promise<{ deletedUser: any; deletedTasksCount: number }>;
   
   // Deleted user operations (admin only)
@@ -150,6 +151,14 @@ export class DatabaseStorage implements IStorage {
   async deactivateUser(id: string): Promise<User> {
     const result = await db.update(users).set({
       is_active: false,
+      updated_at: new Date()
+    }).where(eq(users.id, id)).returning();
+    return result[0];
+  }
+
+  async activateUser(id: string): Promise<User> {
+    const result = await db.update(users).set({
+      is_active: true,
       updated_at: new Date()
     }).where(eq(users.id, id)).returning();
     return result[0];

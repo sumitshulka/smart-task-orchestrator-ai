@@ -46,6 +46,7 @@ const UserTableActions: React.FC<UserTableActionsProps> = ({ user, onEdit, onRef
   const [resetDialogOpen, setResetDialogOpen] = React.useState(false);
   const [editRoleDialogOpen, setEditRoleDialogOpen] = React.useState(false);
   const [deactivateDialogOpen, setDeactivateDialogOpen] = React.useState(false);
+  const [activateDialogOpen, setActivateDialogOpen] = React.useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false);
 
   const { toast } = useToast();
@@ -65,6 +66,26 @@ const UserTableActions: React.FC<UserTableActionsProps> = ({ user, onEdit, onRef
       toast({
         title: "Error",
         description: `Failed to deactivate user: ${error.message}`,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Activate user mutation
+  const activateUserMutation = useMutation({
+    mutationFn: () => apiClient.activateUser(user.id),
+    onSuccess: () => {
+      toast({
+        title: "User activated",
+        description: `${user.user_name || user.email} has been activated successfully.`,
+      });
+      onRefresh?.();
+      setActivateDialogOpen(false);
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: `Failed to activate user: ${error.message}`,
         variant: "destructive",
       });
     },
@@ -102,6 +123,10 @@ const UserTableActions: React.FC<UserTableActionsProps> = ({ user, onEdit, onRef
     setDeactivateDialogOpen(true);
   }
 
+  function handleActivateUser() {
+    setActivateDialogOpen(true);
+  }
+
   function handleDeleteUser() {
     setDeleteDialogOpen(true);
   }
@@ -129,10 +154,15 @@ const UserTableActions: React.FC<UserTableActionsProps> = ({ user, onEdit, onRef
             Edit Role
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          {user.is_active && (
+          {user.is_active ? (
             <DropdownMenuItem onClick={handleDeactivateUser} className="text-orange-600">
               <UserX className="w-4 h-4 mr-2" />
               Deactivate User
+            </DropdownMenuItem>
+          ) : (
+            <DropdownMenuItem onClick={handleActivateUser} className="text-green-600">
+              <UserCheck className="w-4 h-4 mr-2" />
+              Activate User
             </DropdownMenuItem>
           )}
           <DropdownMenuItem onClick={handleDeleteUser} className="text-destructive">
@@ -171,10 +201,11 @@ const UserTableActions: React.FC<UserTableActionsProps> = ({ user, onEdit, onRef
               Deactivate User
             </AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to deactivate <strong>{user.user_name || user.email}</strong>?
-              <br /><br />
+              <div className="mb-4">
+                Are you sure you want to deactivate <strong>{user.user_name || user.email}</strong>?
+              </div>
               <div className="bg-orange-50 border border-orange-200 rounded-md p-3 text-sm">
-                <strong>What happens when you deactivate a user:</strong>
+                <div className="font-semibold">What happens when you deactivate a user:</div>
                 <ul className="mt-2 space-y-1 list-disc list-inside">
                   <li>User will not be able to log in to the system</li>
                   <li>Existing tasks will remain active and visible</li>
@@ -206,10 +237,11 @@ const UserTableActions: React.FC<UserTableActionsProps> = ({ user, onEdit, onRef
               Delete User - Permanent Action
             </AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to permanently delete <strong>{user.user_name || user.email}</strong>?
-              <br /><br />
+              <div className="mb-4">
+                Are you sure you want to permanently delete <strong>{user.user_name || user.email}</strong>?
+              </div>
               <div className="bg-red-50 border border-red-200 rounded-md p-3 text-sm">
-                <strong>⚠️ This action cannot be undone:</strong>
+                <div className="font-semibold">⚠️ This action cannot be undone:</div>
                 <ul className="mt-2 space-y-1 list-disc list-inside">
                   <li>User account will be permanently removed</li>
                   <li>All user's tasks will be moved to deleted tasks repository</li>
@@ -228,6 +260,42 @@ const UserTableActions: React.FC<UserTableActionsProps> = ({ user, onEdit, onRef
               className="bg-destructive hover:bg-destructive/90"
             >
               {deleteUserMutation.isPending ? "Deleting..." : "Delete User"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Activate User Confirmation Dialog */}
+      <AlertDialog open={activateDialogOpen} onOpenChange={setActivateDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <UserCheck className="w-5 h-5 text-green-600" />
+              Activate User
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              <div className="mb-4">
+                Are you sure you want to activate <strong>{user.user_name || user.email}</strong>?
+              </div>
+              <div className="bg-green-50 border border-green-200 rounded-md p-3 text-sm">
+                <div className="font-semibold">What happens when you activate a user:</div>
+                <ul className="mt-2 space-y-1 list-disc list-inside">
+                  <li>User will be able to log in to the system</li>
+                  <li>User can be assigned new tasks</li>
+                  <li>User will have access to all their previous data</li>
+                  <li>User can participate in teams and task groups</li>
+                </ul>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => activateUserMutation.mutate()}
+              disabled={activateUserMutation.isPending}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              {activateUserMutation.isPending ? "Activating..." : "Activate User"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

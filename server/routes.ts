@@ -134,6 +134,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Activate user (admin only)
+  app.patch("/api/users/:id/activate", requireAdmin, async (req, res) => {
+    try {
+      const user = await storage.activateUser(req.params.id);
+      res.json(user);
+    } catch (error) {
+      console.error("Error activating user:", error);
+      res.status(500).json({ error: "Failed to activate user" });
+    }
+  });
+
   // Delete user (admin only)
   app.delete("/api/users/:id", requireAdmin, async (req, res) => {
     try {

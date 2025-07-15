@@ -3,6 +3,7 @@ import React from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Plus, Filter } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "@/components/ui/use-toast";
 import { apiClient } from "@/lib/api";
 import UserTableActions from "@/components/UserTableActions";
@@ -120,19 +121,20 @@ const AdminUsers: React.FC = () => {
               <th className="p-2 text-left">Email</th>
               <th className="p-2 text-left">Department</th>
               <th className="p-2 text-left">Manager</th>
+              <th className="p-2 text-left">Status</th>
               <th className="p-2 text-right">Actions</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={5} className="p-4">
+                <td colSpan={6} className="p-4">
                   <span className="text-muted-foreground">Loading users...</span>
                 </td>
               </tr>
             ) : filteredUsers.length === 0 ? (
               <tr>
-                <td colSpan={5} className="p-4">
+                <td colSpan={6} className="p-4">
                   <span className="text-muted-foreground">
                     No users found in the system.
                   </span>
@@ -157,6 +159,14 @@ const AdminUsers: React.FC = () => {
                           <span className="text-muted-foreground">—</span>
                         )
                       }
+                    </td>
+                    <td className="p-2">
+                      <Badge 
+                        variant={user.is_active ? "default" : "secondary"} 
+                        className={user.is_active ? "bg-green-100 text-green-800 border-green-200" : "bg-red-100 text-red-800 border-red-200"}
+                      >
+                        {user.is_active ? "Active" : "Deactivated"}
+                      </Badge>
                     </td>
                     <td className="p-2 text-right">
                       <UserTableActions user={user} onEdit={handleEditUser} onRefresh={fetchUsers} />

@@ -64,6 +64,12 @@ class ApiClient {
     });
   }
 
+  async activateUser(id: string) {
+    return this.request(`/users/${id}/activate`, {
+      method: 'PATCH',
+    });
+  }
+
   async deleteUser(id: string) {
     return this.request(`/users/${id}`, {
       method: 'DELETE',
