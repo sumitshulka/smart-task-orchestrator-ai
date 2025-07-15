@@ -1,43 +1,36 @@
+
 import React from "react";
 import { useLocation, NavLink } from "react-router-dom";
-import { BarChart3, Home } from "lucide-react";
+import { Home, BarChart3 } from "lucide-react";
 
-interface DashboardMenuProps {
-  isUserOnly: boolean;
-  collapsed: boolean;
-}
-
-export default function DashboardMenu({ isUserOnly, collapsed }: DashboardMenuProps) {
+export default function DashboardMenu({ isUserOnly, collapsed }: { isUserOnly: boolean, collapsed: boolean }) {
   const location = useLocation();
-
   return (
-    <div className="relative flex w-full min-w-0 flex-col p-2">
-      <div className={`flex h-8 shrink-0 items-center rounded-md px-2 text-xs font-medium text-sidebar-foreground/70 ${collapsed ? "opacity-0" : ""}`}>
-        Dashboard
-      </div>
-      <div className="w-full text-sm">
+    <div>
+      <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 px-2">Dashboard</div>
+      <div>
         <ul className="flex w-full min-w-0 flex-col gap-1">
           <li className="group/menu-item relative">
             <NavLink
-              to="/admin"
+              to="/"
               end
               className={({ isActive }) =>
-                "flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm outline-none ring-sidebar-ring transition-[width,height,padding] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 " +
-                (isActive ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground" : "")
+                "flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm outline-none transition-[width,height,padding] hover:bg-gray-100 focus-visible:ring-2 " +
+                (isActive ? "bg-gray-100 font-medium" : "")
               }
             >
               <Home className="w-4 h-4 shrink-0" />
-              {!collapsed && <span className="truncate">Dashboard</span>}
+              {!collapsed && <span className="truncate">Home</span>}
             </NavLink>
           </li>
           {!isUserOnly && (
             <li className="group/menu-item relative">
               <NavLink
-                to="/admin/analytics"
+                to="/analytics"
                 end
                 className={({ isActive }) =>
-                  "flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm outline-none ring-sidebar-ring transition-[width,height,padding] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 " +
-                  (isActive ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground" : "")
+                  "flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm outline-none transition-[width,height,padding] hover:bg-gray-100 focus-visible:ring-2 " +
+                  (isActive ? "bg-gray-100 font-medium" : "")
                 }
               >
                 <BarChart3 className="w-4 h-4 shrink-0" />

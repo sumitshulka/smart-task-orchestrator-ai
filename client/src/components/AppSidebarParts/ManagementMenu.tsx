@@ -1,81 +1,73 @@
 
 import React from "react";
 import { useLocation, NavLink } from "react-router-dom";
-import { SidebarGroup, SidebarGroupLabel, SidebarGroupContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton } from "../ui/sidebar";
 import { Users2, Users, ShieldCheck, Archive } from "lucide-react";
 
 export default function ManagementMenu({ isAdmin, isManager, collapsed }: { isAdmin: boolean, isManager: boolean, collapsed: boolean }) {
   const location = useLocation();
   if (!(isAdmin || isManager)) return null;
   return (
-    <SidebarGroup>
-      <SidebarGroupLabel>Management</SidebarGroupLabel>
-      <SidebarGroupContent>
-        <SidebarMenu>
+    <div>
+      <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 px-2">Management</div>
+      <div>
+        <ul className="flex w-full min-w-0 flex-col gap-1">
           {isAdmin && (
-            <SidebarMenuItem>
-              <SidebarMenuButton asChild isActive={location.pathname.startsWith("/admin/users")}>
-                <NavLink
-                  to="/admin/users"
-                  end
-                  className={({ isActive }) =>
-                    "flex items-center gap-2 py-1.5 px-2 rounded transition " +
-                    (isActive ? "bg-muted text-primary font-semibold" : "hover:bg-muted/50")
-                  }
-                >
-                  <Users2 className="w-5 h-5" />
-                  {!collapsed && <span>User Management</span>}
-                </NavLink>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          )}
-          {isAdmin && (
-            <SidebarMenuItem>
-              <SidebarMenuButton asChild isActive={location.pathname.startsWith("/admin/deleted-users")}>
-                <NavLink
-                  to="/admin/deleted-users"
-                  end
-                  className={({ isActive }) =>
-                    "flex items-center gap-2 py-1.5 px-2 rounded transition " +
-                    (isActive ? "bg-muted text-primary font-semibold" : "hover:bg-muted/50")
-                  }
-                >
-                  <Archive className="w-5 h-5" />
-                  {!collapsed && <span>Deleted Users</span>}
-                </NavLink>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          )}
-          <SidebarMenuItem>
-            <SidebarMenuButton asChild isActive={location.pathname.startsWith("/admin/teams")}>
+            <li className="group/menu-item relative">
               <NavLink
-                to="/admin/teams"
+                to="/admin/users"
                 end
                 className={({ isActive }) =>
-                  "flex items-center gap-2 py-1.5 px-2 rounded transition " +
-                  (isActive ? "bg-muted text-primary font-semibold" : "hover:bg-muted/50")
+                  "flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm outline-none transition-[width,height,padding] hover:bg-gray-100 focus-visible:ring-2 " +
+                  (isActive ? "bg-gray-100 font-medium" : "")
                 }
               >
-                <Users className="w-5 h-5" />
-                {!collapsed && <span>Team Management</span>}
+                <Users2 className="w-4 h-4 shrink-0" />
+                {!collapsed && <span className="truncate">User Management</span>}
               </NavLink>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
+            </li>
+          )}
           {isAdmin && (
-            <SidebarMenuItem>
-              <SidebarMenuButton asChild isActive={location.pathname.startsWith("/admin/role-permissions")}>
-                <NavLink
-                  to="/admin/role-permissions"
-                  end
-                  className={({ isActive }) =>
-                    "flex items-center gap-2 py-1.5 px-2 rounded transition " +
-                    (isActive ? "bg-muted text-primary font-semibold" : "hover:bg-muted/50")
-                  }
-                >
-                  <ShieldCheck className="w-5 h-5" />
-                  {!collapsed && <span>Roles & Privileges</span>}
-                </NavLink>
+            <li className="group/menu-item relative">
+              <NavLink
+                to="/admin/deleted-users"
+                end
+                className={({ isActive }) =>
+                  "flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm outline-none transition-[width,height,padding] hover:bg-gray-100 focus-visible:ring-2 " +
+                  (isActive ? "bg-gray-100 font-medium" : "")
+                }
+              >
+                <Archive className="w-4 h-4 shrink-0" />
+                {!collapsed && <span className="truncate">Deleted Users</span>}
+              </NavLink>
+            </li>
+          )}
+          <li className="group/menu-item relative">
+            <NavLink
+              to="/admin/teams"
+              end
+              className={({ isActive }) =>
+                "flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm outline-none transition-[width,height,padding] hover:bg-gray-100 focus-visible:ring-2 " +
+                (isActive ? "bg-gray-100 font-medium" : "")
+              }
+            >
+              <Users className="w-4 h-4 shrink-0" />
+              {!collapsed && <span className="truncate">Team Management</span>}
+            </NavLink>
           </li>
+          {isAdmin && (
+            <li className="group/menu-item relative">
+              <NavLink
+                to="/admin/role-permissions"
+                end
+                className={({ isActive }) =>
+                  "flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm outline-none transition-[width,height,padding] hover:bg-gray-100 focus-visible:ring-2 " +
+                  (isActive ? "bg-gray-100 font-medium" : "")
+                }
+              >
+                <ShieldCheck className="w-4 h-4 shrink-0" />
+                {!collapsed && <span className="truncate">Roles & Privileges</span>}
+              </NavLink>
+            </li>
           )}
         </ul>
       </div>
