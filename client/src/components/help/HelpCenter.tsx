@@ -238,7 +238,7 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ initialTopic }) => {
                   <TabsTrigger value="faqs">FAQs</TabsTrigger>
                 </TabsList>
 
-                <div className="px-4 pb-4 flex-1 min-h-0">
+                <div className="px-4 pb-4 flex-1 min-h-0 overflow-hidden">
                   {/* Search Results */}
                   {searchQuery && (
                     <div className="mb-4">
@@ -270,8 +270,8 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ initialTopic }) => {
                     </div>
                   )}
 
-                  <TabsContent value="topics" className="mt-0 flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
-                    <div className="grid gap-4">
+                  <TabsContent value="topics" className="mt-0 h-full overflow-y-auto overflow-x-hidden">
+                    <div className="grid gap-4 pb-4">
                         {filteredTopics.map(topic => (
                           <Card key={topic.id} className="cursor-pointer hover:bg-muted/50" onClick={() => setSelectedTopic(topic)}>
                             <CardHeader className="pb-3">
@@ -304,8 +304,8 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ initialTopic }) => {
                     </div>
                   </TabsContent>
 
-                  <TabsContent value="scenarios" className="mt-0 flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
-                    <div className="grid gap-4">
+                  <TabsContent value="scenarios" className="mt-0 h-full overflow-y-auto overflow-x-hidden">
+                    <div className="grid gap-4 pb-4">
                         {filteredScenarios.map(scenario => (
                           <Card key={scenario.id} className="cursor-pointer hover:bg-muted/50" onClick={() => setSelectedScenario(scenario)}>
                             <CardHeader className="pb-3">
@@ -339,8 +339,8 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ initialTopic }) => {
                     </div>
                   </TabsContent>
 
-                  <TabsContent value="faqs" className="mt-0 flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
-                    <div className="grid gap-4">
+                  <TabsContent value="faqs" className="mt-0 h-full overflow-y-auto overflow-x-hidden">
+                    <div className="grid gap-4 pb-4">
                         {filteredFAQs.map(faq => (
                           <Card key={faq.id}>
                             <CardHeader className="pb-3">
