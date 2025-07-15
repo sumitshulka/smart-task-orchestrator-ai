@@ -55,6 +55,7 @@ Preferred communication style: Simple, everyday language.
 ✓ **Enhanced Backend Status Management**: Added deletion preview API, task handling logic, and automatic activity logging for status changes
 ✓ **Application Stability Fix**: Resolved compilation errors in status deletion workflow by fixing IIFE syntax issues and authentication header implementation
 ✓ **Server Verification**: Confirmed application is running correctly on port 5000 with full API functionality and database connectivity
+✓ **Transition-Based Kanban Ordering**: Implemented workflow-aware column ordering in Kanban board where default status appears first, followed by statuses in transition sequence order, with alphabetical sorting for merging statuses
 
 ## System Architecture
 

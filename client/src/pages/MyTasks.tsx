@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Filter, Search, Kanban, List, Plus } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useTaskStatuses } from "@/hooks/useTaskStatuses";
+import { useStatusTransitionValidation } from "@/hooks/useStatusTransitionValidation";
 import { useDrop, useDrag, DndProvider } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
 import TaskDetailsSheet from "@/components/TaskDetailsSheet";
@@ -225,6 +226,7 @@ export default function MyTasksPage() {
 
   const { users, teams } = useUsersAndTeams();
   const { statuses, loading: statusesLoading } = useTaskStatuses();
+  const { getStatusSequence } = useStatusTransitionValidation();
 
   // Sheet (modal) state for Task Details
   const [detailsTask, setDetailsTask] = useState<Task | null>(null);
@@ -353,14 +355,37 @@ export default function MyTasksPage() {
   }
 
   const CARD_TYPE = "TASK_CARD";
-  const sortedStatusKeys = useMemo(
-    () =>
-      statuses
-        .slice()
-        .sort((a, b) => a.sequence_order - b.sequence_order)
-        .map((s) => getStatusKey(s.name)),
-    [statuses]
-  );
+  
+  // Sort statuses based on transition workflow order
+  const sortedStatusKeys = useMemo(() => {
+    const transitionSequence = getStatusSequence();
+    const statusMap = new Map(statuses.map(s => [s.name, s]));
+    
+    // Start with default status first
+    const defaultStatus = statuses.find(s => s.is_default);
+    const orderedStatuses: string[] = [];
+    
+    if (defaultStatus) {
+      orderedStatuses.push(defaultStatus.name);
+    }
+    
+    // Add statuses following the transition sequence
+    transitionSequence.forEach(statusName => {
+      if (statusMap.has(statusName) && !orderedStatuses.includes(statusName)) {
+        orderedStatuses.push(statusName);
+      }
+    });
+    
+    // Add any remaining statuses alphabetically (for merging cases)
+    const remainingStatuses = statuses
+      .filter(s => !orderedStatuses.includes(s.name))
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map(s => s.name);
+    
+    orderedStatuses.push(...remainingStatuses);
+    
+    return orderedStatuses.map(name => getStatusKey(name));
+  }, [statuses, getStatusSequence]);
 
   const handleTaskDrop = async (taskId: string, newStatusKey: string) => {
     const statusObj = statuses.find(
