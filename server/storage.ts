@@ -68,6 +68,7 @@ export interface IStorage {
   // Team operations
   getTeam(id: string): Promise<Team | undefined>;
   getAllTeams(): Promise<Team[]>;
+  getTeamsByUser(userId: string): Promise<Team[]>;
   createTeam(team: InsertTeam): Promise<Team>;
   updateTeam(id: string, updates: Partial<Team>): Promise<Team>;
   deleteTeam(id: string): Promise<void>;
@@ -340,6 +341,28 @@ export class DatabaseStorage implements IStorage {
       })
       .from(teams)
       .leftJoin(users, eq(teams.manager_id, users.id))
+      .orderBy(teams.name);
+  }
+
+  async getTeamsByUser(userId: string): Promise<Team[]> {
+    return await db
+      .select({
+        id: teams.id,
+        name: teams.name,
+        description: teams.description,
+        created_by: teams.created_by,
+        manager_id: teams.manager_id,
+        created_at: teams.created_at,
+        manager: {
+          id: users.id,
+          user_name: users.user_name,
+          email: users.email,
+        }
+      })
+      .from(teams)
+      .leftJoin(users, eq(teams.manager_id, users.id))
+      .innerJoin(teamMemberships, eq(teams.id, teamMemberships.team_id))
+      .where(eq(teamMemberships.user_id, userId))
       .orderBy(teams.name);
   }
 

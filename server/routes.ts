@@ -155,9 +155,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // User management routes - Admin/Manager only
   app.get("/api/users", requireManagerOrAdmin, async (req, res) => {
     try {
-      const users = await storage.getAllUsers();
+      const userId = req.headers['x-user-id'] as string;
+      const { scope, roleNames } = await getUserVisibilityScope(userId);
+      
+      let users;
+      
+      if (scope === "organization") {
+        // Admin can see all users
+        users = await storage.getAllUsers();
+      } else if (scope === "team") {
+        // Manager/Team Manager can only see their direct reports and team members
+        const currentUser = await storage.getUser(userId);
+        if (!currentUser) {
+          return res.status(403).json({ error: "User not found" });
+        }
+        
+        // Get all users where current user is the manager
+        const allUsers = await storage.getAllUsers();
+        const directReports = allUsers.filter(user => user.manager === userId);
+        
+        // Also get users in the same teams as the current user
+        const userTeams = await storage.getTeamsByUser(userId);
+        const teamMemberIds = new Set<string>();
+        
+        for (const team of userTeams) {
+          const teamMembers = await storage.getTeamMembers(team.id);
+          teamMembers.forEach(member => teamMemberIds.add(member.user_id));
+        }
+        
+        // Combine direct reports and team members, avoiding duplicates
+        const visibleUserIds = new Set([
+          ...directReports.map(u => u.id),
+          ...teamMemberIds,
+          userId // Include self
+        ]);
+        
+        users = allUsers.filter(user => visibleUserIds.has(user.id));
+      } else {
+        // Regular user can only see themselves
+        users = [await storage.getUser(userId)].filter(Boolean);
+      }
+      
       res.json(users);
     } catch (error) {
+      console.error('Error fetching users:', error);
       res.status(500).json({ error: "Failed to fetch users" });
     }
   });
