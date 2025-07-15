@@ -322,9 +322,13 @@ const BenchmarkingReport: React.FC = () => {
     setIsProcessing(true);
     const lowerQuery = query.toLowerCase();
 
+    console.log(`Processing query: "${query}" -> lowercased: "${lowerQuery}"`);
+    
     // Parse time tokens from the query
     const timeToken = parseTimeTokens(query);
     const { startDate: queryStartDate, endDate: queryEndDate } = getQueryBasedDateRange(timeToken);
+    
+    console.log(`Time token extracted: ${timeToken}`);
 
     // Recalculate benchmarking data based on query-specific date range
     const queryBenchmarkingData = users.map(user => {
@@ -405,8 +409,11 @@ const BenchmarkingReport: React.FC = () => {
     let matchedPattern = "";
 
     try {
+      console.log(`Starting pattern matching for query: "${lowerQuery}"`);
+      
       // Pattern matching for different query types
       if ((lowerQuery.includes("achieved") || lowerQuery.includes("surpassed") || lowerQuery.includes("exceeded")) && lowerQuery.includes("benchmark")) {
+        console.log(`Matched: achieved/surpassed/exceeded benchmark`);
         matchedUsers = queryBenchmarkingData.filter(user => 
           user.averageWeeklyHours >= settings?.min_hours_per_week || user.totalHoursInPeriod >= settings?.min_hours_per_week
         );
@@ -543,9 +550,11 @@ const BenchmarkingReport: React.FC = () => {
           console.log(`Hours filtering: threshold=${threshold}, matched=${matchedUsers.length} users`);
         }
       }
-      else if (lowerQuery.includes("surpass") || lowerQuery.includes("exceed") || lowerQuery.includes("over") && lowerQuery.includes("%")) {
+      else if (lowerQuery.includes("surpass") || lowerQuery.includes("exceed") || (lowerQuery.includes("over") && lowerQuery.includes("%"))) {
+        console.log(`Matched: surpass/exceed/over with % pattern`);
         // Parse percentage-based performance queries like "surpassed their hours by more than 10%"
         const percentMatch = lowerQuery.match(/(?:more than|over|above)\s+(\d+)%/);
+        console.log(`Percentage match result:`, percentMatch);
         if (percentMatch) {
           const percentThreshold = parseInt(percentMatch[1]);
           
@@ -780,6 +789,7 @@ const BenchmarkingReport: React.FC = () => {
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
+      console.log(`Enter key pressed, processing query: "${query}"`);
       processNaturalLanguageQuery();
     }
   };
@@ -888,7 +898,10 @@ const BenchmarkingReport: React.FC = () => {
               </ul>
             </div>
             <Button 
-              onClick={processNaturalLanguageQuery} 
+              onClick={() => {
+                console.log(`Analyze button clicked, processing query: "${query}"`);
+                processNaturalLanguageQuery();
+              }} 
               disabled={isProcessing || !query.trim()}
               className="ml-4"
             >
