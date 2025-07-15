@@ -193,15 +193,15 @@ const BenchmarkingReport: React.FC = () => {
         }
       });
 
+      const dailyValues = Object.values(dailyHours);
+      const weeklyValues = Object.values(weeklyHours);
+      const monthlyValues = Object.values(monthlyHours);
+
       // Log detailed weekly breakdown for debugging
       if (user.user_name === "Sumit Shukla" || user.email === "ss@sumits.me") {
         console.log(`${user.user_name || user.email} weekly hours breakdown:`, weeklyHours);
         console.log(`${user.user_name || user.email} daily hours breakdown:`, dailyHours);
       }
-
-      const dailyValues = Object.values(dailyHours);
-      const weeklyValues = Object.values(weeklyHours);
-      const monthlyValues = Object.values(monthlyHours);
 
       const averageDailyHours = dailyValues.length > 0 ? dailyValues.reduce((a, b) => a + b, 0) / dailyValues.length : 0;
       const averageWeeklyHours = weeklyValues.length > 0 ? weeklyValues.reduce((a, b) => a + b, 0) / weeklyValues.length : 0;
@@ -212,7 +212,8 @@ const BenchmarkingReport: React.FC = () => {
       const weeksAboveMax = weeklyValues.filter(h => h > settings.max_hours_per_week).length;
       const weeksBelowMin = weeklyValues.filter(h => h > 0 && h < settings.min_hours_per_week).length;
 
-      const isConsistentlyLow = weeklyValues.length >= 2 && weeklyValues.every(h => h < settings.min_hours_per_week);
+      const isConsistentlyLow = weeklyValues.length === 0 || (weeklyValues.length >= 1 && weeklyValues.every(h => h < settings.min_hours_per_week));
+      console.log(`User ${user.user_name || user.email}: weeklyValues=${weeklyValues.length}, isConsistentlyLow=${isConsistentlyLow}, minHours=${settings.min_hours_per_week}`);
       const isConsistentlyHigh = weeklyValues.length >= 2 && weeklyValues.every(h => h > settings.max_hours_per_week);
       const isExactHours = weeklyValues.some(h => h === settings.max_hours_per_week || h === settings.min_hours_per_week);
 
@@ -389,7 +390,7 @@ const BenchmarkingReport: React.FC = () => {
         daysBelowMin: dailyValues.filter(h => h > 0 && h < settings?.min_hours_per_day).length,
         weeksAboveMax: weeklyValues.filter(h => h > settings?.max_hours_per_week).length,
         weeksBelowMin: weeklyValues.filter(h => h > 0 && h < settings?.min_hours_per_week).length,
-        isConsistentlyLow: weeklyValues.length >= 1 && weeklyValues.every(h => h < settings?.min_hours_per_week),
+        isConsistentlyLow: weeklyValues.length === 0 || (weeklyValues.length >= 1 && weeklyValues.every(h => h < settings?.min_hours_per_week)),
         isConsistentlyHigh: weeklyValues.length >= 1 && weeklyValues.every(h => h > settings?.max_hours_per_week),
         isExactHours: weeklyValues.some(h => h === settings?.max_hours_per_week || h === settings?.min_hours_per_week)
       };
