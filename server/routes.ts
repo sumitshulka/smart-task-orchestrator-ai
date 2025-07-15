@@ -992,22 +992,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/organization-settings", requireAdmin, async (req, res) => {
     try {
+      console.log("Creating organization settings with data:", req.body);
       const settings = await storage.createOrganizationSettings(req.body);
       res.status(201).json(settings);
     } catch (error) {
       console.error("Failed to create organization settings:", error);
-      res.status(500).json({ error: "Failed to create organization settings" });
+      console.error("Request body:", req.body);
+      res.status(500).json({ error: "Failed to create organization settings", details: error.message });
     }
   });
 
   app.patch("/api/organization-settings/:id", requireAdmin, async (req, res) => {
     try {
       const { id } = req.params;
+      console.log("Updating organization settings with ID:", id, "and data:", req.body);
       const settings = await storage.updateOrganizationSettings(id, req.body);
       res.json(settings);
     } catch (error) {
       console.error("Failed to update organization settings:", error);
-      res.status(500).json({ error: "Failed to update organization settings" });
+      console.error("Request body:", req.body);
+      res.status(500).json({ error: "Failed to update organization settings", details: error.message });
     }
   });
 

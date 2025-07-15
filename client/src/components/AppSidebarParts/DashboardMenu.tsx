@@ -7,7 +7,7 @@ export default function DashboardMenu({ isUserOnly, collapsed }: { isUserOnly: b
   const location = useLocation();
   return (
     <div>
-      <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 px-2">Dashboard</div>
+      <div className="text-xs font-semibold uppercase tracking-wider mb-2 px-2 text-[#021133]">Dashboard</div>
       <div>
         <ul className="flex w-full min-w-0 flex-col gap-1">
           <li className="group/menu-item relative">
