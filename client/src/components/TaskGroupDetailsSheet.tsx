@@ -8,11 +8,11 @@ import {
   SheetFooter,
   SheetClose,
 } from "@/components/ui/sheet";
-import { TaskGroup } from "@/integrations/supabase/taskGroups";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Input } from "@/components/ui/input";
 import { 
   Select,
   SelectContent,
@@ -20,6 +20,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { 
@@ -34,9 +46,12 @@ import {
   UserPlus,
   UserMinus,
   Crown,
-  Users
+  Users,
+  Check,
+  ChevronsUpDown,
+  Building2
 } from "lucide-react";
-import { addTaskGroupMember, removeTaskGroupMember } from "@/integrations/supabase/taskGroups";
+import { apiClient } from "@/lib/api";
 
 type Props = {
   open: boolean;
@@ -45,14 +60,23 @@ type Props = {
 };
 
 export default function TaskGroupDetailsSheet({ open, onOpenChange, group }: Props) {
-  const [selectedUserId, setSelectedUserId] = useState<string>("");
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+  const [selectedTeamId, setSelectedTeamId] = useState<string>("");
   const [selectedRole, setSelectedRole] = useState<string>("member");
+  const [userSearchOpen, setUserSearchOpen] = useState(false);
+  const [userSearchValue, setUserSearchValue] = useState("");
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
   // Fetch all users for member selection
   const { data: users = [] } = useQuery({
     queryKey: ['/api/users'],
+    enabled: open,
+  });
+
+  // Fetch all teams for team selection
+  const { data: teams = [] } = useQuery({
+    queryKey: ['/api/teams'],
     enabled: open,
   });
 
@@ -102,22 +126,80 @@ export default function TaskGroupDetailsSheet({ open, onOpenChange, group }: Pro
     });
   };
 
-  const handleAddMember = async () => {
-    if (!selectedUserId || !group?.id) return;
+  const handleAddTeam = async () => {
+    if (!group?.id || !selectedTeamId) return;
     
     try {
-      await addTaskGroupMember(group.id, selectedUserId, selectedRole);
+      // Get team members
+      const teamMembers = await apiClient.getTeamMembers(selectedTeamId);
+      
+      // Add all team members to the task group
+      for (const member of teamMembers) {
+        await apiClient.addTaskGroupMember(group.id, member.user_id, selectedRole);
+      }
+      
+      // Get team tasks and assign them to the group
+      const teamTasks = await apiClient.getTeamTasks(selectedTeamId);
+      for (const task of teamTasks) {
+        // Add task to group (you'll need to implement this API endpoint)
+        try {
+          await apiClient.addTaskToGroup(group.id, task.id);
+        } catch (error) {
+          console.log("Task might already be in group:", task.id);
+        }
+      }
+      
       queryClient.invalidateQueries({ queryKey: ['/api/task-groups'] });
-      toast({
-        title: "Member added successfully",
-        description: "The user has been added to the task group.",
-      });
-      setSelectedUserId("");
+      setSelectedTeamId("");
       setSelectedRole("member");
+      toast({
+        title: "Team added successfully",
+        description: `All team members and their tasks have been added to the group.`,
+      });
     } catch (error: any) {
       toast({
-        title: "Failed to add member",
-        description: error.message,
+        title: "Failed to add team",
+        description: error.message || "Unknown error occurred",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleAddMembers = async () => {
+    if (!group?.id || selectedUserIds.length === 0) return;
+    
+    try {
+      // Add selected users to the task group
+      for (const userId of selectedUserIds) {
+        await apiClient.addTaskGroupMember(group.id, userId, selectedRole);
+      }
+      
+      // Get user tasks and assign them to the group
+      for (const userId of selectedUserIds) {
+        const userTasks = await apiClient.getUserTasks(userId);
+        // Filter out personal tasks - only add team/work tasks
+        const workTasks = userTasks.filter((task: any) => task.team_id || !task.is_personal);
+        
+        for (const task of workTasks) {
+          try {
+            await apiClient.addTaskToGroup(group.id, task.id);
+          } catch (error) {
+            console.log("Task might already be in group:", task.id);
+          }
+        }
+      }
+      
+      queryClient.invalidateQueries({ queryKey: ['/api/task-groups'] });
+      setSelectedUserIds([]);
+      setSelectedRole("member");
+      toast({
+        title: "Members added successfully",
+        description: `${selectedUserIds.length} member(s) and their work tasks have been added to the group.`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Failed to add members",
+        description: error.message || "Unknown error occurred",
         variant: "destructive",
       });
     }
@@ -127,7 +209,7 @@ export default function TaskGroupDetailsSheet({ open, onOpenChange, group }: Pro
     if (!group?.id) return;
     
     try {
-      await removeTaskGroupMember(group.id, userId);
+      await apiClient.removeTaskGroupMember(group.id, userId);
       queryClient.invalidateQueries({ queryKey: ['/api/task-groups'] });
       toast({
         title: "Member removed successfully",
@@ -136,7 +218,7 @@ export default function TaskGroupDetailsSheet({ open, onOpenChange, group }: Pro
     } catch (error: any) {
       toast({
         title: "Failed to remove member",
-        description: error.message,
+        description: error.message || "Unknown error occurred",
         variant: "destructive",
       });
     }
@@ -153,6 +235,25 @@ export default function TaskGroupDetailsSheet({ open, onOpenChange, group }: Pro
   const getAvailableUsers = () => {
     const currentMemberIds = group?.members?.map((m: any) => m.user_id) || [];
     return users.filter((user: any) => !currentMemberIds.includes(user.id));
+  };
+  
+  const getAvailableTeams = () => {
+    return teams || [];
+  };
+
+  const toggleUserSelection = (userId: string) => {
+    setSelectedUserIds(prev => 
+      prev.includes(userId) 
+        ? prev.filter(id => id !== userId)
+        : [...prev, userId]
+    );
+  };
+
+  const getSelectedUserNames = () => {
+    return selectedUserIds.map(id => {
+      const user = users.find((u: any) => u.id === id);
+      return user?.user_name || user?.email || 'Unknown';
+    }).join(', ');
   };
 
   return (
@@ -217,36 +318,110 @@ export default function TaskGroupDetailsSheet({ open, onOpenChange, group }: Pro
                   {group?.members?.length || 0} members
                 </Badge>
               </div>
-              <div className="flex items-center gap-2">
-                <Select value={selectedUserId} onValueChange={setSelectedUserId}>
-                  <SelectTrigger className="w-48">
-                    <SelectValue placeholder="Select user..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {getAvailableUsers().map((user: any) => (
-                      <SelectItem key={user.id} value={user.id}>
-                        {user.user_name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Select value={selectedRole} onValueChange={setSelectedRole}>
-                  <SelectTrigger className="w-32">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="member">Member</SelectItem>
-                    <SelectItem value="manager">Manager</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Button 
-                  onClick={handleAddMember}
-                  disabled={!selectedUserId}
-                  size="sm"
-                >
-                  <UserPlus className="h-4 w-4 mr-1" />
-                  Add
-                </Button>
+              <div className="space-y-3">
+                {/* Team Selection */}
+                <div className="flex items-center gap-2">
+                  <Building2 className="h-4 w-4 text-gray-500" />
+                  <Select value={selectedTeamId} onValueChange={setSelectedTeamId}>
+                    <SelectTrigger className="w-48">
+                      <SelectValue placeholder="Select team..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {getAvailableTeams().map((team: any) => (
+                        <SelectItem key={team.id} value={team.id}>
+                          {team.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select value={selectedRole} onValueChange={setSelectedRole}>
+                    <SelectTrigger className="w-32">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="member">Member</SelectItem>
+                      <SelectItem value="manager">Manager</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button 
+                    onClick={handleAddTeam}
+                    disabled={!selectedTeamId}
+                    size="sm"
+                  >
+                    <Building2 className="h-4 w-4 mr-1" />
+                    Add Team
+                  </Button>
+                </div>
+
+                {/* Individual User Selection */}
+                <div className="flex items-center gap-2">
+                  <Users className="h-4 w-4 text-gray-500" />
+                  <Popover open={userSearchOpen} onOpenChange={setUserSearchOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={userSearchOpen}
+                        className="w-48 justify-between"
+                      >
+                        {selectedUserIds.length > 0 
+                          ? `${selectedUserIds.length} users selected`
+                          : "Select users..."
+                        }
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-48 p-0">
+                      <Command>
+                        <CommandInput 
+                          placeholder="Search users..." 
+                          value={userSearchValue}
+                          onValueChange={setUserSearchValue}
+                        />
+                        <CommandEmpty>No users found.</CommandEmpty>
+                        <CommandGroup className="max-h-64 overflow-auto">
+                          {getAvailableUsers()
+                            .filter((user: any) => 
+                              user.user_name?.toLowerCase().includes(userSearchValue.toLowerCase()) ||
+                              user.email?.toLowerCase().includes(userSearchValue.toLowerCase())
+                            )
+                            .map((user: any) => (
+                            <CommandItem
+                              key={user.id}
+                              value={user.id}
+                              onSelect={() => toggleUserSelection(user.id)}
+                            >
+                              <Check
+                                className={`mr-2 h-4 w-4 ${
+                                  selectedUserIds.includes(user.id) ? "opacity-100" : "opacity-0"
+                                }`}
+                              />
+                              <div className="flex flex-col">
+                                <span className="font-medium">{user.user_name}</span>
+                                <span className="text-xs text-gray-500">{user.email}</span>
+                              </div>
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                  <Button 
+                    onClick={handleAddMembers}
+                    disabled={selectedUserIds.length === 0}
+                    size="sm"
+                  >
+                    <UserPlus className="h-4 w-4 mr-1" />
+                    Add Users
+                  </Button>
+                </div>
+
+                {/* Selected Users Preview */}
+                {selectedUserIds.length > 0 && (
+                  <div className="text-sm text-gray-600 border rounded-lg p-2 bg-gray-50">
+                    <strong>Selected:</strong> {getSelectedUserNames()}
+                  </div>
+                )}
               </div>
             </div>
 

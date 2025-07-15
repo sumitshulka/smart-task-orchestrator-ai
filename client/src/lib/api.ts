@@ -200,6 +200,32 @@ class ApiClient {
     });
   }
 
+  async getTaskGroupDetails(id: string) {
+    return this.request(`/task-groups/${id}/details`);
+  }
+
+  async addTaskGroupMember(groupId: string, userId: string, role?: string) {
+    return this.request(`/task-groups/${groupId}/members`, {
+      method: 'POST',
+      body: JSON.stringify({ userId, role }),
+    });
+  }
+
+  async removeTaskGroupMember(groupId: string, userId: string) {
+    return this.request(`/task-groups/${groupId}/members/${userId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async addTaskToGroup(groupId: string, taskId: string) {
+    return this.request(`/task-groups/${groupId}/tasks`, {
+      method: 'POST',
+      body: JSON.stringify({ taskId }),
+    });
+  }
+
+
+
   // Task statuses
   async getTaskStatuses() {
     return this.request('/task-statuses');
