@@ -1,4 +1,3 @@
-
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -7,7 +6,7 @@ import { LogOut } from "lucide-react";
 import { Settings } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRole } from "@/contexts/RoleProvider";
-import { useSidebar, SidebarTrigger } from "@/components/ui/sidebar";
+import { useSidebar } from "@/components/ui/sidebar";
 
 const USER_PLACEHOLDER = {
   name: "Jane Doe",
@@ -41,7 +40,6 @@ const Topbar: React.FC = () => {
     <header className="flex items-center justify-between border-b px-6 gap-4 bg-[#66655833] border-gray-200" style={{ height: '56px', minHeight: '56px', maxHeight: '56px' }}>
       {/* Left: Sidebar toggle and Logo */}
       <div className="flex items-center gap-3">
-        <SidebarTrigger className="hover:bg-gray-200 transition-colors duration-200 rounded-md p-1" />
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
             <span className="text-white font-bold text-sm">#</span>

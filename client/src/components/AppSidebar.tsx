@@ -3,8 +3,7 @@ import React from "react";
 import { useLocation } from "react-router-dom";
 import {
   Sidebar,
-  SidebarContent,
-  useSidebar
+  SidebarContent
 } from "@/components/ui/sidebar";
 import { useCurrentUserRoleAndTeams } from "@/hooks/useCurrentUserRoleAndTeams";
 import DashboardMenu from "./AppSidebarParts/DashboardMenu";
@@ -16,8 +15,6 @@ import WarningNoTeams from "./AppSidebarParts/WarningNoTeams";
 export default function AppSidebar() {
   const location = useLocation();
   const { roles, teams, loading } = useCurrentUserRoleAndTeams();
-  const { state: sidebarState } = useSidebar();
-  const collapsed = sidebarState === "collapsed";
 
   // Simple role helpers
   const isAdmin = roles.includes("admin");
@@ -30,8 +27,8 @@ export default function AppSidebar() {
 
   return (
     <Sidebar
-      className={`${collapsed ? "w-14" : "w-64 min-w-14"} flex flex-col h-full`}
-      collapsible="icon"
+      className="w-64 flex flex-col h-full"
+      collapsible="none"
       style={{ 
         backgroundColor: '#f8fafc', 
         borderRight: '1px solid #e2e8f0',
@@ -40,13 +37,13 @@ export default function AppSidebar() {
       }}
     >
       {/* Scrollable content with menu items */}
-      <SidebarContent className="flex min-h-0 flex-1 flex-col gap-2 overflow-auto group-data-[collapsible=icon]:overflow-hidden px-2 py-4 bg-[#e3e2de]" style={{ paddingTop: '16px' }}>
+      <SidebarContent className="flex min-h-0 flex-1 flex-col gap-2 overflow-auto px-2 py-4 bg-[#e3e2de]" style={{ paddingTop: '16px' }}>
         <div className="space-y-2">
-          <DashboardMenu isUserOnly={isUserOnly} collapsed={collapsed} />
-          <TaskManagementMenu collapsed={collapsed} />
-          <ManagementMenu isAdmin={isAdmin} isManager={isManager} collapsed={collapsed} />
+          <DashboardMenu isUserOnly={isUserOnly} collapsed={false} />
+          <TaskManagementMenu collapsed={false} />
+          <ManagementMenu isAdmin={isAdmin} isManager={isManager} collapsed={false} />
           <WarningNoTeams isOnTeams={isOnTeams} loading={loading} isUserOnly={isUserOnly} hasTeams={hasTeams} />
-          <ReportsMenu isUserOnly={isUserOnly} collapsed={collapsed} />
+          <ReportsMenu isUserOnly={isUserOnly} collapsed={false} />
         </div>
       </SidebarContent>
     </Sidebar>
