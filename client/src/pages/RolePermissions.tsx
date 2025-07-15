@@ -59,7 +59,8 @@ const MENU_RESOURCES = [
   // Reports
   { id: 'task-report', name: 'Task Reports', icon: '📈', category: 'Reports' },
   { id: 'overdue-report', name: 'Overdue Reports', icon: '⚠️', category: 'Reports' },
-  { id: 'analytics-report', name: 'Analytics Reports', icon: '📊', category: 'Reports' }
+  { id: 'analytics-report', name: 'Analytics Reports', icon: '📊', category: 'Reports' },
+  { id: 'settings', name: 'Settings', icon: '⚙️', category: 'System' }
 ];
 
 interface Role {
