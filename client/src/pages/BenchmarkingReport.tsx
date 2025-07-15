@@ -458,7 +458,27 @@ const BenchmarkingReport: React.FC = () => {
         matchedPattern = "high perform/overperform";
       }
       else if (lowerQuery.includes("department") || lowerQuery.includes("team")) {
-        const dept = lowerQuery.match(/department\s+(\w+)|team\s+(\w+)/)?.[1] || lowerQuery.match(/department\s+(\w+)|team\s+(\w+)/)?.[2];
+        // Try multiple patterns to extract department name
+        let dept = null;
+        
+        // Pattern 1: "department administration" or "team sales"
+        let match = lowerQuery.match(/(?:department|team)\s+(\w+)/);
+        if (match) dept = match[1];
+        
+        // Pattern 2: "from administration department" or "in sales team"
+        if (!dept) {
+          match = lowerQuery.match(/(?:from|in)\s+(\w+)\s+(?:department|team)/);
+          if (match) dept = match[1];
+        }
+        
+        // Pattern 3: "administration department" or "sales team" (just department name + word)
+        if (!dept) {
+          match = lowerQuery.match(/(\w+)\s+(?:department|team)/);
+          if (match) dept = match[1];
+        }
+        
+        console.log(`Department query processing: original="${query}", extracted="${dept}"`);
+        
         if (dept) {
           matchedUsers = benchmarkingData.filter(user => 
             user.department.toLowerCase().includes(dept.toLowerCase())
