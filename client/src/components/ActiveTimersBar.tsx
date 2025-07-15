@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent } from '@/components/ui/card';
 import { Clock } from 'lucide-react';
@@ -12,6 +12,7 @@ interface ActiveTimersBarProps {
 
 export default function ActiveTimersBar({ onTaskUpdated }: ActiveTimersBarProps) {
   const { user } = useAuth();
+  const [, setTick] = useState(0); // Force re-render for real-time updates
 
   const { data: activeTimers = [], refetch } = useQuery({
     queryKey: ['/api/users', user?.id, 'active-timers'],
@@ -25,6 +26,15 @@ export default function ActiveTimersBar({ onTaskUpdated }: ActiveTimersBarProps)
     refetch();
     onTaskUpdated?.();
   };
+
+  // Update every second to recalculate delayed state in real-time
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTick(prev => prev + 1);
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, []);
 
   if (!activeTimers.length) {
     return null;
@@ -42,8 +52,15 @@ export default function ActiveTimersBar({ onTaskUpdated }: ActiveTimersBarProps)
       
       <div className="grid gap-4 md:grid-cols-2">
         {activeTimers.map((task) => {
-          // Calculate if timer is delayed
-          const currentTime = task.time_spent_minutes || 0;
+          // Calculate current time including running timer
+          let currentTime = task.time_spent_minutes || 0;
+          if (task.timer_state === 'running' && task.timer_started_at) {
+            const startTime = new Date(task.timer_started_at).getTime();
+            const now = new Date().getTime();
+            const elapsedMinutes = Math.floor((now - startTime) / (1000 * 60));
+            currentTime = (task.time_spent_minutes || 0) + elapsedMinutes;
+          }
+          
           const estimatedMinutes = (task.estimated_hours || 0) * 60;
           const isDelayed = task.estimated_hours && currentTime > estimatedMinutes && task.timer_state === 'running';
           
