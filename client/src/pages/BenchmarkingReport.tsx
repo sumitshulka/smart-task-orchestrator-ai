@@ -197,7 +197,7 @@ const BenchmarkingReport: React.FC = () => {
       const weeklyValues = Object.values(weeklyHours);
       const monthlyValues = Object.values(monthlyHours);
 
-      // Log detailed weekly breakdown for debugging
+      // Log detailed weekly breakdown for debugging (only for key user)
       if (user.user_name === "Sumit Shukla" || user.email === "ss@sumits.me") {
         console.log(`${user.user_name || user.email} weekly hours breakdown:`, weeklyHours);
         console.log(`${user.user_name || user.email} daily hours breakdown:`, dailyHours);
@@ -213,7 +213,10 @@ const BenchmarkingReport: React.FC = () => {
       const weeksBelowMin = weeklyValues.filter(h => h > 0 && h < settings.min_hours_per_week).length;
 
       const isConsistentlyLow = weeklyValues.length === 0 || (weeklyValues.length >= 1 && weeklyValues.every(h => h < settings.min_hours_per_week));
-      console.log(`User ${user.user_name || user.email}: weeklyValues=${weeklyValues.length}, isConsistentlyLow=${isConsistentlyLow}, minHours=${settings.min_hours_per_week}`);
+      // Log only for debugging specific users
+      if (user.user_name === "Sumit Shukla") {
+        console.log(`User ${user.user_name || user.email}: weeklyValues=${weeklyValues.length}, isConsistentlyLow=${isConsistentlyLow}, minHours=${settings.min_hours_per_week}`);
+      }
       const isConsistentlyHigh = weeklyValues.length >= 2 && weeklyValues.every(h => h > settings.max_hours_per_week);
       const isExactHours = weeklyValues.some(h => h === settings.max_hours_per_week || h === settings.min_hours_per_week);
 
@@ -456,6 +459,89 @@ const BenchmarkingReport: React.FC = () => {
         queryType = "high_performance";
         description = "High performing users";
         matchedPattern = "high perform/overperform";
+      }
+      else if (lowerQuery.includes("task") && (lowerQuery.includes("more than") || lowerQuery.includes("greater than") || lowerQuery.includes("over") || lowerQuery.includes("above"))) {
+        // Parse numerical task count conditions like "more than 5 tasks"
+        const taskCountMatch = lowerQuery.match(/(?:more than|greater than|over|above)\s+(\d+)\s+task/);
+        if (taskCountMatch) {
+          const threshold = parseInt(taskCountMatch[1]);
+          matchedUsers = benchmarkingData.filter(user => user.totalTasks > threshold);
+          queryType = "task_count_above";
+          description = `Users with more than ${threshold} tasks`;
+          matchedPattern = `task count > ${threshold}`;
+          console.log(`Task count filtering: threshold=${threshold}, matched=${matchedUsers.length} users`);
+        }
+      }
+      else if (lowerQuery.includes("task") && (lowerQuery.includes("less than") || lowerQuery.includes("fewer than") || lowerQuery.includes("under") || lowerQuery.includes("below"))) {
+        // Parse numerical task count conditions like "less than 3 tasks"
+        const taskCountMatch = lowerQuery.match(/(?:less than|fewer than|under|below)\s+(\d+)\s+task/);
+        if (taskCountMatch) {
+          const threshold = parseInt(taskCountMatch[1]);
+          matchedUsers = benchmarkingData.filter(user => user.totalTasks < threshold);
+          queryType = "task_count_below";
+          description = `Users with less than ${threshold} tasks`;
+          matchedPattern = `task count < ${threshold}`;
+          console.log(`Task count filtering: threshold=${threshold}, matched=${matchedUsers.length} users`);
+        }
+      }
+      else if (lowerQuery.includes("task") && (lowerQuery.includes("exactly") || lowerQuery.includes("equal") || lowerQuery.match(/\b(\d+)\s+task/))) {
+        // Parse exact task count like "exactly 5 tasks" or "5 tasks"
+        let taskCountMatch = lowerQuery.match(/exactly\s+(\d+)\s+task/) || lowerQuery.match(/equal\s+to\s+(\d+)\s+task/);
+        if (!taskCountMatch) {
+          taskCountMatch = lowerQuery.match(/\b(\d+)\s+task/);
+        }
+        if (taskCountMatch) {
+          const exactCount = parseInt(taskCountMatch[1]);
+          matchedUsers = benchmarkingData.filter(user => user.totalTasks === exactCount);
+          queryType = "task_count_exact";
+          description = `Users with exactly ${exactCount} tasks`;
+          matchedPattern = `task count = ${exactCount}`;
+          console.log(`Task count filtering: exactCount=${exactCount}, matched=${matchedUsers.length} users`);
+        }
+      }
+      else if (lowerQuery.includes("hour") && (lowerQuery.includes("more than") || lowerQuery.includes("greater than") || lowerQuery.includes("over") || lowerQuery.includes("above"))) {
+        // Parse numerical hours conditions like "more than 20 hours per week"
+        const hoursMatch = lowerQuery.match(/(?:more than|greater than|over|above)\s+(\d+)\s+hour/);
+        if (hoursMatch) {
+          const threshold = parseInt(hoursMatch[1]);
+          if (lowerQuery.includes("week")) {
+            matchedUsers = benchmarkingData.filter(user => user.averageWeeklyHours > threshold);
+            description = `Users with more than ${threshold} hours per week`;
+            matchedPattern = `weekly hours > ${threshold}`;
+          } else if (lowerQuery.includes("day")) {
+            matchedUsers = benchmarkingData.filter(user => user.averageDailyHours > threshold);
+            description = `Users with more than ${threshold} hours per day`;
+            matchedPattern = `daily hours > ${threshold}`;
+          } else {
+            matchedUsers = benchmarkingData.filter(user => user.averageWeeklyHours > threshold);
+            description = `Users with more than ${threshold} hours (weekly average)`;
+            matchedPattern = `weekly hours > ${threshold}`;
+          }
+          queryType = "hours_above";
+          console.log(`Hours filtering: threshold=${threshold}, matched=${matchedUsers.length} users`);
+        }
+      }
+      else if (lowerQuery.includes("hour") && (lowerQuery.includes("less than") || lowerQuery.includes("fewer than") || lowerQuery.includes("under") || lowerQuery.includes("below"))) {
+        // Parse numerical hours conditions like "less than 10 hours per week"
+        const hoursMatch = lowerQuery.match(/(?:less than|fewer than|under|below)\s+(\d+)\s+hour/);
+        if (hoursMatch) {
+          const threshold = parseInt(hoursMatch[1]);
+          if (lowerQuery.includes("week")) {
+            matchedUsers = benchmarkingData.filter(user => user.averageWeeklyHours < threshold);
+            description = `Users with less than ${threshold} hours per week`;
+            matchedPattern = `weekly hours < ${threshold}`;
+          } else if (lowerQuery.includes("day")) {
+            matchedUsers = benchmarkingData.filter(user => user.averageDailyHours < threshold);
+            description = `Users with less than ${threshold} hours per day`;
+            matchedPattern = `daily hours < ${threshold}`;
+          } else {
+            matchedUsers = benchmarkingData.filter(user => user.averageWeeklyHours < threshold);
+            description = `Users with less than ${threshold} hours (weekly average)`;
+            matchedPattern = `weekly hours < ${threshold}`;
+          }
+          queryType = "hours_below";
+          console.log(`Hours filtering: threshold=${threshold}, matched=${matchedUsers.length} users`);
+        }
       }
       else if (lowerQuery.includes("department") || lowerQuery.includes("team")) {
         // Try multiple patterns to extract department name
