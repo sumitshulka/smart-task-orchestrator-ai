@@ -553,8 +553,9 @@ const BenchmarkingReport: React.FC = () => {
       else if (lowerQuery.includes("surpass") || lowerQuery.includes("exceed") || (lowerQuery.includes("over") && lowerQuery.includes("%"))) {
         console.log(`Matched: surpass/exceed/over with % pattern`);
         // Parse percentage-based performance queries like "surpassed their hours by more than 10%"
-        const percentMatch = lowerQuery.match(/(?:more than|over|above)\s+(\d+)%/);
+        const percentMatch = lowerQuery.match(/(?:more than|over|above)\s+(\d+)%/) || lowerQuery.match(/by\s+more\s+than\s+(\d+)%/);
         console.log(`Percentage match result:`, percentMatch);
+        console.log(`Query contains: surpass=${lowerQuery.includes("surpass")}, exceed=${lowerQuery.includes("exceed")}, over=${lowerQuery.includes("over")}, %=${lowerQuery.includes("%")}`);
         if (percentMatch) {
           const percentThreshold = parseInt(percentMatch[1]);
           
@@ -593,6 +594,8 @@ const BenchmarkingReport: React.FC = () => {
             matchedPattern = `hours exceed > ${percentThreshold}%`;
           }
           console.log(`Percentage filtering: threshold=${percentThreshold}%, matched=${matchedUsers.length} users`);
+        } else {
+          console.log(`No percentage match found in query: "${lowerQuery}"`);
         }
       }
       else if (lowerQuery.includes("underperform") || lowerQuery.includes("below") && lowerQuery.includes("%")) {
