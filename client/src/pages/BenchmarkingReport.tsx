@@ -410,9 +410,20 @@ const BenchmarkingReport: React.FC = () => {
 
     try {
       console.log(`Starting pattern matching for query: "${lowerQuery}"`);
+      console.log(`Data available: queryBenchmarkingData has ${queryBenchmarkingData?.length || 0} users`);
+      console.log(`QueryBenchmarkingData:`, queryBenchmarkingData);
       
-      // Pattern matching for different query types
-      if ((lowerQuery.includes("achieved") || lowerQuery.includes("surpassed") || lowerQuery.includes("exceeded")) && lowerQuery.includes("benchmark")) {
+      if (!queryBenchmarkingData || queryBenchmarkingData.length === 0) {
+        console.log(`No data available for analysis, using fallback`);
+        matchedUsers = [];
+        queryType = "no_data";
+        description = "No benchmarking data available";
+        matchedPattern = "no data";
+      } else {
+        console.log(`Data exists, proceeding with pattern matching`);
+        // Pattern matching for different query types
+        console.log(`Testing first condition: achieved/surpassed/exceeded + benchmark`);
+        if ((lowerQuery.includes("achieved") || lowerQuery.includes("surpassed") || lowerQuery.includes("exceeded")) && lowerQuery.includes("benchmark")) {
         console.log(`Matched: achieved/surpassed/exceeded benchmark`);
         matchedUsers = queryBenchmarkingData.filter(user => 
           user.averageWeeklyHours >= settings?.min_hours_per_week || user.totalHoursInPeriod >= settings?.min_hours_per_week
@@ -422,6 +433,7 @@ const BenchmarkingReport: React.FC = () => {
         matchedPattern = "achieved/surpassed/exceeded benchmark";
       }
       else if (lowerQuery.includes("consistently below") && lowerQuery.includes("min")) {
+        console.log(`Testing condition: consistently below min`);
         matchedUsers = queryBenchmarkingData.filter(user => user.isConsistentlyLow);
         queryType = "consistently_below_min";
         description = "Users who are consistently below minimum benchmark";
@@ -562,7 +574,7 @@ const BenchmarkingReport: React.FC = () => {
           
           if (lowerQuery.includes("hour") && (lowerQuery.includes("week") || lowerQuery.includes("weekly"))) {
             // Users who exceeded weekly hour targets by X%
-            matchedUsers = benchmarkingData.filter(user => {
+            matchedUsers = queryBenchmarkingData.filter(user => {
               const targetHours = settings?.min_hours_per_week || 35;
               const actualHours = user.averageWeeklyHours;
               const exceedPercentage = ((actualHours - targetHours) / targetHours) * 100;
@@ -573,7 +585,7 @@ const BenchmarkingReport: React.FC = () => {
             matchedPattern = `weekly hours exceed > ${percentThreshold}%`;
           } else if (lowerQuery.includes("hour") && (lowerQuery.includes("day") || lowerQuery.includes("daily"))) {
             // Users who exceeded daily hour targets by X%
-            matchedUsers = benchmarkingData.filter(user => {
+            matchedUsers = queryBenchmarkingData.filter(user => {
               const targetHours = settings?.min_hours_per_day || 8;
               const actualHours = user.averageDailyHours;
               const exceedPercentage = ((actualHours - targetHours) / targetHours) * 100;
@@ -584,7 +596,7 @@ const BenchmarkingReport: React.FC = () => {
             matchedPattern = `daily hours exceed > ${percentThreshold}%`;
           } else {
             // Default to weekly hours
-            matchedUsers = benchmarkingData.filter(user => {
+            matchedUsers = queryBenchmarkingData.filter(user => {
               const targetHours = settings?.min_hours_per_week || 35;
               const actualHours = user.averageWeeklyHours;
               const exceedPercentage = ((actualHours - targetHours) / targetHours) * 100;
@@ -765,6 +777,7 @@ const BenchmarkingReport: React.FC = () => {
         queryType = "general";
         description = "All users benchmarking data";
         matchedPattern = "general query";
+      }
       }
       
       console.log(`Pattern matching complete. Matched users: ${matchedUsers.length}, Query type: ${queryType}, Description: ${description}`);
