@@ -432,38 +432,38 @@ const BenchmarkingReport: React.FC = () => {
           description = "Users who have achieved, surpassed, or exceeded the benchmark";
           matchedPattern = "achieved/surpassed/exceeded benchmark";
         }
-      else if (lowerQuery.includes("consistently below") && lowerQuery.includes("min")) {
-        console.log(`Testing condition: consistently below min`);
-        matchedUsers = queryBenchmarkingData.filter(user => user.isConsistentlyLow);
-        queryType = "consistently_below_min";
-        description = "Users who are consistently below minimum benchmark";
-        matchedPattern = "consistently below min benchmark";
-      }
-      else if (lowerQuery.includes("consistently above") || lowerQuery.includes("always above")) {
-        matchedUsers = queryBenchmarkingData.filter(user => user.isConsistentlyHigh);
-        queryType = "consistently_above_max";
-        description = "Users who are consistently above maximum benchmark";
-        matchedPattern = "consistently/always above benchmark";
-      }
-      else if (lowerQuery.includes("exact") && (lowerQuery.includes("hours") || lowerQuery.includes("benchmark"))) {
-        matchedUsers = queryBenchmarkingData.filter(user => user.isExactHours);
-        queryType = "exact_hours";
-        description = "Users showing exact benchmark hours";
-        matchedPattern = "exact hours/benchmark";
-      }
-      else if (lowerQuery.includes("below") && lowerQuery.includes("min")) {
-        matchedUsers = queryBenchmarkingData.filter(user => user.weeksBelowMin > 0);
-        queryType = "below_min";
-        description = "Users with weeks below minimum benchmark";
-        matchedPattern = "below min";
-      }
-      else if (lowerQuery.includes("above") && lowerQuery.includes("max")) {
-        matchedUsers = queryBenchmarkingData.filter(user => user.weeksAboveMax > 0);
-        queryType = "above_max";
-        description = "Users with weeks above maximum benchmark";
-        matchedPattern = "above max";
-      }
-      else if (lowerQuery.includes("low perform") || lowerQuery.includes("underperform")) {
+        else if (lowerQuery.includes("consistently below") && lowerQuery.includes("min")) {
+          console.log(`Testing condition: consistently below min`);
+          matchedUsers = queryBenchmarkingData.filter(user => user.isConsistentlyLow);
+          queryType = "consistently_below_min";
+          description = "Users who are consistently below minimum benchmark";
+          matchedPattern = "consistently below min benchmark";
+        }
+        else if (lowerQuery.includes("consistently above") || lowerQuery.includes("always above")) {
+          matchedUsers = queryBenchmarkingData.filter(user => user.isConsistentlyHigh);
+          queryType = "consistently_above_max";
+          description = "Users who are consistently above maximum benchmark";
+          matchedPattern = "consistently/always above benchmark";
+        }
+        else if (lowerQuery.includes("exact") && (lowerQuery.includes("hours") || lowerQuery.includes("benchmark"))) {
+          matchedUsers = queryBenchmarkingData.filter(user => user.isExactHours);
+          queryType = "exact_hours";
+          description = "Users showing exact benchmark hours";
+          matchedPattern = "exact hours/benchmark";
+        }
+        else if (lowerQuery.includes("below") && lowerQuery.includes("min")) {
+          matchedUsers = queryBenchmarkingData.filter(user => user.weeksBelowMin > 0);
+          queryType = "below_min";
+          description = "Users with weeks below minimum benchmark";
+          matchedPattern = "below min";
+        }
+        else if (lowerQuery.includes("above") && lowerQuery.includes("max")) {
+          matchedUsers = queryBenchmarkingData.filter(user => user.weeksAboveMax > 0);
+          queryType = "above_max";
+          description = "Users with weeks above maximum benchmark";
+          matchedPattern = "above max";
+        }
+        else if (lowerQuery.includes("low perform") || lowerQuery.includes("underperform")) {
         matchedUsers = queryBenchmarkingData.filter(user => 
           user.averageWeeklyHours < settings?.min_hours_per_week || user.daysBelowMin > user.daysAboveMax
         );
@@ -561,8 +561,8 @@ const BenchmarkingReport: React.FC = () => {
           queryType = "hours_below";
           console.log(`Hours filtering: threshold=${threshold}, matched=${matchedUsers.length} users`);
         }
-      }
-      else if (lowerQuery.includes("surpass") || lowerQuery.includes("exceed") || (lowerQuery.includes("over") && lowerQuery.includes("%"))) {
+        }
+        else if (lowerQuery.includes("surpass") || lowerQuery.includes("exceed") || (lowerQuery.includes("over") && lowerQuery.includes("%"))) {
         console.log(`*** TESTING SURPASS CONDITION: query="${lowerQuery}" ***`);
         console.log(`*** SURPASS CHECK: includes surpass=${lowerQuery.includes("surpass")}, includes exceed=${lowerQuery.includes("exceed")}, includes over=${lowerQuery.includes("over")}, includes %=${lowerQuery.includes("%")} ***`);
         console.log(`*** ENTERING SURPASS/EXCEED CONDITION ***`);
