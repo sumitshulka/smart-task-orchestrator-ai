@@ -111,11 +111,26 @@ const BenchmarkingReport: React.FC = () => {
     const startDate = timeRange === "week" ? subWeeks(endDate, 4) : 
                      timeRange === "month" ? subMonths(endDate, 3) : subDays(endDate, 30);
 
+    console.log("Benchmarking calculation debug:", {
+      settingsEnabled: settings.benchmarking_enabled,
+      usersCount: users.length,
+      allTasksCount: allTasks.length,
+      timeRange,
+      startDate,
+      endDate
+    });
+
     return users.map(user => {
       const userTasks = allTasks.filter(task => task.assigned_to === user.id);
+      console.log(`User ${user.user_name || user.email} tasks:`, userTasks.length);
+
       const relevantTasks = userTasks.filter(task => {
         const taskDate = parseISO(task.updated_at || task.created_at);
-        return taskDate >= startDate && taskDate <= endDate;
+        const isInRange = taskDate >= startDate && taskDate <= endDate;
+        if (task.assigned_to === user.id) {
+          console.log(`Task ${task.title}: date=${format(taskDate, 'yyyy-MM-dd')}, inRange=${isInRange}, timeSpent=${task.time_spent_minutes}, estimated=${task.estimated_hours}, status=${task.status}`);
+        }
+        return isInRange;
       });
 
       const dailyHours: { [date: string]: number } = {};
@@ -124,14 +139,27 @@ const BenchmarkingReport: React.FC = () => {
 
       relevantTasks.forEach(task => {
         let hours = 0;
+        
+        // For time-managed tasks, use time_spent_minutes regardless of status
         if (task.is_time_managed && task.time_spent_minutes > 0) {
           hours = task.time_spent_minutes / 60;
-        } else if (!task.is_time_managed && task.status === 'completed' && task.estimated_hours > 0) {
+        } 
+        // For non-time-managed tasks, use estimated_hours only if completed
+        else if (!task.is_time_managed && task.status === 'completed' && task.estimated_hours > 0) {
           hours = task.estimated_hours;
         }
 
         if (hours > 0) {
-          const taskDate = parseISO(task.updated_at || task.created_at);
+          // Use actual_completion_date if available, otherwise updated_at, then created_at
+          let taskDate;
+          if (task.actual_completion_date) {
+            taskDate = parseISO(task.actual_completion_date);
+          } else if (task.updated_at) {
+            taskDate = parseISO(task.updated_at);
+          } else {
+            taskDate = parseISO(task.created_at);
+          }
+
           const dateKey = format(taskDate, 'yyyy-MM-dd');
           const weekKey = format(startOfDay(taskDate), 'yyyy-MM-dd');
           const monthKey = format(new Date(taskDate.getFullYear(), taskDate.getMonth(), 1), 'yyyy-MM-dd');
@@ -139,6 +167,8 @@ const BenchmarkingReport: React.FC = () => {
           dailyHours[dateKey] = (dailyHours[dateKey] || 0) + hours;
           weeklyHours[weekKey] = (weeklyHours[weekKey] || 0) + hours;
           monthlyHours[monthKey] = (monthlyHours[monthKey] || 0) + hours;
+
+          console.log(`Added ${hours} hours for user ${user.user_name || user.email} on ${dateKey}`);
         }
       });
 
@@ -195,7 +225,15 @@ const BenchmarkingReport: React.FC = () => {
 
     try {
       // Pattern matching for different query types
-      if (lowerQuery.includes("consistently below") && lowerQuery.includes("min")) {
+      if ((lowerQuery.includes("achieved") || lowerQuery.includes("surpassed")) && lowerQuery.includes("benchmark")) {
+        matchedUsers = benchmarkingData.filter(user => 
+          user.averageWeeklyHours >= settings?.min_hours_per_week
+        );
+        queryType = "achieved_benchmark";
+        description = "Users who have achieved or surpassed the benchmark";
+        matchedPattern = "achieved/surpassed benchmark";
+      }
+      else if (lowerQuery.includes("consistently below") && lowerQuery.includes("min")) {
         matchedUsers = benchmarkingData.filter(user => user.isConsistentlyLow);
         queryType = "consistently_below_min";
         description = "Users who are consistently below minimum benchmark";
