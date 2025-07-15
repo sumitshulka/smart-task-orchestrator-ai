@@ -35,7 +35,8 @@ export default function AppSidebar() {
       style={{ 
         backgroundColor: '#f8fafc', 
         borderRight: '1px solid #e2e8f0',
-        height: '100%'
+        height: 'calc(100% - 56px)',
+        marginTop: '56px'
       }}
     >
       {/* Scrollable content with menu items */}
