@@ -89,12 +89,15 @@ export interface IStorage {
   
   // Task group operations
   getAllTaskGroups(): Promise<TaskGroup[]>;
+  getTaskGroupsForUser(userId: string): Promise<TaskGroup[]>;
   createTaskGroup(group: InsertTaskGroup): Promise<TaskGroup>;
   deleteTaskGroup(id: string): Promise<void>;
   getTaskGroupDetails(id: string): Promise<any>;
   getTaskGroupMembers(groupId: string): Promise<any[]>;
   addTaskGroupMember(groupId: string, userId: string, role?: string): Promise<any>;
   removeTaskGroupMember(groupId: string, userId: string): Promise<void>;
+  assignTaskToGroup(groupId: string, taskId: string): Promise<void>;
+  removeTaskFromGroup(groupId: string, taskId: string): Promise<void>;
   
   // Task activity operations
   getTaskActivity(taskId: string): Promise<TaskActivity[]>;
@@ -479,6 +482,44 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(taskGroups);
   }
 
+  // Get task groups visible to a specific user based on their role and permissions
+  async getTaskGroupsForUser(userId: string): Promise<TaskGroup[]> {
+    const userRoles = await this.getUserRoles(userId);
+    const roleNames = userRoles.map(ur => ur.role?.name).filter(Boolean);
+    
+    // Admin can see all task groups
+    if (roleNames.includes('admin')) {
+      return await db.select().from(taskGroups);
+    }
+    
+    // For managers and team managers, they can see:
+    // 1. Their own task groups
+    // 2. Public task groups (all_team_members)
+    // 3. Manager-only task groups (managers_admin_only)
+    if (roleNames.includes('manager') || roleNames.includes('team_manager')) {
+      return await db.select().from(taskGroups).where(
+        or(
+          eq(taskGroups.owner_id, userId), // Own task groups
+          eq(taskGroups.visibility, 'all_team_members'), // Public groups
+          eq(taskGroups.visibility, 'managers_admin_only') // Manager-only groups
+        )
+      );
+    }
+    
+    // Regular users can only see:
+    // 1. Their own task groups
+    // 2. Public task groups (all_team_members)
+    // 3. Task groups they are explicitly members of
+    const userGroups = await db.select().from(taskGroups).where(
+      or(
+        eq(taskGroups.owner_id, userId), // Own task groups
+        eq(taskGroups.visibility, 'all_team_members') // Public groups
+      )
+    );
+    
+    return userGroups;
+  }
+
   async createTaskGroup(group: InsertTaskGroup): Promise<TaskGroup> {
     const result = await db.insert(taskGroups).values(group).returning();
     return result[0];
@@ -588,6 +629,19 @@ export class DatabaseStorage implements IStorage {
   async removeTaskGroupMember(groupId: string, userId: string): Promise<void> {
     await db.delete(taskGroupMembers).where(
       and(eq(taskGroupMembers.group_id, groupId), eq(taskGroupMembers.user_id, userId))
+    );
+  }
+
+  async assignTaskToGroup(groupId: string, taskId: string): Promise<void> {
+    await db.insert(taskGroupTasks).values({
+      group_id: groupId,
+      task_id: taskId
+    });
+  }
+
+  async removeTaskFromGroup(groupId: string, taskId: string): Promise<void> {
+    await db.delete(taskGroupTasks).where(
+      and(eq(taskGroupTasks.group_id, groupId), eq(taskGroupTasks.task_id, taskId))
     );
   }
 

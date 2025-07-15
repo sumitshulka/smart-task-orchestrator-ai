@@ -115,17 +115,28 @@ export async function fetchAssignableTaskGroups(): Promise<TaskGroup[]> {
 
 // For assigning a task to a group
 export async function assignTaskToGroup({ group_id, task_id }: { group_id: string; task_id: string }) {
-  // For now, use localStorage-based management
-  // In a real implementation, this would create task-group associations via API
   try {
-    // Simulate successful assignment
-    return {
-      id: Date.now().toString(),
-      group_id,
-      task_id,
-      created_at: new Date().toISOString(),
-    };
+    const response = await fetch(`/api/task-groups/${group_id}/tasks`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-user-id': getCurrentUserId()
+      },
+      body: JSON.stringify({ taskId: task_id })
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to assign task to group: ${response.statusText}`);
+    }
+
+    return await response.json();
   } catch (error: any) {
     throw new Error(`Failed to assign task to group: ${error.message}`);
   }
+}
+
+// Helper function to get current user ID
+function getCurrentUserId(): string {
+  const user = JSON.parse(localStorage.getItem('sb-user') || '{}');
+  return user?.id || '';
 }

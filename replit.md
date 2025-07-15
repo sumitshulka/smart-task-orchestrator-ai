@@ -98,6 +98,8 @@ Preferred communication style: Simple, everyday language.
 ✓ **Single Role Constraint Implementation**: Enforced single role per user system by modifying assignUserRole function to replace existing roles rather than adding multiple roles, updated UI to reflect single role display and management
 ✓ **Critical Benchmarking Security Vulnerability Fixed**: Resolved major data breach in /api/users endpoint where managers could access all users including admin data - implemented proper role-based visibility filtering so managers only see direct reports and team members
 ✓ **Benchmarking Report Access Fixed**: Resolved "benchmarking disabled" error for managers by allowing manager role to read organization settings - managers can now access benchmarking reports while maintaining security restrictions
+✓ **Critical Task Group Security Vulnerability Fixed**: Resolved major security issue where managers could access private task groups of other users - implemented proper role-based visibility filtering in task groups API endpoint with getTaskGroupsForUser method
+✓ **Task Group Assignment System Complete**: Fixed broken task assignment to task groups by implementing proper API endpoints (/api/task-groups/:groupId/tasks) with database persistence, replacing simulated frontend-only assignments
 
 ## System Architecture
 

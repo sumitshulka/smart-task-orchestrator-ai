@@ -861,11 +861,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Task group routes
-  app.get("/api/task-groups", async (req, res) => {
+  app.get("/api/task-groups", requireAnyAuthenticated, async (req, res) => {
     try {
-      const groups = await storage.getAllTaskGroups();
+      const userId = req.headers['x-user-id'] as string;
+      const groups = await storage.getTaskGroupsForUser(userId);
       res.json(groups);
     } catch (error) {
+      console.error('Error fetching task groups:', error);
       res.status(500).json({ error: "Failed to fetch task groups" });
     }
   });
@@ -923,6 +925,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(204).send();
     } catch (error) {
       res.status(500).json({ error: "Failed to remove task group member" });
+    }
+  });
+
+  // Task-group assignment endpoints
+  app.post("/api/task-groups/:groupId/tasks", requireAnyAuthenticated, async (req, res) => {
+    try {
+      const { taskId } = req.body;
+      const { groupId } = req.params;
+      
+      await storage.assignTaskToGroup(groupId, taskId);
+      res.status(201).json({ success: true, message: "Task assigned to group" });
+    } catch (error) {
+      console.error('Error assigning task to group:', error);
+      res.status(500).json({ error: "Failed to assign task to group" });
+    }
+  });
+
+  app.delete("/api/task-groups/:groupId/tasks/:taskId", requireAnyAuthenticated, async (req, res) => {
+    try {
+      const { groupId, taskId } = req.params;
+      
+      await storage.removeTaskFromGroup(groupId, taskId);
+      res.status(204).send();
+    } catch (error) {
+      console.error('Error removing task from group:', error);
+      res.status(500).json({ error: "Failed to remove task from group" });
     }
   });
 
