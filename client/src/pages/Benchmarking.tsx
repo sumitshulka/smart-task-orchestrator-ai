@@ -87,7 +87,17 @@ const Benchmarking: React.FC = () => {
       settings: !!settings, 
       userTasksCount: userTasks.length, 
       dateRange,
-      sampleTask: userTasks[0] 
+      sampleTask: userTasks[0],
+      allTasks: userTasks.map(task => ({
+        id: task.id,
+        title: task.title,
+        status: task.status,
+        is_time_managed: task.is_time_managed,
+        time_spent_minutes: task.time_spent_minutes,
+        estimated_hours: task.estimated_hours,
+        actual_completion_date: task.actual_completion_date,
+        updated_at: task.updated_at
+      }))
     });
     
     if (!settings || !userTasks.length) return [];
@@ -95,19 +105,36 @@ const Benchmarking: React.FC = () => {
     const days = eachDayOfInterval(dateRange);
     
     return days.map(day => {
-      // Filter tasks that had work done on this day (based on updated_at for tasks with time spent)
+      // Filter tasks that had work done on this day
       const dayTasks = userTasks.filter(task => {
-        // Only count tasks that have time spent and were updated on this day
-        if (!task.time_spent_minutes || task.time_spent_minutes === 0) {
-          return false;
+        // For time-managed tasks, check if they were updated on this day with time spent
+        if (task.is_time_managed && task.time_spent_minutes > 0) {
+          const taskDate = parseISO(task.updated_at);
+          return isSameDay(taskDate, day);
         }
-        const taskDate = parseISO(task.updated_at);
-        return isSameDay(taskDate, day);
+        
+        // For non-time-managed completed tasks, check if they were completed on this day
+        if (!task.is_time_managed && task.status === 'completed' && task.estimated_hours > 0) {
+          const completionDate = task.actual_completion_date ? parseISO(task.actual_completion_date) : parseISO(task.updated_at);
+          return isSameDay(completionDate, day);
+        }
+        
+        return false;
       });
 
       const totalTasks = dayTasks.length;
       const totalHours = dayTasks.reduce((sum, task) => {
-        return sum + (task.time_spent_minutes || 0) / 60;
+        // For time-managed tasks, use actual time spent
+        if (task.is_time_managed && task.time_spent_minutes > 0) {
+          return sum + task.time_spent_minutes / 60;
+        }
+        
+        // For non-time-managed completed tasks, use estimated hours as effort
+        if (!task.is_time_managed && task.status === 'completed' && task.estimated_hours > 0) {
+          return sum + task.estimated_hours;
+        }
+        
+        return sum;
       }, 0);
 
       let status: 'below' | 'within' | 'above' = 'within';
