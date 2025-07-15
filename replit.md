@@ -56,6 +56,9 @@ Preferred communication style: Simple, everyday language.
 ✓ **Application Stability Fix**: Resolved compilation errors in status deletion workflow by fixing IIFE syntax issues and authentication header implementation
 ✓ **Server Verification**: Confirmed application is running correctly on port 5000 with full API functionality and database connectivity
 ✓ **Transition-Based Kanban Ordering**: Implemented workflow-aware column ordering in Kanban board where default status appears first, followed by statuses in transition sequence order, with alphabetical sorting for merging statuses
+✓ **Comprehensive My Tasks Sorting**: Added full sorting functionality with Priority, Due Date, Effort (Hours), Status, and Created Date options with ascending/descending controls alongside search bar
+✓ **Smart Sorting Logic**: High-to-Low priority ordering, null date handling, visual arrow indicators, and cross-view persistence between List and Kanban modes
+✓ **Enhanced Dashboard Tasks Due Today**: Implemented comprehensive dashboard section displaying tasks due today with priority badges, time remaining indicators, clickable navigation to My Tasks page, and "All caught up!" empty state
 
 ## System Architecture
 
