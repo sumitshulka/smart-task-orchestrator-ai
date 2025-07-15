@@ -16,7 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, AlertTriangle, Trash2, ArrowRight } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
-import { apiClient } from "@/lib/api";
+
 
 interface StatusDeletionDialogProps {
   open: boolean;
