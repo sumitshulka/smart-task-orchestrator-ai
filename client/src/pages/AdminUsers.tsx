@@ -10,6 +10,7 @@ import UserTableActions from "@/components/UserTableActions";
 import EditUserDialog from "@/components/EditUserDialog";
 import CreateUserDialog from "@/components/CreateUserDialog";
 import useSupabaseSession from "@/hooks/useSupabaseSession";
+import { useUserRoles } from "@/hooks/useUserRoles";
 
 interface User {
   id: string;
@@ -31,6 +32,10 @@ const AdminUsers: React.FC = () => {
 
   // For checking session info and admin status
   const { user } = useSupabaseSession();
+
+  // Get user roles
+  const userIds = users.map(user => user.id);
+  const { userRoles, loading: rolesLoading } = useUserRoles(userIds);
 
   // Fetch users from API
   const fetchUsers = React.useCallback(async () => {
@@ -118,7 +123,7 @@ const AdminUsers: React.FC = () => {
           <thead>
             <tr className="bg-muted">
               <th className="p-2 text-left">Name</th>
-              <th className="p-2 text-left">Email</th>
+              <th className="p-2 text-left">Role</th>
               <th className="p-2 text-left">Department</th>
               <th className="p-2 text-left">Manager</th>
               <th className="p-2 text-left">Status</th>
@@ -143,10 +148,34 @@ const AdminUsers: React.FC = () => {
             ) : (
               filteredUsers.map((user) => {
                 const managerObj = getManagerInfo(user.manager);
+                const roles = userRoles[user.id] || [];
                 return (
                   <tr key={user.id} className="border-b last:border-b-0">
-                    <td className="p-2">{user.user_name || "--"}</td>
-                    <td className="p-2">{user.email}</td>
+                    <td className="p-2">
+                      <div>
+                        <div className="font-medium">{user.user_name || "--"}</div>
+                        <div className="text-xs text-muted-foreground">{user.email}</div>
+                      </div>
+                    </td>
+                    <td className="p-2">
+                      {rolesLoading ? (
+                        <span className="text-muted-foreground">Loading...</span>
+                      ) : roles.length > 0 ? (
+                        <div className="flex flex-wrap gap-1">
+                          {roles.map((role) => (
+                            <Badge
+                              key={role.id}
+                              variant="outline"
+                              className="text-xs"
+                            >
+                              {role.role_name}
+                            </Badge>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground">No roles</span>
+                      )}
+                    </td>
                     <td className="p-2">{user.department || "--"}</td>
                     <td className="p-2">
                       {managerObj
