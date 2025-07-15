@@ -328,7 +328,7 @@ const BenchmarkingReport: React.FC = () => {
   }
 
   const queryProcessors: QueryProcessor[] = [
-    // Percentage-based performance analysis
+    // Percentage-based performance analysis - ABOVE target
     {
       name: "surpass_exceed_percentage",
       test: (query: string) => {
@@ -379,6 +379,64 @@ const BenchmarkingReport: React.FC = () => {
             queryType: "daily_hours_exceed_percent",
             description: `Users who exceeded daily hour targets by more than ${percentThreshold}%`,
             matchedPattern: `daily hours exceed > ${percentThreshold}%`
+          };
+        }
+        
+        return { users: [], queryType: "error", description: "Could not determine time period", matchedPattern: "time_period_error" };
+      }
+    },
+    
+    // Percentage-based performance analysis - BELOW target
+    {
+      name: "short_below_percentage",
+      test: (query: string) => {
+        const hasAction = query.includes("short") || query.includes("below") || query.includes("under") || query.includes("less");
+        const hasPercentage = query.includes("%");
+        const hasTime = query.includes("hour") || query.includes("week") || query.includes("day");
+        return hasAction && hasPercentage && hasTime;
+      },
+      process: (query: string, data: BenchmarkData[], settings: OrganizationSettings | undefined) => {
+        console.log(`Processing short/below percentage query: "${query}"`);
+        
+        const percentMatch = query.match(/(?:more than|over|above)\s+(\d+)%/) || query.match(/by\s+more\s+than\s+(\d+)%/);
+        if (!percentMatch) {
+          return { users: [], queryType: "error", description: "Could not parse percentage", matchedPattern: "percentage_parse_error" };
+        }
+        
+        const percentThreshold = parseInt(percentMatch[1]);
+        console.log(`Extracted percentage threshold: ${percentThreshold}%`);
+        
+        if (query.includes("week") || query.includes("weekly")) {
+          const targetHours = settings?.min_hours_per_week || 35;
+          console.log(`Using weekly target: ${targetHours} hours`);
+          
+          const filteredUsers = data.filter(user => {
+            const actualHours = user.averageWeeklyHours;
+            const shortfallPercentage = ((targetHours - actualHours) / targetHours) * 100;
+            const matches = shortfallPercentage > percentThreshold;
+            console.log(`User ${user.userName}: ${actualHours}h vs ${targetHours}h target = ${shortfallPercentage.toFixed(1)}% short (${matches ? 'MATCH' : 'no match'})`);
+            return matches;
+          });
+          
+          return {
+            users: filteredUsers,
+            queryType: "weekly_hours_short_percent",
+            description: `Users who are short of weekly hour targets by more than ${percentThreshold}%`,
+            matchedPattern: `weekly hours short > ${percentThreshold}%`
+          };
+        } else if (query.includes("day") || query.includes("daily")) {
+          const targetHours = settings?.min_hours_per_day || 8;
+          const filteredUsers = data.filter(user => {
+            const actualHours = user.averageDailyHours;
+            const shortfallPercentage = ((targetHours - actualHours) / targetHours) * 100;
+            return shortfallPercentage > percentThreshold;
+          });
+          
+          return {
+            users: filteredUsers,
+            queryType: "daily_hours_short_percent",
+            description: `Users who are short of daily hour targets by more than ${percentThreshold}%`,
+            matchedPattern: `daily hours short > ${percentThreshold}%`
           };
         }
         
