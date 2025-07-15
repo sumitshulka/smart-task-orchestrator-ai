@@ -248,7 +248,7 @@ export default function TaskCard({ task, onTaskUpdated, canDelete, statusColor, 
         {/* Timer component for time-managed tasks */}
         {task.is_time_managed && (
           <div className="mt-4">
-            <TaskTimer task={task} onTaskUpdated={onTaskUpdated} compact={true} />
+            <TaskTimer task={task} onTaskUpdated={onTaskUpdated} compact={false} />
           </div>
         )}
       </CardContent>
