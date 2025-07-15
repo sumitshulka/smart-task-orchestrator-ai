@@ -52,8 +52,8 @@ const GeneralSettings: React.FC = () => {
   const { data: settings, isLoading } = useQuery<OrganizationSettings>({
     queryKey: ['/api/organization-settings'],
     queryFn: async () => {
-      const response = await apiClient.get('/api/organization-settings');
-      return response.data;
+      const response = await apiClient.get('/organization-settings');
+      return response;
     }
   });
 
@@ -98,10 +98,10 @@ const GeneralSettings: React.FC = () => {
       
       if (settings?.id) {
         console.log("Updating existing settings with ID:", settings.id);
-        return apiClient.patch(`/api/organization-settings/${settings.id}`, data);
+        return apiClient.patch(`/organization-settings/${settings.id}`, data);
       } else {
         console.log("Creating new settings");
-        return apiClient.post('/api/organization-settings', data);
+        return apiClient.post('/organization-settings', data);
       }
     },
     onSuccess: (response) => {

@@ -47,8 +47,8 @@ const Benchmarking: React.FC = () => {
   const { data: settings } = useQuery<OrganizationSettings>({
     queryKey: ['/api/organization-settings'],
     queryFn: async () => {
-      const response = await apiClient.get('/api/organization-settings');
-      return response.data;
+      const response = await apiClient.get('/organization-settings');
+      return response;
     }
   });
 

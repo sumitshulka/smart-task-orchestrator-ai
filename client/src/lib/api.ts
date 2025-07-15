@@ -12,6 +12,8 @@ class ApiClient {
     // Get current user for authentication
     const userStr = localStorage.getItem('user');
     const user = userStr ? JSON.parse(userStr) : null;
+    
+    console.log('API Request:', { url, endpoint, cleanEndpoint, userId: user?.id, method: options.method || 'GET' });
 
     const response = await fetch(url, {
       headers: {
