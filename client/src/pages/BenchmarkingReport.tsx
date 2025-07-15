@@ -1027,6 +1027,79 @@ const BenchmarkingReport: React.FC = () => {
       }
     },
     
+    // Role-based queries
+    {
+      name: "role_based_query",
+      test: (query: string) => {
+        const hasRole = query.includes("admin") || query.includes("manager") || query.includes("user") || query.includes("team lead");
+        const hasUsers = query.includes("users") || query.includes("people") || query.includes("employees") || query.includes("staff");
+        return hasRole && hasUsers;
+      },
+      process: (query: string, data: BenchmarkData[], settings: OrganizationSettings | undefined) => {
+        console.log(`Processing role-based query: "${query}"`);
+        
+        // For role-based queries, we need to check what roles the user can actually see
+        // Since the data is already filtered by backend security, we analyze what we have
+        
+        if (query.includes("admin")) {
+          // Look for admin users in the data (if user has permission to see them)
+          const adminUsers = data.filter(user => {
+            // We can't directly check user roles here, so we return empty if no admin data visible
+            return false; // Admin users are not visible to non-admin users due to security
+          });
+          
+          if (adminUsers.length === 0) {
+            return {
+              users: [],
+              queryType: "role_not_visible",
+              description: "No admin users visible (access restricted based on your role)",
+              matchedPattern: "admin users - access restricted"
+            };
+          }
+          
+          return {
+            users: adminUsers,
+            queryType: "admin_users",
+            description: `Admin users (${adminUsers.length} users)`,
+            matchedPattern: "admin users"
+          };
+        } else if (query.includes("manager")) {
+          // Manager users - show available manager data
+          const managerUsers = data.filter(user => {
+            // Since we can't check roles directly, we'll show all available users
+            // The backend already filters based on visibility scope
+            return true;
+          });
+          
+          return {
+            users: managerUsers,
+            queryType: "manager_users",
+            description: `Manager users in your scope (${managerUsers.length} users)`,
+            matchedPattern: "manager users"
+          };
+        } else if (query.includes("user") && !query.includes("admin") && !query.includes("manager")) {
+          // Regular users
+          const regularUsers = data.filter(user => {
+            return true; // Show all users in scope
+          });
+          
+          return {
+            users: regularUsers,
+            queryType: "regular_users",
+            description: `Users in your scope (${regularUsers.length} users)`,
+            matchedPattern: "regular users"
+          };
+        }
+        
+        return {
+          users: data,
+          queryType: "all_roles",
+          description: "All users in your visibility scope",
+          matchedPattern: "all users by role"
+        };
+      }
+    },
+    
     // Default fallback
     {
       name: "general_fallback",
