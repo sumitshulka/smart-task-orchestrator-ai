@@ -1,6 +1,7 @@
 
 import React from "react";
 import { Task } from "@/integrations/supabase/tasks";
+import { EditTaskStatusSelect } from "./EditTaskStatusSelect";
 
 type Props = {
   task: Task;
@@ -27,14 +28,11 @@ const TaskDetailsInfo: React.FC<Props> = ({
     <div>
       <label className="block font-bold mb-1">Status</label>
       {canChangeStatus ? (
-        <select
-          className="w-full border rounded p-2"
-          value={status}
-          onChange={onStatusChange}
+        <EditTaskStatusSelect
+          currentStatus={status}
+          onStatusChange={(newStatus) => onStatusChange({ target: { value: newStatus } })}
           disabled={statusesLoading}
-        >
-          {statuses.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
-        </select>
+        />
       ) : (
         <div>{task.status}</div>
       )}

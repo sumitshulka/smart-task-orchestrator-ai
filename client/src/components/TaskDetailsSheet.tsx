@@ -18,6 +18,7 @@ import { useTaskStatuses } from "@/hooks/useTaskStatuses";
 import { useTaskActivity } from "@/hooks/useTaskActivity";
 import TaskActivityTimeline from "./TaskActivityTimeline";
 import { createTaskActivity } from "@/integrations/supabase/taskActivity";
+import { EditTaskStatusSelect } from "./EditTaskStatusSelect";
 
 
 // Dummy role check! Replace with real logic if user roles are exposed
@@ -283,20 +284,14 @@ const TaskDetailsSheet: React.FC<Props> = ({
                     <div>
                       <label className="block text-sm font-semibold text-gray-700 mb-2">Current Status</label>
                       {(hasManagerPermissions(currentUser) || task.assigned_to === currentUser.id || task.created_by === currentUser.id) ? (
-                        <select
-                          value={status}
-                          onChange={handleStatusChange}
-                          className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        <EditTaskStatusSelect
+                          currentStatus={status}
+                          onStatusChange={(newStatus) => {
+                            setStatus(newStatus);
+                            handleStatusChange({ target: { value: newStatus } } as React.ChangeEvent<HTMLSelectElement>);
+                          }}
                           disabled={statusesLoading}
-                        >
-                          {statusesLoading ? (
-                            <option value="">Loading...</option>
-                          ) : (
-                            statuses.map((s) => (
-                              <option key={s.id} value={s.name}>{s.name}</option>
-                            ))
-                          )}
-                        </select>
+                        />
                       ) : (
                         <div className="bg-white p-2 border rounded">
                           {task.status}

@@ -304,19 +304,11 @@ const EditTaskSheet: React.FC<Props> = ({
             </div>
             <div>
               <label className="block mb-1 text-sm font-medium">Status</label>
-              <select
-                name="status"
-                value={form.status}
-                onChange={handleChange}
-                className="w-full border rounded p-2"
+              <EditTaskStatusSelect
+                currentStatus={form.status}
+                onStatusChange={(newStatus) => setForm(f => ({ ...f, status: newStatus }))}
                 disabled={statusesLoading || statuses.length === 0}
-              >
-                {statuses.map((status) => (
-                  <option key={status.id} value={status.name}>
-                    {status.name}
-                  </option>
-                ))}
-              </select>
+              />
             </div>
             <div className="sm:col-span-2">
               <label className="block mb-1 text-sm font-medium">Description</label>
