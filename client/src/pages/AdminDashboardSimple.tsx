@@ -11,14 +11,15 @@ import ActiveTimersBar from "@/components/ActiveTimersBar";
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
 
-function StatCard({ label, value, icon: Icon, bgColor }: { 
+function StatCard({ label, value, icon: Icon, bgColor, borderColor }: { 
   label: string; 
   value: number | string; 
   icon: React.ElementType;
   bgColor: string;
+  borderColor: string;
 }) {
   return (
-    <Card className={`flex-1 min-w-[140px] ${bgColor} border-0 shadow-sm`}>
+    <Card className={`flex-1 min-w-[140px] ${bgColor} ${borderColor} shadow-sm`}>
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <CardTitle className="text-sm font-medium text-gray-600">{label}</CardTitle>
@@ -105,24 +106,28 @@ const AdminDashboard = () => {
           value={users.length} 
           icon={Users}
           bgColor="bg-gray-50"
+          borderColor="border-gray-200"
         />
         <StatCard 
           label="Total Teams" 
           value={teams.length} 
           icon={Building2}
           bgColor="bg-slate-50"
+          borderColor="border-slate-200"
         />
         <StatCard 
           label="Total Tasks" 
           value={stats.totalTasks} 
           icon={ClipboardList}
           bgColor="bg-zinc-50"
+          borderColor="border-zinc-200"
         />
         <StatCard 
           label="Completed Tasks" 
           value={stats.completedTasks} 
           icon={CheckCircle}
           bgColor="bg-stone-50"
+          borderColor="border-stone-200"
         />
       </div>
 
@@ -133,18 +138,21 @@ const AdminDashboard = () => {
           value={stats.newTasks} 
           icon={ClipboardList}
           bgColor="bg-gray-100"
+          borderColor="border-gray-300"
         />
         <StatCard 
           label="Overdue Tasks" 
           value={stats.overdueTasks} 
           icon={CheckCircle}
           bgColor="bg-red-50"
+          borderColor="border-red-200"
         />
         <StatCard 
           label="Completion Rate" 
           value={`${stats.totalTasks > 0 ? Math.round((stats.completedTasks / stats.totalTasks) * 100) : 0}%`} 
           icon={CheckCircle}
           bgColor="bg-green-50"
+          borderColor="border-green-200"
         />
       </div>
 
