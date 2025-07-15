@@ -22,6 +22,7 @@ import AnalyticsReport from "@/pages/AnalyticsReportSimple";
 import TaskOverdueReport from "@/pages/TaskOverdueReportAdvanced";
 import TaskGroupsPage from "./pages/TaskGroups";
 import MyTeams from "./pages/MyTeams";
+import Benchmarking from "./pages/Benchmarking";
 import { RoleProvider } from "@/contexts/RoleProvider";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { queryClient } from "@/lib/queryClient";
@@ -157,6 +158,15 @@ const App = () => (
               element={
                 <AdminLayout>
                   <MyTeams />
+                </AdminLayout>
+              }
+            />
+            {/* Benchmarking page for users */}
+            <Route
+              path="/benchmarking"
+              element={
+                <AdminLayout>
+                  <Benchmarking />
                 </AdminLayout>
               }
             />
