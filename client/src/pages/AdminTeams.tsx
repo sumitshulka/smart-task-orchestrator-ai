@@ -57,7 +57,7 @@ const AdminTeams: React.FC = () => {
       for (const team of teams || []) {
         try {
           const members = await apiClient.getTeamMembers(team.id);
-          newMembersMap[team.id] = members.map((m: any) => m.user?.user_name || m.user?.email || m.user_id);
+          newMembersMap[team.id] = [members.length.toString()]; // Store count as string array for consistency
           
           // Manager is now included in team data directly
           if (team.manager?.user_name) {
@@ -67,7 +67,7 @@ const AdminTeams: React.FC = () => {
           }
         } catch (error) {
           console.error(`Failed to fetch members for team ${team.id}:`, error);
-          newMembersMap[team.id] = [];
+          newMembersMap[team.id] = ["0"];
         }
       }
       
@@ -200,7 +200,7 @@ const AdminTeams: React.FC = () => {
                 <tr key={team.id} className="border-b last:border-b-0">
                   <td className="p-2">{team.name}</td>
                   <td className="p-2">{team.description || "--"}</td>
-                  <td className="p-2">{(membersMap[team.id] || []).join(", ") || "--"}</td>
+                  <td className="p-2">{(membersMap[team.id] || ["0"])[0]}</td>
                   <td className="p-2">{managersMap[team.id] || "--"}</td>
                   <td className="p-2">{getUserDisplay(team.created_by)}</td>
                   <td className="p-2 text-right">
