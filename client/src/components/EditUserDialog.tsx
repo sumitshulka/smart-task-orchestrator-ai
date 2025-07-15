@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/use-toast";
 import { apiClient } from "@/lib/api";
 import { useUserList } from "@/hooks/useUserList";
+import { useQuery } from "@tanstack/react-query";
 
 interface User {
   id: string;
@@ -14,6 +15,14 @@ interface User {
   department?: string;
   phone?: string;
   manager?: string;
+  // Benchmarking override fields
+  benchmarking_excluded?: boolean;
+  custom_min_hours_per_day?: number;
+  custom_max_hours_per_day?: number;
+  custom_min_hours_per_week?: number;
+  custom_max_hours_per_week?: number;
+  custom_min_hours_per_month?: number;
+  custom_max_hours_per_month?: number;
 }
 
 interface EditUserDialogProps {
@@ -35,12 +44,25 @@ const EditUserDialog: React.FC<EditUserDialogProps> = ({
     department: user?.department ?? "",
     phone: user?.phone ?? "",
     manager: user?.manager ?? "",
+    // Benchmarking override fields
+    benchmarking_excluded: user?.benchmarking_excluded ?? false,
+    custom_min_hours_per_day: user?.custom_min_hours_per_day?.toString() ?? "",
+    custom_max_hours_per_day: user?.custom_max_hours_per_day?.toString() ?? "",
+    custom_min_hours_per_week: user?.custom_min_hours_per_week?.toString() ?? "",
+    custom_max_hours_per_week: user?.custom_max_hours_per_week?.toString() ?? "",
+    custom_min_hours_per_month: user?.custom_min_hours_per_month?.toString() ?? "",
+    custom_max_hours_per_month: user?.custom_max_hours_per_month?.toString() ?? "",
   });
   const [departments, setDepartments] = useState<string[]>([]);
   const [departmentsLoading, setDepartmentsLoading] = useState(false);
 
   // User list for manager dropdown
   const { users: allUsers, loading: usersLoading } = useUserList();
+  // Organization settings for benchmarking overrides
+  const { data: orgSettings } = useQuery({
+    queryKey: ['/api/organization-settings'],
+    enabled: open,
+  });
 
   // Fetch departments dynamically from API
   useEffect(() => {
@@ -69,13 +91,24 @@ const EditUserDialog: React.FC<EditUserDialogProps> = ({
         department: user.department ?? "",
         phone: user.phone ?? "",
         manager: user.manager ?? "",
+        // Benchmarking override fields
+        benchmarking_excluded: user.benchmarking_excluded ?? false,
+        custom_min_hours_per_day: user.custom_min_hours_per_day?.toString() ?? "",
+        custom_max_hours_per_day: user.custom_max_hours_per_day?.toString() ?? "",
+        custom_min_hours_per_week: user.custom_min_hours_per_week?.toString() ?? "",
+        custom_max_hours_per_week: user.custom_max_hours_per_week?.toString() ?? "",
+        custom_min_hours_per_month: user.custom_min_hours_per_month?.toString() ?? "",
+        custom_max_hours_per_month: user.custom_max_hours_per_month?.toString() ?? "",
       });
     }
   }, [user]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    setForm((prev) => ({ ...prev, [name]: value }));
+    const { name, value, type, checked } = e.target as HTMLInputElement;
+    setForm((prev) => ({ 
+      ...prev, 
+      [name]: type === 'checkbox' ? checked : value 
+    }));
   };
 
   async function handleSave(e: React.FormEvent) {
@@ -94,35 +127,27 @@ const EditUserDialog: React.FC<EditUserDialogProps> = ({
       department: form.department?.trim() || null,
       phone: form.phone?.trim() || null,
       manager: managerValue,
+      // Include benchmarking overrides if organization allows them
+      ...(orgSettings?.allow_user_level_override && {
+        benchmarking_excluded: form.benchmarking_excluded,
+        custom_min_hours_per_day: form.custom_min_hours_per_day ? parseInt(form.custom_min_hours_per_day) : null,
+        custom_max_hours_per_day: form.custom_max_hours_per_day ? parseInt(form.custom_max_hours_per_day) : null,
+        custom_min_hours_per_week: form.custom_min_hours_per_week ? parseInt(form.custom_min_hours_per_week) : null,
+        custom_max_hours_per_week: form.custom_max_hours_per_week ? parseInt(form.custom_max_hours_per_week) : null,
+        custom_min_hours_per_month: form.custom_min_hours_per_month ? parseInt(form.custom_min_hours_per_month) : null,
+        custom_max_hours_per_month: form.custom_max_hours_per_month ? parseInt(form.custom_max_hours_per_month) : null,
+      }),
     };
 
     // Debug log for payload
     console.log("[EditUserDialog] Prepared to update user:", user.id, cleanedForm);
 
     try {
-      const { data, error } = await supabase
-        .from("users")
-        .update(cleanedForm)
-        .eq("id", user.id)
-        .select("*");
-
-      console.log("[EditUserDialog] Supabase update result:", { data, error });
-
-      if (error) {
-        toast({ title: "Failed to update user", description: error.message });
-        setSaving(false);
-        return;
-      }
-
-      // "data" will be [] if either (a) nothing changed, or (b) RLS blocks select-after-update.
-      if (!data || data.length === 0) {
-        toast({ 
-          title: "Update failed",
-          description: "No data returned from backend. (If RLS is enabled, check your policies. Otherwise, did you actually change any values?)"
-        });
-        setSaving(false);
-        return;
-      }
+      await apiClient(`/api/users/${user.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(cleanedForm),
+        headers: { 'Content-Type': 'application/json' },
+      });
 
       toast({ title: "User updated!" });
       setSaving(false);
@@ -197,6 +222,111 @@ const EditUserDialog: React.FC<EditUserDialogProps> = ({
               ))}
             </select>
           </div>
+          
+          {/* BENCHMARKING OVERRIDES SECTION */}
+          {orgSettings?.benchmarking_enabled && orgSettings?.allow_user_level_override && (
+            <div className="space-y-3 border rounded-lg p-4 bg-muted/30">
+              <h4 className="text-sm font-semibold">Benchmarking Overrides</h4>
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="benchmarking_excluded_edit"
+                  name="benchmarking_excluded"
+                  checked={form.benchmarking_excluded}
+                  onChange={handleChange}
+                  disabled={saving}
+                  className="rounded"
+                />
+                <label htmlFor="benchmarking_excluded_edit" className="text-sm">
+                  Exclude from benchmarking analysis
+                </label>
+              </div>
+              
+              {!form.benchmarking_excluded && (
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-xs text-muted-foreground">Min Hours/Day</label>
+                    <Input
+                      name="custom_min_hours_per_day"
+                      type="number"
+                      min="0"
+                      placeholder={`Default: ${orgSettings?.min_hours_per_day || 0}`}
+                      value={form.custom_min_hours_per_day}
+                      onChange={handleChange}
+                      disabled={saving}
+                      className="text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">Max Hours/Day</label>
+                    <Input
+                      name="custom_max_hours_per_day"
+                      type="number"
+                      min="0"
+                      placeholder={`Default: ${orgSettings?.max_hours_per_day || 8}`}
+                      value={form.custom_max_hours_per_day}
+                      onChange={handleChange}
+                      disabled={saving}
+                      className="text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">Min Hours/Week</label>
+                    <Input
+                      name="custom_min_hours_per_week"
+                      type="number"
+                      min="0"
+                      placeholder={`Default: ${orgSettings?.min_hours_per_week || 0}`}
+                      value={form.custom_min_hours_per_week}
+                      onChange={handleChange}
+                      disabled={saving}
+                      className="text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">Max Hours/Week</label>
+                    <Input
+                      name="custom_max_hours_per_week"
+                      type="number"
+                      min="0"
+                      placeholder={`Default: ${orgSettings?.max_hours_per_week || 40}`}
+                      value={form.custom_max_hours_per_week}
+                      onChange={handleChange}
+                      disabled={saving}
+                      className="text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">Min Hours/Month</label>
+                    <Input
+                      name="custom_min_hours_per_month"
+                      type="number"
+                      min="0"
+                      placeholder={`Default: ${orgSettings?.min_hours_per_month || 0}`}
+                      value={form.custom_min_hours_per_month}
+                      onChange={handleChange}
+                      disabled={saving}
+                      className="text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">Max Hours/Month</label>
+                    <Input
+                      name="custom_max_hours_per_month"
+                      type="number"
+                      min="0"
+                      placeholder={`Default: ${orgSettings?.max_hours_per_month || 160}`}
+                      value={form.custom_max_hours_per_month}
+                      onChange={handleChange}
+                      disabled={saving}
+                      className="text-xs"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} disabled={saving}>
               Cancel

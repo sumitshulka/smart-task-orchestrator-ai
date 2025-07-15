@@ -26,6 +26,14 @@ const initialValues = {
   department: "",
   phone: "",
   manager: "",
+  // Benchmarking override fields
+  benchmarking_excluded: false,
+  custom_min_hours_per_day: "",
+  custom_max_hours_per_day: "",
+  custom_min_hours_per_week: "",
+  custom_max_hours_per_week: "",
+  custom_min_hours_per_month: "",
+  custom_max_hours_per_month: "",
 };
 
 const CreateUserDialog: React.FC<CreateUserDialogProps> = ({
@@ -49,6 +57,11 @@ const CreateUserDialog: React.FC<CreateUserDialogProps> = ({
   const currentUser = useCurrentUser(organization);
   // All users for manager dropdown
   const { users: allUsers, loading: usersLoading } = useUserList();
+  // Organization settings for benchmarking overrides
+  const { data: orgSettings } = useQuery({
+    queryKey: ['/api/organization-settings'],
+    enabled: isOpen,
+  });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setValues((v) => ({ ...v, [e.target.name]: e.target.value }));
@@ -60,7 +73,11 @@ const CreateUserDialog: React.FC<CreateUserDialogProps> = ({
     setError(null);
 
     try {
-      const { email, password, user_name, department, phone, manager } = values;
+      const { email, password, user_name, department, phone, manager, 
+              benchmarking_excluded, custom_min_hours_per_day, custom_max_hours_per_day,
+              custom_min_hours_per_week, custom_max_hours_per_week, 
+              custom_min_hours_per_month, custom_max_hours_per_month } = values;
+      
       // Only assign "user" role by default, admins can update roles after
       const payload = {
         email,
@@ -70,6 +87,16 @@ const CreateUserDialog: React.FC<CreateUserDialogProps> = ({
         phone,
         manager,
         roles: ["user"],
+        // Include benchmarking overrides if organization allows them
+        ...(orgSettings?.allow_user_level_override && {
+          benchmarking_excluded,
+          custom_min_hours_per_day: custom_min_hours_per_day ? parseInt(custom_min_hours_per_day) : null,
+          custom_max_hours_per_day: custom_max_hours_per_day ? parseInt(custom_max_hours_per_day) : null,
+          custom_min_hours_per_week: custom_min_hours_per_week ? parseInt(custom_min_hours_per_week) : null,
+          custom_max_hours_per_week: custom_max_hours_per_week ? parseInt(custom_max_hours_per_week) : null,
+          custom_min_hours_per_month: custom_min_hours_per_month ? parseInt(custom_min_hours_per_month) : null,
+          custom_max_hours_per_month: custom_max_hours_per_month ? parseInt(custom_max_hours_per_month) : null,
+        }),
       };
       const result = await apiCreateUser(payload);
 
@@ -173,6 +200,111 @@ const CreateUserDialog: React.FC<CreateUserDialogProps> = ({
                 </option>
               ))}
             </select>
+            
+            {/* BENCHMARKING OVERRIDES SECTION */}
+            {orgSettings?.benchmarking_enabled && orgSettings?.allow_user_level_override && (
+              <div className="space-y-3 border rounded-lg p-4 bg-muted/30">
+                <h4 className="text-sm font-semibold">Benchmarking Overrides</h4>
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="benchmarking_excluded"
+                    name="benchmarking_excluded"
+                    checked={values.benchmarking_excluded}
+                    onChange={(e) => setValues(v => ({ ...v, benchmarking_excluded: e.target.checked }))}
+                    disabled={loading}
+                    className="rounded"
+                  />
+                  <label htmlFor="benchmarking_excluded" className="text-sm">
+                    Exclude from benchmarking analysis
+                  </label>
+                </div>
+                
+                {!values.benchmarking_excluded && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-xs text-muted-foreground">Min Hours/Day</label>
+                      <Input
+                        name="custom_min_hours_per_day"
+                        type="number"
+                        min="0"
+                        placeholder={`Default: ${orgSettings?.min_hours_per_day || 0}`}
+                        value={values.custom_min_hours_per_day}
+                        onChange={handleChange}
+                        disabled={loading}
+                        className="text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground">Max Hours/Day</label>
+                      <Input
+                        name="custom_max_hours_per_day"
+                        type="number"
+                        min="0"
+                        placeholder={`Default: ${orgSettings?.max_hours_per_day || 8}`}
+                        value={values.custom_max_hours_per_day}
+                        onChange={handleChange}
+                        disabled={loading}
+                        className="text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground">Min Hours/Week</label>
+                      <Input
+                        name="custom_min_hours_per_week"
+                        type="number"
+                        min="0"
+                        placeholder={`Default: ${orgSettings?.min_hours_per_week || 0}`}
+                        value={values.custom_min_hours_per_week}
+                        onChange={handleChange}
+                        disabled={loading}
+                        className="text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground">Max Hours/Week</label>
+                      <Input
+                        name="custom_max_hours_per_week"
+                        type="number"
+                        min="0"
+                        placeholder={`Default: ${orgSettings?.max_hours_per_week || 40}`}
+                        value={values.custom_max_hours_per_week}
+                        onChange={handleChange}
+                        disabled={loading}
+                        className="text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground">Min Hours/Month</label>
+                      <Input
+                        name="custom_min_hours_per_month"
+                        type="number"
+                        min="0"
+                        placeholder={`Default: ${orgSettings?.min_hours_per_month || 0}`}
+                        value={values.custom_min_hours_per_month}
+                        onChange={handleChange}
+                        disabled={loading}
+                        className="text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground">Max Hours/Month</label>
+                      <Input
+                        name="custom_max_hours_per_month"
+                        type="number"
+                        min="0"
+                        placeholder={`Default: ${orgSettings?.max_hours_per_month || 160}`}
+                        value={values.custom_max_hours_per_month}
+                        onChange={handleChange}
+                        disabled={loading}
+                        className="text-xs"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+            
             {error && (<div className="text-red-600 text-sm">{error}</div>)}
           </div>
           <DialogFooter>
