@@ -512,6 +512,109 @@ const BenchmarkingReport: React.FC = () => {
       }
     },
     
+    // Max/Min user filtering
+    {
+      name: "max_min_user_filter",
+      test: (query: string) => {
+        const hasUser = query.includes("user") || query.includes("person") || query.includes("people");
+        const hasMaxMin = query.includes("maximum") || query.includes("minimum") || query.includes("most") || query.includes("least") || query.includes("highest") || query.includes("lowest");
+        return hasUser && hasMaxMin;
+      },
+      process: (query: string, data: BenchmarkData[], settings: OrganizationSettings | undefined) => {
+        console.log(`Processing max/min user query: "${query}"`);
+        
+        const isMaxQuery = query.includes("maximum") || query.includes("most") || query.includes("highest");
+        const isMinQuery = query.includes("minimum") || query.includes("least") || query.includes("lowest");
+        
+        if (query.includes("task") && (query.includes("allocated") || query.includes("assigned"))) {
+          // Task allocation queries
+          if (isMaxQuery) {
+            const maxTasks = Math.max(...data.map(user => user.totalTasks));
+            const filteredUsers = data.filter(user => user.totalTasks === maxTasks);
+            console.log(`Max tasks: ${maxTasks}, users with max tasks: ${filteredUsers.length}`);
+            
+            return {
+              users: filteredUsers,
+              queryType: "max_tasks",
+              description: `User(s) with maximum tasks allocated (${maxTasks} tasks)`,
+              matchedPattern: `maximum tasks = ${maxTasks}`
+            };
+          } else if (isMinQuery) {
+            const minTasks = Math.min(...data.map(user => user.totalTasks));
+            const filteredUsers = data.filter(user => user.totalTasks === minTasks);
+            console.log(`Min tasks: ${minTasks}, users with min tasks: ${filteredUsers.length}`);
+            
+            return {
+              users: filteredUsers,
+              queryType: "min_tasks",
+              description: `User(s) with minimum tasks allocated (${minTasks} tasks)`,
+              matchedPattern: `minimum tasks = ${minTasks}`
+            };
+          }
+        } else if (query.includes("hour") || query.includes("time")) {
+          // Hours-based queries
+          if (query.includes("week") || query.includes("weekly")) {
+            if (isMaxQuery) {
+              const maxHours = Math.max(...data.map(user => user.averageWeeklyHours));
+              const filteredUsers = data.filter(user => user.averageWeeklyHours === maxHours);
+              console.log(`Max weekly hours: ${maxHours}, users with max hours: ${filteredUsers.length}`);
+              
+              return {
+                users: filteredUsers,
+                queryType: "max_weekly_hours",
+                description: `User(s) with maximum weekly hours (${maxHours.toFixed(1)} hours)`,
+                matchedPattern: `maximum weekly hours = ${maxHours.toFixed(1)}`
+              };
+            } else if (isMinQuery) {
+              const minHours = Math.min(...data.map(user => user.averageWeeklyHours));
+              const filteredUsers = data.filter(user => user.averageWeeklyHours === minHours);
+              console.log(`Min weekly hours: ${minHours}, users with min hours: ${filteredUsers.length}`);
+              
+              return {
+                users: filteredUsers,
+                queryType: "min_weekly_hours",
+                description: `User(s) with minimum weekly hours (${minHours.toFixed(1)} hours)`,
+                matchedPattern: `minimum weekly hours = ${minHours.toFixed(1)}`
+              };
+            }
+          } else {
+            // Daily hours
+            if (isMaxQuery) {
+              const maxHours = Math.max(...data.map(user => user.averageDailyHours));
+              const filteredUsers = data.filter(user => user.averageDailyHours === maxHours);
+              console.log(`Max daily hours: ${maxHours}, users with max hours: ${filteredUsers.length}`);
+              
+              return {
+                users: filteredUsers,
+                queryType: "max_daily_hours",
+                description: `User(s) with maximum daily hours (${maxHours.toFixed(1)} hours)`,
+                matchedPattern: `maximum daily hours = ${maxHours.toFixed(1)}`
+              };
+            } else if (isMinQuery) {
+              const minHours = Math.min(...data.map(user => user.averageDailyHours));
+              const filteredUsers = data.filter(user => user.averageDailyHours === minHours);
+              console.log(`Min daily hours: ${minHours}, users with min hours: ${filteredUsers.length}`);
+              
+              return {
+                users: filteredUsers,
+                queryType: "min_daily_hours",
+                description: `User(s) with minimum daily hours (${minHours.toFixed(1)} hours)`,
+                matchedPattern: `minimum daily hours = ${minHours.toFixed(1)}`
+              };
+            }
+          }
+        }
+        
+        // Fallback for unrecognized max/min queries
+        return {
+          users: [],
+          queryType: "error",
+          description: "Could not determine what to find max/min for",
+          matchedPattern: "max_min_parse_error"
+        };
+      }
+    },
+    
     // Default fallback
     {
       name: "general_fallback",
