@@ -563,6 +563,8 @@ const BenchmarkingReport: React.FC = () => {
         }
       }
       else if (lowerQuery.includes("surpass") || lowerQuery.includes("exceed") || (lowerQuery.includes("over") && lowerQuery.includes("%"))) {
+        console.log(`*** TESTING SURPASS CONDITION: query="${lowerQuery}" ***`);
+        console.log(`*** SURPASS CHECK: includes surpass=${lowerQuery.includes("surpass")}, includes exceed=${lowerQuery.includes("exceed")}, includes over=${lowerQuery.includes("over")}, includes %=${lowerQuery.includes("%")} ***`);
         console.log(`*** ENTERING SURPASS/EXCEED CONDITION ***`);
         console.log(`Matched: surpass/exceed/over with % pattern`);
         console.log(`Condition breakdown: surpass=${lowerQuery.includes("surpass")}, exceed=${lowerQuery.includes("exceed")}, over=${lowerQuery.includes("over")}, %=${lowerQuery.includes("%")}`);
