@@ -18,6 +18,11 @@ html, body {
   position: relative;
 }
 
+/* Fixed header adjustments */
+.fixed-header-layout {
+  padding-top: 56px;
+}
+
 /* Sidebar positioning will be handled by the component itself */
 
 /* Definition of the design system. All colors, gradients, fonts, etc should be defined here. */

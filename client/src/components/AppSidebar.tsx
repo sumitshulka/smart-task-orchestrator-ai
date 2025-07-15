@@ -7,7 +7,6 @@ import {
   useSidebar
 } from "@/components/ui/sidebar";
 import { useCurrentUserRoleAndTeams } from "@/hooks/useCurrentUserRoleAndTeams";
-import SidebarHeader from "./AppSidebarParts/SidebarHeader";
 import DashboardMenu from "./AppSidebarParts/DashboardMenu";
 import TaskManagementMenu from "./AppSidebarParts/TaskManagementMenu";
 import ManagementMenu from "./AppSidebarParts/ManagementMenu";
@@ -39,13 +38,8 @@ export default function AppSidebar() {
         height: '100%'
       }}
     >
-      {/* Header section that aligns with topbar */}
-      <div className="flex items-center justify-start px-4 border-b border-gray-200 bg-[#66655833] w-full" style={{ height: '56px', minHeight: '56px', maxHeight: '56px' }}>
-        <SidebarHeader />
-      </div>
-      
       {/* Scrollable content with menu items */}
-      <SidebarContent className="flex min-h-0 flex-1 flex-col gap-2 overflow-auto group-data-[collapsible=icon]:overflow-hidden px-2 py-4 bg-[#e3e2de]">
+      <SidebarContent className="flex min-h-0 flex-1 flex-col gap-2 overflow-auto group-data-[collapsible=icon]:overflow-hidden px-2 py-4 bg-[#e3e2de]" style={{ paddingTop: '16px' }}>
         <div className="space-y-2">
           <DashboardMenu isUserOnly={isUserOnly} collapsed={collapsed} />
           <TaskManagementMenu collapsed={collapsed} />
