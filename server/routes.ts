@@ -75,6 +75,52 @@ const requireAnyAuthenticated = async (req: any, res: any, next: any) => {
   next();
 };
 
+// Get user's visibility scope for data filtering
+async function getUserVisibilityScope(userId: string): Promise<{ scope: string; roleNames: string[] }> {
+  try {
+    // Check user roles cache first
+    const userCacheEntry = userRolesCache.get(userId);
+    let roleNames: string[];
+    
+    if (userCacheEntry && Date.now() - userCacheEntry.time < CACHE_TTL) {
+      roleNames = userCacheEntry.roles;
+    } else {
+      // Get user roles
+      const userRoles = await storage.getUserRoles(userId);
+      
+      // Use cached roles if available
+      let allRoles = rolesCache;
+      if (!allRoles.length || Date.now() - rolesCacheTime > CACHE_TTL) {
+        allRoles = await storage.getAllRoles();
+        rolesCache = allRoles;
+        rolesCacheTime = Date.now();
+      }
+      
+      roleNames = userRoles.map(ur => {
+        const role = allRoles.find(r => r.id === ur.role_id);
+        return role?.name;
+      }).filter(Boolean);
+      
+      // Cache user roles
+      userRolesCache.set(userId, { roles: roleNames, time: Date.now() });
+    }
+
+    // Determine visibility scope based on roles
+    let scope = "user"; // Default to most restrictive
+    
+    if (roleNames.includes('admin')) {
+      scope = "organization";
+    } else if (roleNames.includes('manager') || roleNames.includes('team_manager')) {
+      scope = "team";
+    }
+    
+    return { scope, roleNames };
+  } catch (error) {
+    console.error('Error getting user visibility scope:', error);
+    return { scope: "user", roleNames: [] };
+  }
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
   // Authentication routes
   app.post("/api/auth/login", async (req, res) => {
@@ -293,12 +339,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Task management routes - Authenticated access
+  // Task management routes - Visibility-aware access
   app.get("/api/tasks", requireAnyAuthenticated, async (req, res) => {
     try {
-      const tasks = await storage.getAllTasks();
+      const userId = req.headers['x-user-id'] as string;
+      const { scope, roleNames } = await getUserVisibilityScope(userId);
+      
+      let tasks;
+      
+      if (scope === "organization") {
+        // Admin can see all tasks
+        tasks = await storage.getAllTasks();
+      } else if (scope === "team") {
+        // Manager/Team Manager can see tasks for their team members
+        const user = await storage.getUser(userId);
+        if (!user) {
+          return res.status(404).json({ error: "User not found" });
+        }
+        
+        // Get all users that this manager can see (including themselves)
+        const allUsers = await storage.getAllUsers();
+        const visibleUserIds = allUsers
+          .filter(u => u.manager === userId || u.id === userId)
+          .map(u => u.id);
+        
+        // Get tasks for visible users only
+        const allTasks = await storage.getAllTasks();
+        tasks = allTasks.filter(task => visibleUserIds.includes(task.assigned_to));
+      } else {
+        // User scope - can only see their own tasks
+        tasks = await storage.getTasksByUser(userId);
+      }
+      
       res.json(tasks);
     } catch (error) {
+      console.error('Error fetching tasks with visibility scope:', error);
       res.status(500).json({ error: "Failed to fetch tasks" });
     }
   });
