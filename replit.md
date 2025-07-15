@@ -101,7 +101,10 @@ Preferred communication style: Simple, everyday language.
 ✓ **Critical Task Group Security Vulnerability Fixed**: Resolved major security issue where managers could access private task groups of other users - implemented proper role-based visibility filtering in task groups API endpoint with getTaskGroupsForUser method
 ✓ **Task Group Assignment System Complete**: Fixed broken task assignment to task groups by implementing proper API endpoints (/api/task-groups/:groupId/tasks) with database persistence, replacing simulated frontend-only assignments
 ✓ **Status Transition System Database Migration**: Fixed critical workflow issue by migrating status transitions from localStorage to proper database storage with API endpoints (/api/task-status-transitions)
-✓ **Proper Workflow Validation**: Implemented database-driven status transition validation using actual task statuses (New→in_progress→review→completed) with logical backward flows for corrections
+✓ **Proper Workflow Validation**: Implemented database-driven status transition validation using actual task statuses with logical business rules:
+  - Forward progression: New→in_progress→review→completed  
+  - Only correction flow: review→in_progress (for rework)
+  - No reopening of completed tasks or reverting in_progress to new
 
 ## System Architecture
 

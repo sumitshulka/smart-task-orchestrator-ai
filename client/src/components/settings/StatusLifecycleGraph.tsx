@@ -35,24 +35,55 @@ const StatusLifecycleGraph: React.FC<{ statuses: TaskStatus[] }> = ({ statuses }
       return;
     }
     
-    const newTransition = {
-      id: Date.now().toString(),
-      from_status: fromStatus.name,
-      to_status: toStatus.name,
-      created_at: new Date().toISOString(),
-    };
+    try {
+      const response = await fetch('/api/task-status-transitions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': (window as any).currentUser?.id || ''
+        },
+        body: JSON.stringify({
+          from_status: fromStatus.name,
+          to_status: toStatus.name
+        })
+      });
+      
+      if (response.ok) {
+        // Refresh transitions from database
+        window.location.reload();
+        toast({ title: "Status transition added successfully!" });
+      } else {
+        toast({ title: "Failed to add transition", variant: "destructive" });
+      }
+    } catch (error) {
+      console.error('Error adding transition:', error);
+      toast({ title: "Error adding transition", variant: "destructive" });
+    }
     
-    setTransitions([...transitions, newTransition]);
     setFrom("");
     setTo("");
-    toast({ title: "Status transition added successfully!" });
   };
 
   const deleteTransition = async (transitionId: string) => {
-    // For now, just remove from local state
-    // In a real implementation, this would delete from the database
-    setTransitions(transitions.filter((t) => t.id !== transitionId));
-    toast({ title: "Transition removed." });
+    try {
+      const response = await fetch(`/api/task-status-transitions/${transitionId}`, {
+        method: 'DELETE',
+        headers: {
+          'x-user-id': (window as any).currentUser?.id || ''
+        }
+      });
+      
+      if (response.ok) {
+        // Refresh transitions from database
+        window.location.reload();
+        toast({ title: "Transition removed." });
+      } else {
+        toast({ title: "Failed to remove transition", variant: "destructive" });
+      }
+    } catch (error) {
+      console.error('Error removing transition:', error);
+      toast({ title: "Error removing transition", variant: "destructive" });
+    }
   };
 
   if (statuses.length === 0) {
