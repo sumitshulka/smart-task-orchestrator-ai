@@ -54,11 +54,11 @@ const Benchmarking: React.FC = () => {
 
   // Fetch user tasks with time tracking data
   const { data: tasks = [] } = useQuery<Task[]>({
-    queryKey: ['/api/tasks/user', user?.id],
+    queryKey: ['/api/users', user?.id, 'tasks'],
     queryFn: async () => {
       if (!user?.id) return [];
-      const response = await apiClient.get(`/api/tasks/user/${user.id}`);
-      return response.data;
+      const response = await apiClient.get(`/users/${user.id}/tasks`);
+      return response;
     },
     enabled: !!user?.id
   });
@@ -83,13 +83,25 @@ const Benchmarking: React.FC = () => {
 
   // Calculate benchmarking data for each day
   const benchmarkingData = useMemo(() => {
+    console.log('Benchmarking calculation:', { 
+      settings: !!settings, 
+      userTasksCount: userTasks.length, 
+      dateRange,
+      sampleTask: userTasks[0] 
+    });
+    
     if (!settings || !userTasks.length) return [];
 
     const days = eachDayOfInterval(dateRange);
     
     return days.map(day => {
+      // Filter tasks that had work done on this day (based on updated_at for tasks with time spent)
       const dayTasks = userTasks.filter(task => {
-        const taskDate = parseISO(task.created_at);
+        // Only count tasks that have time spent and were updated on this day
+        if (!task.time_spent_minutes || task.time_spent_minutes === 0) {
+          return false;
+        }
+        const taskDate = parseISO(task.updated_at);
         return isSameDay(taskDate, day);
       });
 
