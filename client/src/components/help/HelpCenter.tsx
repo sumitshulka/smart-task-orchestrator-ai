@@ -272,7 +272,8 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ initialTopic }) => {
 
                   <TabsContent value="topics" className="mt-0 h-full overflow-y-auto overflow-x-hidden">
                     <div className="grid gap-4 pb-4">
-                        {filteredTopics.map(topic => (
+                      {filteredTopics.length > 0 ? (
+                        filteredTopics.map(topic => (
                           <Card key={topic.id} className="cursor-pointer hover:bg-muted/50" onClick={() => setSelectedTopic(topic)}>
                             <CardHeader className="pb-3">
                               <div className="flex items-start justify-between gap-2">
@@ -300,13 +301,34 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ initialTopic }) => {
                               </div>
                             </CardContent>
                           </Card>
-                        ))}
+                        ))
+                      ) : (
+                        <div className="text-center py-12">
+                          <BookOpen className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                          <h3 className="text-lg font-medium mb-2">No Topics Available</h3>
+                          <p className="text-muted-foreground mb-4">
+                            {selectedCategory 
+                              ? `No topics found for the "${availableCategories.find(cat => cat.id === selectedCategory)?.name}" category.`
+                              : 'No help topics are available for your role at this time.'
+                            }
+                          </p>
+                          <Button 
+                            variant="outline" 
+                            onClick={() => setSelectedCategory(null)}
+                            className="gap-2"
+                          >
+                            <X className="h-4 w-4" />
+                            Clear Filters
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   </TabsContent>
 
                   <TabsContent value="scenarios" className="mt-0 h-full overflow-y-auto overflow-x-hidden">
                     <div className="grid gap-4 pb-4">
-                        {filteredScenarios.map(scenario => (
+                      {filteredScenarios.length > 0 ? (
+                        filteredScenarios.map(scenario => (
                           <Card key={scenario.id} className="cursor-pointer hover:bg-muted/50" onClick={() => setSelectedScenario(scenario)}>
                             <CardHeader className="pb-3">
                               <div className="flex items-start justify-between gap-2">
@@ -335,13 +357,34 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ initialTopic }) => {
                               </div>
                             </CardContent>
                           </Card>
-                        ))}
+                        ))
+                      ) : (
+                        <div className="text-center py-12">
+                          <Play className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                          <h3 className="text-lg font-medium mb-2">No Scenarios Available</h3>
+                          <p className="text-muted-foreground mb-4">
+                            {selectedCategory 
+                              ? `No step-by-step scenarios found for the "${availableCategories.find(cat => cat.id === selectedCategory)?.name}" category.`
+                              : 'No guided scenarios are available for your role at this time.'
+                            }
+                          </p>
+                          <Button 
+                            variant="outline" 
+                            onClick={() => setSelectedCategory(null)}
+                            className="gap-2"
+                          >
+                            <X className="h-4 w-4" />
+                            Clear Filters
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   </TabsContent>
 
                   <TabsContent value="faqs" className="mt-0 h-full overflow-y-auto overflow-x-hidden">
                     <div className="grid gap-4 pb-4">
-                        {filteredFAQs.map(faq => (
+                      {filteredFAQs.length > 0 ? (
+                        filteredFAQs.map(faq => (
                           <Card key={faq.id}>
                             <CardHeader className="pb-3">
                               <div className="flex items-start justify-between gap-2">
@@ -361,7 +404,27 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ initialTopic }) => {
                               </div>
                             </CardContent>
                           </Card>
-                        ))}
+                        ))
+                      ) : (
+                        <div className="text-center py-12">
+                          <MessageSquare className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                          <h3 className="text-lg font-medium mb-2">No FAQs Available</h3>
+                          <p className="text-muted-foreground mb-4">
+                            {selectedCategory 
+                              ? `No frequently asked questions found for the "${availableCategories.find(cat => cat.id === selectedCategory)?.name}" category.`
+                              : 'No frequently asked questions are available for your role at this time.'
+                            }
+                          </p>
+                          <Button 
+                            variant="outline" 
+                            onClick={() => setSelectedCategory(null)}
+                            className="gap-2"
+                          >
+                            <X className="h-4 w-4" />
+                            Clear Filters
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   </TabsContent>
                 </div>

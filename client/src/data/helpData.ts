@@ -313,6 +313,225 @@ Admins can create custom statuses for specific workflows:
     relatedTopics: ['creating-users', 'team-management', 'security']
   },
 
+  // Reports & Analytics
+  {
+    id: 'analytics-dashboard',
+    title: 'Analytics Dashboard Overview',
+    content: `
+# Analytics Dashboard Guide
+
+## Overview:
+The Analytics Dashboard provides comprehensive insights into your organization's productivity, task completion rates, and team performance metrics.
+
+## Key Metrics Available:
+- **Task Completion Rates**: Track completion percentages by team and individual
+- **Time Tracking Analytics**: See actual vs. estimated time spent on tasks
+- **Productivity Trends**: Monthly and weekly productivity patterns
+- **Team Performance**: Compare team efficiency and output
+- **Resource Allocation**: Understand workload distribution across teams
+
+## Dashboard Sections:
+
+### 1. Executive Summary
+- Total tasks completed this month
+- Average completion time
+- Team productivity scores
+- Critical metrics overview
+
+### 2. Team Performance
+- Individual team performance metrics
+- Comparison charts between teams
+- Workload distribution analysis
+- Team member productivity rankings
+
+### 3. Task Analytics
+- Task completion trends over time
+- Most common task types
+- Average time per task category
+- Overdue task analysis
+
+### 4. Time Tracking Insights
+- Total hours logged by team/individual
+- Efficiency metrics (actual vs. estimated)
+- Peak productivity hours
+- Time allocation by project/category
+
+## How to Use:
+1. Navigate to Reports → Analytics Dashboard
+2. Select date range for analysis
+3. Choose specific teams or individuals
+4. Export reports for presentations
+5. Set up automated report delivery
+
+## Best Practices:
+- Review weekly for operational insights
+- Use monthly data for strategic planning
+- Compare teams fairly considering workload
+- Focus on trends rather than single data points
+`,
+    category: 'reporting',
+    role: ['admin', 'manager', 'team_manager'],
+    scenario: ['performance-review', 'strategic-planning'],
+    context: ['reports', 'analytics'],
+    tags: ['analytics', 'dashboard', 'metrics', 'performance'],
+    difficulty: 'intermediate',
+    lastUpdated: '2025-07-15',
+    relatedTopics: ['benchmarking-setup', 'team-management', 'task-statuses']
+  },
+
+  {
+    id: 'benchmarking-reports',
+    title: 'Benchmarking Reports',
+    content: `
+# Benchmarking Reports System
+
+## Overview:
+The benchmarking system provides intelligent analysis of employee productivity using advanced query processing and performance metrics.
+
+## Key Features:
+
+### 1. Natural Language Queries
+Ask questions in plain English:
+- "Who exceeded their weekly hour targets?"
+- "Which team has the highest completion rate?"
+- "Show me users below benchmark performance"
+- "Compare department productivity this month"
+
+### 2. Performance Analysis
+- **Individual Performance**: Track each employee against benchmarks
+- **Team Comparisons**: Compare team performance metrics
+- **Trend Analysis**: See performance changes over time
+- **Goal Achievement**: Track progress toward targets
+
+### 3. Productivity Metrics
+- **Hours Tracking**: Actual vs. target hours worked
+- **Completion Rates**: Task completion percentages
+- **Efficiency Scores**: Output quality and speed
+- **Workload Balance**: Distribution of work across teams
+
+### 4. Advanced Analytics
+- **Percentage-based Analysis**: "Users who exceeded 10% more hours"
+- **Comparative Rankings**: Top and bottom performers
+- **Department Analytics**: Cross-departmental performance
+- **Risk Identification**: Employees at risk of burnout
+
+## Report Types:
+
+### Weekly Performance Report
+- Individual productivity scores
+- Team achievement summaries
+- Trend analysis
+- Recommendations for improvement
+
+### Monthly Benchmarking Analysis
+- Comprehensive performance review
+- Goal achievement tracking
+- Resource allocation insights
+- Strategic recommendations
+
+### Custom Query Reports
+- Natural language query results
+- Filtered performance data
+- Comparative analysis
+- Detailed breakdowns
+
+## How to Generate Reports:
+1. Go to Reports → Benchmarking
+2. Select report type or enter custom query
+3. Choose date range and filters
+4. Review results and insights
+5. Export or schedule regular delivery
+
+## Best Practices:
+- Use consistent measurement periods
+- Consider context when interpreting results
+- Focus on improvement opportunities
+- Regular review and adjustment of benchmarks
+`,
+    category: 'reporting',
+    role: ['admin', 'manager', 'team_manager'],
+    scenario: ['performance-review', 'benchmarking-analysis'],
+    context: ['reports', 'benchmarking'],
+    tags: ['benchmarking', 'reports', 'analytics', 'performance'],
+    difficulty: 'advanced',
+    lastUpdated: '2025-07-15',
+    relatedTopics: ['analytics-dashboard', 'benchmarking-setup', 'user-roles']
+  },
+
+  {
+    id: 'task-reports',
+    title: 'Task Reports & Analysis',
+    content: `
+# Task Reports System
+
+## Overview:
+Generate comprehensive reports on task performance, completion rates, and productivity metrics across your organization.
+
+## Available Reports:
+
+### 1. Task Completion Reports
+- **Daily Summaries**: Tasks completed each day
+- **Weekly Overviews**: Weekly completion statistics
+- **Monthly Analysis**: Monthly productivity trends
+- **Project Reports**: Task completion by project
+
+### 2. Time Tracking Reports
+- **Time Spent Analysis**: Actual time vs. estimates
+- **Efficiency Metrics**: Productivity per hour
+- **Overtime Analysis**: Extended work hours tracking
+- **Break Down by Category**: Time allocation analysis
+
+### 3. Team Performance Reports
+- **Team Productivity**: Overall team performance metrics
+- **Individual Contributions**: Personal productivity scores
+- **Workload Distribution**: Task assignment balance
+- **Collaboration Metrics**: Team interaction analysis
+
+### 4. Status Flow Reports
+- **Workflow Analysis**: How tasks move through statuses
+- **Bottleneck Identification**: Where tasks get stuck
+- **Status Duration**: Time spent in each status
+- **Process Optimization**: Workflow improvement opportunities
+
+## Report Filters:
+- **Date Range**: Custom date selections
+- **Team Selection**: Specific teams or departments
+- **Task Categories**: Filter by task types
+- **Status Filters**: Focus on specific statuses
+- **Priority Levels**: High, medium, low priority tasks
+- **User Selection**: Individual or group reports
+
+## Export Options:
+- **PDF Reports**: Professional formatted documents
+- **Excel Exports**: Detailed data for analysis
+- **CSV Data**: Raw data for custom analysis
+- **Email Delivery**: Scheduled report delivery
+
+## How to Generate Reports:
+1. Navigate to Reports → Task Reports
+2. Select report type and parameters
+3. Choose date range and filters
+4. Preview report before generating
+5. Export in desired format
+6. Schedule regular delivery if needed
+
+## Best Practices:
+- Regular weekly reviews for operational insights
+- Monthly analysis for strategic planning
+- Compare performance across similar time periods
+- Use filters to focus on specific areas
+- Archive reports for historical comparison
+`,
+    category: 'reporting',
+    role: ['admin', 'manager', 'team_manager'],
+    scenario: ['task-analysis', 'performance-review'],
+    context: ['reports', 'tasks'],
+    tags: ['reports', 'tasks', 'analysis', 'productivity'],
+    difficulty: 'intermediate',
+    lastUpdated: '2025-07-15',
+    relatedTopics: ['analytics-dashboard', 'task-statuses', 'time-tracking']
+  },
+
   // Benchmarking
   {
     id: 'benchmarking-setup',
@@ -373,6 +592,115 @@ The system supports natural language queries like:
 ];
 
 export const helpScenarios: HelpScenario[] = [
+  {
+    id: 'generate-weekly-report',
+    name: 'Generating Weekly Performance Report',
+    description: 'Step-by-step process to create and distribute weekly team performance reports',
+    steps: [
+      {
+        id: 'navigate-reports',
+        title: 'Navigate to Reports Section',
+        description: 'Access the reporting dashboard from the main menu',
+        action: 'Go to Reports → Analytics Dashboard',
+        tips: [
+          'Make sure you have proper permissions for the report type',
+          'Check if you need admin or manager access',
+          'Verify your role allows viewing team data'
+        ]
+      },
+      {
+        id: 'select-parameters',
+        title: 'Configure Report Parameters',
+        description: 'Choose the appropriate date range and filters for your report',
+        action: 'Set date range to last 7 days and select relevant teams',
+        tips: [
+          'Use consistent date ranges for comparison',
+          'Select only teams you manage or have access to',
+          'Consider time zones for accurate reporting'
+        ]
+      },
+      {
+        id: 'review-data',
+        title: 'Review Generated Data',
+        description: 'Examine the report results and verify accuracy',
+        action: 'Check metrics for completeness and identify any anomalies',
+        tips: [
+          'Look for unusual patterns or missing data',
+          'Verify team member inclusion',
+          'Check for any system outages that might affect data'
+        ]
+      },
+      {
+        id: 'export-report',
+        title: 'Export and Distribute',
+        description: 'Export the report in appropriate format and share with stakeholders',
+        action: 'Export as PDF or Excel and email to relevant team members',
+        tips: [
+          'Choose format based on recipient preferences',
+          'Include context and analysis with raw data',
+          'Set up automated delivery for regular reports'
+        ]
+      }
+    ],
+    roles: ['admin', 'manager', 'team_manager'],
+    estimatedTime: '10-15 minutes',
+    difficulty: 'beginner'
+  },
+
+  {
+    id: 'benchmarking-analysis',
+    name: 'Conducting Benchmarking Analysis',
+    description: 'Complete process for analyzing team performance using benchmarking tools',
+    steps: [
+      {
+        id: 'access-benchmarking',
+        title: 'Access Benchmarking Reports',
+        description: 'Navigate to the benchmarking section and prepare for analysis',
+        action: 'Go to Reports → Benchmarking',
+        tips: [
+          'Ensure benchmarking is enabled for your organization',
+          'Check if users have proper benchmark settings',
+          'Verify data collection period is sufficient'
+        ]
+      },
+      {
+        id: 'formulate-query',
+        title: 'Create Natural Language Query',
+        description: 'Write clear questions to get specific insights',
+        action: 'Enter query like "Which team members exceeded their weekly targets?"',
+        tips: [
+          'Use specific timeframes in your queries',
+          'Ask about percentages for better comparisons',
+          'Focus on actionable insights rather than raw numbers'
+        ]
+      },
+      {
+        id: 'analyze-results',
+        title: 'Interpret Results',
+        description: 'Review the analysis results and identify key insights',
+        action: 'Examine performance patterns and identify improvement opportunities',
+        tips: [
+          'Look for trends rather than isolated incidents',
+          'Consider external factors affecting performance',
+          'Focus on sustainable improvements'
+        ]
+      },
+      {
+        id: 'action-planning',
+        title: 'Create Action Plan',
+        description: 'Develop specific steps based on the analysis',
+        action: 'Document findings and create improvement strategies',
+        tips: [
+          'Set specific, measurable goals',
+          'Include timelines for implementation',
+          'Consider individual vs. team-level interventions'
+        ]
+      }
+    ],
+    roles: ['admin', 'manager', 'team_manager'],
+    estimatedTime: '20-30 minutes',
+    difficulty: 'intermediate'
+  },
   {
     id: 'onboarding-new-user',
     name: 'Onboarding a New User',
@@ -538,6 +866,50 @@ export const helpFAQs: FAQ[] = [
     popularity: 75,
     lastUpdated: '2025-07-15',
     relatedTopics: ['benchmarking-setup', 'reporting', 'performance-analysis']
+  },
+
+  {
+    id: 'report-access-permissions',
+    question: 'Why can\'t I access certain reports?',
+    answer: 'Report access is based on your role permissions. Admins can access all reports, Managers can view team and individual reports for their teams, Team Managers can access reports for their specific team, and regular Users can only view their personal reports. Contact your administrator if you need additional access.',
+    category: 'reporting',
+    roles: ['admin', 'manager', 'team_manager', 'user'],
+    popularity: 84,
+    lastUpdated: '2025-07-15',
+    relatedTopics: ['user-roles', 'analytics-dashboard', 'permissions']
+  },
+
+  {
+    id: 'export-report-formats',
+    question: 'What formats can I export reports in?',
+    answer: 'Reports can be exported in multiple formats: PDF for professional presentations, Excel for detailed data analysis, CSV for raw data import into other systems, and you can also set up automated email delivery for regular reports. Choose the format that best suits your needs.',
+    category: 'reporting',
+    roles: ['admin', 'manager', 'team_manager'],
+    popularity: 78,
+    lastUpdated: '2025-07-15',
+    relatedTopics: ['analytics-dashboard', 'task-reports', 'benchmarking-reports']
+  },
+
+  {
+    id: 'report-scheduling',
+    question: 'Can I schedule reports to be sent automatically?',
+    answer: 'Yes, you can set up automated report delivery through the Reports section. Choose your report type, set the frequency (daily, weekly, monthly), select recipients, and configure the delivery format. This is perfect for regular team updates and management reviews.',
+    category: 'reporting',
+    roles: ['admin', 'manager', 'team_manager'],
+    popularity: 81,
+    lastUpdated: '2025-07-15',
+    relatedTopics: ['analytics-dashboard', 'task-reports', 'team-management']
+  },
+
+  {
+    id: 'report-data-accuracy',
+    question: 'How do I ensure my reports show accurate data?',
+    answer: 'Report accuracy depends on proper time tracking and task status updates. Ensure team members are using timers correctly, updating task statuses promptly, and logging time accurately. Review data for any anomalies and check for system outages that might affect data collection.',
+    category: 'reporting',
+    roles: ['admin', 'manager', 'team_manager'],
+    popularity: 86,
+    lastUpdated: '2025-07-15',
+    relatedTopics: ['time-tracking', 'task-statuses', 'analytics-dashboard']
   },
   
   {
