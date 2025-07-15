@@ -8,7 +8,7 @@ export default function ManagementMenu({ isAdmin, isManager, collapsed }: { isAd
   if (!(isAdmin || isManager)) return null;
   return (
     <div>
-      <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 px-2">Management</div>
+      <div className="text-xs font-semibold uppercase tracking-wider mb-2 px-2 text-[#021133]">Management</div>
       <div>
         <ul className="flex w-full min-w-0 flex-col gap-1">
           {isAdmin && (
