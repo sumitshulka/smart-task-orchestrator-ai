@@ -563,6 +563,7 @@ const BenchmarkingReport: React.FC = () => {
         }
       }
       else if (lowerQuery.includes("surpass") || lowerQuery.includes("exceed") || (lowerQuery.includes("over") && lowerQuery.includes("%"))) {
+        console.log(`*** ENTERING SURPASS/EXCEED CONDITION ***`);
         console.log(`Matched: surpass/exceed/over with % pattern`);
         console.log(`Condition breakdown: surpass=${lowerQuery.includes("surpass")}, exceed=${lowerQuery.includes("exceed")}, over=${lowerQuery.includes("over")}, %=${lowerQuery.includes("%")}`);
         // Parse percentage-based performance queries like "surpassed their hours by more than 10%"
