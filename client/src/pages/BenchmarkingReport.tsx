@@ -434,25 +434,25 @@ const BenchmarkingReport: React.FC = () => {
         matchedPattern = "consistently/always above benchmark";
       }
       else if (lowerQuery.includes("exact") && (lowerQuery.includes("hours") || lowerQuery.includes("benchmark"))) {
-        matchedUsers = benchmarkingData.filter(user => user.isExactHours);
+        matchedUsers = queryBenchmarkingData.filter(user => user.isExactHours);
         queryType = "exact_hours";
         description = "Users showing exact benchmark hours";
         matchedPattern = "exact hours/benchmark";
       }
       else if (lowerQuery.includes("below") && lowerQuery.includes("min")) {
-        matchedUsers = benchmarkingData.filter(user => user.weeksBelowMin > 0);
+        matchedUsers = queryBenchmarkingData.filter(user => user.weeksBelowMin > 0);
         queryType = "below_min";
         description = "Users with weeks below minimum benchmark";
         matchedPattern = "below min";
       }
       else if (lowerQuery.includes("above") && lowerQuery.includes("max")) {
-        matchedUsers = benchmarkingData.filter(user => user.weeksAboveMax > 0);
+        matchedUsers = queryBenchmarkingData.filter(user => user.weeksAboveMax > 0);
         queryType = "above_max";
         description = "Users with weeks above maximum benchmark";
         matchedPattern = "above max";
       }
       else if (lowerQuery.includes("low perform") || lowerQuery.includes("underperform")) {
-        matchedUsers = benchmarkingData.filter(user => 
+        matchedUsers = queryBenchmarkingData.filter(user => 
           user.averageWeeklyHours < settings?.min_hours_per_week || user.daysBelowMin > user.daysAboveMax
         );
         queryType = "low_performance";
@@ -460,7 +460,7 @@ const BenchmarkingReport: React.FC = () => {
         matchedPattern = "low perform/underperform";
       }
       else if (lowerQuery.includes("high perform") || lowerQuery.includes("overperform")) {
-        matchedUsers = benchmarkingData.filter(user => 
+        matchedUsers = queryBenchmarkingData.filter(user => 
           user.averageWeeklyHours > settings?.max_hours_per_week || user.daysAboveMax > user.daysBelowMin
         );
         queryType = "high_performance";
@@ -472,7 +472,7 @@ const BenchmarkingReport: React.FC = () => {
         const taskCountMatch = lowerQuery.match(/(?:more than|greater than|over|above)\s+(\d+)\s+task/);
         if (taskCountMatch) {
           const threshold = parseInt(taskCountMatch[1]);
-          matchedUsers = benchmarkingData.filter(user => user.totalTasks > threshold);
+          matchedUsers = queryBenchmarkingData.filter(user => user.totalTasks > threshold);
           queryType = "task_count_above";
           description = `Users with more than ${threshold} tasks`;
           matchedPattern = `task count > ${threshold}`;
@@ -484,7 +484,7 @@ const BenchmarkingReport: React.FC = () => {
         const taskCountMatch = lowerQuery.match(/(?:less than|fewer than|under|below)\s+(\d+)\s+task/);
         if (taskCountMatch) {
           const threshold = parseInt(taskCountMatch[1]);
-          matchedUsers = benchmarkingData.filter(user => user.totalTasks < threshold);
+          matchedUsers = queryBenchmarkingData.filter(user => user.totalTasks < threshold);
           queryType = "task_count_below";
           description = `Users with less than ${threshold} tasks`;
           matchedPattern = `task count < ${threshold}`;
@@ -499,7 +499,7 @@ const BenchmarkingReport: React.FC = () => {
         }
         if (taskCountMatch) {
           const exactCount = parseInt(taskCountMatch[1]);
-          matchedUsers = benchmarkingData.filter(user => user.totalTasks === exactCount);
+          matchedUsers = queryBenchmarkingData.filter(user => user.totalTasks === exactCount);
           queryType = "task_count_exact";
           description = `Users with exactly ${exactCount} tasks`;
           matchedPattern = `task count = ${exactCount}`;
@@ -512,15 +512,15 @@ const BenchmarkingReport: React.FC = () => {
         if (hoursMatch) {
           const threshold = parseInt(hoursMatch[1]);
           if (lowerQuery.includes("week")) {
-            matchedUsers = benchmarkingData.filter(user => user.averageWeeklyHours > threshold);
+            matchedUsers = queryBenchmarkingData.filter(user => user.averageWeeklyHours > threshold);
             description = `Users with more than ${threshold} hours per week`;
             matchedPattern = `weekly hours > ${threshold}`;
           } else if (lowerQuery.includes("day")) {
-            matchedUsers = benchmarkingData.filter(user => user.averageDailyHours > threshold);
+            matchedUsers = queryBenchmarkingData.filter(user => user.averageDailyHours > threshold);
             description = `Users with more than ${threshold} hours per day`;
             matchedPattern = `daily hours > ${threshold}`;
           } else {
-            matchedUsers = benchmarkingData.filter(user => user.averageWeeklyHours > threshold);
+            matchedUsers = queryBenchmarkingData.filter(user => user.averageWeeklyHours > threshold);
             description = `Users with more than ${threshold} hours (weekly average)`;
             matchedPattern = `weekly hours > ${threshold}`;
           }
@@ -534,15 +534,15 @@ const BenchmarkingReport: React.FC = () => {
         if (hoursMatch) {
           const threshold = parseInt(hoursMatch[1]);
           if (lowerQuery.includes("week")) {
-            matchedUsers = benchmarkingData.filter(user => user.averageWeeklyHours < threshold);
+            matchedUsers = queryBenchmarkingData.filter(user => user.averageWeeklyHours < threshold);
             description = `Users with less than ${threshold} hours per week`;
             matchedPattern = `weekly hours < ${threshold}`;
           } else if (lowerQuery.includes("day")) {
-            matchedUsers = benchmarkingData.filter(user => user.averageDailyHours < threshold);
+            matchedUsers = queryBenchmarkingData.filter(user => user.averageDailyHours < threshold);
             description = `Users with less than ${threshold} hours per day`;
             matchedPattern = `daily hours < ${threshold}`;
           } else {
-            matchedUsers = benchmarkingData.filter(user => user.averageWeeklyHours < threshold);
+            matchedUsers = queryBenchmarkingData.filter(user => user.averageWeeklyHours < threshold);
             description = `Users with less than ${threshold} hours (weekly average)`;
             matchedPattern = `weekly hours < ${threshold}`;
           }
@@ -718,7 +718,7 @@ const BenchmarkingReport: React.FC = () => {
           description = "Users in above-target performance group";
           matchedPattern = "group performance: above target";
         } else if (lowerQuery.includes("below") || lowerQuery.includes("bottom")) {
-          matchedUsers = benchmarkingData.filter(user => 
+          matchedUsers = queryBenchmarkingData.filter(user => 
             user.averageWeeklyHours < (settings?.min_hours_per_week || 35) || user.totalTasks === 0
           );
           queryType = "group_below_target";
@@ -749,7 +749,7 @@ const BenchmarkingReport: React.FC = () => {
         console.log(`Department query processing: original="${query}", extracted="${dept}"`);
         
         if (dept) {
-          matchedUsers = benchmarkingData.filter(user => 
+          matchedUsers = queryBenchmarkingData.filter(user => 
             user.department.toLowerCase().includes(dept.toLowerCase())
           );
           queryType = "department_filter";
@@ -761,7 +761,7 @@ const BenchmarkingReport: React.FC = () => {
         console.log(`No patterns matched, falling back to general query. Query was: "${lowerQuery}"`);
         console.log(`Patterns checked: surpass=${lowerQuery.includes("surpass")}, exceed=${lowerQuery.includes("exceed")}, over=${lowerQuery.includes("over")}, %=${lowerQuery.includes("%")}`);
         // Default to showing all users with some analysis
-        matchedUsers = benchmarkingData;
+        matchedUsers = queryBenchmarkingData;
         queryType = "general";
         description = "All users benchmarking data";
         matchedPattern = "general query";
