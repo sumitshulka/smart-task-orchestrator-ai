@@ -81,6 +81,11 @@ export interface IStorage {
   updateTaskStatus(id: string, updates: Partial<TaskStatus>): Promise<TaskStatus>;
   deleteTaskStatus(id: string): Promise<void>;
   getDefaultTaskStatus(): Promise<TaskStatus | undefined>;
+  
+  // Enhanced status deletion operations
+  getTasksByStatus(statusName: string): Promise<Task[]>;
+  deleteStatusWithTaskHandling(statusId: string, action: 'delete_tasks' | 'reassign_tasks', newStatusName?: string): Promise<{ deletedTasks: number; reassignedTasks: number }>;
+  getStatusDeletionPreview(statusId: string): Promise<{ statusName: string; taskCount: number; availableStatuses: TaskStatus[]; hasTransitions: boolean }>;
 
   // Role permissions operations
   getRolePermissions(roleId: string): Promise<RolePermission[]>;
@@ -309,6 +314,84 @@ export class DatabaseStorage implements IStorage {
 
   async deleteTaskStatus(id: string): Promise<void> {
     await db.delete(taskStatuses).where(eq(taskStatuses.id, id));
+  }
+
+  async getTasksByStatus(statusName: string): Promise<Task[]> {
+    return await db.select().from(tasks).where(eq(tasks.status, statusName));
+  }
+
+  async deleteStatusWithTaskHandling(statusId: string, action: 'delete_tasks' | 'reassign_tasks', newStatusName?: string): Promise<{ deletedTasks: number; reassignedTasks: number }> {
+    let deletedTasks = 0;
+    let reassignedTasks = 0;
+
+    // Get the status to be deleted
+    const statusToDelete = await db.select().from(taskStatuses).where(eq(taskStatuses.id, statusId)).limit(1);
+    if (statusToDelete.length === 0) {
+      throw new Error('Status not found');
+    }
+
+    const statusName = statusToDelete[0].name;
+
+    // Get tasks using this status
+    const tasksWithStatus = await this.getTasksByStatus(statusName);
+
+    if (action === 'delete_tasks') {
+      // Delete all tasks with this status
+      for (const task of tasksWithStatus) {
+        await this.deleteTask(task.id);
+        deletedTasks++;
+      }
+    } else if (action === 'reassign_tasks' && newStatusName) {
+      // Reassign all tasks to new status
+      await db.update(tasks)
+        .set({ status: newStatusName, updated_at: new Date() })
+        .where(eq(tasks.status, statusName));
+      reassignedTasks = tasksWithStatus.length;
+
+      // Log activity for each reassigned task
+      for (const task of tasksWithStatus) {
+        await this.logTaskActivity({
+          task_id: task.id,
+          action_type: 'status_changed',
+          old_value: statusName,
+          new_value: newStatusName,
+          acted_by: null // System action
+        });
+      }
+    }
+
+    // Delete the status
+    await db.delete(taskStatuses).where(eq(taskStatuses.id, statusId));
+
+    return { deletedTasks, reassignedTasks };
+  }
+
+  async getStatusDeletionPreview(statusId: string): Promise<{ statusName: string; taskCount: number; availableStatuses: TaskStatus[]; hasTransitions: boolean }> {
+    // Get the status to be deleted
+    const statusToDelete = await db.select().from(taskStatuses).where(eq(taskStatuses.id, statusId)).limit(1);
+    if (statusToDelete.length === 0) {
+      throw new Error('Status not found');
+    }
+
+    const statusName = statusToDelete[0].name;
+
+    // Count tasks using this status
+    const tasksWithStatus = await this.getTasksByStatus(statusName);
+    const taskCount = tasksWithStatus.length;
+
+    // Get all other available statuses for reassignment
+    const availableStatuses = await db.select().from(taskStatuses).where(ne(taskStatuses.id, statusId));
+
+    // Check if this status has transitions (this would need to be implemented based on how transitions are stored)
+    // For now, we'll assume it has transitions if it's not the default status
+    const hasTransitions = !statusToDelete[0].is_default;
+
+    return {
+      statusName,
+      taskCount,
+      availableStatuses,
+      hasTransitions
+    };
   }
 
   async getDefaultTaskStatus(): Promise<TaskStatus | undefined> {

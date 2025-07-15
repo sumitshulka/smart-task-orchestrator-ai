@@ -603,6 +603,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/task-statuses/:id/deletion-preview", requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const preview = await storage.getStatusDeletionPreview(id);
+      res.json(preview);
+    } catch (error) {
+      console.error("Failed to get status deletion preview:", error);
+      res.status(500).json({ error: "Failed to get status deletion preview" });
+    }
+  });
+
+  app.post("/api/task-statuses/:id/delete-with-handling", requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { action, newStatusName } = req.body;
+      
+      if (!action || !['delete_tasks', 'reassign_tasks'].includes(action)) {
+        return res.status(400).json({ error: "Invalid action. Must be 'delete_tasks' or 'reassign_tasks'" });
+      }
+
+      if (action === 'reassign_tasks' && !newStatusName) {
+        return res.status(400).json({ error: "newStatusName is required when action is 'reassign_tasks'" });
+      }
+
+      const result = await storage.deleteStatusWithTaskHandling(id, action, newStatusName);
+      res.json(result);
+    } catch (error) {
+      console.error("Failed to delete status with task handling:", error);
+      res.status(500).json({ error: "Failed to delete status with task handling" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

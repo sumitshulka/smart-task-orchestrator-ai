@@ -9,6 +9,7 @@ import { toast } from "@/components/ui/use-toast";
 import { apiClient } from "@/lib/api";
 import { useTaskStatuses } from "@/hooks/useTaskStatuses";
 import StatusLifecycleGraphDraggable from "./StatusLifecycleGraphDraggable";
+import { StatusDeletionDialog } from "@/components/StatusDeletionDialog";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { useRole } from "@/contexts/RoleProvider";
 
@@ -84,6 +85,17 @@ const StatusManager: React.FC = () => {
 
   // Reordering with optimistic updates
   const [localStatuses, setLocalStatuses] = useState(statuses);
+  
+  // Status deletion dialog state
+  const [deletionDialog, setDeletionDialog] = useState<{
+    open: boolean;
+    statusId: string | null;
+    statusName: string;
+  }>({
+    open: false,
+    statusId: null,
+    statusName: '',
+  });
   
   // Update local statuses when API data changes
   useEffect(() => {
@@ -171,16 +183,24 @@ const StatusManager: React.FC = () => {
     }
   };
 
-  const handleDeleteStatus = async (id: string) => {
-    if (!window.confirm("Delete this status?")) return;
+  const handleDeleteStatus = (id: string) => {
+    const status = statuses.find(s => s.id === id);
+    if (!status) return;
     
-    try {
-      await apiClient.deleteTaskStatus(id);
-      refreshStatuses(); // Refresh from API
-      toast({ title: "Status deleted successfully!" });
-    } catch (error: any) {
-      toast({ title: "Error", description: error.message || "Failed to delete status" });
-    }
+    setDeletionDialog({
+      open: true,
+      statusId: id,
+      statusName: status.name,
+    });
+  };
+
+  const handleStatusDeleted = () => {
+    refreshStatuses(); // Refresh from API
+    setDeletionDialog({
+      open: false,
+      statusId: null,
+      statusName: '',
+    });
   };
 
   return (
@@ -392,6 +412,15 @@ const StatusManager: React.FC = () => {
       <div className="w-full">
         <StatusLifecycleGraphDraggable statuses={statuses} />
       </div>
+
+      {/* Status Deletion Dialog */}
+      <StatusDeletionDialog
+        open={deletionDialog.open}
+        onOpenChange={(open) => setDeletionDialog(prev => ({ ...prev, open }))}
+        statusId={deletionDialog.statusId}
+        statusName={deletionDialog.statusName}
+        onStatusDeleted={handleStatusDeleted}
+      />
     </div>
   );
 };
