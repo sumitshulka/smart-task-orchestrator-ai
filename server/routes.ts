@@ -169,6 +169,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Reset user password (admin only)
+  app.patch("/api/users/:id/reset-password", requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { password } = req.body;
+
+      if (!password || password.length < 6) {
+        return res.status(400).json({ error: "Password must be at least 6 characters long" });
+      }
+
+      // Hash the new password
+      const hashedPassword = await bcrypt.hash(password, 10);
+
+      // Update user's password
+      const updatedUser = await storage.updateUser(id, {
+        password_hash: hashedPassword,
+        updated_at: new Date()
+      });
+
+      res.json({ message: "Password reset successfully" });
+    } catch (error) {
+      console.error('Password reset error:', error);
+      res.status(500).json({ error: "Failed to reset password" });
+    }
+  });
+
   // Delete user (admin only)
   app.delete("/api/users/:id", requireAdmin, async (req, res) => {
     try {

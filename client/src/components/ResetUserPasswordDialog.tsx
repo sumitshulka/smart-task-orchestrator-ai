@@ -4,7 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/use-toast";
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api";
 
 interface ResetUserPasswordDialogProps {
   open: boolean;
@@ -28,20 +28,19 @@ const ResetUserPasswordDialog: React.FC<ResetUserPasswordDialogProps> = ({
 
     setSaving(true);
 
-    // Supabase Admin API: update a user's password using "admin.updateUserById"
-    // Note: this requires the service_role key in a secure backend (Edge function).
-    // But for this UI demo in Lovable, we use a client-side administrative approach:
-    // This method will only work if your client SDK is initialized with a key with admin rights.
     try {
-      const { error } = await supabase.auth.admin.updateUserById(userId, { password });
-      if (error) {
-        throw error;
-      }
-      toast({ title: "Password reset", description: "Password was successfully updated for " + userEmail });
+      await apiClient.resetUserPassword(userId, password);
+      toast({ 
+        title: "Password reset", 
+        description: `Password was successfully updated for ${userEmail}` 
+      });
       setPassword("");
       onOpenChange(false);
     } catch (err: any) {
-      toast({ title: "Password reset failed", description: err.message || "Error occurred." });
+      toast({ 
+        title: "Password reset failed", 
+        description: err.message || "Error occurred." 
+      });
     } finally {
       setSaving(false);
     }
@@ -60,12 +59,17 @@ const ResetUserPasswordDialog: React.FC<ResetUserPasswordDialogProps> = ({
             </div>
             <Input
               type="password"
-              placeholder="New password"
+              placeholder="New password (minimum 6 characters)"
               value={password}
               onChange={e => setPassword(e.target.value)}
               required
               minLength={6}
             />
+            {password && password.length < 6 && (
+              <p className="text-xs text-red-500 mt-1">
+                Password must be at least 6 characters long
+              </p>
+            )}
           </div>
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} disabled={saving}>Cancel</Button>

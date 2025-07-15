@@ -84,6 +84,13 @@ class ApiClient {
     return this.request(`/deleted-users/${id}/tasks`);
   }
 
+  async resetUserPassword(id: string, password: string) {
+    return this.request(`/users/${id}/reset-password`, {
+      method: 'PATCH',
+      body: JSON.stringify({ password }),
+    });
+  }
+
   // Task management
   async getTasks() {
     return this.request('/tasks');
