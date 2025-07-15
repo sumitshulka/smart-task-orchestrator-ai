@@ -158,87 +158,42 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ initialTopic }) => {
             onBack={() => setSelectedScenario(null)}
           />
         ) : (
-          <div className="h-full flex flex-col lg:flex-row min-h-0">
-            {/* Sidebar with contextual help - collapsible on mobile */}
-            <div className="w-full lg:w-80 border-b lg:border-b-0 lg:border-r p-4 lg:max-h-full overflow-hidden">
-              <div className="h-full max-h-64 lg:max-h-full overflow-y-auto overflow-x-hidden">
-                {/* Contextual help */}
-                {contextualHelp.topics.length > 0 && (
-                  <div className="mb-6">
-                    <h3 className="font-semibold mb-3 flex items-center gap-2">
-                      <BookOpen className="h-4 w-4" />
-                      Help for this page
-                    </h3>
-                    <div className="space-y-2">
-                      {contextualHelp.topics.map(topic => (
-                        <Button
-                          key={topic.id}
-                          variant="ghost"
-                          className="w-full justify-start h-auto p-2 text-left"
-                          onClick={() => setSelectedTopic(topic)}
-                        >
-                          <div>
-                            <div className="font-medium text-sm">{topic.title}</div>
-                            <div className="text-xs text-muted-foreground">
-                              {topic.difficulty} • {topic.category}
-                            </div>
-                          </div>
-                        </Button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Quick FAQs */}
-                {contextualHelp.faqs.length > 0 && (
-                  <div className="mb-6">
-                    <h3 className="font-semibold mb-3 flex items-center gap-2">
-                      <MessageSquare className="h-4 w-4" />
-                      Common Questions
-                    </h3>
-                    <div className="space-y-2">
-                      {contextualHelp.faqs.map(faq => (
-                        <Card key={faq.id} className="p-3">
-                          <div className="font-medium text-sm mb-1">{faq.question}</div>
-                          <div className="text-xs text-muted-foreground line-clamp-2">{faq.answer}</div>
-                        </Card>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Categories */}
-                <div>
-                  <h3 className="font-semibold mb-3">Categories</h3>
-                  <div className="space-y-1">
-                    {availableCategories.map(category => (
-                      <Button
-                        key={category.id}
-                        variant={selectedCategory === category.id ? "default" : "ghost"}
-                        className="w-full justify-start text-xs sm:text-sm"
-                        onClick={() => {
-                          setSelectedCategory(category.id);
-                          setActiveTab('topics');
-                        }}
-                      >
-                        {category.name}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Main content area */}
+          <div className="h-full flex flex-col min-h-0">
+            {/* Mobile-first design - tabs first, then content */}
             <div className="flex-1 min-h-0 flex flex-col">
               <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
-                <TabsList className="grid w-full grid-cols-3 m-4 flex-shrink-0">
+                <TabsList className="grid w-full grid-cols-3 mx-4 mt-4 flex-shrink-0">
                   <TabsTrigger value="topics">Topics</TabsTrigger>
                   <TabsTrigger value="scenarios">Scenarios</TabsTrigger>
                   <TabsTrigger value="faqs">FAQs</TabsTrigger>
                 </TabsList>
 
-                <div className="px-4 pb-4 flex-1 min-h-0 overflow-hidden">
+                <div className="px-4 pb-4 flex-1 min-h-0 overflow-hidden flex flex-col">
+                  {/* Categories filter - mobile optimized */}
+                  <div className="mb-4 flex-shrink-0">
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        variant={!selectedCategory ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setSelectedCategory(null)}
+                      >
+                        All
+                      </Button>
+                      {availableCategories.map(category => (
+                        <Button
+                          key={category.id}
+                          variant={selectedCategory === category.id ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => setSelectedCategory(category.id)}
+                        >
+                          {category.name}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Scrollable content area */}
+                  <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
                   {/* Search Results */}
                   {searchQuery && (
                     <div className="mb-4">
@@ -427,6 +382,7 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ initialTopic }) => {
                       )}
                     </div>
                   </TabsContent>
+                  </div>
                 </div>
               </Tabs>
             </div>
