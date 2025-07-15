@@ -46,6 +46,7 @@ type BenchmarkData = {
   userId: string;
   userName: string;
   department: string;
+  userRoles: string[]; // Added user roles for filtering
   dailyHours: { [date: string]: number };
   weeklyHours: { [weekStart: string]: number };
   monthlyHours: { [monthStart: string]: number };
@@ -97,6 +98,42 @@ const BenchmarkingReport: React.FC = () => {
     }
   });
 
+  // Fetch user roles for all users
+  const { data: userRoles = {} } = useQuery<{[userId: string]: string[]}>({
+    queryKey: ['/api/user-roles', users.map(u => u.id)],
+    queryFn: async () => {
+      if (!users.length) return {};
+      
+      const rolePromises = users.map(async (user) => {
+        try {
+          const roles = await apiClient.get(`/users/${user.id}/roles`);
+          return {
+            userId: user.id,
+            roleNames: roles.map((role: any) => role.name)
+          };
+        } catch (error) {
+          console.error(`Error fetching roles for user ${user.id}:`, error);
+          return {
+            userId: user.id,
+            roleNames: []
+          };
+        }
+      });
+      
+      const roleResults = await Promise.all(rolePromises);
+      
+      // Convert to object with userId as key
+      const rolesMap: {[userId: string]: string[]} = {};
+      roleResults.forEach(result => {
+        rolesMap[result.userId] = result.roleNames;
+      });
+      
+      console.log("User roles fetched:", rolesMap);
+      return rolesMap;
+    },
+    enabled: users.length > 0
+  });
+
   // Fetch all tasks
   const { data: allTasks = [] } = useQuery<Task[]>({
     queryKey: ['/api/tasks'],
@@ -137,7 +174,8 @@ const BenchmarkingReport: React.FC = () => {
       allTasksCount: allTasks.length,
       timeRange,
       analysisStartDate: format(analysisStartDate, 'yyyy-MM-dd'),
-      analysisEndDate: format(analysisEndDate, 'yyyy-MM-dd')
+      analysisEndDate: format(analysisEndDate, 'yyyy-MM-dd'),
+      userRolesCount: Object.keys(userRoles).length
     });
 
     return users.map(user => {
@@ -224,6 +262,7 @@ const BenchmarkingReport: React.FC = () => {
         userId: user.id,
         userName: user.user_name || user.email,
         department: user.department || "Unknown",
+        userRoles: userRoles[user.id] || [],
         dailyHours,
         weeklyHours,
         monthlyHours,
@@ -240,7 +279,7 @@ const BenchmarkingReport: React.FC = () => {
         isExactHours
       };
     });
-  }, [settings, users, allTasks, timeRange]);
+  }, [settings, users, allTasks, timeRange, userRoles]);
 
   // Parse time-related tokens from the query
   const parseTimeTokens = (queryText: string) => {
@@ -1038,34 +1077,50 @@ const BenchmarkingReport: React.FC = () => {
       },
       process: (query: string, data: BenchmarkData[], settings: OrganizationSettings | undefined) => {
         console.log(`Processing role-based query: "${query}"`);
+        console.log(`Data includes user roles:`, data.map(u => ({ name: u.userName, roles: u.userRoles })));
         
-        // We need to get role information for users to properly filter
-        // Since we can't directly access roles in benchmarking data, we'll fetch them
         if (query.includes("manager") && (query.includes("task") || query.includes("count"))) {
-          // Get users with manager roles by checking their role assignments
-          // For now, we'll return all users since backend filtering already applies role-based access
-          // But we'll add a note about the limitation
+          // Filter users with manager roles
+          const managerUsers = data.filter(user => 
+            user.userRoles.some(role => role.toLowerCase().includes("manager"))
+          );
+          
+          console.log(`Found ${managerUsers.length} manager users:`, managerUsers.map(u => u.userName));
           
           return {
-            users: data,
+            users: managerUsers,
             queryType: "manager_task_analysis",
-            description: `Task analysis for managers in your scope (${data.length} users). Note: Role-based filtering shows users you have permission to see.`,
+            description: `Task analysis for managers (${managerUsers.length} users)`,
             matchedPattern: "manager task count"
           };
         } else if (query.includes("admin") && (query.includes("task") || query.includes("count"))) {
-          // Admin task analysis
+          // Filter users with admin roles
+          const adminUsers = data.filter(user => 
+            user.userRoles.some(role => role.toLowerCase().includes("admin"))
+          );
+          
+          console.log(`Found ${adminUsers.length} admin users:`, adminUsers.map(u => u.userName));
+          
           return {
-            users: data,
+            users: adminUsers,
             queryType: "admin_task_analysis", 
-            description: `Task analysis for admins in your scope (${data.length} users). Note: Role-based filtering shows users you have permission to see.`,
+            description: `Task analysis for admins (${adminUsers.length} users)`,
             matchedPattern: "admin task count"
           };
         } else if (query.includes("user") && !query.includes("admin") && !query.includes("manager")) {
-          // Regular users
+          // Filter regular users (excluding admin and manager roles)
+          const regularUsers = data.filter(user => 
+            !user.userRoles.some(role => 
+              role.toLowerCase().includes("admin") || role.toLowerCase().includes("manager")
+            )
+          );
+          
+          console.log(`Found ${regularUsers.length} regular users:`, regularUsers.map(u => u.userName));
+          
           return {
-            users: data,
+            users: regularUsers,
             queryType: "regular_user_analysis",
-            description: `Task analysis for regular users in your scope (${data.length} users)`,
+            description: `Task analysis for regular users (${regularUsers.length} users)`,
             matchedPattern: "regular user task count"
           };
         }
@@ -1168,6 +1223,7 @@ const BenchmarkingReport: React.FC = () => {
         userId: user.id,
         userName: user.user_name || user.email,
         department: user.department || "Unknown",
+        userRoles: userRoles[user.id] || [],
         dailyHours,
         weeklyHours,
         monthlyHours,
