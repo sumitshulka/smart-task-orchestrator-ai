@@ -126,10 +126,16 @@ const AdminDashboard = () => {
   const formatDueTime = (dueDate: string) => {
     const now = new Date();
     const due = new Date(dueDate);
-    const diffMs = due.getTime() - now.getTime();
+    
+    // Set due date to end of day (23:59:59) for proper comparison
+    const dueEndOfDay = new Date(due);
+    dueEndOfDay.setHours(23, 59, 59, 999);
+    
+    const diffMs = dueEndOfDay.getTime() - now.getTime();
     const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
     const diffMinutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
     
+    // Check if it's actually overdue (past end of due date)
     if (diffMs < 0) {
       return { text: "Overdue", color: "text-red-600", icon: AlertCircle };
     } else if (diffHours < 1) {
