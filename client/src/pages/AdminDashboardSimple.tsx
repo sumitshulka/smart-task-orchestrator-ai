@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { Users, Building2, ClipboardList, CheckCircle, Calendar, Clock, AlertCircle } from "lucide-react";
 import ActiveTimersBar from "@/components/ActiveTimersBar";
-import { useLocation } from "wouter";
+import { useNavigate } from "react-router-dom";
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
 
@@ -37,7 +37,7 @@ function StatCard({ label, value, icon: Icon, bgColor, borderColor }: {
 const AdminDashboard = () => {
   const { users, teams } = useUsersAndTeams();
   const { roles, loading: rolesLoading } = useCurrentUserRoleAndTeams();
-  const [location, navigate] = useLocation();
+  const navigate = useNavigate();
 
   // Simple tasks query with React Query
   const { data: tasks = [], isLoading: tasksLoading } = useQuery({
@@ -110,7 +110,8 @@ const AdminDashboard = () => {
 
   const handleTaskClick = (taskId: string) => {
     // Navigate to My Tasks page - the task details will open automatically there
-    navigate("/my-tasks");
+    console.log("[DEBUG] Navigating to my-tasks from dashboard task click, taskId:", taskId);
+    navigate("/admin/my-tasks");
   };
 
   const getPriorityBadge = (priority: number) => {
@@ -219,7 +220,7 @@ const AdminDashboard = () => {
             </CardTitle>
             {stats.tasksDueToday.length > 0 && (
               <button
-                onClick={() => navigate("/my-tasks")}
+                onClick={() => navigate("/admin/my-tasks")}
                 className="text-sm text-blue-600 hover:text-blue-800 hover:underline"
               >
                 View All Tasks →
@@ -284,7 +285,7 @@ const AdminDashboard = () => {
                 {stats.tasksDueToday.length > 5 && (
                   <div className="text-center pt-2">
                     <button
-                      onClick={() => navigate("/my-tasks")}
+                      onClick={() => navigate("/admin/my-tasks")}
                       className="text-sm text-blue-600 hover:text-blue-800 hover:underline"
                     >
                       +{stats.tasksDueToday.length - 5} more tasks →
