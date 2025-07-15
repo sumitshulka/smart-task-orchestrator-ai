@@ -38,7 +38,7 @@ export default function AppSidebar() {
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
         <SidebarHeader />
       </div>
-      <SidebarContent className="px-2 py-4" style={{ backgroundColor: '#f8fafc' }}>
+      <SidebarContent className="flex min-h-0 flex-1 flex-col gap-2 overflow-auto group-data-[collapsible=icon]:overflow-hidden px-2 py-4 bg-[#e3e2de]">
         <div className="space-y-2">
           <DashboardMenu isUserOnly={isUserOnly} collapsed={collapsed} />
           <TaskManagementMenu collapsed={collapsed} />
