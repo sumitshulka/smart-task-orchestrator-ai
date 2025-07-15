@@ -18,21 +18,10 @@ html, body {
   position: relative;
 }
 
-/* Fix sidebar positioning to prevent overlap with browser chrome */
-.group.peer {
-  position: relative !important;
-}
-
+/* Fix sidebar positioning to prevent overlap with browser chrome in new tabs */
 .group.peer > div:last-child {
-  position: relative !important;
-  inset: unset !important;
-  height: 100vh !important;
-}
-
-/* Ensure sidebar stays within document flow */
-[data-sidebar="sidebar"] {
-  position: relative !important;
-  height: 100vh !important;
+  top: 0 !important;
+  position: fixed !important;
 }
 
 /* Definition of the design system. All colors, gradients, fonts, etc should be defined here. */
