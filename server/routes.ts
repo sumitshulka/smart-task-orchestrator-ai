@@ -148,7 +148,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Delete user (admin only)
   app.delete("/api/users/:id", requireAdmin, async (req, res) => {
     try {
-      const deletedBy = req.user?.id;
+      const deletedBy = req.headers['x-user-id'];
       if (!deletedBy) {
         return res.status(401).json({ error: "User not authenticated" });
       }
