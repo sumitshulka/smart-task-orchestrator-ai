@@ -10,6 +10,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { AlertCircle, CheckCircle, Clock, Users, Calendar, Server } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import { useCurrentUserRoleAndTeams } from "@/hooks/useCurrentUserRoleAndTeams";
 
 interface LicenseStatus {
   hasLicense: boolean;
@@ -46,11 +47,16 @@ export const LicenseManager = () => {
   const [activeSection, setActiveSection] = useState<'status' | 'acquire' | 'validate'>('status');
   
   const queryClient = useQueryClient();
+  const { currentUser, roles } = useCurrentUserRoleAndTeams();
+  
+  // Check if user is admin
+  const isAdmin = roles.some(role => role.name === 'admin');
 
-  // Get license status
+  // Get license status - only if user is authenticated and admin
   const { data: licenseStatus, isLoading: statusLoading, refetch: refetchStatus, error: statusError } = useQuery<LicenseStatus>({
     queryKey: ['/api/license/status'],
-    refetchInterval: 30000, // Refresh every 30 seconds
+    enabled: !!currentUser && isAdmin, // Only run query if user is authenticated and admin
+    refetchInterval: currentUser && isAdmin ? 30000 : false, // Only auto-refresh if authenticated
     retry: false, // Don't retry on authentication failures
     refetchOnWindowFocus: false,
     staleTime: 30000, // Consider data fresh for 30 seconds
@@ -157,6 +163,29 @@ export const LicenseManager = () => {
     return "bg-red-50 border-red-200";
   };
 
+  // Show access denied if not admin
+  if (!currentUser || !isAdmin) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h3 className="text-lg font-medium">License Management</h3>
+          <p className="text-sm text-muted-foreground">
+            Manage system license acquisition, validation, and monitoring
+          </p>
+        </div>
+        <Alert>
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            {!currentUser 
+              ? "Please log in to access license management." 
+              : "Administrator access required to manage licenses."
+            }
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -170,7 +199,7 @@ export const LicenseManager = () => {
           variant="outline"
           size="sm"
           onClick={() => refetchStatus()}
-          disabled={statusLoading}
+          disabled={statusLoading || !currentUser || !isAdmin}
         >
           {statusLoading ? "Refreshing..." : "Refresh Status"}
         </Button>
