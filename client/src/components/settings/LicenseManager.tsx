@@ -35,10 +35,10 @@ export const LicenseManager = () => {
   });
   
   const queryClient = useQueryClient();
-  const { currentUser, roles } = useCurrentUserRoleAndTeams();
+  const { user: currentUser, roles } = useCurrentUserRoleAndTeams();
   
   // Check if user is admin
-  const isAdmin = roles.some(role => role.name === 'admin');
+  const isAdmin = roles.includes('admin');
 
   // Get license status - only if user is authenticated and admin
   const { data: licenseStatus, isLoading: statusLoading, refetch: refetchStatus, error: statusError } = useQuery<LicenseStatus>({
