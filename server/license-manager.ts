@@ -264,79 +264,97 @@ export class LicenseManager {
 
       // External validation if URL configured
       if (this.licenseManagerUrl) {
-        const validationRequest: LicenseValidationRequest = {
-          client_id: clientId,
-          app_id: currentLicense.applicationId, // Use the actual app ID from the license
-          license_key: currentLicense.licenseKey,
-          checksum: calculatedChecksum,
-          domain: domain // Use the cleaned domain parameter, not baseUrl
-        };
+        // Try multiple domain formats for better compatibility
+        const domainFormats = [
+          domain, // Complete domain as provided
+          domain.replace(/^https?:\/\//, ''), // Remove protocol if present
+          currentLicense.baseUrl ? currentLicense.baseUrl.replace(/^https?:\/\//, '') : null, // Stored base URL without protocol
+          'www.replit.dev', // Fallback for development
+          'replit.dev' // Basic fallback
+        ].filter(Boolean);
 
-        const licenseManagerBaseUrl = this.licenseManagerUrl.endsWith('/') ? 
-          this.licenseManagerUrl.slice(0, -1) : this.licenseManagerUrl;
-        const validationUrl = `${licenseManagerBaseUrl}/api/validate-license`;
-
-        console.log('Validating license with external server:', validationUrl);
-        console.log('Validation request:', validationRequest);
-
-        const response = await fetch(validationUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(validationRequest)
-        });
-
-        if (!response.ok) {
-          let errorDetails = '';
-          try {
-            const errorResponse = await response.text();
-            errorDetails = errorResponse ? ` - ${errorResponse}` : '';
-          } catch (e) {
-            // Ignore parsing errors for error details
-          }
-          throw new Error(`Validation failed with status: ${response.status}${errorDetails}`);
-        }
-
-        const validationResponse: any = await response.json();
-        console.log('Validation response:', validationResponse);
+        let lastError = null;
         
-        // Handle different response formats
-        const isValid = validationResponse.valid === true || 
-                        validationResponse.status === 'Valid' ||
-                        validationResponse.status === 'valid';
+        for (const testDomain of domainFormats) {
+          try {
+            const validationRequest: LicenseValidationRequest = {
+              client_id: clientId,
+              app_id: currentLicense.applicationId,
+              license_key: currentLicense.licenseKey,
+              checksum: calculatedChecksum,
+              domain: testDomain
+            };
 
-        if (isValid) {
-          await db
-            .update(licenses)
-            .set({ lastValidated: new Date() })
-            .where(eq(licenses.id, currentLicense.id));
+            const licenseManagerBaseUrl = this.licenseManagerUrl.endsWith('/') ? 
+              this.licenseManagerUrl.slice(0, -1) : this.licenseManagerUrl;
+            const validationUrl = `${licenseManagerBaseUrl}/api/validate-license`;
 
-          const result = {
-            valid: true,
-            message: validationResponse.message || 'License is valid',
-            license: currentLicense
-          };
+            console.log(`Attempting validation with domain: ${testDomain}`);
+            console.log('Validation request:', validationRequest);
 
-          // Cache successful result
-          this.validationCache.set(cacheKey, {
-            result,
-            timestamp: Date.now()
-          });
+            const response = await fetch(validationUrl, {
+              method: 'POST',
+              headers: { 
+                'Content-Type': 'application/json',
+                'Origin': `https://${testDomain}`, // Add Origin header
+                'Referer': `https://${testDomain}/` // Add Referer header
+              },
+              body: JSON.stringify(validationRequest)
+            });
 
-          return result;
-        } else {
-          const result = {
-            valid: false,
-            message: validationResponse.message || 'License validation failed'
-          };
+            if (!response.ok) {
+              let errorDetails = '';
+              try {
+                const errorResponse = await response.text();
+                errorDetails = errorResponse ? ` - ${errorResponse}` : '';
+                console.log(`Domain ${testDomain} failed with ${response.status}: ${errorDetails}`);
+              } catch (e) {
+                console.log(`Domain ${testDomain} failed with ${response.status}: Unable to parse error`);
+              }
+              
+              // If it's a domain validation error (403), try next domain format
+              if (response.status === 403) {
+                lastError = new Error(`Domain validation failed for ${testDomain}: ${response.status}${errorDetails}`);
+                continue;
+              }
+              
+              // For other errors (500, etc.), throw immediately
+              throw new Error(`Validation failed with status: ${response.status}${errorDetails}`);
+            }
 
-          // Cache failed result for shorter time
-          this.validationCache.set(cacheKey, {
-            result,
-            timestamp: Date.now() - (this.CACHE_DURATION - 5000)
-          });
+            // Success - parse and return response
+            const validationResponse: any = await response.json();
+            console.log(`Validation successful with domain: ${testDomain}`);
+            console.log('Validation response:', validationResponse);
+            
+            const isValid = validationResponse.valid === true || 
+                            validationResponse.status === 'Valid' ||
+                            validationResponse.status === 'valid';
 
-          return result;
+            if (isValid) {
+              // Update cache
+              this.validationCache.set(cacheKey, { 
+                result: { valid: true, message: validationResponse.message || 'License validated successfully', license: currentLicense }, 
+                timestamp: Date.now() 
+              });
+              return { valid: true, message: validationResponse.message || 'License validated successfully', license: currentLicense };
+            } else {
+              const errorMessage = validationResponse.message || 'License validation failed';
+              this.validationCache.set(cacheKey, { 
+                result: { valid: false, message: errorMessage }, 
+                timestamp: Date.now() 
+              });
+              return { valid: false, message: errorMessage };
+            }
+          } catch (error) {
+            console.log(`Domain ${testDomain} validation error:`, error);
+            lastError = error;
+            continue;
+          }
         }
+
+        // If all domain formats failed, throw the last error
+        throw lastError || new Error('All domain validation attempts failed');
       } else {
         // Local validation only
         await db
