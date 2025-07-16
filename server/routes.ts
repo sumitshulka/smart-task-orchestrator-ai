@@ -1420,6 +1420,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const origin = req.headers.origin || req.headers.host || 'localhost';
       const domain = origin.replace(/^https?:\/\//, '').replace(/:\d+$/, '');
 
+      console.log(`Request headers - Origin: ${req.headers.origin}, Host: ${req.headers.host}`);
+      console.log(`Extracted domain: ${domain}`);
       console.log(`Validating license for client: ${license.clientId}, domain: ${domain}`);
       
       const result = await licenseManager.validateLicense(license.clientId, domain);

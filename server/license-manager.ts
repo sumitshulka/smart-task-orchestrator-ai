@@ -269,7 +269,7 @@ export class LicenseManager {
           app_id: currentLicense.applicationId, // Use the actual app ID from the license
           license_key: currentLicense.licenseKey,
           checksum: calculatedChecksum,
-          domain: currentLicense.baseUrl || domain
+          domain: domain // Use the cleaned domain parameter, not baseUrl
         };
 
         const licenseManagerBaseUrl = this.licenseManagerUrl.endsWith('/') ? 
@@ -286,7 +286,14 @@ export class LicenseManager {
         });
 
         if (!response.ok) {
-          throw new Error(`Validation failed with status: ${response.status}`);
+          let errorDetails = '';
+          try {
+            const errorResponse = await response.text();
+            errorDetails = errorResponse ? ` - ${errorResponse}` : '';
+          } catch (e) {
+            // Ignore parsing errors for error details
+          }
+          throw new Error(`Validation failed with status: ${response.status}${errorDetails}`);
         }
 
         const validationResponse: any = await response.json();
