@@ -21,11 +21,7 @@ interface LicenseStatus {
   message: string;
 }
 
-interface LicenseAcquisitionData {
-  clientId: string;
-  baseUrl: string;
-  licenseManagerUrl: string;
-}
+
 
 interface LicenseValidationData {
   clientId: string;
@@ -33,18 +29,10 @@ interface LicenseValidationData {
 }
 
 export const LicenseManager = () => {
-  const [acquisitionData, setAcquisitionData] = useState<LicenseAcquisitionData>({
-    clientId: '',
-    baseUrl: '',
-    licenseManagerUrl: ''
-  });
-  
   const [validationData, setValidationData] = useState<LicenseValidationData>({
     clientId: '',
     domain: ''
   });
-
-  const [activeSection, setActiveSection] = useState<'status' | 'acquire' | 'validate'>('status');
   
   const queryClient = useQueryClient();
   const { currentUser, roles } = useCurrentUserRoleAndTeams();
@@ -62,38 +50,7 @@ export const LicenseManager = () => {
     staleTime: 30000, // Consider data fresh for 30 seconds
   });
 
-  // License acquisition mutation
-  const acquireMutation = useMutation({
-    mutationFn: (data: LicenseAcquisitionData) => 
-      apiRequest('/api/license/acquire', {
-        method: 'POST',
-        body: JSON.stringify(data),
-      }),
-    onSuccess: (result) => {
-      if (result.success) {
-        toast({
-          title: "License Acquired",
-          description: "License has been successfully acquired and stored.",
-        });
-        setAcquisitionData({ clientId: '', baseUrl: '', licenseManagerUrl: '' });
-        queryClient.invalidateQueries({ queryKey: ['/api/license/status'] });
-        setActiveSection('status');
-      } else {
-        toast({
-          title: "Acquisition Failed",
-          description: result.message || "Failed to acquire license.",
-          variant: "destructive",
-        });
-      }
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Acquisition Error",
-        description: error.message || "Failed to acquire license.",
-        variant: "destructive",
-      });
-    }
-  });
+
 
   // License validation mutation
   const validateMutation = useMutation({
@@ -127,17 +84,7 @@ export const LicenseManager = () => {
     }
   });
 
-  const handleAcquireLicense = () => {
-    if (!acquisitionData.clientId || !acquisitionData.baseUrl) {
-      toast({
-        title: "Missing Information",
-        description: "Client ID and Base URL are required.",
-        variant: "destructive",
-      });
-      return;
-    }
-    acquireMutation.mutate(acquisitionData);
-  };
+
 
   const handleValidateLicense = () => {
     if (!validationData.clientId || !validationData.domain) {
@@ -190,9 +137,9 @@ export const LicenseManager = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-medium">License Management</h3>
+          <h3 className="text-lg font-medium">License Information</h3>
           <p className="text-sm text-muted-foreground">
-            Manage system license acquisition, validation, and monitoring
+            View current license details and validate license status
           </p>
         </div>
         <Button
@@ -239,6 +186,16 @@ export const LicenseManager = () => {
                 </div>
               )}
               
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium">Application ID:</span>
+                <span className="text-sm font-mono">taskrep-task-management</span>
+              </div>
+              
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium">Client ID:</span>
+                <span className="text-sm font-mono">default-client</span>
+              </div>
+
               {licenseStatus.expiresAt && (
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium flex items-center gap-1">
@@ -276,129 +233,49 @@ export const LicenseManager = () => {
         </CardContent>
       </Card>
 
-      {/* Action Buttons */}
-      <div className="flex gap-2">
-        <Button
-          variant={activeSection === 'status' ? 'default' : 'outline'}
-          onClick={() => setActiveSection('status')}
-        >
-          Status
-        </Button>
-        <Button
-          variant={activeSection === 'acquire' ? 'default' : 'outline'}
-          onClick={() => setActiveSection('acquire')}
-        >
-          Acquire License
-        </Button>
-        <Button
-          variant={activeSection === 'validate' ? 'default' : 'outline'}
-          onClick={() => setActiveSection('validate')}
-        >
-          Validate License
-        </Button>
-      </div>
-
       <Separator />
 
-      {/* License Acquisition Section */}
-      {activeSection === 'acquire' && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Server className="h-5 w-5" />
-              Acquire New License
-            </CardTitle>
-            <CardDescription>
-              Connect to a license server to acquire a new license for your organization.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="clientId">Client ID *</Label>
-                <Input
-                  id="clientId"
-                  placeholder="Enter your client ID"
-                  value={acquisitionData.clientId}
-                  onChange={(e) => setAcquisitionData(prev => ({ ...prev, clientId: e.target.value }))}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="baseUrl">Base URL *</Label>
-                <Input
-                  id="baseUrl"
-                  placeholder="https://your-domain.com"
-                  value={acquisitionData.baseUrl}
-                  onChange={(e) => setAcquisitionData(prev => ({ ...prev, baseUrl: e.target.value }))}
-                />
-              </div>
+      {/* License Validation Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <CheckCircle className="h-5 w-5" />
+            Validate License
+          </CardTitle>
+          <CardDescription>
+            Re-validate your current license against the license server.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="validationClientId">Client ID *</Label>
+              <Input
+                id="validationClientId"
+                placeholder="Enter client ID"
+                value={validationData.clientId}
+                onChange={(e) => setValidationData(prev => ({ ...prev, clientId: e.target.value }))}
+              />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="licenseManagerUrl">License Server URL</Label>
+              <Label htmlFor="domain">Domain *</Label>
               <Input
-                id="licenseManagerUrl"
-                placeholder="https://license-server.com"
-                value={acquisitionData.licenseManagerUrl}
-                onChange={(e) => setAcquisitionData(prev => ({ ...prev, licenseManagerUrl: e.target.value }))}
+                id="domain"
+                placeholder="your-domain.com"
+                value={validationData.domain}
+                onChange={(e) => setValidationData(prev => ({ ...prev, domain: e.target.value }))}
               />
-              <p className="text-xs text-muted-foreground">
-                Optional: Leave empty to use default license server
-              </p>
             </div>
-            <Button 
-              onClick={handleAcquireLicense}
-              disabled={acquireMutation.isPending}
-              className="w-full"
-            >
-              {acquireMutation.isPending ? "Acquiring License..." : "Acquire License"}
-            </Button>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* License Validation Section */}
-      {activeSection === 'validate' && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <CheckCircle className="h-5 w-5" />
-              Validate Existing License
-            </CardTitle>
-            <CardDescription>
-              Validate an existing license against the license server.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="validationClientId">Client ID *</Label>
-                <Input
-                  id="validationClientId"
-                  placeholder="Enter client ID"
-                  value={validationData.clientId}
-                  onChange={(e) => setValidationData(prev => ({ ...prev, clientId: e.target.value }))}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="domain">Domain *</Label>
-                <Input
-                  id="domain"
-                  placeholder="your-domain.com"
-                  value={validationData.domain}
-                  onChange={(e) => setValidationData(prev => ({ ...prev, domain: e.target.value }))}
-                />
-              </div>
-            </div>
-            <Button 
-              onClick={handleValidateLicense}
-              disabled={validateMutation.isPending}
-              className="w-full"
-            >
-              {validateMutation.isPending ? "Validating License..." : "Validate License"}
-            </Button>
-          </CardContent>
-        </Card>
-      )}
+          </div>
+          <Button 
+            onClick={handleValidateLicense}
+            disabled={validateMutation.isPending}
+            className="w-full"
+          >
+            {validateMutation.isPending ? "Validating License..." : "Validate License"}
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   );
 };
