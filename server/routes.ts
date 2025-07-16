@@ -128,9 +128,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/auth/system-status", async (req, res) => {
     try {
       const users = await storage.getAllUsers();
-      // TODO: TESTING ONLY - Remove this hardcoded override before production
-      // HARDCODED FOR TESTING: Always return false to test registration page
-      res.json({ hasUsers: false }); // Original: res.json({ hasUsers: users.length > 0 });
+      res.json({ hasUsers: users.length > 0 });
     } catch (error) {
       console.error('System status check error:', error);
       res.status(500).json({ error: "Failed to check system status" });
