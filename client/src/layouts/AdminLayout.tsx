@@ -6,6 +6,7 @@ import { useLicenseCheck } from "@/hooks/useLicenseCheck";
 import { LicenseAcquisitionScreen } from "@/components/LicenseAcquisitionScreen";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
+import { LogoutHelper } from "@/components/LogoutHelper";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -59,6 +60,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   return (
     <div className="flex h-screen w-full bg-background">
+      {/* Temporary logout helper for testing */}
+      <LogoutHelper />
+      
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div 
