@@ -38,10 +38,12 @@ const OfficeLocationsManager: React.FC = () => {
     mutationFn: (data: InsertOfficeLocation) => {
       const userStr = localStorage.getItem('user');
       const user = userStr ? JSON.parse(userStr) : null;
+      console.log("Making API request with data:", data);
       return apiRequest("/api/office-locations", {
         method: "POST",
         body: JSON.stringify(data),
         headers: {
+          'Content-Type': 'application/json',
           'x-user-id': user?.id || ''
         }
       });
@@ -59,6 +61,7 @@ const OfficeLocationsManager: React.FC = () => {
 
   const handleAddLocation = async () => {
     if (!newLocation.location_name.trim() || !newLocation.address.trim()) return;
+    console.log("Adding office location:", newLocation);
     createLocationMutation.mutate(newLocation);
   };
 
@@ -82,6 +85,7 @@ const OfficeLocationsManager: React.FC = () => {
         method: "PATCH",
         body: JSON.stringify(data),
         headers: {
+          'Content-Type': 'application/json',
           'x-user-id': user?.id || ''
         }
       });

@@ -1294,12 +1294,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/office-locations", requireManagerOrAdmin, async (req, res) => {
     try {
+      console.log("Office location creation request body:", req.body);
       const locationData = insertOfficeLocationSchema.parse(req.body);
+      console.log("Parsed location data:", locationData);
       const location = await storage.createOfficeLocation(locationData);
       res.status(201).json(location);
     } catch (error) {
       console.error("Failed to create office location:", error);
       if (error.name === 'ZodError') {
+        console.error("Validation errors:", error.errors);
         res.status(400).json({ error: "Validation error", details: error.errors });
       } else {
         res.status(500).json({ error: "Failed to create office location" });
