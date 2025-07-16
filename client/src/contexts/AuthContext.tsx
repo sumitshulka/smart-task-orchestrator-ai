@@ -13,6 +13,8 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
   loading: boolean;
+  checkSystemStatus: () => Promise<{ hasUsers: boolean }>;
+  registerSuperAdmin: (name: string, email: string, password: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -61,8 +63,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem('user');
   };
 
+  const checkSystemStatus = async () => {
+    const response = await fetch('/api/auth/system-status');
+    if (!response.ok) {
+      throw new Error('Failed to check system status');
+    }
+    return response.json();
+  };
+
+  const registerSuperAdmin = async (name: string, email: string, password: string) => {
+    setLoading(true);
+    try {
+      const response = await fetch('/api/auth/register-super-admin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, password }),
+      });
+      
+      if (response.ok) {
+        const user = await response.json();
+        setUser(user);
+        localStorage.setItem('user', JSON.stringify(user));
+      } else {
+        const error = await response.json();
+        throw new Error(error.error || 'Registration failed');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, login, logout, loading }}>
+    <AuthContext.Provider value={{ user, login, logout, loading, checkSystemStatus, registerSuperAdmin }}>
       {children}
     </AuthContext.Provider>
   );

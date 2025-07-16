@@ -1,46 +1,20 @@
-
-import React, { useEffect, useState } from "react";
-import { useAuth } from "@/contexts/AuthContext";
+import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/components/ui/use-toast";
-import { useNavigate } from "react-router-dom";
 import { ClipboardList, Users2, ShieldCheck } from "lucide-react";
 import Logo from "@/components/Logo";
-import SuperAdminRegistration from "@/components/SuperAdminRegistration";
+import { useAuth } from "@/contexts/AuthContext";
 
-const AuthPage: React.FC = () => {
-  const [form, setForm] = useState({ email: "", password: "" });
+const SuperAdminRegistration: React.FC = () => {
+  const [form, setForm] = useState({ 
+    name: "", 
+    email: "", 
+    password: "", 
+    confirmPassword: "" 
+  });
   const [error, setError] = useState<string | null>(null);
-  const [systemHasUsers, setSystemHasUsers] = useState<boolean | null>(null);
-  const [checkingSystem, setCheckingSystem] = useState(true);
-  const navigate = useNavigate();
-  const { user, login, loading, checkSystemStatus } = useAuth();
-
-  useEffect(() => {
-    if (user) {
-      // If user is already logged in, redirect to home (which will handle role-based routing)
-      navigate("/", { replace: true });
-    }
-  }, [user, navigate]);
-
-  useEffect(() => {
-    // Check if system has any users
-    const checkSystem = async () => {
-      try {
-        const status = await checkSystemStatus();
-        setSystemHasUsers(status.hasUsers);
-      } catch (error) {
-        console.error('Failed to check system status:', error);
-        // Default to showing login if check fails
-        setSystemHasUsers(true);
-      } finally {
-        setCheckingSystem(false);
-      }
-    };
-
-    checkSystem();
-  }, [checkSystemStatus]);
+  const { registerSuperAdmin, loading } = useAuth();
 
   const handleInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -50,38 +24,35 @@ const AuthPage: React.FC = () => {
     e.preventDefault();
     setError(null);
     
+    // Validation
+    if (!form.name || !form.email || !form.password || !form.confirmPassword) {
+      setError("All fields are required");
+      return;
+    }
+
+    if (form.password !== form.confirmPassword) {
+      setError("Passwords do not match");
+      return;
+    }
+
+    if (form.password.length < 6) {
+      setError("Password must be at least 6 characters long");
+      return;
+    }
+    
     try {
-      await login(form.email, form.password);
-      toast({ title: "Login successful!" });
-      // Navigation will happen automatically via useEffect when user state changes
+      await registerSuperAdmin(form.name, form.email, form.password);
+      toast({ title: "Super Admin account created successfully!" });
     } catch (error: any) {
-      setError(error.message || "Login failed");
+      setError(error.message || "Registration failed");
       toast({ 
-        title: "Login failed", 
-        description: error.message || "Please check your credentials",
+        title: "Registration failed", 
+        description: error.message || "Please check your information",
         variant: "destructive"
       });
     }
   };
 
-  // Show loading spinner while checking system status
-  if (checkingSystem) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-800 flex items-center justify-center">
-        <div className="text-center text-white">
-          <div className="w-12 h-12 border-4 border-white/30 border-t-white rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-lg">Initializing system...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Show registration page if no users exist
-  if (systemHasUsers === false) {
-    return <SuperAdminRegistration />;
-  }
-
-  // Show login page if users exist
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-800 relative overflow-hidden">
       {/* Animated background elements */}
@@ -94,7 +65,7 @@ const AuthPage: React.FC = () => {
       <div className="relative z-10 min-h-screen flex items-center justify-center px-4 py-12">
         <div className="w-full max-w-6xl mx-auto grid lg:grid-cols-2 gap-8 items-center">
           
-          {/* Left Side - Branding & Features */}
+          {/* Left Side - Branding & Welcome */}
           <div className="hidden lg:block space-y-8 text-white">
             <div className="space-y-6">
               <div className="flex items-center space-x-3">
@@ -105,26 +76,26 @@ const AuthPage: React.FC = () => {
               </div>
               <div className="space-y-4">
                 <h1 className="text-5xl font-bold leading-tight">
-                  Smart Task
+                  Welcome to
                   <span className="block bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-                    Management
+                    TaskRep
                   </span>
                 </h1>
                 <p className="text-xl text-slate-300 leading-relaxed max-w-lg">
-                  Streamline your workflow with intelligent task organization, team collaboration, and real-time progress tracking.
+                  Set up your administrative account to begin managing tasks, teams, and productivity across your organization.
                 </p>
               </div>
             </div>
 
-            {/* Feature highlights */}
+            {/* System features */}
             <div className="grid grid-cols-1 gap-6 max-w-lg">
               <div className="flex items-start space-x-4 group">
                 <div className="flex-shrink-0 w-12 h-12 bg-blue-500/20 rounded-xl flex items-center justify-center group-hover:bg-blue-500/30 transition-colors">
                   <ClipboardList className="w-6 h-6 text-blue-400" />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-white mb-1">Intelligent Organization</h3>
-                  <p className="text-slate-400 text-sm">AI-powered task prioritization and smart categorization</p>
+                  <h3 className="font-semibold text-white mb-1">Smart Task Management</h3>
+                  <p className="text-slate-400 text-sm">Organize and track tasks with intelligent prioritization</p>
                 </div>
               </div>
               
@@ -134,7 +105,7 @@ const AuthPage: React.FC = () => {
                 </div>
                 <div>
                   <h3 className="font-semibold text-white mb-1">Team Collaboration</h3>
-                  <p className="text-slate-400 text-sm">Real-time updates and seamless team communication</p>
+                  <p className="text-slate-400 text-sm">Connect teams with real-time updates and communication</p>
                 </div>
               </div>
               
@@ -144,13 +115,13 @@ const AuthPage: React.FC = () => {
                 </div>
                 <div>
                   <h3 className="font-semibold text-white mb-1">Enterprise Security</h3>
-                  <p className="text-slate-400 text-sm">Bank-grade encryption and compliance standards</p>
+                  <p className="text-slate-400 text-sm">Protected by industry-standard security protocols</p>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Right Side - Login Form */}
+          {/* Right Side - Registration Form */}
           <div className="flex items-center justify-center">
             <div className="w-full max-w-md">
               {/* Glass morphism card */}
@@ -160,10 +131,10 @@ const AuthPage: React.FC = () => {
                     <Logo />
                   </div>
                   <h2 className="text-3xl font-bold text-white mb-2">
-                    Welcome Back
+                    First Time Setup
                   </h2>
                   <p className="text-slate-300">
-                    Sign in to your account to continue
+                    Create your super admin account
                   </p>
                 </div>
 
@@ -171,13 +142,24 @@ const AuthPage: React.FC = () => {
                   <div className="space-y-4">
                     <div className="relative">
                       <Input
+                        type="text"
+                        name="name"
+                        placeholder="Full Name *"
+                        required
+                        value={form.name}
+                        onChange={handleInput}
+                        disabled={loading}
+                        className="w-full h-12 bg-white/10 border-white/20 text-white placeholder:text-slate-300 focus:border-blue-400 focus:ring-blue-400/20 rounded-xl"
+                      />
+                    </div>
+                    <div className="relative">
+                      <Input
                         type="email"
                         name="email"
-                        placeholder="Enter your email"
+                        placeholder="Email Address *"
                         required
                         value={form.email}
                         onChange={handleInput}
-                        autoComplete="username"
                         disabled={loading}
                         className="w-full h-12 bg-white/10 border-white/20 text-white placeholder:text-slate-300 focus:border-blue-400 focus:ring-blue-400/20 rounded-xl"
                       />
@@ -186,11 +168,22 @@ const AuthPage: React.FC = () => {
                       <Input
                         type="password"
                         name="password"
-                        placeholder="Enter your password"
+                        placeholder="Password *"
                         required
                         value={form.password}
                         onChange={handleInput}
-                        autoComplete="current-password"
+                        disabled={loading}
+                        className="w-full h-12 bg-white/10 border-white/20 text-white placeholder:text-slate-300 focus:border-blue-400 focus:ring-blue-400/20 rounded-xl"
+                      />
+                    </div>
+                    <div className="relative">
+                      <Input
+                        type="password"
+                        name="confirmPassword"
+                        placeholder="Confirm Password *"
+                        required
+                        value={form.confirmPassword}
+                        onChange={handleInput}
                         disabled={loading}
                         className="w-full h-12 bg-white/10 border-white/20 text-white placeholder:text-slate-300 focus:border-blue-400 focus:ring-blue-400/20 rounded-xl"
                       />
@@ -211,33 +204,28 @@ const AuthPage: React.FC = () => {
                     {loading ? (
                       <div className="flex items-center space-x-2">
                         <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                        <span>Signing in...</span>
+                        <span>Creating Account...</span>
                       </div>
                     ) : (
-                      "Sign In"
+                      "Create Super Admin Account"
                     )}
                   </Button>
-
-                  {/* Demo login instruction */}
-                  <div className="text-center">
-                    <div className="bg-blue-500/20 border border-blue-500/30 rounded-xl p-3">
-                      <p className="text-blue-200 text-sm font-medium mb-1">Demo Access</p>
-                      <p className="text-blue-300 text-xs">
-                        Email: <span className="font-mono">ss@sumits.me</span><br />
-                        Password: <span className="font-mono">tempPassword123</span>
-                      </p>
-                    </div>
-                  </div>
                 </form>
 
                 {/* Additional info */}
                 <div className="mt-8 text-center">
+                  <div className="bg-yellow-500/20 border border-yellow-500/30 rounded-xl p-3 mb-4">
+                    <p className="text-yellow-200 text-sm font-medium mb-1">⚡ First Time Setup</p>
+                    <p className="text-yellow-300 text-xs">
+                      This page only appears during initial system setup when no users exist.
+                    </p>
+                  </div>
                   <p className="text-slate-400 text-sm">
-                    Secured by enterprise-grade encryption
+                    This account will have full administrative privileges
                   </p>
                   <div className="flex items-center justify-center space-x-2 mt-2">
                     <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                    <span className="text-green-400 text-sm font-medium">System Online</span>
+                    <span className="text-green-400 text-sm font-medium">System Ready</span>
                   </div>
                   <div className="mt-4 text-xs text-slate-500">
                     &copy; {new Date().getFullYear()} TaskRep. All rights reserved.
@@ -252,4 +240,4 @@ const AuthPage: React.FC = () => {
   );
 };
 
-export default AuthPage;
+export default SuperAdminRegistration;

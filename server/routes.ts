@@ -124,6 +124,73 @@ async function getUserVisibilityScope(userId: string): Promise<{ scope: string; 
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Authentication routes
+  // Check if system has any users (for initial setup)
+  app.get("/api/auth/system-status", async (req, res) => {
+    try {
+      const users = await storage.getAllUsers();
+      res.json({ hasUsers: users.length > 0 });
+    } catch (error) {
+      console.error('System status check error:', error);
+      res.status(500).json({ error: "Failed to check system status" });
+    }
+  });
+
+  // First-time super admin registration
+  app.post("/api/auth/register-super-admin", async (req, res) => {
+    try {
+      const { name, email, password } = req.body;
+      
+      if (!name || !email || !password) {
+        return res.status(400).json({ error: "Name, email and password are required" });
+      }
+
+      // Check if system already has users
+      const existingUsers = await storage.getAllUsers();
+      if (existingUsers.length > 0) {
+        return res.status(403).json({ error: "System already has users. Registration not allowed." });
+      }
+
+      // Check if email is already used
+      const existingUser = await storage.getUserByEmail(email);
+      if (existingUser) {
+        return res.status(409).json({ error: "Email already exists" });
+      }
+
+      // Hash password
+      const saltRounds = 10;
+      const password_hash = await bcrypt.hash(password, saltRounds);
+
+      // Create super admin user
+      const newUser = await storage.createUser({
+        user_name: name,
+        email: email,
+        password_hash: password_hash,
+        department: "Administration",
+        phone: "",
+        manager: "",
+        is_active: true,
+        benchmarking_excluded: false
+      });
+
+      // Get admin role
+      const adminRole = await storage.getAllRoles().then(roles => 
+        roles.find(role => role.name === 'admin')
+      );
+
+      if (adminRole) {
+        // Assign admin role to user
+        await storage.assignUserRole(newUser.id, adminRole.id);
+      }
+
+      // Return user info (excluding password)
+      const { password_hash: _, ...userInfo } = newUser;
+      res.json(userInfo);
+    } catch (error) {
+      console.error('Super admin registration error:', error);
+      res.status(500).json({ error: "Registration failed" });
+    }
+  });
+
   app.post("/api/auth/login", async (req, res) => {
     try {
       const { email, password } = req.body;
