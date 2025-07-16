@@ -16,6 +16,7 @@ export const queryClient = new QueryClient({
 // Helper function for API requests
 export async function apiRequest(url: string, options: RequestInit = {}) {
   const response = await fetch(url, {
+    credentials: 'include', // Include session cookies for authentication
     headers: {
       'Content-Type': 'application/json',
       ...options.headers,
