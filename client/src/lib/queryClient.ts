@@ -15,10 +15,15 @@ export const queryClient = new QueryClient({
 
 // Helper function for API requests
 export async function apiRequest(url: string, options: RequestInit = {}) {
+  // Get current user for authentication
+  const userStr = localStorage.getItem('user');
+  const user = userStr ? JSON.parse(userStr) : null;
+
   const response = await fetch(url, {
     credentials: 'include', // Include session cookies for authentication
     headers: {
       'Content-Type': 'application/json',
+      ...(user?.id && { 'x-user-id': user.id }),
       ...options.headers,
     },
     ...options,
