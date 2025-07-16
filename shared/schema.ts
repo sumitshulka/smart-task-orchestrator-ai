@@ -426,6 +426,30 @@ export const insertOfficeLocationSchema = createInsertSchema(officeLocations).om
   updated_at: true,
 });
 
+// License management schema
+export const licenses = pgTable('licenses', {
+  id: serial('id').primaryKey(),
+  applicationId: text('application_id').notNull(),
+  clientId: text('client_id').notNull(),
+  licenseKey: text('license_key').notNull(),
+  subscriptionType: text('subscription_type').notNull(),
+  validTill: timestamp('valid_till').notNull(),
+  mutualKey: text('mutual_key').notNull(), // Encrypted
+  checksum: text('checksum').notNull(),
+  subscriptionData: text('subscription_data').notNull(), // Encrypted JSON
+  baseUrl: text('base_url'),
+  isActive: boolean('is_active').default(true),
+  lastValidated: timestamp('last_validated'),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow()
+});
+
+export const insertLicenseSchema = createInsertSchema(licenses).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
+
 // Types
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
@@ -454,3 +478,5 @@ export type InsertTaskStatusTransition = z.infer<typeof insertTaskStatusTransiti
 export type TaskStatusTransition = typeof taskStatusTransitions.$inferSelect;
 export type InsertOfficeLocation = z.infer<typeof insertOfficeLocationSchema>;
 export type OfficeLocation = typeof officeLocations.$inferSelect;
+export type InsertLicense = z.infer<typeof insertLicenseSchema>;
+export type License = typeof licenses.$inferSelect;

@@ -18,6 +18,7 @@ import {
   deletedTasks,
   organizationSettings,
   officeLocations,
+  licenses,
   User, 
   InsertUser, 
   Task, 
@@ -43,7 +44,9 @@ import {
   OrganizationSettings,
   InsertOrganizationSettings,
   OfficeLocation,
-  InsertOfficeLocation
+  InsertOfficeLocation,
+  License,
+  InsertLicense
 } from "@shared/schema";
 
 export interface IStorage {
@@ -150,6 +153,13 @@ export interface IStorage {
   createOfficeLocation(location: InsertOfficeLocation): Promise<OfficeLocation>;
   updateOfficeLocation(id: string, updates: Partial<OfficeLocation>): Promise<OfficeLocation>;
   deleteOfficeLocation(id: string): Promise<void>;
+  
+  // License operations
+  getLicense(clientId: string): Promise<License | undefined>;
+  getAllLicenses(): Promise<License[]>;
+  createLicense(license: InsertLicense): Promise<License>;
+  updateLicense(id: number, updates: Partial<License>): Promise<License>;
+  deleteLicense(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1038,6 +1048,38 @@ export class DatabaseStorage implements IStorage {
 
   async deleteOfficeLocation(id: string): Promise<void> {
     await db.delete(officeLocations).where(eq(officeLocations.id, id));
+  }
+
+  // License operations
+  async getLicense(clientId: string): Promise<License | undefined> {
+    const result = await db.select().from(licenses).where(
+      and(
+        eq(licenses.clientId, clientId),
+        eq(licenses.isActive, true)
+      )
+    ).orderBy(desc(licenses.createdAt)).limit(1);
+    return result[0];
+  }
+
+  async getAllLicenses(): Promise<License[]> {
+    return await db.select().from(licenses).orderBy(desc(licenses.createdAt));
+  }
+
+  async createLicense(license: InsertLicense): Promise<License> {
+    const result = await db.insert(licenses).values(license).returning();
+    return result[0];
+  }
+
+  async updateLicense(id: number, updates: Partial<License>): Promise<License> {
+    const result = await db.update(licenses).set({
+      ...updates,
+      updatedAt: new Date()
+    }).where(eq(licenses.id, id)).returning();
+    return result[0];
+  }
+
+  async deleteLicense(id: number): Promise<void> {
+    await db.delete(licenses).where(eq(licenses.id, id));
   }
 }
 

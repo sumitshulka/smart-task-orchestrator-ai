@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import { licenseManager, APP_ID } from "./license-manager";
 import { insertUserSchema, insertTaskSchema, insertTeamSchema, insertTaskGroupSchema, insertRoleSchema, insertOfficeLocationSchema, userRoles } from "@shared/schema";
 import { db } from "./db";
 import bcrypt from "bcrypt";
@@ -1327,6 +1328,122 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Failed to delete office location:", error);
       res.status(500).json({ error: "Failed to delete office location" });
+    }
+  });
+
+  // License Management Routes (Admin only)
+  app.get("/api/license/status", requireAdmin, async (req, res) => {
+    try {
+      console.log("License status endpoint hit");
+      const clientId = req.headers['x-client-id'] as string || 'default-client';
+      console.log("Client ID:", clientId);
+      const status = await licenseManager.getLicenseStatus(clientId);
+      console.log("License status result:", status);
+      res.json(status);
+    } catch (error) {
+      console.error("Failed to get license status:", error);
+      res.status(500).json({ 
+        error: "Failed to get license status", 
+        details: error.message,
+        stack: error.stack 
+      });
+    }
+  });
+
+  app.post("/api/license/acquire", requireAdmin, async (req, res) => {
+    try {
+      const { clientId, baseUrl, licenseManagerUrl } = req.body;
+      
+      if (!clientId || !baseUrl) {
+        return res.status(400).json({ error: "clientId and baseUrl are required" });
+      }
+
+      if (licenseManagerUrl) {
+        licenseManager.setLicenseManagerUrl(licenseManagerUrl);
+      }
+
+      const result = await licenseManager.acquireLicense(clientId, baseUrl);
+      
+      if (result.success) {
+        res.json(result);
+      } else {
+        res.status(400).json(result);
+      }
+    } catch (error) {
+      console.error("Failed to acquire license:", error);
+      res.status(500).json({ error: "Failed to acquire license" });
+    }
+  });
+
+  app.post("/api/license/validate", requireAdmin, async (req, res) => {
+    try {
+      const { clientId, domain } = req.body;
+      
+      if (!clientId || !domain) {
+        return res.status(400).json({ error: "clientId and domain are required" });
+      }
+
+      const result = await licenseManager.validateLicense(clientId, domain);
+      res.json(result);
+    } catch (error) {
+      console.error("Failed to validate license:", error);
+      res.status(500).json({ error: "Failed to validate license" });
+    }
+  });
+
+  app.get("/api/license/user-limits", requireAdmin, async (req, res) => {
+    try {
+      const clientId = req.headers['x-client-id'] as string || 'default-client';
+      const limits = await licenseManager.getUserLimits(clientId);
+      res.json({ limits });
+    } catch (error) {
+      console.error("Failed to get user limits:", error);
+      res.status(500).json({ error: "Failed to get user limits" });
+    }
+  });
+
+  app.post("/api/license/check-user-limit", requireAdmin, async (req, res) => {
+    try {
+      const { clientId, currentUserCount } = req.body;
+      
+      if (!clientId || typeof currentUserCount !== 'number') {
+        return res.status(400).json({ error: "clientId and currentUserCount are required" });
+      }
+
+      const result = await licenseManager.checkUserLimit(clientId, currentUserCount);
+      res.json(result);
+    } catch (error) {
+      console.error("Failed to check user limit:", error);
+      res.status(500).json({ error: "Failed to check user limit" });
+    }
+  });
+
+  app.get("/api/license/current", requireAdmin, async (req, res) => {
+    try {
+      const clientId = req.headers['x-client-id'] as string || 'default-client';
+      const license = await licenseManager.getCurrentLicense(clientId);
+      
+      if (!license) {
+        return res.status(404).json({ error: "No license found" });
+      }
+
+      // Return limited license info (don't expose sensitive data)
+      const safeLicense = {
+        id: license.id,
+        applicationId: license.applicationId,
+        clientId: license.clientId,
+        subscriptionType: license.subscriptionType,
+        validTill: license.validTill,
+        isActive: license.isActive,
+        lastValidated: license.lastValidated,
+        createdAt: license.createdAt,
+        updatedAt: license.updatedAt
+      };
+
+      res.json(safeLicense);
+    } catch (error) {
+      console.error("Failed to get current license:", error);
+      res.status(500).json({ error: "Failed to get current license" });
     }
   });
 
