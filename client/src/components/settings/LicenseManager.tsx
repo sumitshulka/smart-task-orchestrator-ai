@@ -48,9 +48,12 @@ export const LicenseManager = () => {
   const queryClient = useQueryClient();
 
   // Get license status
-  const { data: licenseStatus, isLoading: statusLoading, refetch: refetchStatus } = useQuery<LicenseStatus>({
+  const { data: licenseStatus, isLoading: statusLoading, refetch: refetchStatus, error: statusError } = useQuery<LicenseStatus>({
     queryKey: ['/api/license/status'],
     refetchInterval: 30000, // Refresh every 30 seconds
+    retry: false, // Don't retry on authentication failures
+    refetchOnWindowFocus: false,
+    staleTime: 30000, // Consider data fresh for 30 seconds
   });
 
   // License acquisition mutation
@@ -184,6 +187,13 @@ export const LicenseManager = () => {
         <CardContent className="space-y-4">
           {statusLoading ? (
             <div className="text-sm text-muted-foreground">Loading license status...</div>
+          ) : statusError ? (
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                {statusError.message || "Failed to load license status"}
+              </AlertDescription>
+            </Alert>
           ) : licenseStatus ? (
             <>
               <div className="flex items-center justify-between">
