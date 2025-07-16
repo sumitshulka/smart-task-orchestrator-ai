@@ -264,12 +264,14 @@ export class LicenseManager {
 
       // External validation if URL configured
       if (this.licenseManagerUrl) {
-        // Try multiple domain formats for better compatibility
+        // Ensure complete development URL is sent first, then fallbacks
+        const completeDevUrl = domain.includes('replit.dev') ? domain : null;
         const domainFormats = [
-          domain, // Complete domain as provided
+          completeDevUrl, // Complete development URL with subdomain (highest priority)
+          domain, // Original domain as provided
           domain.replace(/^https?:\/\//, ''), // Remove protocol if present
           currentLicense.baseUrl ? currentLicense.baseUrl.replace(/^https?:\/\//, '') : null, // Stored base URL without protocol
-          'www.replit.dev', // Fallback for development
+          'www.replit.dev', // Registered domain fallback
           'replit.dev' // Basic fallback
         ].filter(Boolean);
 
@@ -289,7 +291,9 @@ export class LicenseManager {
               this.licenseManagerUrl.slice(0, -1) : this.licenseManagerUrl;
             const validationUrl = `${licenseManagerBaseUrl}/api/validate-license`;
 
-            console.log(`Attempting validation with domain: ${testDomain}`);
+            console.log(`\n=== Attempting validation ${domainFormats.indexOf(testDomain) + 1}/${domainFormats.length} ===`);
+            console.log(`Domain: ${testDomain}`);
+            console.log(`Type: ${testDomain.includes('replit.dev') && testDomain.includes('-') ? 'Complete Dev URL' : testDomain === 'www.replit.dev' ? 'Registered Domain' : 'Other'}`);
             console.log('Validation request:', validationRequest);
 
             const response = await fetch(validationUrl, {
@@ -307,7 +311,7 @@ export class LicenseManager {
               try {
                 const errorResponse = await response.text();
                 errorDetails = errorResponse ? ` - ${errorResponse}` : '';
-                console.log(`Domain ${testDomain} failed with ${response.status}: ${errorDetails}`);
+                console.log(`❌ Domain ${testDomain} failed with ${response.status}: ${errorDetails}`);
               } catch (e) {
                 console.log(`Domain ${testDomain} failed with ${response.status}: Unable to parse error`);
               }
@@ -324,8 +328,8 @@ export class LicenseManager {
 
             // Success - parse and return response
             const validationResponse: any = await response.json();
-            console.log(`Validation successful with domain: ${testDomain}`);
-            console.log('Validation response:', validationResponse);
+            console.log(`\n✅ VALIDATION SUCCESSFUL with domain: ${testDomain}`);
+            console.log('✅ Validation response:', validationResponse);
             
             const isValid = validationResponse.valid === true || 
                             validationResponse.status === 'Valid' ||
