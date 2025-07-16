@@ -15,6 +15,7 @@ interface LicenseAcquisitionProps {
 
 interface LicenseAcquisitionData {
   clientId: string;
+  appId: string;
   baseUrl: string;
   licenseManagerUrl: string;
 }
@@ -22,6 +23,7 @@ interface LicenseAcquisitionData {
 export const LicenseAcquisitionScreen = ({ onLicenseAcquired }: LicenseAcquisitionProps) => {
   const [acquisitionData, setAcquisitionData] = useState<LicenseAcquisitionData>({
     clientId: '',
+    appId: 'taskrep-task-management',
     baseUrl: '',
     licenseManagerUrl: ''
   });
@@ -60,7 +62,7 @@ export const LicenseAcquisitionScreen = ({ onLicenseAcquired }: LicenseAcquisiti
   });
 
   const handleAcquireLicense = () => {
-    if (!acquisitionData.clientId || !acquisitionData.baseUrl || !acquisitionData.licenseManagerUrl) {
+    if (!acquisitionData.clientId || !acquisitionData.appId || !acquisitionData.baseUrl || !acquisitionData.licenseManagerUrl) {
       toast({
         title: "Missing Information",
         description: "All fields are required to acquire a license.",
@@ -68,6 +70,14 @@ export const LicenseAcquisitionScreen = ({ onLicenseAcquired }: LicenseAcquisiti
       });
       return;
     }
+    
+    // Show the JSON that will be sent to the license manager
+    console.log('=== LICENSE ACQUISITION REQUEST ===');
+    console.log('Method: POST');
+    console.log('URL: /api/license/acquire');
+    console.log('JSON Payload:', JSON.stringify(acquisitionData, null, 2));
+    console.log('=====================================');
+    
     acquireMutation.mutate(acquisitionData);
   };
 
@@ -104,6 +114,20 @@ export const LicenseAcquisitionScreen = ({ onLicenseAcquired }: LicenseAcquisiti
                 onChange={(e) => setAcquisitionData(prev => ({ ...prev, clientId: e.target.value }))}
                 disabled={acquireMutation.isPending}
               />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="appId">Application ID *</Label>
+              <Input
+                id="appId"
+                placeholder="taskrep-task-management"
+                value={acquisitionData.appId}
+                onChange={(e) => setAcquisitionData(prev => ({ ...prev, appId: e.target.value }))}
+                disabled={acquireMutation.isPending}
+              />
+              <p className="text-xs text-muted-foreground">
+                The unique identifier for this TaskRep application
+              </p>
             </div>
             
             <div className="space-y-2">
