@@ -1390,13 +1390,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/license/validate", requireAdmin, async (req, res) => {
     try {
-      const { clientId, domain } = req.body;
+      const { licenseManagerUrl } = req.body;
       
-      if (!clientId || !domain) {
-        return res.status(400).json({ error: "clientId and domain are required" });
+      if (!licenseManagerUrl) {
+        return res.status(400).json({ error: "licenseManagerUrl is required" });
       }
 
-      const result = await licenseManager.validateLicense(clientId, domain);
+      // Set the license manager URL
+      licenseManager.setLicenseManagerUrl(licenseManagerUrl);
+
+      // Get the client ID from the current user's license in database
+      const userId = req.headers['x-user-id'] as string;
+      if (!userId) {
+        return res.status(401).json({ error: 'User ID required' });
+      }
+
+      // Get the first license from database (assuming one license per installation)
+      const licenses = await storage.getAllLicenses();
+      const license = licenses[0];
+      
+      if (!license) {
+        return res.status(404).json({ 
+          valid: false,
+          message: 'No license found in database' 
+        });
+      }
+
+      // Extract domain from request headers (for replit.app or custom domains)
+      const origin = req.headers.origin || req.headers.host || 'localhost';
+      const domain = origin.replace(/^https?:\/\//, '').replace(/:\d+$/, '');
+
+      console.log(`Validating license for client: ${license.clientId}, domain: ${domain}`);
+      
+      const result = await licenseManager.validateLicense(license.clientId, domain);
       res.json(result);
     } catch (error) {
       console.error("Failed to validate license:", error);

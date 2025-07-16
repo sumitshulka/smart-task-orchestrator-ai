@@ -26,14 +26,12 @@ interface LicenseStatus {
 
 
 interface LicenseValidationData {
-  clientId: string;
-  domain: string;
+  licenseManagerUrl: string;
 }
 
 export const LicenseManager = () => {
   const [validationData, setValidationData] = useState<LicenseValidationData>({
-    clientId: '',
-    domain: ''
+    licenseManagerUrl: ''
   });
   
   const queryClient = useQueryClient();
@@ -74,7 +72,7 @@ export const LicenseManager = () => {
           variant: "destructive",
         });
       }
-      setValidationData({ clientId: '', domain: '' });
+      setValidationData({ licenseManagerUrl: '' });
       queryClient.invalidateQueries({ queryKey: ['/api/license/status'] });
     },
     onError: (error: any) => {
@@ -89,10 +87,10 @@ export const LicenseManager = () => {
 
 
   const handleValidateLicense = () => {
-    if (!validationData.clientId || !validationData.domain) {
+    if (!validationData.licenseManagerUrl) {
       toast({
-        title: "Missing Information",
-        description: "Client ID and Domain are required.",
+        title: "Validation Error",
+        description: "Please enter the License Manager Server URL.",
         variant: "destructive",
       });
       return;
@@ -253,25 +251,20 @@ export const LicenseManager = () => {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="validationClientId">Client ID *</Label>
-              <Input
-                id="validationClientId"
-                placeholder="Enter client ID"
-                value={validationData.clientId}
-                onChange={(e) => setValidationData(prev => ({ ...prev, clientId: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="domain">Domain *</Label>
-              <Input
-                id="domain"
-                placeholder="your-domain.com"
-                value={validationData.domain}
-                onChange={(e) => setValidationData(prev => ({ ...prev, domain: e.target.value }))}
-              />
-            </div>
+          <div className="space-y-2">
+            <Label htmlFor="licenseManagerUrl" className="flex items-center gap-1">
+              <Server className="h-4 w-4" />
+              License Manager Server URL *
+            </Label>
+            <Input
+              id="licenseManagerUrl"
+              placeholder="https://license-manager.example.com"
+              value={validationData.licenseManagerUrl}
+              onChange={(e) => setValidationData(prev => ({ ...prev, licenseManagerUrl: e.target.value }))}
+            />
+            <p className="text-sm text-muted-foreground">
+              For development only. Client ID and domain will be automatically retrieved from database and request headers.
+            </p>
           </div>
           <Button 
             onClick={handleValidateLicense}
