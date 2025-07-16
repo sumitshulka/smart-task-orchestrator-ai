@@ -163,7 +163,7 @@ export class LicenseManager {
       // Remove existing licenses for this app and client
       await db.delete(licenses).where(
         and(
-          eq(licenses.applicationId, APP_ID),
+          eq(licenses.applicationId, appId || APP_ID),
           eq(licenses.clientId, clientId)
         )
       );
@@ -230,13 +230,12 @@ export class LicenseManager {
     cacheKey: string
   ): Promise<{ valid: boolean; message: string; license?: License }> {
     try {
-      // Get license from database
+      // Get license from database - use any app ID for the client
       const [currentLicense] = await db
         .select()
         .from(licenses)
         .where(
           and(
-            eq(licenses.applicationId, APP_ID),
             eq(licenses.clientId, clientId),
             eq(licenses.isActive, true)
           )
@@ -258,7 +257,7 @@ export class LicenseManager {
       const calculatedChecksum = generateChecksum(
         mutualKey,
         clientId,
-        APP_ID,
+        currentLicense.applicationId, // Use the actual app ID from the license
         currentLicense.licenseKey,
         currentLicense.validTill.toISOString()
       );
@@ -267,7 +266,7 @@ export class LicenseManager {
       if (this.licenseManagerUrl) {
         const validationRequest: LicenseValidationRequest = {
           client_id: clientId,
-          app_id: APP_ID,
+          app_id: currentLicense.applicationId, // Use the actual app ID from the license
           license_key: currentLicense.licenseKey,
           checksum: calculatedChecksum,
           domain: currentLicense.baseUrl || domain
@@ -368,7 +367,6 @@ export class LicenseManager {
         .from(licenses)
         .where(
           and(
-            eq(licenses.applicationId, APP_ID),
             eq(licenses.clientId, clientId),
             eq(licenses.isActive, true)
           )

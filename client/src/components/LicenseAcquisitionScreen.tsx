@@ -21,6 +21,7 @@ interface LicenseAcquisitionData {
 }
 
 export const LicenseAcquisitionScreen = ({ onLicenseAcquired }: LicenseAcquisitionProps) => {
+  const [isSuccess, setIsSuccess] = useState(false);
   const [acquisitionData, setAcquisitionData] = useState<LicenseAcquisitionData>({
     clientId: '',
     appId: 'taskrep-task-management',
@@ -37,13 +38,16 @@ export const LicenseAcquisitionScreen = ({ onLicenseAcquired }: LicenseAcquisiti
       }),
     onSuccess: (result) => {
       if (result.success) {
+        setIsSuccess(true);
         toast({
           title: "License Acquired Successfully",
-          description: "Your license has been acquired and validated. Redirecting to dashboard...",
+          description: "Your license has been acquired and validated. You can now proceed to the dashboard.",
         });
+        // Automatic redirect after 3 seconds, but with manual option
         setTimeout(() => {
+          if (!isSuccess) return; // Only redirect if still on success state
           onLicenseAcquired();
-        }, 2000);
+        }, 3000);
       } else {
         toast({
           title: "License Acquisition Failed",
@@ -98,13 +102,39 @@ export const LicenseAcquisitionScreen = ({ onLicenseAcquired }: LicenseAcquisiti
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Server className="h-5 w-5" />
-              License Acquisition
+              {isSuccess ? "License Acquired Successfully" : "License Acquisition"}
             </CardTitle>
             <CardDescription>
-              Connect to your license server to acquire a license for this application.
+              {isSuccess 
+                ? "Your license has been successfully acquired and is ready for use."
+                : "Connect to your license server to acquire a license for this application."
+              }
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {isSuccess ? (
+              <div className="text-center space-y-4">
+                <div className="flex justify-center">
+                  <div className="rounded-full bg-green-100 p-3 dark:bg-green-900">
+                    <Key className="h-8 w-8 text-green-600 dark:text-green-400" />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <h3 className="font-semibold">License Active</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Your TaskRep application is now licensed and ready to use. You can proceed to the dashboard to start managing your tasks.
+                  </p>
+                </div>
+                <Button 
+                  onClick={onLicenseAcquired}
+                  className="w-full"
+                  size="lg"
+                >
+                  Proceed to Dashboard
+                </Button>
+              </div>
+            ) : (
+              <>
             <div className="space-y-2">
               <Label htmlFor="clientId">Client ID *</Label>
               <Input
@@ -180,6 +210,8 @@ export const LicenseAcquisitionScreen = ({ onLicenseAcquired }: LicenseAcquisiti
                 Please contact your system administrator if you don't have these details.
               </AlertDescription>
             </Alert>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>
