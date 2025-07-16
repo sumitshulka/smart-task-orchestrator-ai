@@ -1416,15 +1416,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      // Extract domain from request headers (for replit.app or custom domains)
+      // Extract complete domain from request headers (including subdomain for Replit dev URLs)
       const origin = req.headers.origin || req.headers.host || 'localhost';
       const domain = origin.replace(/^https?:\/\//, '').replace(/:\d+$/, '');
+      
+      // For development, use the actual Replit dev URL instead of baseUrl
+      const devDomain = domain.includes('replit.dev') ? domain : 'localhost';
 
       console.log(`Request headers - Origin: ${req.headers.origin}, Host: ${req.headers.host}`);
       console.log(`Extracted domain: ${domain}`);
-      console.log(`Validating license for client: ${license.clientId}, domain: ${domain}`);
+      console.log(`Using domain for validation: ${devDomain}`);
+      console.log(`Validating license for client: ${license.clientId}, domain: ${devDomain}`);
       
-      const result = await licenseManager.validateLicense(license.clientId, domain);
+      const result = await licenseManager.validateLicense(license.clientId, devDomain);
       res.json(result);
     } catch (error) {
       console.error("Failed to validate license:", error);

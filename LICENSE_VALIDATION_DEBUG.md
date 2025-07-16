@@ -104,14 +104,19 @@ if (!healthCheck.ok) {
 
 ## Testing Commands
 
-### Valid Test Request (corrected domain):
+### Updated Understanding: Complete URL Required
+License manager needs complete subdomain URL for validation, including Replit development URLs.
+
+**Current Development URL**: `6b3f9d14-80d9-43e0-a375-524adc817a66-00-1vl5g0tky8hfm.worf.replit.dev`
+
+### Corrected Test Request:
 ```json
 {
   "client_id": "efe2ae66-b484-4923-9e28-5f04df532c0e",
-  "app_id": "8103dc0aa1d352f5c0c574c06eeb2893",
+  "app_id": "8103dc0aa1d352f5c0c574c06eeb2893", 
   "license_key": "GWZ-EX5-22U-PRW",
   "checksum": "81255f1fd577ba0df9840e494035ca8619e882fd3c82b0a7e93c9afd3d232112",
-  "domain": "replit.dev"
+  "domain": "6b3f9d14-80d9-43e0-a375-524adc817a66-00-1vl5g0tky8hfm.worf.replit.dev"
 }
 ```
 
