@@ -95,7 +95,8 @@ export class LicenseManager {
   // License Acquisition
   async acquireLicense(
     clientId: string,
-    baseUrl: string
+    baseUrl: string,
+    appId?: string
   ): Promise<{ success: boolean; message: string; license?: License }> {
     if (!this.licenseManagerUrl) {
       throw new Error('License manager URL not configured');
@@ -104,7 +105,7 @@ export class LicenseManager {
     try {
       const requestPayload: LicenseAcquisitionRequest = {
         client_id: clientId,
-        app_id: APP_ID,
+        app_id: appId || APP_ID, // Use provided appId or fallback to default
         base_url: baseUrl
       };
 
@@ -146,7 +147,7 @@ export class LicenseManager {
       const encryptedSubscriptionData = encrypt(JSON.stringify(licenseResponse.subscription_data));
 
       const licenseData: InsertLicense = {
-        applicationId: APP_ID,
+        applicationId: appId || APP_ID,
         clientId: clientId,
         licenseKey: licenseResponse.license_key,
         subscriptionType: licenseResponse.subscription_type,

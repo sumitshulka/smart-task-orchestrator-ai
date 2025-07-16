@@ -1352,17 +1352,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/license/acquire", requireAdmin, async (req, res) => {
     try {
-      const { clientId, baseUrl, licenseManagerUrl } = req.body;
+      const { clientId, appId, baseUrl, licenseManagerUrl } = req.body;
       
-      if (!clientId || !baseUrl) {
-        return res.status(400).json({ error: "clientId and baseUrl are required" });
+      if (!clientId || !appId || !baseUrl) {
+        return res.status(400).json({ error: "clientId, appId, and baseUrl are required" });
       }
 
       if (licenseManagerUrl) {
         licenseManager.setLicenseManagerUrl(licenseManagerUrl);
       }
 
-      const result = await licenseManager.acquireLicense(clientId, baseUrl);
+      const result = await licenseManager.acquireLicense(clientId, baseUrl, appId);
       
       if (result.success) {
         res.json(result);
