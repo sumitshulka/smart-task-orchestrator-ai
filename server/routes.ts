@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertUserSchema, insertTaskSchema, insertTeamSchema, insertTaskGroupSchema, insertRoleSchema, userRoles } from "@shared/schema";
+import { insertUserSchema, insertTaskSchema, insertTeamSchema, insertTaskGroupSchema, insertRoleSchema, insertOfficeLocationSchema, userRoles } from "@shared/schema";
 import { db } from "./db";
 import bcrypt from "bcrypt";
 
@@ -1265,6 +1265,65 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } else {
         res.status(500).json({ error: "Failed to update organization settings", details: error.message });
       }
+    }
+  });
+
+  // Office location routes
+  app.get("/api/office-locations", requireManagerOrAdmin, async (req, res) => {
+    try {
+      const locations = await storage.getAllOfficeLocations();
+      res.json(locations);
+    } catch (error) {
+      console.error("Failed to fetch office locations:", error);
+      res.status(500).json({ error: "Failed to fetch office locations" });
+    }
+  });
+
+  app.get("/api/office-locations/:id", requireManagerOrAdmin, async (req, res) => {
+    try {
+      const location = await storage.getOfficeLocation(req.params.id);
+      if (!location) {
+        return res.status(404).json({ error: "Office location not found" });
+      }
+      res.json(location);
+    } catch (error) {
+      console.error("Failed to fetch office location:", error);
+      res.status(500).json({ error: "Failed to fetch office location" });
+    }
+  });
+
+  app.post("/api/office-locations", requireManagerOrAdmin, async (req, res) => {
+    try {
+      const locationData = insertOfficeLocationSchema.parse(req.body);
+      const location = await storage.createOfficeLocation(locationData);
+      res.status(201).json(location);
+    } catch (error) {
+      console.error("Failed to create office location:", error);
+      if (error.name === 'ZodError') {
+        res.status(400).json({ error: "Validation error", details: error.errors });
+      } else {
+        res.status(500).json({ error: "Failed to create office location" });
+      }
+    }
+  });
+
+  app.patch("/api/office-locations/:id", requireManagerOrAdmin, async (req, res) => {
+    try {
+      const location = await storage.updateOfficeLocation(req.params.id, req.body);
+      res.json(location);
+    } catch (error) {
+      console.error("Failed to update office location:", error);
+      res.status(500).json({ error: "Failed to update office location" });
+    }
+  });
+
+  app.delete("/api/office-locations/:id", requireManagerOrAdmin, async (req, res) => {
+    try {
+      await storage.deleteOfficeLocation(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Failed to delete office location:", error);
+      res.status(500).json({ error: "Failed to delete office location" });
     }
   });
 

@@ -1,76 +1,65 @@
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/use-toast";
-import { apiClient } from "@/lib/api";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { useRole } from "@/contexts/RoleProvider";
-
-type OfficeLocation = {
-  id: string;
-  location_name: string;
-  address: string;
-  location_manager: string | null;
-  created_at: string;
-  updated_at: string;
-};
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
+import type { OfficeLocation, InsertOfficeLocation } from "@shared/schema";
 
 const OfficeLocationsManager: React.FC = () => {
-  const [locations, setLocations] = useState<OfficeLocation[]>([]);
-  const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<{ [id: string]: boolean }>({});
   const [newLocation, setNewLocation] = useState({ location_name: "", address: "" });
   const [editingLocations, setEditingLocations] = useState<{
     [id: string]: { location_name: string; address: string };
   }>({});
   const { highestRole } = useRole();
+  const queryClient = useQueryClient();
 
-  const fetchLocations = async () => {
-    try {
-      // For now, use localStorage to store office locations
-      const savedLocations = localStorage.getItem('office_locations');
-      if (savedLocations) {
-        setLocations(JSON.parse(savedLocations));
-      } else {
-        setLocations([]);
-      }
-    } catch (error) {
-      console.error("Error fetching locations:", error);
-      toast({ title: "Error", description: "Failed to load office locations" });
-    } finally {
-      setLoading(false);
+  // Fetch office locations using React Query
+  const { data: locations = [], isLoading: loading } = useQuery<OfficeLocation[]>({
+    queryKey: ["/api/office-locations"],
+    queryFn: () => {
+      const userStr = localStorage.getItem('user');
+      const user = userStr ? JSON.parse(userStr) : null;
+      return apiRequest("/api/office-locations", {
+        headers: {
+          'x-user-id': user?.id || ''
+        }
+      });
     }
-  };
+  });
 
-  useEffect(() => {
-    fetchLocations();
-  }, []);
+  // Create location mutation
+  const createLocationMutation = useMutation({
+    mutationFn: (data: InsertOfficeLocation) => {
+      const userStr = localStorage.getItem('user');
+      const user = userStr ? JSON.parse(userStr) : null;
+      return apiRequest("/api/office-locations", {
+        method: "POST",
+        body: JSON.stringify(data),
+        headers: {
+          'x-user-id': user?.id || ''
+        }
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/office-locations"] });
+      setNewLocation({ location_name: "", address: "" });
+      toast({ title: "Office location added successfully" });
+    },
+    onError: (error) => {
+      console.error("Error adding location:", error);
+      toast({ title: "Error", description: "Failed to add office location" });
+    },
+  });
 
   const handleAddLocation = async () => {
     if (!newLocation.location_name.trim() || !newLocation.address.trim()) return;
-
-    try {
-      const newLocationData = {
-        id: Date.now().toString(),
-        location_name: newLocation.location_name,
-        address: newLocation.address,
-        location_manager: null,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-
-      const updatedLocations = [...locations, newLocationData];
-      localStorage.setItem('office_locations', JSON.stringify(updatedLocations));
-      
-      setNewLocation({ location_name: "", address: "" });
-      fetchLocations();
-      toast({ title: "Office location added successfully" });
-    } catch (error) {
-      console.error("Error adding location:", error);
-      toast({ title: "Error", description: "Failed to add office location" });
-    }
+    createLocationMutation.mutate(newLocation);
   };
 
   const handleEditLocation = (id: string) => {
@@ -84,40 +73,61 @@ const OfficeLocationsManager: React.FC = () => {
     }
   };
 
+  // Update location mutation
+  const updateLocationMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Partial<OfficeLocation> }) => {
+      const userStr = localStorage.getItem('user');
+      const user = userStr ? JSON.parse(userStr) : null;
+      return apiRequest(`/api/office-locations/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(data),
+        headers: {
+          'x-user-id': user?.id || ''
+        }
+      });
+    },
+    onSuccess: (_, { id }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/office-locations"] });
+      setEditing({ ...editing, [id]: false });
+      toast({ title: "Office location updated successfully" });
+    },
+    onError: (error) => {
+      console.error("Error updating location:", error);
+      toast({ title: "Error", description: "Failed to update office location" });
+    },
+  });
+
   const handleSaveLocation = async (id: string) => {
     const editedLocation = editingLocations[id];
     if (!editedLocation || !editedLocation.location_name.trim() || !editedLocation.address.trim()) return;
-
-    try {
-      const updatedLocations = locations.map(location =>
-        location.id === id
-          ? { ...location, location_name: editedLocation.location_name, address: editedLocation.address, updated_at: new Date().toISOString() }
-          : location
-      );
-      localStorage.setItem('office_locations', JSON.stringify(updatedLocations));
-
-      setEditing({ ...editing, [id]: false });
-      fetchLocations();
-      toast({ title: "Office location updated successfully" });
-    } catch (error) {
-      console.error("Error updating location:", error);
-      toast({ title: "Error", description: "Failed to update office location" });
-    }
+    updateLocationMutation.mutate({ id, data: editedLocation });
   };
+
+  // Delete location mutation
+  const deleteLocationMutation = useMutation({
+    mutationFn: (id: string) => {
+      const userStr = localStorage.getItem('user');
+      const user = userStr ? JSON.parse(userStr) : null;
+      return apiRequest(`/api/office-locations/${id}`, {
+        method: "DELETE",
+        headers: {
+          'x-user-id': user?.id || ''
+        }
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/office-locations"] });
+      toast({ title: "Office location deleted successfully" });
+    },
+    onError: (error) => {
+      console.error("Error deleting location:", error);
+      toast({ title: "Error", description: "Failed to delete office location" });
+    },
+  });
 
   const handleDeleteLocation = async (id: string) => {
     if (!window.confirm("Are you sure you want to delete this office location?")) return;
-
-    try {
-      const updatedLocations = locations.filter(location => location.id !== id);
-      localStorage.setItem('office_locations', JSON.stringify(updatedLocations));
-
-      fetchLocations();
-      toast({ title: "Office location deleted successfully" });
-    } catch (error) {
-      console.error("Error deleting location:", error);
-      toast({ title: "Error", description: "Failed to delete office location" });
-    }
+    deleteLocationMutation.mutate(id);
   };
 
   return (
@@ -140,7 +150,16 @@ const OfficeLocationsManager: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {locations.map((location) => (
+                  {loading ? (
+                    <tr>
+                      <td colSpan={3} className="p-4 text-center">Loading...</td>
+                    </tr>
+                  ) : locations.length === 0 ? (
+                    <tr>
+                      <td colSpan={3} className="p-4 text-center text-muted-foreground">No office locations found</td>
+                    </tr>
+                  ) : (
+                    locations.map((location) => (
                     <tr key={location.id}>
                       <td className="p-2">
                         {editing[location.id] && highestRole === "admin" ? (
@@ -210,7 +229,8 @@ const OfficeLocationsManager: React.FC = () => {
                         </div>
                       </td>
                     </tr>
-                  ))}
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>

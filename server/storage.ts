@@ -17,6 +17,7 @@ import {
   deletedUsers,
   deletedTasks,
   organizationSettings,
+  officeLocations,
   User, 
   InsertUser, 
   Task, 
@@ -40,7 +41,9 @@ import {
   InsertDeletedUser,
   InsertDeletedTask,
   OrganizationSettings,
-  InsertOrganizationSettings
+  InsertOrganizationSettings,
+  OfficeLocation,
+  InsertOfficeLocation
 } from "@shared/schema";
 
 export interface IStorage {
@@ -140,6 +143,13 @@ export interface IStorage {
   getAllTaskStatusTransitions(): Promise<TaskStatusTransition[]>;
   createTaskStatusTransition(transition: InsertTaskStatusTransition): Promise<TaskStatusTransition>;
   deleteTaskStatusTransition(id: string): Promise<void>;
+
+  // Office location operations
+  getAllOfficeLocations(): Promise<OfficeLocation[]>;
+  getOfficeLocation(id: string): Promise<OfficeLocation | undefined>;
+  createOfficeLocation(location: InsertOfficeLocation): Promise<OfficeLocation>;
+  updateOfficeLocation(id: string, updates: Partial<OfficeLocation>): Promise<OfficeLocation>;
+  deleteOfficeLocation(id: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1001,6 +1011,33 @@ export class DatabaseStorage implements IStorage {
 
   async deleteTaskStatusTransition(id: string): Promise<void> {
     await db.delete(taskStatusTransitions).where(eq(taskStatusTransitions.id, id));
+  }
+
+  // Office location operations
+  async getAllOfficeLocations(): Promise<OfficeLocation[]> {
+    return await db.select().from(officeLocations).orderBy(officeLocations.location_name);
+  }
+
+  async getOfficeLocation(id: string): Promise<OfficeLocation | undefined> {
+    const result = await db.select().from(officeLocations).where(eq(officeLocations.id, id)).limit(1);
+    return result[0];
+  }
+
+  async createOfficeLocation(location: InsertOfficeLocation): Promise<OfficeLocation> {
+    const result = await db.insert(officeLocations).values(location).returning();
+    return result[0];
+  }
+
+  async updateOfficeLocation(id: string, updates: Partial<OfficeLocation>): Promise<OfficeLocation> {
+    const result = await db.update(officeLocations).set({
+      ...updates,
+      updated_at: new Date()
+    }).where(eq(officeLocations.id, id)).returning();
+    return result[0];
+  }
+
+  async deleteOfficeLocation(id: string): Promise<void> {
+    await db.delete(officeLocations).where(eq(officeLocations.id, id));
   }
 }
 

@@ -420,6 +420,12 @@ export const insertTaskStatusTransitionSchema = createInsertSchema(taskStatusTra
   created_at: true,
 });
 
+export const insertOfficeLocationSchema = createInsertSchema(officeLocations).omit({
+  id: true,
+  created_at: true,
+  updated_at: true,
+});
+
 // Types
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
@@ -446,3 +452,5 @@ export type InsertOrganizationSettings = z.infer<typeof insertOrganizationSettin
 export type OrganizationSettings = typeof organizationSettings.$inferSelect;
 export type InsertTaskStatusTransition = z.infer<typeof insertTaskStatusTransitionSchema>;
 export type TaskStatusTransition = typeof taskStatusTransitions.$inferSelect;
+export type InsertOfficeLocation = z.infer<typeof insertOfficeLocationSchema>;
+export type OfficeLocation = typeof officeLocations.$inferSelect;
