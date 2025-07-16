@@ -10,6 +10,7 @@ import DepartmentsManager from "@/components/settings/DepartmentsManager";
 import OfficeLocationsManager from "@/components/settings/OfficeLocationsManager";
 import StatusManager from "@/components/settings/StatusManager";
 import GeneralSettings from "@/components/settings/GeneralSettings";
+import { LicenseManager } from "@/components/settings/LicenseManager";
 
 const AdminSettings: React.FC = () => {
   const [tab, setTab] = useState("general");
@@ -44,6 +45,12 @@ const AdminSettings: React.FC = () => {
             >
               Task Statuses
             </TabsTrigger>
+            <TabsTrigger
+              value="license"
+              className="px-6 py-3 text-left justify-start"
+            >
+              License Manager
+            </TabsTrigger>
           </TabsList>
           <TabsContent value="general" className="w-full">
             <GeneralSettings />
@@ -56,6 +63,9 @@ const AdminSettings: React.FC = () => {
           </TabsContent>
           <TabsContent value="statuses" className="w-full">
             <StatusManager />
+          </TabsContent>
+          <TabsContent value="license" className="w-full">
+            <LicenseManager />
           </TabsContent>
         </Tabs>
       </div>
