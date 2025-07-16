@@ -449,6 +449,8 @@ export class LicenseManager {
     expiresAt?: Date;
     subscriptionType?: string;
     userLimits?: { minimum: number; maximum: number };
+    clientId?: string;
+    applicationId?: string;
     message: string;
   }> {
     try {
@@ -471,6 +473,8 @@ export class LicenseManager {
         expiresAt: new Date(license.validTill),
         subscriptionType: license.subscriptionType,
         userLimits: userLimits || undefined,
+        clientId: license.clientId,
+        applicationId: license.applicationId,
         message: isExpired ? 'License has expired' : 'License is active'
       };
     } catch (error) {

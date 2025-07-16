@@ -18,6 +18,8 @@ interface LicenseStatus {
   expiresAt?: string;
   subscriptionType?: string;
   userLimits?: { minimum: number; maximum: number };
+  clientId?: string;
+  applicationId?: string;
   message: string;
 }
 
@@ -186,15 +188,19 @@ export const LicenseManager = () => {
                 </div>
               )}
               
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">Application ID:</span>
-                <span className="text-sm font-mono">taskrep-task-management</span>
-              </div>
+              {licenseStatus.applicationId && (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">Application ID:</span>
+                  <span className="text-sm font-mono">{licenseStatus.applicationId}</span>
+                </div>
+              )}
               
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">Client ID:</span>
-                <span className="text-sm font-mono">default-client</span>
-              </div>
+              {licenseStatus.clientId && (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">Client ID:</span>
+                  <span className="text-sm font-mono">{licenseStatus.clientId}</span>
+                </div>
+              )}
 
               {licenseStatus.expiresAt && (
                 <div className="flex items-center justify-between">
