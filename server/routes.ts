@@ -1335,11 +1335,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/license/status", requireAdmin, async (req, res) => {
     try {
       console.log("License status endpoint hit");
-      const clientId = req.headers['x-client-id'] as string || 'default-client';
-      console.log("Client ID:", clientId);
-      const status = await licenseManager.getLicenseStatus(clientId);
-      console.log("License status result:", status);
-      res.json(status);
+      
+      // First try to find any license in the database since we don't have client ID in headers
+      const allLicenses = await storage.getAllLicenses();
+      console.log("Found licenses:", allLicenses.length);
+      
+      if (allLicenses.length > 0) {
+        const activeLicense = allLicenses.find(l => l.isActive) || allLicenses[0];
+        const status = await licenseManager.getLicenseStatus(activeLicense.clientId);
+        console.log("License status result:", status);
+        res.json(status);
+      } else {
+        console.log("No licenses found in database");
+        res.json({
+          hasLicense: false,
+          isValid: false,
+          message: 'No license found'
+        });
+      }
     } catch (error) {
       console.error("Failed to get license status:", error);
       res.status(500).json({ 
