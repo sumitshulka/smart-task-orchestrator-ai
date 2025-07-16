@@ -10,15 +10,26 @@ import { LogoutHelper } from "@/components/LogoutHelper";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { currentUser, roles } = useCurrentUserRoleAndTeams();
+  const { user: currentUser, roles } = useCurrentUserRoleAndTeams();
   
   // Check if user is admin
-  const isAdmin = roles.some(role => role.name === 'admin');
+  const isAdmin = roles.includes('admin');
+  
+  // Debug logging
+  console.log('[AdminLayout] Current user:', currentUser);
+  console.log('[AdminLayout] Roles:', roles);
+  console.log('[AdminLayout] Is admin:', isAdmin);
+  console.log('[AdminLayout] Should check license:', !!currentUser && isAdmin);
   
   // Only check license for authenticated admin users
-  const { data: licenseStatus, isLoading: licenseLoading, refetch: refetchLicense } = useLicenseCheck(
+  const { data: licenseStatus, isLoading: licenseLoading, refetch: refetchLicense, error: licenseError } = useLicenseCheck(
     !!currentUser && isAdmin
   );
+  
+  // Debug license status
+  console.log('[AdminLayout] License status:', licenseStatus);
+  console.log('[AdminLayout] License loading:', licenseLoading);
+  console.log('[AdminLayout] License error:', licenseError);
 
   // Handle license acquisition success
   const handleLicenseAcquired = () => {
