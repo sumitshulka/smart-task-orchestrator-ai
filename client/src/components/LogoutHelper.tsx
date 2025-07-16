@@ -16,14 +16,17 @@ export const LogoutHelper = () => {
     // Clear all React Query cache
     queryClient.clear();
     
-    // Clear all localStorage
+    // Clear all localStorage and sessionStorage
     localStorage.clear();
+    sessionStorage.clear();
     
-    // Navigate to auth page
-    navigate("/auth");
+    // Clear any cookies
+    document.cookie.split(";").forEach(function(c) { 
+      document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/"); 
+    });
     
-    // Force page reload to ensure clean state
-    window.location.reload();
+    // Force navigate to auth with replace to clear history
+    window.location.href = "/auth";
   };
 
   return (

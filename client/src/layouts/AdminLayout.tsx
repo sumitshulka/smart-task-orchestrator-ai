@@ -48,12 +48,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   if (!currentUser) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-6">
-        <Alert className="max-w-md">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>
-            Please log in to access the admin panel.
-          </AlertDescription>
-        </Alert>
+        <div className="text-center space-y-4">
+          <Alert className="max-w-md">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              Please log in to access the admin panel.
+            </AlertDescription>
+          </Alert>
+          <LogoutHelper />
+        </div>
       </div>
     );
   }
