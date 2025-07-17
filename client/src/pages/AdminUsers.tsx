@@ -317,7 +317,14 @@ const AdminUsers: React.FC = () => {
                       </Badge>
                     </td>
                     <td className="p-2 text-right">
-                      <UserTableActions user={user} onEdit={handleEditUser} onRefresh={handleDataRefresh} />
+                      <UserTableActions 
+                        user={user} 
+                        onEdit={handleEditUser} 
+                        onRefresh={() => {
+                          handleDataRefresh();
+                          refetchLicense();
+                        }} 
+                      />
                     </td>
                   </tr>
                 );
