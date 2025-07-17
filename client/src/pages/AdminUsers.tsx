@@ -2,8 +2,10 @@
 import React from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, Filter } from "lucide-react";
+import { Plus, Filter, Shield, Users, AlertCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "@/components/ui/use-toast";
 import { apiClient } from "@/lib/api";
 import UserTableActions from "@/components/UserTableActions";
@@ -11,6 +13,7 @@ import EditUserDialog from "@/components/EditUserDialog";
 import CreateUserDialog from "@/components/CreateUserDialog";
 import useSupabaseSession from "@/hooks/useSupabaseSession";
 import { useUserRoles } from "@/hooks/useUserRoles";
+import { useQuery } from "@tanstack/react-query";
 
 interface User {
   id: string;
@@ -36,6 +39,23 @@ const AdminUsers: React.FC = () => {
   // Get user roles
   const userIds = users.map(user => user.id);
   const { userRoles, loading: rolesLoading, refreshUserRoles } = useUserRoles(userIds);
+
+  // Get license information for user limits
+  const { data: licenseInfo, isLoading: licenseLoading, refetch: refetchLicense } = useQuery({
+    queryKey: ['license-user-limits'],
+    queryFn: async () => {
+      const response = await fetch('/api/license/user-limits', {
+        headers: {
+          'x-user-id': user?.id || '',
+        },
+      });
+      if (!response.ok) {
+        throw new Error('Failed to fetch license info');
+      }
+      return response.json();
+    },
+    enabled: !!user?.id,
+  });
 
   // Fetch users from API
   const fetchUsers = React.useCallback(async () => {
@@ -66,6 +86,21 @@ const AdminUsers: React.FC = () => {
   }, [users, search]);
 
   function handleCreateUser() {
+    // Check license limits before opening create dialog
+    if (licenseInfo && licenseInfo.hasLicense && licenseInfo.userLimits) {
+      const { maximum } = licenseInfo.userLimits;
+      const currentUsers = licenseInfo.currentUsers;
+      
+      if (currentUsers >= maximum) {
+        toast({
+          title: "License Limit Reached",
+          description: `Cannot create user. License limit reached (${currentUsers}/${maximum} users). Please upgrade your license or deactivate existing users.`,
+          variant: "destructive"
+        });
+        return;
+      }
+    }
+    
     setCreateDialogOpen(true);
   }
 
@@ -93,13 +128,19 @@ const AdminUsers: React.FC = () => {
       <CreateUserDialog 
         open={createDialogOpen}
         onOpenChange={setCreateDialogOpen}
-        onUserCreated={fetchUsers} 
+        onUserCreated={() => {
+          fetchUsers();
+          refetchLicense();
+        }} 
       />
       <EditUserDialog
         open={editDialogOpen}
         onOpenChange={setEditDialogOpen}
         user={editUser}
-        onUserUpdated={fetchUsers}
+        onUserUpdated={() => {
+          fetchUsers();
+          refetchLicense();
+        }}
       />
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
@@ -111,6 +152,83 @@ const AdminUsers: React.FC = () => {
           </Button>
         </div>
       </div>
+
+      {/* License Information Card */}
+      {licenseInfo && (
+        <Card className="mb-6">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Shield className="w-5 h-5 text-blue-600" />
+              License Information
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {licenseInfo.hasLicense && licenseInfo.isValid ? (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="flex items-center gap-3">
+                  <Users className="w-4 h-4 text-green-600" />
+                  <div>
+                    <p className="text-sm font-medium">Active Users</p>
+                    <p className="text-lg font-semibold">
+                      {licenseInfo.currentUsers}
+                      {licenseInfo.userLimits && (
+                        <span className="text-sm font-normal text-muted-foreground">
+                          /{licenseInfo.userLimits.maximum}
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                </div>
+                
+                {licenseInfo.userLimits && (
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">User Limits</p>
+                    <p className="text-sm">
+                      Min: {licenseInfo.userLimits.minimum} | Max: {licenseInfo.userLimits.maximum}
+                    </p>
+                  </div>
+                )}
+                
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Subscription</p>
+                  <Badge variant="outline" className="text-xs">
+                    {licenseInfo.subscriptionType || 'Active'}
+                  </Badge>
+                </div>
+              </div>
+            ) : (
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  {licenseInfo.message || 'No valid license found. Please configure your license in Settings.'}
+                </AlertDescription>
+              </Alert>
+            )}
+            
+            {/* Warning when approaching limit */}
+            {licenseInfo.hasLicense && licenseInfo.userLimits && (
+              licenseInfo.currentUsers >= licenseInfo.userLimits.maximum * 0.8 && (
+                <Alert className="mt-3">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    {licenseInfo.currentUsers >= licenseInfo.userLimits.maximum ? (
+                      <span className="text-red-600 font-medium">
+                        License limit reached ({licenseInfo.currentUsers}/{licenseInfo.userLimits.maximum} users). 
+                        Cannot create new users until you upgrade your license or deactivate existing users.
+                      </span>
+                    ) : (
+                      <span className="text-amber-600">
+                        Approaching license limit ({licenseInfo.currentUsers}/{licenseInfo.userLimits.maximum} users). 
+                        Consider upgrading your license soon.
+                      </span>
+                    )}
+                  </AlertDescription>
+                </Alert>
+              )
+            )}
+          </CardContent>
+        </Card>
+      )}
       {/* Filters */}
       <div className="flex flex-col sm:flex-row flex-wrap gap-3 mb-5 bg-muted/30 border rounded-md px-4 py-3">
         <div className="flex items-center gap-2">

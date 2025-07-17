@@ -285,11 +285,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/users", requireAdmin, async (req, res) => {
     try {
+      // Check license user limits before creating new user
+      const userId = req.headers['x-user-id'] as string;
+      const currentUser = await storage.getUser(userId);
+      if (!currentUser) {
+        return res.status(403).json({ error: "User not found" });
+      }
+
+      // Get current active user count
+      const allUsers = await storage.getAllUsers();
+      const activeUserCount = allUsers.filter(user => user.is_active !== false).length;
+
+      // Check license limits
+      const licenseStatus = await licenseManager.getLicenseStatus(currentUser.id);
+      if (licenseStatus.hasLicense && licenseStatus.userLimits) {
+        const { maximum } = licenseStatus.userLimits;
+        if (activeUserCount >= maximum) {
+          return res.status(400).json({ 
+            error: `Cannot create user. License limit reached (${activeUserCount}/${maximum} users). Please upgrade your license or deactivate existing users.`,
+            licenseLimit: maximum,
+            currentUsers: activeUserCount
+          });
+        }
+      }
+
       const userData = insertUserSchema.parse(req.body);
       const user = await storage.createUser(userData);
       res.status(201).json(user);
     } catch (error) {
-      res.status(400).json({ error: "Invalid user data" });
+      if (error.message && error.message.includes('License limit reached')) {
+        res.status(400).json({ error: error.message });
+      } else {
+        res.status(400).json({ error: "Invalid user data" });
+      }
     }
   });
 
@@ -316,6 +344,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Activate user (admin only)
   app.patch("/api/users/:id/activate", requireAdmin, async (req, res) => {
     try {
+      // Check license user limits before activating user
+      const userId = req.headers['x-user-id'] as string;
+      const currentUser = await storage.getUser(userId);
+      if (!currentUser) {
+        return res.status(403).json({ error: "User not found" });
+      }
+
+      // Get current active user count
+      const allUsers = await storage.getAllUsers();
+      const activeUserCount = allUsers.filter(user => user.is_active !== false).length;
+
+      // Check license limits
+      const licenseStatus = await licenseManager.getLicenseStatus(currentUser.id);
+      if (licenseStatus.hasLicense && licenseStatus.userLimits) {
+        const { maximum } = licenseStatus.userLimits;
+        if (activeUserCount >= maximum) {
+          return res.status(400).json({ 
+            error: `Cannot activate user. License limit reached (${activeUserCount}/${maximum} users). Please upgrade your license or deactivate other users first.`,
+            licenseLimit: maximum,
+            currentUsers: activeUserCount
+          });
+        }
+      }
+
       const user = await storage.activateUser(req.params.id);
       res.json(user);
     } catch (error) {
@@ -1427,6 +1479,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
         details: error.message,
         stack: error.stack 
       });
+    }
+  });
+
+  // Get license info with current user count for user management
+  app.get("/api/license/user-limits", requireAdmin, async (req, res) => {
+    try {
+      console.log("License user limits endpoint hit");
+      
+      // Get current active user count
+      const allUsers = await storage.getAllUsers();
+      const activeUserCount = allUsers.filter(user => user.is_active !== false).length;
+      
+      // Get license status
+      const allLicenses = await storage.getAllLicenses();
+      
+      if (allLicenses.length > 0) {
+        const activeLicense = allLicenses.find(l => l.isActive) || allLicenses[0];
+        const licenseStatus = await licenseManager.getLicenseStatus(activeLicense.clientId);
+        
+        res.json({
+          hasLicense: licenseStatus.hasLicense,
+          isValid: licenseStatus.isValid,
+          currentUsers: activeUserCount,
+          userLimits: licenseStatus.userLimits,
+          subscriptionType: licenseStatus.subscriptionType,
+          expiresAt: licenseStatus.expiresAt,
+          message: licenseStatus.message
+        });
+      } else {
+        res.json({
+          hasLicense: false,
+          isValid: false,
+          currentUsers: activeUserCount,
+          userLimits: null,
+          subscriptionType: null,
+          expiresAt: null,
+          message: 'No license found'
+        });
+      }
+    } catch (error) {
+      console.error('License user limits error:', error);
+      res.status(500).json({ error: "Failed to get license user limits" });
     }
   });
 
