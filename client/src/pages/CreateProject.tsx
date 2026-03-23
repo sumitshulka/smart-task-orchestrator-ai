@@ -112,7 +112,7 @@ export default function CreateProject() {
   const selectedTemplate = activeTemplates.find((t) => t.id === form.template_id);
 
   return (
-    <div className="max-w-3xl mx-auto p-6 space-y-6">
+    <div className="max-w-3xl p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="sm" onClick={() => navigate("/projects")} className="gap-1.5 text-gray-600">

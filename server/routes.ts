@@ -1789,11 +1789,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/projects", requireAnyAuthenticated, async (req, res) => {
     try {
-      const userId = (req as any).user?.id;
+      const userId = req.headers['x-user-id'] as string;
       const project = await storage.createProject({ ...req.body, created_by: userId });
       res.status(201).json(project);
-    } catch (error) {
-      res.status(400).json({ error: "Failed to create project" });
+    } catch (error: any) {
+      console.error("[ERROR] Failed to create project:", error?.message, error?.stack);
+      res.status(400).json({ error: "Failed to create project", details: error?.message });
     }
   });
 
