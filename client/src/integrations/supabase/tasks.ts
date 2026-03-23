@@ -29,6 +29,9 @@ export type Task = {
   // NEW FIELDS from tasks_with_extras
   group_ids?: string[];           // array of group_ids this task belongs to (subtasks)
   is_dependent?: boolean;         // true if this task is a dependent
+  // Project linkage
+  milestone_id?: string | null;
+  feature_id?: string | null;
 };
 
 // -------- CRUD Functions --------

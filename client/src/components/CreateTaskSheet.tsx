@@ -100,6 +100,14 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
   const [selectedDependencyTask, setSelectedDependencyTask] = useState<Task | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
+  // Project linkage
+  const [selectedProjectId, setSelectedProjectId] = useState<string>("");
+  const [selectedMilestoneId, setSelectedMilestoneId] = useState<string>("");
+  const [selectedFeatureId, setSelectedFeatureId] = useState<string>("");
+  const [projectsList, setProjectsList] = useState<any[]>([]);
+  const [milestonesList, setMilestonesList] = useState<any[]>([]);
+  const [featuresList, setFeaturesList] = useState<any[]>([]);
+
   // Get user role: use fetched roles, fallback to email only if missing
   const [userRole, setUserRole] = useState<string>("user");
 
@@ -129,7 +137,35 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
         }
       })
       .catch(err => console.error("Failed to fetch default status:", err));
+
+    // Fetch projects for linkage
+    fetch("/api/projects", { headers: { "x-user-id": user?.id ?? "" } })
+      .then(res => res.ok ? res.json() : [])
+      .then(data => setProjectsList(Array.isArray(data) ? data.filter((p: any) => p.is_confirmed) : []))
+      .catch(() => setProjectsList([]));
   }, [open, user?.id]);
+
+  // Fetch milestones and features when project changes
+  useEffect(() => {
+    if (!selectedProjectId || !user?.id) {
+      setMilestonesList([]);
+      setFeaturesList([]);
+      setSelectedMilestoneId("");
+      setSelectedFeatureId("");
+      return;
+    }
+    const headers = { "x-user-id": user.id };
+    fetch(`/api/projects/${selectedProjectId}/milestones`, { headers })
+      .then(r => r.ok ? r.json() : [])
+      .then(data => setMilestonesList(Array.isArray(data) ? data : []))
+      .catch(() => setMilestonesList([]));
+    fetch(`/api/projects/${selectedProjectId}/features`, { headers })
+      .then(r => r.ok ? r.json() : [])
+      .then(data => setFeaturesList(Array.isArray(data) ? data : []))
+      .catch(() => setFeaturesList([]));
+    setSelectedMilestoneId("");
+    setSelectedFeatureId("");
+  }, [selectedProjectId, user?.id]);
 
   // Get user role & update state on mount
   useEffect(() => {
@@ -293,6 +329,10 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
         taskInput.dependencyTaskId = form.dependencyTaskId;
       }
 
+      // Project linkage
+      if (selectedMilestoneId) taskInput.milestone_id = selectedMilestoneId;
+      if (selectedFeatureId) taskInput.feature_id = selectedFeatureId;
+
       // Create the task using API client
       console.log("[DEBUG] Creating task with data:", JSON.stringify(taskInput, null, 2));
       const newTask = await apiClient.createTask(taskInput);
@@ -338,6 +378,11 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
     setForm(initialForm);
     setSelectedDependencyTask(null);
     setSearchQuery("");
+    setSelectedProjectId("");
+    setSelectedMilestoneId("");
+    setSelectedFeatureId("");
+    setMilestonesList([]);
+    setFeaturesList([]);
   };
 
   // Assigned To dropdown (unchanged, uses getAssignableUsersForCreate)
@@ -823,6 +868,60 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
                       )}
                     </div>
                   )}
+                </div>
+
+                {/* Project Linkage */}
+                <div className="bg-white p-4 rounded-lg border border-gray-200">
+                  <div className="flex items-center mb-1">
+                    <span className="mr-2">🗂️</span>
+                    <span className="text-base font-medium text-gray-700">Link to Project</span>
+                  </div>
+                  <p className="text-sm text-gray-500 mb-3">Optionally associate this task with a project milestone or feature</p>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-1">Project</label>
+                      <select
+                        value={selectedProjectId}
+                        onChange={e => setSelectedProjectId(e.target.value)}
+                        className="w-full h-10 text-sm border border-gray-300 rounded-lg px-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      >
+                        <option value="">— None —</option>
+                        {projectsList.map(p => (
+                          <option key={p.id} value={p.id}>{p.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    {selectedProjectId && (
+                      <>
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-700 mb-1">Milestone</label>
+                          <select
+                            value={selectedMilestoneId}
+                            onChange={e => setSelectedMilestoneId(e.target.value)}
+                            className="w-full h-10 text-sm border border-gray-300 rounded-lg px-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          >
+                            <option value="">— None —</option>
+                            {milestonesList.map(m => (
+                              <option key={m.id} value={m.id}>{m.name}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-700 mb-1">Feature</label>
+                          <select
+                            value={selectedFeatureId}
+                            onChange={e => setSelectedFeatureId(e.target.value)}
+                            className="w-full h-10 text-sm border border-gray-300 rounded-lg px-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          >
+                            <option value="">— None —</option>
+                            {featuresList.map(f => (
+                              <option key={f.id} value={f.id}>{f.tracking_number ? `[${f.tracking_number}] ` : ""}{f.name}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>

@@ -29,6 +29,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { queryClient } from "@/lib/queryClient";
 import HelpPage from "@/pages/HelpPage";
 import Projects from "@/pages/Projects";
+import ProjectDetail from "@/pages/ProjectDetail";
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -199,12 +200,20 @@ const App = () => (
                 </AdminLayout>
               }
             />
-            {/* Projects route */}
+            {/* Projects routes */}
             <Route
               path="/projects"
               element={
                 <AdminLayout>
                   <Projects />
+                </AdminLayout>
+              }
+            />
+            <Route
+              path="/projects/:id"
+              element={
+                <AdminLayout>
+                  <ProjectDetail />
                 </AdminLayout>
               }
             />

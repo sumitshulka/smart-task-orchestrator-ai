@@ -1755,6 +1755,303 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ========== PROJECTS ==========
+  app.get("/api/projects", requireAnyAuthenticated, async (req, res) => {
+    try {
+      const allProjects = await storage.getAllProjects();
+      res.json(allProjects);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch projects" });
+    }
+  });
+
+  app.get("/api/projects/:id", requireAnyAuthenticated, async (req, res) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project) return res.status(404).json({ error: "Project not found" });
+      res.json(project);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch project" });
+    }
+  });
+
+  app.post("/api/projects", requireAnyAuthenticated, async (req, res) => {
+    try {
+      const userId = (req as any).user?.id;
+      const project = await storage.createProject({ ...req.body, created_by: userId });
+      res.status(201).json(project);
+    } catch (error) {
+      res.status(400).json({ error: "Failed to create project" });
+    }
+  });
+
+  app.put("/api/projects/:id", requireAnyAuthenticated, async (req, res) => {
+    try {
+      const existing = await storage.getProject(req.params.id);
+      if (!existing) return res.status(404).json({ error: "Project not found" });
+      if (existing.is_confirmed && req.body.template_id && req.body.template_id !== existing.template_id) {
+        return res.status(400).json({ error: "Cannot change template after project is confirmed" });
+      }
+      const project = await storage.updateProject(req.params.id, req.body);
+      res.json(project);
+    } catch (error) {
+      res.status(400).json({ error: "Failed to update project" });
+    }
+  });
+
+  app.post("/api/projects/:id/confirm", requireAnyAuthenticated, async (req, res) => {
+    try {
+      const project = await storage.confirmProject(req.params.id);
+      res.json(project);
+    } catch (error) {
+      res.status(400).json({ error: "Failed to confirm project" });
+    }
+  });
+
+  app.delete("/api/projects/:id", requireAnyAuthenticated, async (req, res) => {
+    try {
+      await storage.deleteProject(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete project" });
+    }
+  });
+
+  // ========== PROJECT MEMBERS ==========
+  app.get("/api/projects/:id/members", requireAnyAuthenticated, async (req, res) => {
+    try {
+      const members = await storage.getProjectMembers(req.params.id);
+      res.json(members);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch members" });
+    }
+  });
+
+  app.get("/api/projects/:id/members/history", requireAnyAuthenticated, async (req, res) => {
+    try {
+      const history = await storage.getProjectMemberHistory(req.params.id);
+      res.json(history);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch member history" });
+    }
+  });
+
+  app.post("/api/projects/:id/members", requireAnyAuthenticated, async (req, res) => {
+    try {
+      const userId = (req as any).user?.id;
+      const member = await storage.addProjectMember({
+        ...req.body,
+        project_id: req.params.id,
+        added_by: userId,
+      });
+      res.status(201).json(member);
+    } catch (error) {
+      res.status(400).json({ error: "Failed to add member" });
+    }
+  });
+
+  app.put("/api/projects/:projectId/members/:memberId", requireAnyAuthenticated, async (req, res) => {
+    try {
+      const member = await storage.updateProjectMember(req.params.memberId, req.body);
+      res.json(member);
+    } catch (error) {
+      res.status(400).json({ error: "Failed to update member" });
+    }
+  });
+
+  app.delete("/api/projects/:projectId/members/:memberId", requireAnyAuthenticated, async (req, res) => {
+    try {
+      const userId = (req as any).user?.id;
+      const { notes } = req.body;
+      await storage.removeProjectMember(req.params.memberId, userId, notes);
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ error: "Failed to remove member" });
+    }
+  });
+
+  // ========== MILESTONES ==========
+  app.get("/api/projects/:id/milestones", requireAnyAuthenticated, async (req, res) => {
+    try {
+      const milestoneList = await storage.getProjectMilestones(req.params.id);
+      res.json(milestoneList);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch milestones" });
+    }
+  });
+
+  app.post("/api/projects/:id/milestones", requireAnyAuthenticated, async (req, res) => {
+    try {
+      const existing = await storage.getProjectMilestones(req.params.id);
+      const milestone = await storage.createMilestone({
+        ...req.body,
+        project_id: req.params.id,
+        milestone_order: req.body.milestone_order ?? existing.length + 1,
+      });
+      // If project has a template, inherit stages
+      const project = await storage.getProject(req.params.id);
+      if (project?.template_id && req.body.inherit_stages !== false) {
+        await storage.inheritTemplateStagesToMilestone(milestone.id, project.template_id);
+      }
+      res.status(201).json(milestone);
+    } catch (error) {
+      res.status(400).json({ error: "Failed to create milestone" });
+    }
+  });
+
+  app.put("/api/projects/:projectId/milestones/:milestoneId", requireAnyAuthenticated, async (req, res) => {
+    try {
+      const milestone = await storage.updateMilestone(req.params.milestoneId, req.body);
+      res.json(milestone);
+    } catch (error) {
+      res.status(400).json({ error: "Failed to update milestone" });
+    }
+  });
+
+  app.delete("/api/projects/:projectId/milestones/:milestoneId", requireAnyAuthenticated, async (req, res) => {
+    try {
+      await storage.deleteMilestone(req.params.milestoneId);
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete milestone" });
+    }
+  });
+
+  // ========== MILESTONE STAGES ==========
+  app.get("/api/milestones/:milestoneId/stages", requireAnyAuthenticated, async (req, res) => {
+    try {
+      const stages = await storage.getMilestoneStages(req.params.milestoneId);
+      res.json(stages);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch milestone stages" });
+    }
+  });
+
+  app.post("/api/milestones/:milestoneId/stages", requireAnyAuthenticated, async (req, res) => {
+    try {
+      const existing = await storage.getMilestoneStages(req.params.milestoneId);
+      const stage = await storage.createMilestoneStage({
+        ...req.body,
+        milestone_id: req.params.milestoneId,
+        stage_order: req.body.stage_order ?? existing.length + 1,
+      });
+      res.status(201).json(stage);
+    } catch (error) {
+      res.status(400).json({ error: "Failed to create milestone stage" });
+    }
+  });
+
+  app.put("/api/milestones/:milestoneId/stages/:stageId", requireAnyAuthenticated, async (req, res) => {
+    try {
+      const stage = await storage.updateMilestoneStage(req.params.stageId, req.body);
+      res.json(stage);
+    } catch (error) {
+      res.status(400).json({ error: "Failed to update milestone stage" });
+    }
+  });
+
+  app.delete("/api/milestones/:milestoneId/stages/:stageId", requireAnyAuthenticated, async (req, res) => {
+    try {
+      await storage.deleteMilestoneStage(req.params.stageId);
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete milestone stage" });
+    }
+  });
+
+  app.put("/api/milestones/:milestoneId/stages/reorder", requireAnyAuthenticated, async (req, res) => {
+    try {
+      const { stageIds } = req.body;
+      await storage.reorderMilestoneStages(req.params.milestoneId, stageIds);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(400).json({ error: "Failed to reorder stages" });
+    }
+  });
+
+  app.post("/api/milestones/:milestoneId/stages/inherit/:templateId", requireAnyAuthenticated, async (req, res) => {
+    try {
+      const stages = await storage.inheritTemplateStagesToMilestone(req.params.milestoneId, req.params.templateId);
+      res.status(201).json(stages);
+    } catch (error) {
+      res.status(400).json({ error: "Failed to inherit stages" });
+    }
+  });
+
+  // ========== FEATURE GROUPS ==========
+  app.get("/api/projects/:id/feature-groups", requireAnyAuthenticated, async (req, res) => {
+    try {
+      const groups = await storage.getProjectFeatureGroups(req.params.id);
+      res.json(groups);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch feature groups" });
+    }
+  });
+
+  app.post("/api/projects/:id/feature-groups", requireAnyAuthenticated, async (req, res) => {
+    try {
+      const group = await storage.createFeatureGroup({ ...req.body, project_id: req.params.id });
+      res.status(201).json(group);
+    } catch (error) {
+      res.status(400).json({ error: "Failed to create feature group" });
+    }
+  });
+
+  app.put("/api/projects/:projectId/feature-groups/:groupId", requireAnyAuthenticated, async (req, res) => {
+    try {
+      const group = await storage.updateFeatureGroup(req.params.groupId, req.body);
+      res.json(group);
+    } catch (error) {
+      res.status(400).json({ error: "Failed to update feature group" });
+    }
+  });
+
+  app.delete("/api/projects/:projectId/feature-groups/:groupId", requireAnyAuthenticated, async (req, res) => {
+    try {
+      await storage.deleteFeatureGroup(req.params.groupId);
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete feature group" });
+    }
+  });
+
+  // ========== FEATURES ==========
+  app.get("/api/projects/:id/features", requireAnyAuthenticated, async (req, res) => {
+    try {
+      const featuresList = await storage.getProjectFeatures(req.params.id);
+      res.json(featuresList);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch features" });
+    }
+  });
+
+  app.post("/api/projects/:id/features", requireAnyAuthenticated, async (req, res) => {
+    try {
+      const feature = await storage.createFeature({ ...req.body, project_id: req.params.id });
+      res.status(201).json(feature);
+    } catch (error) {
+      res.status(400).json({ error: "Failed to create feature" });
+    }
+  });
+
+  app.put("/api/projects/:projectId/features/:featureId", requireAnyAuthenticated, async (req, res) => {
+    try {
+      const feature = await storage.updateFeature(req.params.featureId, req.body);
+      res.json(feature);
+    } catch (error) {
+      res.status(400).json({ error: "Failed to update feature" });
+    }
+  });
+
+  app.delete("/api/projects/:projectId/features/:featureId", requireAnyAuthenticated, async (req, res) => {
+    try {
+      await storage.deleteFeature(req.params.featureId);
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete feature" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

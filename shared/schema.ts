@@ -27,6 +27,111 @@ export const organizationSettings = pgTable("organization_settings", {
   updated_at: timestamp("updated_at").defaultNow(),
 });
 
+// Projects table
+export const projects = pgTable("projects", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull(),
+  client_name: text("client_name"),
+  template_id: uuid("template_id").references(() => projectTemplates.id),
+  project_type: text("project_type").notNull().default("fixed_cost"),
+  status: text("status").notNull().default("planning"), // planning, active, on_hold, completed, cancelled
+  description: text("description"),
+  start_date: timestamp("start_date"),
+  projected_end_date: timestamp("projected_end_date"),
+  actual_end_date: timestamp("actual_end_date"),
+  total_effort_hours: integer("total_effort_hours"),
+  budget_amount: text("budget_amount"), // stored as string for flexibility
+  currency: text("currency").default("USD"),
+  is_confirmed: boolean("is_confirmed").default(false), // locks template_id when true
+  custom_fields: text("custom_fields"), // JSON string for template-specific fields
+  created_by: uuid("created_by").references(() => users.id),
+  created_at: timestamp("created_at").defaultNow(),
+  updated_at: timestamp("updated_at").defaultNow(),
+});
+
+// Project Members table (current state)
+export const projectMembers = pgTable("project_members", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  project_id: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  user_id: uuid("user_id").notNull().references(() => users.id),
+  member_type: text("member_type").notNull().default("member"), // project_manager, member
+  project_role: text("project_role"), // project-specific role title
+  allocation_percentage: integer("allocation_percentage").default(100), // 0-100
+  is_active: boolean("is_active").default(true),
+  joined_at: timestamp("joined_at").defaultNow(),
+  left_at: timestamp("left_at"),
+  added_by: uuid("added_by").references(() => users.id),
+  created_at: timestamp("created_at").defaultNow(),
+  updated_at: timestamp("updated_at").defaultNow(),
+});
+
+// Project Member History table
+export const projectMemberHistory = pgTable("project_member_history", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  project_id: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  user_id: uuid("user_id").notNull().references(() => users.id),
+  member_type: text("member_type"),
+  project_role: text("project_role"),
+  allocation_percentage: integer("allocation_percentage"),
+  action: text("action").notNull(), // added, removed, role_changed, allocation_changed, promoted_pm, demoted_pm
+  action_date: timestamp("action_date").defaultNow(),
+  acted_by: uuid("acted_by").references(() => users.id),
+  notes: text("notes"),
+  created_at: timestamp("created_at").defaultNow(),
+});
+
+// Project Milestones table
+export const projectMilestones = pgTable("project_milestones", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  project_id: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  description: text("description"),
+  start_date: timestamp("start_date"),
+  end_date: timestamp("end_date"),
+  status: text("status").notNull().default("not_started"), // not_started, in_progress, completed, on_hold
+  milestone_order: integer("milestone_order").notNull().default(1),
+  created_at: timestamp("created_at").defaultNow(),
+  updated_at: timestamp("updated_at").defaultNow(),
+});
+
+// Milestone Stages table (inherits from template or custom)
+export const milestoneStages = pgTable("milestone_stages", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  milestone_id: uuid("milestone_id").notNull().references(() => projectMilestones.id, { onDelete: "cascade" }),
+  template_stage_id: uuid("template_stage_id").references(() => projectTemplateStages.id),
+  name: text("name").notNull(),
+  description: text("description"),
+  color: text("color").default("#6b7280"),
+  stage_order: integer("stage_order").notNull(),
+  status: text("status").notNull().default("pending"), // pending, in_progress, completed
+  created_at: timestamp("created_at").defaultNow(),
+  updated_at: timestamp("updated_at").defaultNow(),
+});
+
+// Project Feature Groups (Modules)
+export const projectFeatureGroups = pgTable("project_feature_groups", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  project_id: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  description: text("description"),
+  tracking_number: text("tracking_number").notNull(), // e.g. FG-001
+  created_at: timestamp("created_at").defaultNow(),
+  updated_at: timestamp("updated_at").defaultNow(),
+});
+
+// Project Features
+export const projectFeatures = pgTable("project_features", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  project_id: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  feature_group_id: uuid("feature_group_id").references(() => projectFeatureGroups.id),
+  name: text("name").notNull(),
+  description: text("description"),
+  tracking_number: text("tracking_number").notNull(), // e.g. F-001
+  status: text("status").notNull().default("not_started"), // not_started, in_progress, completed
+  created_at: timestamp("created_at").defaultNow(),
+  updated_at: timestamp("updated_at").defaultNow(),
+});
+
 // Project Templates table
 export const projectTemplates = pgTable("project_templates", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -208,6 +313,8 @@ export const tasks = pgTable("tasks", {
   assigned_to: uuid("assigned_to").references(() => users.id),
   team_id: uuid("team_id").references(() => teams.id),
   dependencyTaskId: uuid("dependencyTaskId"),
+  milestone_id: uuid("milestone_id"),
+  feature_id: uuid("feature_id"),
   actual_completion_date: timestamp("actual_completion_date"),
   // Timer-related fields
   is_time_managed: boolean("is_time_managed").default(false),
@@ -382,10 +489,53 @@ export const rolePermissionsRelations = relations(rolePermissions, ({ one }) => 
 
 export const projectTemplatesRelations = relations(projectTemplates, ({ many }) => ({
   stages: many(projectTemplateStages),
+  projects: many(projects),
 }));
 
 export const projectTemplateStagesRelations = relations(projectTemplateStages, ({ one }) => ({
   template: one(projectTemplates, { fields: [projectTemplateStages.template_id], references: [projectTemplates.id] }),
+}));
+
+export const projectsRelations = relations(projects, ({ one, many }) => ({
+  template: one(projectTemplates, { fields: [projects.template_id], references: [projectTemplates.id] }),
+  createdBy: one(users, { fields: [projects.created_by], references: [users.id] }),
+  members: many(projectMembers),
+  memberHistory: many(projectMemberHistory),
+  milestones: many(projectMilestones),
+  featureGroups: many(projectFeatureGroups),
+  features: many(projectFeatures),
+}));
+
+export const projectMembersRelations = relations(projectMembers, ({ one }) => ({
+  project: one(projects, { fields: [projectMembers.project_id], references: [projects.id] }),
+  user: one(users, { fields: [projectMembers.user_id], references: [users.id] }),
+  addedBy: one(users, { fields: [projectMembers.added_by], references: [users.id], relationName: "memberAddedBy" }),
+}));
+
+export const projectMemberHistoryRelations = relations(projectMemberHistory, ({ one }) => ({
+  project: one(projects, { fields: [projectMemberHistory.project_id], references: [projects.id] }),
+  user: one(users, { fields: [projectMemberHistory.user_id], references: [users.id] }),
+  actedBy: one(users, { fields: [projectMemberHistory.acted_by], references: [users.id], relationName: "historyActedBy" }),
+}));
+
+export const projectMilestonesRelations = relations(projectMilestones, ({ one, many }) => ({
+  project: one(projects, { fields: [projectMilestones.project_id], references: [projects.id] }),
+  stages: many(milestoneStages),
+}));
+
+export const milestoneStagesRelations = relations(milestoneStages, ({ one }) => ({
+  milestone: one(projectMilestones, { fields: [milestoneStages.milestone_id], references: [projectMilestones.id] }),
+  templateStage: one(projectTemplateStages, { fields: [milestoneStages.template_stage_id], references: [projectTemplateStages.id] }),
+}));
+
+export const projectFeatureGroupsRelations = relations(projectFeatureGroups, ({ one, many }) => ({
+  project: one(projects, { fields: [projectFeatureGroups.project_id], references: [projects.id] }),
+  features: many(projectFeatures),
+}));
+
+export const projectFeaturesRelations = relations(projectFeatures, ({ one }) => ({
+  project: one(projects, { fields: [projectFeatures.project_id], references: [projects.id] }),
+  featureGroup: one(projectFeatureGroups, { fields: [projectFeatures.feature_group_id], references: [projectFeatureGroups.id] }),
 }));
 
 // Insert schemas
@@ -474,6 +624,72 @@ export const insertProjectTemplateStageSchema = createInsertSchema(projectTempla
   updated_at: true,
 });
 
+export const insertProjectSchema = createInsertSchema(projects).omit({
+  id: true,
+  created_at: true,
+  updated_at: true,
+}).extend({
+  project_type: z.enum(["fixed_cost", "time_material", "milestone", "retainer"]).default("fixed_cost"),
+  status: z.enum(["planning", "active", "on_hold", "completed", "cancelled"]).default("planning"),
+  start_date: z.union([z.date(), z.string().transform((s) => s ? new Date(s) : null)]).nullable().optional(),
+  projected_end_date: z.union([z.date(), z.string().transform((s) => s ? new Date(s) : null)]).nullable().optional(),
+  actual_end_date: z.union([z.date(), z.string().transform((s) => s ? new Date(s) : null)]).nullable().optional(),
+  total_effort_hours: z.union([z.number(), z.string().transform((s) => s ? parseInt(s) : null)]).nullable().optional(),
+});
+
+export const insertProjectMemberSchema = createInsertSchema(projectMembers).omit({
+  id: true,
+  created_at: true,
+  updated_at: true,
+}).extend({
+  member_type: z.enum(["project_manager", "member"]).default("member"),
+  allocation_percentage: z.number().min(0).max(100).default(100),
+  joined_at: z.union([z.date(), z.string().transform((s) => s ? new Date(s) : null)]).nullable().optional(),
+  left_at: z.union([z.date(), z.string().transform((s) => s ? new Date(s) : null)]).nullable().optional(),
+});
+
+export const insertProjectMemberHistorySchema = createInsertSchema(projectMemberHistory).omit({
+  id: true,
+  created_at: true,
+}).extend({
+  action: z.enum(["added", "removed", "role_changed", "allocation_changed", "promoted_pm", "demoted_pm"]),
+  action_date: z.union([z.date(), z.string().transform((s) => s ? new Date(s) : null)]).nullable().optional(),
+});
+
+export const insertProjectMilestoneSchema = createInsertSchema(projectMilestones).omit({
+  id: true,
+  created_at: true,
+  updated_at: true,
+}).extend({
+  status: z.enum(["not_started", "in_progress", "completed", "on_hold"]).default("not_started"),
+  start_date: z.union([z.date(), z.string().transform((s) => s ? new Date(s) : null)]).nullable().optional(),
+  end_date: z.union([z.date(), z.string().transform((s) => s ? new Date(s) : null)]).nullable().optional(),
+  milestone_order: z.number().int().min(1).default(1),
+});
+
+export const insertMilestoneStageSchema = createInsertSchema(milestoneStages).omit({
+  id: true,
+  created_at: true,
+  updated_at: true,
+}).extend({
+  status: z.enum(["pending", "in_progress", "completed"]).default("pending"),
+  stage_order: z.number().int().min(1),
+});
+
+export const insertProjectFeatureGroupSchema = createInsertSchema(projectFeatureGroups).omit({
+  id: true,
+  created_at: true,
+  updated_at: true,
+});
+
+export const insertProjectFeatureSchema = createInsertSchema(projectFeatures).omit({
+  id: true,
+  created_at: true,
+  updated_at: true,
+}).extend({
+  status: z.enum(["not_started", "in_progress", "completed"]).default("not_started"),
+});
+
 // License management schema
 export const licenses = pgTable('licenses', {
   id: serial('id').primaryKey(),
@@ -532,3 +748,17 @@ export type InsertProjectTemplate = z.infer<typeof insertProjectTemplateSchema>;
 export type ProjectTemplate = typeof projectTemplates.$inferSelect;
 export type InsertProjectTemplateStage = z.infer<typeof insertProjectTemplateStageSchema>;
 export type ProjectTemplateStage = typeof projectTemplateStages.$inferSelect;
+export type InsertProject = z.infer<typeof insertProjectSchema>;
+export type Project = typeof projects.$inferSelect;
+export type InsertProjectMember = z.infer<typeof insertProjectMemberSchema>;
+export type ProjectMember = typeof projectMembers.$inferSelect;
+export type InsertProjectMemberHistory = z.infer<typeof insertProjectMemberHistorySchema>;
+export type ProjectMemberHistory = typeof projectMemberHistory.$inferSelect;
+export type InsertProjectMilestone = z.infer<typeof insertProjectMilestoneSchema>;
+export type ProjectMilestone = typeof projectMilestones.$inferSelect;
+export type InsertMilestoneStage = z.infer<typeof insertMilestoneStageSchema>;
+export type MilestoneStage = typeof milestoneStages.$inferSelect;
+export type InsertProjectFeatureGroup = z.infer<typeof insertProjectFeatureGroupSchema>;
+export type ProjectFeatureGroup = typeof projectFeatureGroups.$inferSelect;
+export type InsertProjectFeature = z.infer<typeof insertProjectFeatureSchema>;
+export type ProjectFeature = typeof projectFeatures.$inferSelect;
