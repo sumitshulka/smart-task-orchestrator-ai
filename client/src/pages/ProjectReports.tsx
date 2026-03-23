@@ -12,9 +12,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   ArrowLeft, AlertTriangle, CheckCircle2, Clock, TrendingUp, Users,
   Milestone, BarChart3, FileText, RefreshCw, Activity, Search,
-  Filter, X, ChevronDown, ChevronUp,
+  Filter, X, ChevronDown, ChevronUp, Download,
 } from "lucide-react";
 import { format, differenceInDays, isPast } from "date-fns";
+import * as XLSX from "xlsx";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 interface MilestoneStage { id: string; name: string; status: string; }
@@ -146,6 +147,43 @@ function FilterChip({ label, onRemove }: { label: string; onRemove: () => void }
       </button>
     </span>
   );
+}
+
+// ── Excel export helper ────────────────────────────────────────────────────
+function downloadExcel(
+  filename: string,
+  sheetName: string,
+  headers: string[],
+  rows: (string | number | null | undefined)[][],
+  metaRows?: string[][]
+) {
+  const wb = XLSX.utils.book_new();
+  const sheetData: (string | number | null | undefined)[][] = [];
+
+  // Optional metadata rows at top
+  if (metaRows) {
+    metaRows.forEach((r) => sheetData.push(r));
+    sheetData.push([]);
+  }
+
+  sheetData.push(headers);
+  rows.forEach((r) => sheetData.push(r));
+
+  const ws = XLSX.utils.aoa_to_sheet(sheetData);
+
+  // Auto-fit columns (rough approximation)
+  const colWidths = headers.map((h, ci) => {
+    const maxLen = Math.max(
+      h.length,
+      ...rows.map((r) => String(r[ci] ?? "").length)
+    );
+    return { wch: Math.min(Math.max(maxLen + 2, 10), 50) };
+  });
+  ws["!cols"] = colWidths;
+
+  // Style the header row (bold) via a simple comment — xlsx-light doesn't support full styles
+  XLSX.utils.book_append_sheet(wb, ws, sheetName);
+  XLSX.writeFile(wb, `${filename}_${format(new Date(), "yyyy-MM-dd")}.xlsx`);
 }
 
 // ── Main Component ─────────────────────────────────────────────────────────
@@ -434,6 +472,37 @@ export default function ProjectReports() {
                 Project Status Report
                 <span className="text-gray-400 font-normal">({projects.length} project{projects.length !== 1 ? "s" : ""})</span>
               </CardTitle>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5 h-8 text-xs shrink-0"
+                onClick={() => {
+                  const meta = [["Project Status Report"], [`Generated: ${format(new Date(), "PPP")}`], [`Filters: ${activeFilters.length ? activeFilters.map((f) => f.label).join(", ") : "None"}`]];
+                  const headers = ["Project", "Client", "Type", "Status", "Start Date", "Target End Date", "Milestones Done", "Milestones Total", "Tasks Done", "Tasks Total", "Features Done", "Features Total", "% Complete", "Schedule Health"];
+                  const rows = projects.map((p) => {
+                    const delay = delayTrafficLight(p);
+                    return [
+                      p.name,
+                      p.client_name ?? "",
+                      TYPE_LABELS[p.project_type] ?? p.project_type,
+                      STATUS_LABELS[p.status] ?? p.status,
+                      p.start_date ? format(new Date(p.start_date), "d MMM yyyy") : "",
+                      p.projected_end_date ? format(new Date(p.projected_end_date), "d MMM yyyy") : "",
+                      p.milestones.filter((m) => isCompleted(m.status)).length,
+                      p.milestones.length,
+                      p.tasks.filter((t) => isCompleted(t.status)).length,
+                      p.tasks.length,
+                      p.features.filter((f) => isCompleted(f.status)).length,
+                      p.features.length,
+                      completionPct(p),
+                      `${delay.icon} ${delay.label}`,
+                    ];
+                  });
+                  downloadExcel("Project_Status_Report", "Status Report", headers, rows, meta);
+                }}
+              >
+                <Download className="h-3.5 w-3.5" /> Download Excel
+              </Button>
             </CardHeader>
             <CardContent className="p-0">
               <div className="overflow-x-auto">
@@ -507,7 +576,32 @@ export default function ProjectReports() {
                 <X className="h-3.5 w-3.5 mr-1" />Clear
               </Button>
             )}
-            <span className="text-xs text-gray-400 ml-auto">{resourceRows.length} row{resourceRows.length !== 1 ? "s" : ""}</span>
+            <span className="text-xs text-gray-400">{resourceRows.length} row{resourceRows.length !== 1 ? "s" : ""}</span>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 h-8 text-xs ml-auto"
+              onClick={() => {
+                const meta = [["Resource Utilization Report"], [`Generated: ${format(new Date(), "PPP")}`], [`Filters: ${activeFilters.length ? activeFilters.map((f) => f.label).join(", ") : "None"}`]];
+                const headers = ["Resource", "Project", "Client", "Member Type", "Project Role", "Allocation %", "Tasks Assigned", "Tasks Done", "Est. Hours", "Hours Tracked", "Utilization %"];
+                const rows = resourceRows.map(({ p, m, memberTasks, doneTasks, estHrs, trackedHrs }) => [
+                  userName(m.user_id),
+                  p.name,
+                  p.client_name ?? "",
+                  m.member_type === "pm" ? "Project Manager" : "Team Member",
+                  m.project_role ?? "",
+                  m.allocation_percentage,
+                  memberTasks.length,
+                  doneTasks,
+                  estHrs > 0 ? estHrs : "",
+                  trackedHrs > 0 ? parseFloat(trackedHrs.toFixed(1)) : "",
+                  estHrs > 0 ? pct(trackedHrs, estHrs) : "",
+                ]);
+                downloadExcel("Resource_Utilization_Report", "Resource Utilization", headers, rows, meta);
+              }}
+            >
+              <Download className="h-3.5 w-3.5" /> Download Excel
+            </Button>
           </div>
           <Card>
             <CardContent className="p-0">
@@ -573,6 +667,50 @@ export default function ProjectReports() {
             REPORT 3: MILESTONE STATUS
         ═══════════════════════════════════════════════════════════ */}
         <TabsContent value="milestones" className="mt-4 space-y-4">
+          {/* Header row with download button */}
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              {projects.filter((p) => p.milestones.length > 0).length} project{projects.filter((p) => p.milestones.length > 0).length !== 1 ? "s" : ""} with milestones
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 h-8 text-xs"
+              onClick={() => {
+                const meta = [["Milestone Status Report"], [`Generated: ${format(new Date(), "PPP")}`], [`Filters: ${activeFilters.length ? activeFilters.map((f) => f.label).join(", ") : "None"}`]];
+                const headers = ["Project", "Client", "Project Status", "Milestone", "Milestone Status", "Start Date", "End Date", "Days Remaining", "Stages Done", "Stages Total", "Health"];
+                const rows: (string | number)[][] = [];
+                projects.forEach((p) => {
+                  p.milestones.forEach((ms) => {
+                    let health = "—";
+                    let daysRemaining: string | number = "";
+                    if (ms.end_date) {
+                      const daysLeft = differenceInDays(new Date(ms.end_date), new Date());
+                      if (isCompleted(ms.status)) { health = "🟢 Done"; daysRemaining = "Completed"; }
+                      else if (daysLeft < 0) { health = `🔴 ${Math.abs(daysLeft)}d overdue`; daysRemaining = daysLeft; }
+                      else if (daysLeft <= 7) { health = `🟡 ${daysLeft}d left`; daysRemaining = daysLeft; }
+                      else { health = `🟢 ${daysLeft}d left`; daysRemaining = daysLeft; }
+                    }
+                    const doneStages = ms.stages.filter((s) => isCompleted(s.status)).length;
+                    rows.push([
+                      p.name, p.client_name ?? "",
+                      STATUS_LABELS[p.status] ?? p.status,
+                      ms.name,
+                      ms.status.replace(/_/g, " "),
+                      ms.start_date ? format(new Date(ms.start_date), "d MMM yyyy") : "",
+                      ms.end_date   ? format(new Date(ms.end_date), "d MMM yyyy") : "",
+                      daysRemaining,
+                      doneStages, ms.stages.length,
+                      health,
+                    ]);
+                  });
+                });
+                downloadExcel("Milestone_Status_Report", "Milestone Status", headers, rows, meta);
+              }}
+            >
+              <Download className="h-3.5 w-3.5" /> Download Excel
+            </Button>
+          </div>
           {projects.length === 0 && (
             <div className="text-center py-16 text-gray-400">
               <Milestone className="h-10 w-10 mx-auto mb-2 opacity-30" />
@@ -670,7 +808,54 @@ export default function ProjectReports() {
         {/* ══════════════════════════════════════════════════════════
             REPORT 4: PERFORMANCE ANALYSIS
         ═══════════════════════════════════════════════════════════ */}
-        <TabsContent value="performance" className="mt-4">
+        <TabsContent value="performance" className="mt-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              {projects.length} project{projects.length !== 1 ? "s" : ""}
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 h-8 text-xs"
+              onClick={() => {
+                const meta = [["Performance Analysis Report"], [`Generated: ${format(new Date(), "PPP")}`], [`Filters: ${activeFilters.length ? activeFilters.map((f) => f.label).join(", ") : "None"}`]];
+                const headers = ["Project", "Client", "Type", "Status", "Milestone Completion %", "Task Completion %", "Feature Completion %", "Effort Burn %", "Overall Score %", "Schedule Health", "Team Size", "Avg Allocation %", "Budget (hrs)", "Budget Amount"];
+                const rows = projects.map((p) => {
+                  const delay          = delayTrafficLight(p);
+                  const msCompletion   = pct(p.milestones.filter((m) => isCompleted(m.status)).length, p.milestones.length || 1);
+                  const taskCompletion = pct(p.tasks.filter((t) => isCompleted(t.status)).length, p.tasks.length || 1);
+                  const ftCompletion   = pct(p.features.filter((f) => isCompleted(f.status)).length, p.features.length || 1);
+                  const totalEstHrs   = estimatedHours(p.tasks);
+                  const totalSpentHrs = timeSpentHours(p.tasks);
+                  const effortBurn    = totalEstHrs > 0 ? pct(totalSpentHrs, totalEstHrs) : "";
+                  const memberCount   = p.members.length;
+                  const avgAlloc      = memberCount > 0 ? Math.round(p.members.reduce((s, m) => s + m.allocation_percentage, 0) / memberCount) : "";
+                  let scheduleHealth  = 100;
+                  if (p.projected_end_date) {
+                    const d = differenceInDays(new Date(p.projected_end_date), new Date());
+                    if (d < 0) scheduleHealth = 0; else if (d <= 7) scheduleHealth = 20; else if (d <= 14) scheduleHealth = 50;
+                  }
+                  if (isCompleted(p.status)) scheduleHealth = 100;
+                  if (p.status === "cancelled") scheduleHealth = 0;
+                  const overall = Math.round((msCompletion + taskCompletion + ftCompletion + scheduleHealth) / 4);
+                  return [
+                    p.name, p.client_name ?? "",
+                    TYPE_LABELS[p.project_type] ?? p.project_type,
+                    STATUS_LABELS[p.status] ?? p.status,
+                    msCompletion, taskCompletion, ftCompletion,
+                    effortBurn, overall,
+                    `${delay.icon} ${delay.label}`,
+                    memberCount, avgAlloc,
+                    p.total_effort_hours ?? "",
+                    p.budget_amount ? `${p.currency} ${parseFloat(p.budget_amount).toLocaleString()}` : "",
+                  ];
+                });
+                downloadExcel("Performance_Analysis_Report", "Performance Analysis", headers, rows, meta);
+              }}
+            >
+              <Download className="h-3.5 w-3.5" /> Download Excel
+            </Button>
+          </div>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {projects.length === 0 && (
               <div className="col-span-2 text-center py-16 text-gray-400">No projects match the current filters</div>
@@ -769,12 +954,55 @@ export default function ProjectReports() {
         ═══════════════════════════════════════════════════════════ */}
         <TabsContent value="time" className="mt-4">
           <Card>
-            <CardHeader className="pb-3">
+            <CardHeader className="pb-3 flex flex-row items-center justify-between">
               <CardTitle className="text-sm font-semibold flex items-center gap-2">
                 <Clock className="h-4 w-4 text-orange-500" />
                 Project Time Utilization
                 <span className="text-gray-400 font-normal">({projects.length} project{projects.length !== 1 ? "s" : ""})</span>
               </CardTitle>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5 h-8 text-xs shrink-0"
+                onClick={() => {
+                  const meta = [["Time Utilization Report"], [`Generated: ${format(new Date(), "PPP")}`], [`Filters: ${activeFilters.length ? activeFilters.map((f) => f.label).join(", ") : "None"}`]];
+                  const headers = ["Project", "Client", "Type", "Status", "Allocated (hrs)", "Estimated (task hrs)", "Hours Tracked", "Hours Remaining", "% Used", "Remark"];
+                  const rows = projects.map((p) => {
+                    const allocated  = p.total_effort_hours ?? 0;
+                    const estimated  = estimatedHours(p.tasks);
+                    const tracked    = timeSpentHours(p.tasks);
+                    const baseline   = allocated || estimated;
+                    const remaining  = Math.max(0, baseline - tracked);
+                    const usedPct    = baseline > 0 ? pct(tracked, baseline) : "";
+                    const completion = completionPct(p);
+                    let remark = "";
+                    if (isCompleted(p.status))  remark = "Project Complete";
+                    else if (!baseline)          remark = "No time budget set";
+                    else if (tracked > baseline) remark = `Overrun by ${(tracked - baseline).toFixed(1)}h`;
+                    else {
+                      const pctTimeLeft = pct(remaining, baseline);
+                      const pctWorkLeft = 100 - completion;
+                      if (pctTimeLeft >= pctWorkLeft + 15) remark = "Time appears sufficient";
+                      else if (pctTimeLeft >= pctWorkLeft)  remark = "Time is tight";
+                      else                                   remark = "At risk — insufficient time";
+                    }
+                    return [
+                      p.name, p.client_name ?? "",
+                      TYPE_LABELS[p.project_type] ?? p.project_type,
+                      STATUS_LABELS[p.status] ?? p.status,
+                      allocated > 0 ? allocated : "",
+                      estimated > 0 ? estimated : "",
+                      tracked   > 0 ? parseFloat(tracked.toFixed(1)) : "",
+                      baseline  > 0 ? parseFloat(remaining.toFixed(1)) : "",
+                      usedPct,
+                      remark,
+                    ];
+                  });
+                  downloadExcel("Time_Utilization_Report", "Time Utilization", headers, rows, meta);
+                }}
+              >
+                <Download className="h-3.5 w-3.5" /> Download Excel
+              </Button>
             </CardHeader>
             <CardContent className="p-0">
               <div className="overflow-x-auto">
