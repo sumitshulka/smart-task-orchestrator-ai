@@ -95,6 +95,15 @@ const TaskDetailsSheet: React.FC<Props> = ({
     if (!currentUser?.id) return;
     
     const newStatus = e.target.value;
+    // Block completion for project-linked tasks without a milestone
+    if (task?.project_id && !task?.milestone_id && newStatus.toLowerCase().includes("complet")) {
+      toast({
+        title: "Cannot complete task",
+        description: "This task is linked to a project but has no milestone assigned. Please attach a milestone before completing it.",
+        variant: "destructive",
+      });
+      return;
+    }
     setStatus(newStatus);
     try {
       await updateTask(task!.id, { status: newStatus });
@@ -232,22 +241,26 @@ const TaskDetailsSheet: React.FC<Props> = ({
   // Load milestone + feature names for the task's current project when open
   useEffect(() => {
     if (!open || !task) { setEditingLinkage(false); return; }
+    setLinkProjectId(task.project_id || "");
     setLinkMilestoneId(task.milestone_id || "");
     setLinkFeatureId(task.feature_id || "");
-    // If task has a milestone, find which project it belongs to
-    if (task.milestone_id) {
-      // Try to find the project from projectsList by scanning milestones
-      // For simplicity we'll load milestones for each project until we find a match
-      // The easiest approach: find the project in the fetched milestonesList
-      // This will be resolved once user selects a project for editing
-    }
   }, [open, task]);
 
   async function handleSaveLinkage() {
     if (!task || !currentUser?.id) return;
+    // Validate: milestone required when project selected; feature required when milestone selected
+    if (linkProjectId && !linkMilestoneId) {
+      toast({ title: "Milestone required", description: "A milestone is required when linking a task to a project.", variant: "destructive" });
+      return;
+    }
+    if (linkMilestoneId && !linkFeatureId) {
+      toast({ title: "Feature required", description: "A feature is required when a milestone is attached to a task.", variant: "destructive" });
+      return;
+    }
     setSavingLinkage(true);
     try {
       await updateTask(task.id, {
+        project_id: linkProjectId || null,
         milestone_id: linkMilestoneId || null,
         feature_id: linkFeatureId || null,
       } as any);
@@ -482,7 +495,7 @@ const TaskDetailsSheet: React.FC<Props> = ({
                     {showAssign && !editingLinkage && (
                       <button
                         type="button"
-                        onClick={() => { setEditingLinkage(true); setLinkProjectId(""); setLinkMilestoneId(task?.milestone_id || ""); setLinkFeatureId(task?.feature_id || ""); }}
+                        onClick={() => setEditingLinkage(true)}
                         className="text-xs text-teal-700 underline"
                       >
                         Edit
@@ -491,19 +504,38 @@ const TaskDetailsSheet: React.FC<Props> = ({
                   </div>
 
                   {!editingLinkage ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-1">Milestone</label>
-                        <div className="bg-white p-2 border rounded text-sm">
-                          {task?.milestone_id ? (linkedMilestoneName || task.milestone_id) : <span className="text-gray-400 italic">Not linked</span>}
+                    <div className="space-y-2">
+                      {!task?.project_id && !task?.milestone_id && !task?.feature_id ? (
+                        <p className="text-sm text-gray-400 italic">No project linkage set.</p>
+                      ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                          <div>
+                            <label className="block text-sm font-semibold text-gray-700 mb-1">Project</label>
+                            <div className="bg-white p-2 border rounded text-sm">
+                              {task?.project_id
+                                ? (projectsList.find(p => p.id === task.project_id)?.name || task.project_id)
+                                : <span className="text-gray-400 italic">Not linked</span>}
+                            </div>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-semibold text-gray-700 mb-1">Milestone</label>
+                            <div className="bg-white p-2 border rounded text-sm">
+                              {task?.milestone_id ? (linkedMilestoneName || task.milestone_id) : <span className="text-gray-400 italic">Not linked</span>}
+                            </div>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-semibold text-gray-700 mb-1">Feature</label>
+                            <div className="bg-white p-2 border rounded text-sm">
+                              {task?.feature_id ? (linkedFeatureName || task.feature_id) : <span className="text-gray-400 italic">Not linked</span>}
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-1">Feature</label>
-                        <div className="bg-white p-2 border rounded text-sm">
-                          {task?.feature_id ? (linkedFeatureName || task.feature_id) : <span className="text-gray-400 italic">Not linked</span>}
+                      )}
+                      {task?.project_id && !task?.milestone_id && (
+                        <div className="flex items-center gap-1 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
+                          <span>⚠️</span> This task is project-linked but has no milestone — it cannot be completed until a milestone is attached.
                         </div>
-                      </div>
+                      )}
                     </div>
                   ) : (
                     <div className="space-y-3">
@@ -514,7 +546,7 @@ const TaskDetailsSheet: React.FC<Props> = ({
                           onChange={e => { setLinkProjectId(e.target.value); setLinkMilestoneId(""); setLinkFeatureId(""); }}
                           className="w-full h-9 text-sm border border-gray-300 rounded-md px-2 focus:ring-2 focus:ring-teal-500"
                         >
-                          <option value="">— Select a project —</option>
+                          <option value="">— None (remove linkage) —</option>
                           {projectsList.map(p => (
                             <option key={p.id} value={p.id}>{p.name}</option>
                           ))}
@@ -523,30 +555,36 @@ const TaskDetailsSheet: React.FC<Props> = ({
                       {linkProjectId && (
                         <>
                           <div>
-                            <label className="block text-sm font-semibold text-gray-700 mb-1">Milestone</label>
+                            <label className="block text-sm font-semibold text-gray-700 mb-1">
+                              Milestone <span className="text-red-500">*</span>
+                            </label>
                             <select
                               value={linkMilestoneId}
                               onChange={e => setLinkMilestoneId(e.target.value)}
-                              className="w-full h-9 text-sm border border-gray-300 rounded-md px-2 focus:ring-2 focus:ring-teal-500"
+                              className={`w-full h-9 text-sm border rounded-md px-2 focus:ring-2 focus:ring-teal-500 ${!linkMilestoneId ? "border-red-300 bg-red-50" : "border-gray-300"}`}
                             >
-                              <option value="">— None —</option>
+                              <option value="">— Select a milestone —</option>
                               {milestonesList.map(m => (
                                 <option key={m.id} value={m.id}>{m.name}</option>
                               ))}
                             </select>
+                            {!linkMilestoneId && <p className="text-xs text-red-500 mt-1">Required for project-linked tasks.</p>}
                           </div>
                           <div>
-                            <label className="block text-sm font-semibold text-gray-700 mb-1">Feature</label>
+                            <label className="block text-sm font-semibold text-gray-700 mb-1">
+                              Feature <span className="text-red-500">*</span>
+                            </label>
                             <select
                               value={linkFeatureId}
                               onChange={e => setLinkFeatureId(e.target.value)}
-                              className="w-full h-9 text-sm border border-gray-300 rounded-md px-2 focus:ring-2 focus:ring-teal-500"
+                              className={`w-full h-9 text-sm border rounded-md px-2 focus:ring-2 focus:ring-teal-500 ${linkMilestoneId && !linkFeatureId ? "border-red-300 bg-red-50" : "border-gray-300"}`}
                             >
-                              <option value="">— None —</option>
+                              <option value="">— Select a feature —</option>
                               {featuresList.map(f => (
                                 <option key={f.id} value={f.id}>{f.tracking_number ? `[${f.tracking_number}] ` : ""}{f.name}</option>
                               ))}
                             </select>
+                            {linkMilestoneId && !linkFeatureId && <p className="text-xs text-red-500 mt-1">Required when a milestone is set.</p>}
                           </div>
                         </>
                       )}

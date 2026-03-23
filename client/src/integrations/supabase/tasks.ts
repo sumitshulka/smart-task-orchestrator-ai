@@ -30,6 +30,7 @@ export type Task = {
   group_ids?: string[];           // array of group_ids this task belongs to (subtasks)
   is_dependent?: boolean;         // true if this task is a dependent
   // Project linkage
+  project_id?: string | null;
   milestone_id?: string | null;
   feature_id?: string | null;
 };

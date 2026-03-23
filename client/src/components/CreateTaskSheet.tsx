@@ -329,7 +329,16 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
         taskInput.dependencyTaskId = form.dependencyTaskId;
       }
 
-      // Project linkage
+      // Project linkage validation
+      if (selectedProjectId && !selectedMilestoneId) {
+        throw new Error("A milestone is required when linking a task to a project.");
+      }
+      if (selectedMilestoneId && !selectedFeatureId) {
+        throw new Error("A feature is required when a milestone is attached to a task.");
+      }
+
+      // Project linkage fields
+      if (selectedProjectId) taskInput.project_id = selectedProjectId;
       if (selectedMilestoneId) taskInput.milestone_id = selectedMilestoneId;
       if (selectedFeatureId) taskInput.feature_id = selectedFeatureId;
 
@@ -894,30 +903,38 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
                     {selectedProjectId && (
                       <>
                         <div>
-                          <label className="block text-sm font-semibold text-gray-700 mb-1">Milestone</label>
+                          <label className="block text-sm font-semibold text-gray-700 mb-1">
+                            Milestone <span className="text-red-500">*</span>
+                            <span className="ml-1 text-xs font-normal text-gray-500">(required for project tasks)</span>
+                          </label>
                           <select
                             value={selectedMilestoneId}
                             onChange={e => setSelectedMilestoneId(e.target.value)}
-                            className="w-full h-10 text-sm border border-gray-300 rounded-lg px-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            className={`w-full h-10 text-sm border rounded-lg px-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${!selectedMilestoneId ? "border-red-300 bg-red-50" : "border-gray-300"}`}
                           >
-                            <option value="">— None —</option>
+                            <option value="">— Select a milestone —</option>
                             {milestonesList.map(m => (
                               <option key={m.id} value={m.id}>{m.name}</option>
                             ))}
                           </select>
+                          {!selectedMilestoneId && <p className="text-xs text-red-500 mt-1">Required: milestone must be set for project-linked tasks.</p>}
                         </div>
                         <div>
-                          <label className="block text-sm font-semibold text-gray-700 mb-1">Feature</label>
+                          <label className="block text-sm font-semibold text-gray-700 mb-1">
+                            Feature <span className="text-red-500">*</span>
+                            <span className="ml-1 text-xs font-normal text-gray-500">(required when milestone is set)</span>
+                          </label>
                           <select
                             value={selectedFeatureId}
                             onChange={e => setSelectedFeatureId(e.target.value)}
-                            className="w-full h-10 text-sm border border-gray-300 rounded-lg px-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            className={`w-full h-10 text-sm border rounded-lg px-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${selectedMilestoneId && !selectedFeatureId ? "border-red-300 bg-red-50" : "border-gray-300"}`}
                           >
-                            <option value="">— None —</option>
+                            <option value="">— Select a feature —</option>
                             {featuresList.map(f => (
                               <option key={f.id} value={f.id}>{f.tracking_number ? `[${f.tracking_number}] ` : ""}{f.name}</option>
                             ))}
                           </select>
+                          {selectedMilestoneId && !selectedFeatureId && <p className="text-xs text-red-500 mt-1">Required: feature must be set when a milestone is attached.</p>}
                         </div>
                       </>
                     )}

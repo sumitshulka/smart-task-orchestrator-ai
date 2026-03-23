@@ -313,6 +313,7 @@ export const tasks = pgTable("tasks", {
   assigned_to: uuid("assigned_to").references(() => users.id),
   team_id: uuid("team_id").references(() => teams.id),
   dependencyTaskId: uuid("dependencyTaskId"),
+  project_id: uuid("project_id").references(() => projects.id, { onDelete: "set null" }),
   milestone_id: uuid("milestone_id"),
   feature_id: uuid("feature_id"),
   actual_completion_date: timestamp("actual_completion_date"),

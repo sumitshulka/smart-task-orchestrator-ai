@@ -554,6 +554,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/tasks", requireAnyAuthenticated, async (req, res) => {
     try {
       console.log("[DEBUG] Task creation request body:", JSON.stringify(req.body, null, 2));
+      // Validate project-linkage rules: milestone required when project set; feature required when milestone set
+      if (req.body.project_id && !req.body.milestone_id) {
+        return res.status(400).json({ error: "Milestone required", details: "A milestone is required when linking a task to a project." });
+      }
+      if (req.body.milestone_id && !req.body.feature_id) {
+        return res.status(400).json({ error: "Feature required", details: "A feature is required when a milestone is attached to a task." });
+      }
       const taskData = insertTaskSchema.parse(req.body);
       const task = await storage.createTask(taskData);
       
@@ -583,6 +590,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log("[DEBUG] Task update request body:", JSON.stringify(req.body, null, 2));
       const oldTask = await storage.getTask(req.params.id);
       
+      // Block completing a project-linked task that has no milestone
+      if (req.body.status && req.body.status.toLowerCase().includes("complet") && oldTask) {
+        const taskProjectId = req.body.project_id ?? oldTask.project_id;
+        const taskMilestoneId = req.body.milestone_id ?? oldTask.milestone_id;
+        if (taskProjectId && !taskMilestoneId) {
+          return res.status(400).json({
+            error: "Milestone required",
+            details: "A project-linked task cannot be completed or closed without a milestone attached. Please assign a milestone first.",
+          });
+        }
+      }
+
       // Check daily hour limit if task is being completed
       if (req.body.status === "completed" && oldTask && oldTask.status !== "completed") {
         const userId = req.headers['x-user-id'] as string || oldTask.assigned_to || oldTask.created_by;
