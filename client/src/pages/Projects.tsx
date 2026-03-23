@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Folder, Calendar, Clock, ChevronRight, Search, DollarSign, CheckCircle2 } from "lucide-react";
+import { Plus, Folder, Calendar, Clock, ChevronRight, Search, DollarSign, CheckCircle2, BarChart3 } from "lucide-react";
 import type { Project, ProjectTemplate } from "@shared/schema";
 import { format } from "date-fns";
 
@@ -183,10 +183,16 @@ export default function Projects() {
             {projects.length} project{projects.length !== 1 ? "s" : ""} total
           </p>
         </div>
-        <Button onClick={() => navigate("/projects/new")} className="flex items-center gap-2">
-          <Plus className="h-4 w-4" />
-          New Project
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => navigate("/projects/reports")} className="flex items-center gap-2">
+            <BarChart3 className="h-4 w-4" />
+            Reports
+          </Button>
+          <Button onClick={() => navigate("/projects/new")} className="flex items-center gap-2">
+            <Plus className="h-4 w-4" />
+            New Project
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}

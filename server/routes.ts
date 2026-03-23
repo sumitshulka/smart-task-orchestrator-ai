@@ -2065,6 +2065,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ============================================================
+  //  REPORTING ENDPOINTS
+  // ============================================================
+
+  // Comprehensive project data for all project reports
+  app.get("/api/reports/project-summary", requireAnyAuthenticated, async (req, res) => {
+    try {
+      const allProjects = await storage.getAllProjects();
+      const allTasks = await storage.getAllTasks();
+      const allUsers = await storage.getAllUsers();
+
+      const projectData = await Promise.all(
+        allProjects.map(async (project) => {
+          const [milestones, members, features] = await Promise.all([
+            storage.getProjectMilestones(project.id),
+            storage.getProjectMembers(project.id),
+            storage.getProjectFeatures(project.id),
+          ]);
+
+          const milestonesWithStages = await Promise.all(
+            milestones.map(async (ms) => {
+              const stages = await storage.getMilestoneStages(ms.id);
+              return { ...ms, stages };
+            })
+          );
+
+          const projectTasks = allTasks.filter((t) => t.project_id === project.id);
+
+          return {
+            ...project,
+            milestones: milestonesWithStages,
+            members,
+            features,
+            tasks: projectTasks,
+          };
+        })
+      );
+
+      res.json({ projects: projectData, users: allUsers });
+    } catch (error) {
+      console.error("Report error:", error);
+      res.status(500).json({ error: "Failed to generate report" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

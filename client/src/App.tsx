@@ -31,6 +31,7 @@ import HelpPage from "@/pages/HelpPage";
 import Projects from "@/pages/Projects";
 import ProjectDetail from "@/pages/ProjectDetail";
 import CreateProject from "@/pages/CreateProject";
+import ProjectReports from "@/pages/ProjectReports";
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -215,6 +216,14 @@ const App = () => (
               element={
                 <AdminLayout>
                   <CreateProject />
+                </AdminLayout>
+              }
+            />
+            <Route
+              path="/projects/reports"
+              element={
+                <AdminLayout>
+                  <ProjectReports />
                 </AdminLayout>
               }
             />
