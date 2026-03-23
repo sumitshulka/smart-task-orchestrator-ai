@@ -13,6 +13,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import CreateTaskSheet from "@/components/CreateTaskSheet";
+import EditTaskSheet from "@/components/EditTaskSheet";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -361,11 +363,8 @@ export default function ProjectDetail() {
   const [taskMilestoneFilter, setTaskMilestoneFilter] = useState("all");
   const [taskStatusFilter, setTaskStatusFilter]       = useState("all");
   const [taskAssigneeFilter, setTaskAssigneeFilter]   = useState("all");
-  const [newTaskDialog, setNewTaskDialog]             = useState(false);
-  const [newTaskForm, setNewTaskForm] = useState({
-    title: "", description: "", milestone_id: "none", feature_id: "none",
-    priority: 3, due_date: "", assigned_to: "unassigned",
-  });
+  const [editingTask, setEditingTask]       = useState<Task | null>(null);
+  const [editTaskOpen, setEditTaskOpen]     = useState(false);
 
   // State for dialogs
   const [confirmDialog, setConfirmDialog] = useState(false);
@@ -517,18 +516,6 @@ export default function ProjectDetail() {
       queryClient.invalidateQueries({ queryKey: ["/api/projects", id, "features"] });
       toast({ title: "Feature deleted" });
     },
-  });
-
-  // Create task linked to this project
-  const createTaskMutation = useMutation({
-    mutationFn: (data: Record<string, unknown>) => apiClient.post("/tasks", data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/projects", id, "tasks"] });
-      setNewTaskDialog(false);
-      setNewTaskForm({ title: "", description: "", milestone_id: "none", feature_id: "none", priority: 3, due_date: "", assigned_to: "unassigned" });
-      toast({ title: "Task created and linked to project" });
-    },
-    onError: () => toast({ title: "Failed to create task", variant: "destructive" }),
   });
 
   // Filtered tasks for Tasks tab
@@ -1074,13 +1061,16 @@ export default function ProjectDetail() {
                 setTaskSearch(""); setTaskMilestoneFilter("all"); setTaskStatusFilter("all"); setTaskAssigneeFilter("all");
               }}>Clear filters</Button>
             )}
-            <Button
-              size="sm"
-              className="h-9 text-xs ml-auto gap-1.5"
-              onClick={() => setNewTaskDialog(true)}
+            <CreateTaskSheet
+              defaultProjectId={id}
+              onTaskCreated={() => {
+                queryClient.invalidateQueries({ queryKey: ["/api/projects", id, "tasks"] });
+              }}
             >
-              <Plus className="h-3.5 w-3.5" /> New Task
-            </Button>
+              <Button size="sm" className="h-9 text-xs ml-auto gap-1.5">
+                <Plus className="h-3.5 w-3.5" /> New Task
+              </Button>
+            </CreateTaskSheet>
           </div>
 
           {/* Tasks grouped by milestone */}
@@ -1193,6 +1183,15 @@ export default function ProjectDetail() {
                               </span>
                             )}
 
+                            {/* Edit task */}
+                            <button
+                              title="Edit task"
+                              className="shrink-0 text-gray-400 hover:text-blue-500 transition-colors"
+                              onClick={() => { setEditingTask(task); setEditTaskOpen(true); }}
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </button>
+
                             {/* Open task link — navigate to tasks page */}
                             <Link
                               to="/tasks"
@@ -1213,121 +1212,18 @@ export default function ProjectDetail() {
         </TabsContent>
       </Tabs>
 
-      {/* ===== NEW TASK DIALOG ===== */}
-      <Dialog open={newTaskDialog} onOpenChange={setNewTaskDialog}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>New Task — {project?.name}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-1.5">
-              <Label>Title *</Label>
-              <Input
-                placeholder="Task title"
-                value={newTaskForm.title}
-                onChange={(e) => setNewTaskForm(p => ({ ...p, title: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Description</Label>
-              <Textarea
-                rows={2}
-                placeholder="Optional description..."
-                value={newTaskForm.description}
-                onChange={(e) => setNewTaskForm(p => ({ ...p, description: e.target.value }))}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              {/* Milestone */}
-              <div className="space-y-1.5">
-                <Label>Milestone</Label>
-                <Select value={newTaskForm.milestone_id} onValueChange={(v) => setNewTaskForm(p => ({ ...p, milestone_id: v }))}>
-                  <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="None" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">None</SelectItem>
-                    {milestones.map((ms) => (
-                      <SelectItem key={ms.id} value={ms.id}>{ms.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              {/* Feature */}
-              <div className="space-y-1.5">
-                <Label>Feature</Label>
-                <Select value={newTaskForm.feature_id} onValueChange={(v) => setNewTaskForm(p => ({ ...p, feature_id: v }))}>
-                  <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="None" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">None</SelectItem>
-                    {features.map((f) => (
-                      <SelectItem key={f.id} value={f.id}>{f.tracking_number} — {f.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              {/* Assignee */}
-              <div className="space-y-1.5">
-                <Label>Assignee</Label>
-                <Select value={newTaskForm.assigned_to} onValueChange={(v) => setNewTaskForm(p => ({ ...p, assigned_to: v }))}>
-                  <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Unassigned" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="unassigned">Unassigned</SelectItem>
-                    {members.map((m) => (
-                      <SelectItem key={m.user_id} value={m.user_id}>{getUserName(m.user_id)}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              {/* Priority */}
-              <div className="space-y-1.5">
-                <Label>Priority</Label>
-                <Select value={String(newTaskForm.priority)} onValueChange={(v) => setNewTaskForm(p => ({ ...p, priority: Number(v) }))}>
-                  <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="1">Critical</SelectItem>
-                    <SelectItem value="2">High</SelectItem>
-                    <SelectItem value="3">Medium</SelectItem>
-                    <SelectItem value="4">Low</SelectItem>
-                    <SelectItem value="5">Minimal</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              {/* Due date */}
-              <div className="space-y-1.5 col-span-2">
-                <Label>Due Date</Label>
-                <Input
-                  type="date"
-                  value={newTaskForm.due_date}
-                  onChange={(e) => setNewTaskForm(p => ({ ...p, due_date: e.target.value }))}
-                  className="h-9 text-sm"
-                />
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setNewTaskDialog(false)}>Cancel</Button>
-            <Button
-              disabled={!newTaskForm.title.trim() || createTaskMutation.isPending}
-              onClick={() => {
-                const payload: Record<string, unknown> = {
-                  title: newTaskForm.title.trim(),
-                  description: newTaskForm.description || null,
-                  project_id: id,
-                  milestone_id: newTaskForm.milestone_id === "none" ? null : newTaskForm.milestone_id,
-                  feature_id: newTaskForm.feature_id === "none" ? null : newTaskForm.feature_id,
-                  assigned_to: newTaskForm.assigned_to === "unassigned" ? null : newTaskForm.assigned_to,
-                  priority: newTaskForm.priority,
-                  due_date: newTaskForm.due_date || null,
-                  type: "task",
-                  created_by: user?.id,
-                };
-                createTaskMutation.mutate(payload);
-              }}
-            >
-              {createTaskMutation.isPending ? "Creating..." : "Create Task"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* ===== EDIT TASK SHEET ===== */}
+      <EditTaskSheet
+        task={editingTask}
+        open={editTaskOpen}
+        onOpenChange={(v) => {
+          setEditTaskOpen(v);
+          if (!v) setEditingTask(null);
+        }}
+        onUpdated={() => {
+          queryClient.invalidateQueries({ queryKey: ["/api/projects", id, "tasks"] });
+        }}
+      />
 
       {/* ===== CONFIRM DIALOG ===== */}
       <AlertDialog open={confirmDialog} onOpenChange={setConfirmDialog}>

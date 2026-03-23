@@ -55,6 +55,9 @@ interface Props {
   onTaskCreated: () => void;
   children?: React.ReactNode;
   defaultAssignedTo?: string;
+  defaultProjectId?: string;
+  defaultMilestoneId?: string;
+  defaultFeatureId?: string;
 }
 
 const initialForm = {
@@ -84,7 +87,10 @@ const typeOptions = [
   { value: "team", label: "Team" },
 ];
 
-const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssignedTo }) => {
+const CreateTaskSheet: React.FC<Props> = ({
+  onTaskCreated, children, defaultAssignedTo,
+  defaultProjectId, defaultMilestoneId, defaultFeatureId,
+}) => {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(initialForm);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -101,9 +107,9 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
   const [searchQuery, setSearchQuery] = useState("");
 
   // Project linkage
-  const [selectedProjectId, setSelectedProjectId] = useState<string>("");
-  const [selectedMilestoneId, setSelectedMilestoneId] = useState<string>("");
-  const [selectedFeatureId, setSelectedFeatureId] = useState<string>("");
+  const [selectedProjectId, setSelectedProjectId] = useState<string>(defaultProjectId ?? "");
+  const [selectedMilestoneId, setSelectedMilestoneId] = useState<string>(defaultMilestoneId ?? "");
+  const [selectedFeatureId, setSelectedFeatureId] = useState<string>(defaultFeatureId ?? "");
   const [projectsList, setProjectsList] = useState<any[]>([]);
   const [milestonesList, setMilestonesList] = useState<any[]>([]);
   const [featuresList, setFeaturesList] = useState<any[]>([]);
@@ -145,13 +151,22 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
       .catch(() => setProjectsList([]));
   }, [open, user?.id]);
 
+  // When opened with a defaultProjectId, apply it immediately
+  useEffect(() => {
+    if (open && defaultProjectId) {
+      setSelectedProjectId(defaultProjectId);
+      if (defaultMilestoneId) setSelectedMilestoneId(defaultMilestoneId);
+      if (defaultFeatureId)  setSelectedFeatureId(defaultFeatureId);
+    }
+  }, [open, defaultProjectId, defaultMilestoneId, defaultFeatureId]);
+
   // Fetch milestones and features when project changes
   useEffect(() => {
     if (!selectedProjectId || !user?.id) {
       setMilestonesList([]);
       setFeaturesList([]);
-      setSelectedMilestoneId("");
-      setSelectedFeatureId("");
+      if (!defaultMilestoneId) setSelectedMilestoneId("");
+      if (!defaultFeatureId)  setSelectedFeatureId("");
       return;
     }
     const headers = { "x-user-id": user.id };
@@ -163,8 +178,11 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
       .then(r => r.ok ? r.json() : [])
       .then(data => setFeaturesList(Array.isArray(data) ? data : []))
       .catch(() => setFeaturesList([]));
-    setSelectedMilestoneId("");
-    setSelectedFeatureId("");
+    // Only reset if not using caller-supplied defaults
+    if (selectedProjectId !== defaultProjectId) {
+      setSelectedMilestoneId("");
+      setSelectedFeatureId("");
+    }
   }, [selectedProjectId, user?.id]);
 
   // Get user role & update state on mount
@@ -349,6 +367,10 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
       await queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
       await queryClient.invalidateQueries({ queryKey: ['overdue-tasks'] });
       await queryClient.invalidateQueries({ queryKey: ['analytics-tasks'] });
+      // If created within a project context, also refresh project tasks
+      if (selectedProjectId) {
+        await queryClient.invalidateQueries({ queryKey: ['/api/projects', selectedProjectId, 'tasks'] });
+      }
       
       resetForm();
       setOpen(false);
@@ -379,11 +401,14 @@ const CreateTaskSheet: React.FC<Props> = ({ onTaskCreated, children, defaultAssi
     setForm(initialForm);
     setSelectedDependencyTask(null);
     setSearchQuery("");
-    setSelectedProjectId("");
-    setSelectedMilestoneId("");
-    setSelectedFeatureId("");
-    setMilestonesList([]);
-    setFeaturesList([]);
+    // Restore defaults if provided by caller, otherwise clear
+    setSelectedProjectId(defaultProjectId ?? "");
+    setSelectedMilestoneId(defaultMilestoneId ?? "");
+    setSelectedFeatureId(defaultFeatureId ?? "");
+    if (!defaultProjectId) {
+      setMilestonesList([]);
+      setFeaturesList([]);
+    }
   };
 
   // Assigned To dropdown (unchanged, uses getAssignableUsersForCreate)
