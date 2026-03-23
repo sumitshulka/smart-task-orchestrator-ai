@@ -30,6 +30,7 @@ import { queryClient } from "@/lib/queryClient";
 import HelpPage from "@/pages/HelpPage";
 import Projects from "@/pages/Projects";
 import ProjectDetail from "@/pages/ProjectDetail";
+import CreateProject from "@/pages/CreateProject";
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -206,6 +207,14 @@ const App = () => (
               element={
                 <AdminLayout>
                   <Projects />
+                </AdminLayout>
+              }
+            />
+            <Route
+              path="/projects/new"
+              element={
+                <AdminLayout>
+                  <CreateProject />
                 </AdminLayout>
               }
             />

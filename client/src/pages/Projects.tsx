@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { queryClient, apiRequest } from "@/lib/queryClient";
-import { useAuth } from "@/contexts/AuthContext";
-import { Link } from "react-router-dom";
+import { queryClient } from "@/lib/queryClient";
+import { apiClient } from "@/integrations/supabase/client";
+import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -69,6 +69,7 @@ const defaultForm: CreateProjectForm = {
 
 export default function Projects() {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [editProject, setEditProject] = useState<Project | null>(null);
   const [form, setForm] = useState<CreateProjectForm>(defaultForm);
@@ -77,28 +78,19 @@ export default function Projects() {
 
   const { data: projects = [], isLoading } = useQuery<Project[]>({
     queryKey: ["/api/projects"],
+    queryFn: () => apiClient.get("/projects"),
   });
 
   const { data: templates = [] } = useQuery<ProjectTemplate[]>({
     queryKey: ["/api/project-templates"],
+    queryFn: () => apiClient.get("/project-templates"),
   });
 
   const activeTemplates = templates.filter((t) => t.is_active);
 
-  const createMutation = useMutation({
-    mutationFn: (data: Record<string, unknown>) => apiRequest("POST", "/api/projects", data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
-      toast({ title: "Project created successfully" });
-      setOpen(false);
-      setForm(defaultForm);
-    },
-    onError: () => toast({ title: "Failed to create project", variant: "destructive" }),
-  });
-
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) =>
-      apiRequest("PUT", `/api/projects/${id}`, data),
+      apiClient.put(`/projects/${id}`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
       toast({ title: "Project updated successfully" });
@@ -107,12 +99,6 @@ export default function Projects() {
     },
     onError: () => toast({ title: "Failed to update project", variant: "destructive" }),
   });
-
-  const handleOpenCreate = () => {
-    setForm(defaultForm);
-    setEditProject(null);
-    setOpen(true);
-  };
 
   const handleOpenEdit = (p: Project, e: React.MouseEvent) => {
     e.preventDefault();
@@ -147,6 +133,7 @@ export default function Projects() {
       toast({ title: "Project name is required", variant: "destructive" });
       return;
     }
+    if (!editProject) return;
     const payload: Record<string, unknown> = {
       name: form.name.trim(),
       client_name: form.client_name || null,
@@ -159,11 +146,7 @@ export default function Projects() {
       budget_amount: form.budget_amount || null,
       currency: form.currency,
     };
-    if (editProject) {
-      updateMutation.mutate({ id: editProject.id, data: payload });
-    } else {
-      createMutation.mutate(payload);
-    }
+    updateMutation.mutate({ id: editProject.id, data: payload });
   };
 
   const filtered = projects.filter((p) => {
@@ -190,7 +173,7 @@ export default function Projects() {
             {projects.length} project{projects.length !== 1 ? "s" : ""} total
           </p>
         </div>
-        <Button onClick={handleOpenCreate} className="flex items-center gap-2">
+        <Button onClick={() => navigate("/projects/new")} className="flex items-center gap-2">
           <Plus className="h-4 w-4" />
           New Project
         </Button>
@@ -317,11 +300,11 @@ export default function Projects() {
         </div>
       )}
 
-      {/* Create / Edit Dialog */}
+      {/* Edit Dialog */}
       <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setEditProject(null); }}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{editProject ? "Edit Project" : "Create New Project"}</DialogTitle>
+            <DialogTitle>Edit Project</DialogTitle>
           </DialogHeader>
 
           <div className="grid grid-cols-2 gap-4 py-2">
@@ -460,9 +443,9 @@ export default function Projects() {
             </Button>
             <Button
               onClick={handleSubmit}
-              disabled={createMutation.isPending || updateMutation.isPending}
+              disabled={updateMutation.isPending}
             >
-              {editProject ? "Save Changes" : "Create Project"}
+              Save Changes
             </Button>
           </DialogFooter>
         </DialogContent>
