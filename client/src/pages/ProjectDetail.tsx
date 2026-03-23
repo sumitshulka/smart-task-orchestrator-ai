@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { queryClient, apiRequest } from "@/lib/queryClient";
+import { queryClient } from "@/lib/queryClient";
+import { apiClient } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -75,9 +76,7 @@ function MilestonePanel({ milestone, project, templateId }: {
 
   const { data: stages = [] } = useQuery<MilestoneStage[]>({
     queryKey: ["/api/milestones", milestone.id, "stages"],
-    queryFn: () => fetch(`/api/milestones/${milestone.id}/stages`, {
-      headers: { "x-user-id": localStorage.getItem("userId") ?? "" }
-    }).then(r => r.json()),
+    queryFn: () => apiClient.get(`/milestones/${milestone.id}/stages`),
     enabled: expanded,
   });
 
@@ -88,7 +87,7 @@ function MilestonePanel({ milestone, project, templateId }: {
 
   const createStage = useMutation({
     mutationFn: (data: Record<string, unknown>) =>
-      apiRequest("POST", `/api/milestones/${milestone.id}/stages`, data),
+      apiClient.post(`/milestones/${milestone.id}/stages`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/milestones", milestone.id, "stages"] });
       toast({ title: "Stage added" });
@@ -99,7 +98,7 @@ function MilestonePanel({ milestone, project, templateId }: {
 
   const updateStage = useMutation({
     mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) =>
-      apiRequest("PUT", `/api/milestones/${milestone.id}/stages/${id}`, data),
+      apiClient.put(`/milestones/${milestone.id}/stages/${id}`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/milestones", milestone.id, "stages"] });
       toast({ title: "Stage updated" });
@@ -110,7 +109,7 @@ function MilestonePanel({ milestone, project, templateId }: {
 
   const deleteStage = useMutation({
     mutationFn: (id: string) =>
-      apiRequest("DELETE", `/api/milestones/${milestone.id}/stages/${id}`),
+      apiClient.delete(`/milestones/${milestone.id}/stages/${id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/milestones", milestone.id, "stages"] });
       toast({ title: "Stage removed" });
@@ -119,7 +118,7 @@ function MilestonePanel({ milestone, project, templateId }: {
 
   const inheritStages = useMutation({
     mutationFn: () =>
-      apiRequest("POST", `/api/milestones/${milestone.id}/stages/inherit/${templateId}`),
+      apiClient.post(`/milestones/${milestone.id}/stages/inherit/${templateId}`, {}),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/milestones", milestone.id, "stages"] });
       toast({ title: "Template stages inherited" });
@@ -128,7 +127,7 @@ function MilestonePanel({ milestone, project, templateId }: {
 
   const updateMilestoneStatus = useMutation({
     mutationFn: (status: string) =>
-      apiRequest("PUT", `/api/projects/${project.id}/milestones/${milestone.id}`, { status }),
+      apiClient.put(`/projects/${project.id}/milestones/${milestone.id}`, { status }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects", project.id, "milestones"] });
     },
@@ -301,57 +300,47 @@ export default function ProjectDetail() {
   // Project data
   const { data: project, isLoading } = useQuery<Project>({
     queryKey: ["/api/projects", id],
-    queryFn: () => fetch(`/api/projects/${id}`, {
-      headers: { "x-user-id": localStorage.getItem("userId") ?? "" }
-    }).then(r => { if (!r.ok) throw new Error("Not found"); return r.json(); }),
+    queryFn: () => apiClient.get(`/projects/${id}`),
     enabled: !!id,
   });
 
   const { data: templates = [] } = useQuery<ProjectTemplate[]>({
     queryKey: ["/api/project-templates"],
+    queryFn: () => apiClient.get("/project-templates"),
   });
 
   const { data: users = [] } = useQuery<User[]>({
     queryKey: ["/api/users"],
+    queryFn: () => apiClient.get("/users"),
   });
 
   const { data: members = [] } = useQuery<ProjectMember[]>({
     queryKey: ["/api/projects", id, "members"],
-    queryFn: () => fetch(`/api/projects/${id}/members`, {
-      headers: { "x-user-id": localStorage.getItem("userId") ?? "" }
-    }).then(r => r.json()),
+    queryFn: () => apiClient.get(`/projects/${id}/members`),
     enabled: !!id,
   });
 
   const { data: memberHistory = [] } = useQuery<ProjectMemberHistory[]>({
     queryKey: ["/api/projects", id, "members", "history"],
-    queryFn: () => fetch(`/api/projects/${id}/members/history`, {
-      headers: { "x-user-id": localStorage.getItem("userId") ?? "" }
-    }).then(r => r.json()),
+    queryFn: () => apiClient.get(`/projects/${id}/members/history`),
     enabled: !!id,
   });
 
   const { data: milestones = [] } = useQuery<ProjectMilestone[]>({
     queryKey: ["/api/projects", id, "milestones"],
-    queryFn: () => fetch(`/api/projects/${id}/milestones`, {
-      headers: { "x-user-id": localStorage.getItem("userId") ?? "" }
-    }).then(r => r.json()),
+    queryFn: () => apiClient.get(`/projects/${id}/milestones`),
     enabled: !!id,
   });
 
   const { data: featureGroups = [] } = useQuery<ProjectFeatureGroup[]>({
     queryKey: ["/api/projects", id, "feature-groups"],
-    queryFn: () => fetch(`/api/projects/${id}/feature-groups`, {
-      headers: { "x-user-id": localStorage.getItem("userId") ?? "" }
-    }).then(r => r.json()),
+    queryFn: () => apiClient.get(`/projects/${id}/feature-groups`),
     enabled: !!id,
   });
 
   const { data: features = [] } = useQuery<ProjectFeature[]>({
     queryKey: ["/api/projects", id, "features"],
-    queryFn: () => fetch(`/api/projects/${id}/features`, {
-      headers: { "x-user-id": localStorage.getItem("userId") ?? "" }
-    }).then(r => r.json()),
+    queryFn: () => apiClient.get(`/projects/${id}/features`),
     enabled: !!id,
   });
 
@@ -373,7 +362,7 @@ export default function ProjectDetail() {
 
   // Mutations
   const confirmMutation = useMutation({
-    mutationFn: () => apiRequest("POST", `/api/projects/${id}/confirm`),
+    mutationFn: () => apiClient.post(`/projects/${id}/confirm`, {}),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects", id] });
       queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
@@ -384,7 +373,7 @@ export default function ProjectDetail() {
   });
 
   const addMemberMutation = useMutation({
-    mutationFn: (data: Record<string, unknown>) => apiRequest("POST", `/api/projects/${id}/members`, data),
+    mutationFn: (data: Record<string, unknown>) => apiClient.post(`/projects/${id}/members`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects", id, "members"] });
       queryClient.invalidateQueries({ queryKey: ["/api/projects", id, "members", "history"] });
@@ -398,7 +387,7 @@ export default function ProjectDetail() {
 
   const updateMemberMutation = useMutation({
     mutationFn: ({ memberId, data }: { memberId: string; data: Record<string, unknown> }) =>
-      apiRequest("PUT", `/api/projects/${id}/members/${memberId}`, data),
+      apiClient.put(`/projects/${id}/members/${memberId}`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects", id, "members"] });
       queryClient.invalidateQueries({ queryKey: ["/api/projects", id, "members", "history"] });
@@ -410,7 +399,7 @@ export default function ProjectDetail() {
   });
 
   const removeMemberMutation = useMutation({
-    mutationFn: (memberId: string) => apiRequest("DELETE", `/api/projects/${id}/members/${memberId}`),
+    mutationFn: (memberId: string) => apiClient.delete(`/projects/${id}/members/${memberId}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects", id, "members"] });
       queryClient.invalidateQueries({ queryKey: ["/api/projects", id, "members", "history"] });
@@ -419,7 +408,7 @@ export default function ProjectDetail() {
   });
 
   const createMilestoneMutation = useMutation({
-    mutationFn: (data: Record<string, unknown>) => apiRequest("POST", `/api/projects/${id}/milestones`, data),
+    mutationFn: (data: Record<string, unknown>) => apiClient.post(`/projects/${id}/milestones`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects", id, "milestones"] });
       toast({ title: "Milestone created" });
@@ -431,7 +420,7 @@ export default function ProjectDetail() {
 
   const updateMilestoneMutation = useMutation({
     mutationFn: ({ msId, data }: { msId: string; data: Record<string, unknown> }) =>
-      apiRequest("PUT", `/api/projects/${id}/milestones/${msId}`, data),
+      apiClient.put(`/projects/${id}/milestones/${msId}`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects", id, "milestones"] });
       toast({ title: "Milestone updated" });
@@ -441,7 +430,7 @@ export default function ProjectDetail() {
   });
 
   const deleteMilestoneMutation = useMutation({
-    mutationFn: (msId: string) => apiRequest("DELETE", `/api/projects/${id}/milestones/${msId}`),
+    mutationFn: (msId: string) => apiClient.delete(`/projects/${id}/milestones/${msId}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects", id, "milestones"] });
       toast({ title: "Milestone deleted" });
@@ -449,7 +438,7 @@ export default function ProjectDetail() {
   });
 
   const createFGMutation = useMutation({
-    mutationFn: (data: Record<string, unknown>) => apiRequest("POST", `/api/projects/${id}/feature-groups`, data),
+    mutationFn: (data: Record<string, unknown>) => apiClient.post(`/projects/${id}/feature-groups`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects", id, "feature-groups"] });
       toast({ title: "Feature group created" });
@@ -460,7 +449,7 @@ export default function ProjectDetail() {
 
   const updateFGMutation = useMutation({
     mutationFn: ({ fgId, data }: { fgId: string; data: Record<string, unknown> }) =>
-      apiRequest("PUT", `/api/projects/${id}/feature-groups/${fgId}`, data),
+      apiClient.put(`/projects/${id}/feature-groups/${fgId}`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects", id, "feature-groups"] });
       toast({ title: "Feature group updated" });
@@ -470,7 +459,7 @@ export default function ProjectDetail() {
   });
 
   const deleteFGMutation = useMutation({
-    mutationFn: (fgId: string) => apiRequest("DELETE", `/api/projects/${id}/feature-groups/${fgId}`),
+    mutationFn: (fgId: string) => apiClient.delete(`/projects/${id}/feature-groups/${fgId}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects", id, "feature-groups"] });
       queryClient.invalidateQueries({ queryKey: ["/api/projects", id, "features"] });
@@ -479,7 +468,7 @@ export default function ProjectDetail() {
   });
 
   const createFeatureMutation = useMutation({
-    mutationFn: (data: Record<string, unknown>) => apiRequest("POST", `/api/projects/${id}/features`, data),
+    mutationFn: (data: Record<string, unknown>) => apiClient.post(`/projects/${id}/features`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects", id, "features"] });
       toast({ title: "Feature created" });
@@ -490,7 +479,7 @@ export default function ProjectDetail() {
 
   const updateFeatureMutation = useMutation({
     mutationFn: ({ fId, data }: { fId: string; data: Record<string, unknown> }) =>
-      apiRequest("PUT", `/api/projects/${id}/features/${fId}`, data),
+      apiClient.put(`/projects/${id}/features/${fId}`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects", id, "features"] });
       toast({ title: "Feature updated" });
@@ -500,7 +489,7 @@ export default function ProjectDetail() {
   });
 
   const deleteFeatureMutation = useMutation({
-    mutationFn: (fId: string) => apiRequest("DELETE", `/api/projects/${id}/features/${fId}`),
+    mutationFn: (fId: string) => apiClient.delete(`/projects/${id}/features/${fId}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects", id, "features"] });
       toast({ title: "Feature deleted" });
