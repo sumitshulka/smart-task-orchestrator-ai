@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Folder, Calendar, DollarSign, Clock, FileText, Layers } from "lucide-react";
+import { ArrowLeft, Folder, Calendar, DollarSign, Clock, FileText, Layers, Palette } from "lucide-react";
 import type { ProjectTemplate } from "@shared/schema";
 
 const PROJECT_TYPE_LABELS: Record<string, string> = {
@@ -29,6 +29,12 @@ const PROJECT_TYPE_DESCRIPTIONS: Record<string, string> = {
 
 const CURRENCIES = ["USD", "EUR", "GBP", "INR", "AUD", "CAD", "SGD", "AED"];
 
+const COLOR_SWATCHES = [
+  "#6366f1", "#3b82f6", "#0ea5e9", "#06b6d4",
+  "#10b981", "#22c55e", "#eab308", "#f97316",
+  "#ef4444", "#ec4899", "#a855f7", "#64748b",
+];
+
 interface CreateProjectForm {
   name: string;
   client_name: string;
@@ -40,6 +46,7 @@ interface CreateProjectForm {
   total_effort_hours: string;
   budget_amount: string;
   currency: string;
+  color: string;
 }
 
 const defaultForm: CreateProjectForm = {
@@ -53,6 +60,7 @@ const defaultForm: CreateProjectForm = {
   total_effort_hours: "",
   budget_amount: "",
   currency: "USD",
+  color: "#6366f1",
 };
 
 export default function CreateProject() {
@@ -99,6 +107,7 @@ export default function CreateProject() {
         total_effort_hours: form.total_effort_hours ? parseInt(form.total_effort_hours) : null,
         budget_amount: form.budget_amount || null,
         currency: form.currency,
+        color: form.color,
       };
       const project = await apiClient.post("/projects", payload);
       toast({ title: "Project created successfully" });
@@ -170,6 +179,44 @@ export default function CreateProject() {
               onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
               rows={3}
             />
+          </div>
+
+          {/* Project Color */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Palette className="h-3.5 w-3.5 text-gray-500" />
+              <Label>Project Color</Label>
+            </div>
+            <div className="flex items-center gap-3">
+              <div
+                className="w-8 h-8 rounded-md border border-gray-200 dark:border-gray-700 shrink-0"
+                style={{ backgroundColor: form.color }}
+              />
+              <div className="flex flex-wrap gap-2">
+                {COLOR_SWATCHES.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    title={c}
+                    onClick={() => setForm((p) => ({ ...p, color: c }))}
+                    className="w-6 h-6 rounded-full border-2 transition-transform hover:scale-110"
+                    style={{
+                      backgroundColor: c,
+                      borderColor: form.color === c ? "#1d4ed8" : "transparent",
+                      outline: form.color === c ? "2px solid #bfdbfe" : "none",
+                    }}
+                  />
+                ))}
+                <input
+                  type="color"
+                  value={form.color}
+                  onChange={(e) => setForm((p) => ({ ...p, color: e.target.value }))}
+                  className="w-6 h-6 rounded cursor-pointer border border-gray-300 dark:border-gray-600 p-0"
+                  title="Custom color"
+                />
+              </div>
+            </div>
+            <p className="text-xs text-gray-400">Shown as a color stripe on the project card</p>
           </div>
         </CardContent>
       </Card>

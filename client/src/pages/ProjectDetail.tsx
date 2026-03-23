@@ -558,7 +558,7 @@ export default function ProjectDetail() {
   }
 
   return (
-    <div className="p-6 space-y-6 max-w-5xl mx-auto">
+    <div className="p-6 space-y-6">
       {/* Top bar */}
       <div className="flex items-start gap-4">
         <Button variant="ghost" size="sm" onClick={() => navigate("/projects")} className="mt-1">

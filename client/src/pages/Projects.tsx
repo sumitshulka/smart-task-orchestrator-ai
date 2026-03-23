@@ -5,14 +5,14 @@ import { apiClient } from "@/integrations/supabase/client";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Folder, Calendar, Clock, ChevronRight, Search } from "lucide-react";
+import { Plus, Folder, Calendar, Clock, ChevronRight, Search, DollarSign, CheckCircle2 } from "lucide-react";
 import type { Project, ProjectTemplate } from "@shared/schema";
 import { format } from "date-fns";
 
@@ -41,7 +41,13 @@ const PROJECT_TYPE_LABELS: Record<string, string> = {
 
 const CURRENCIES = ["USD", "EUR", "GBP", "INR", "AUD", "CAD", "SGD", "AED"];
 
-interface CreateProjectForm {
+const COLOR_SWATCHES = [
+  "#6366f1", "#3b82f6", "#0ea5e9", "#06b6d4",
+  "#10b981", "#22c55e", "#eab308", "#f97316",
+  "#ef4444", "#ec4899", "#a855f7", "#64748b",
+];
+
+interface EditProjectForm {
   name: string;
   client_name: string;
   template_id: string;
@@ -52,9 +58,10 @@ interface CreateProjectForm {
   total_effort_hours: string;
   budget_amount: string;
   currency: string;
+  color: string;
 }
 
-const defaultForm: CreateProjectForm = {
+const defaultForm: EditProjectForm = {
   name: "",
   client_name: "",
   template_id: "",
@@ -65,6 +72,7 @@ const defaultForm: CreateProjectForm = {
   total_effort_hours: "",
   budget_amount: "",
   currency: "USD",
+  color: "#6366f1",
 };
 
 export default function Projects() {
@@ -72,9 +80,11 @@ export default function Projects() {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [editProject, setEditProject] = useState<Project | null>(null);
-  const [form, setForm] = useState<CreateProjectForm>(defaultForm);
+  const [form, setForm] = useState<EditProjectForm>(defaultForm);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [typeFilter, setTypeFilter] = useState("all");
+  const [confirmedFilter, setConfirmedFilter] = useState("all");
 
   const { data: projects = [], isLoading } = useQuery<Project[]>({
     queryKey: ["/api/projects"],
@@ -115,17 +125,9 @@ export default function Projects() {
       total_effort_hours: p.total_effort_hours?.toString() ?? "",
       budget_amount: p.budget_amount ?? "",
       currency: p.currency ?? "USD",
+      color: (p as any).color ?? "#6366f1",
     });
     setOpen(true);
-  };
-
-  const handleTemplateChange = (templateId: string) => {
-    const tpl = activeTemplates.find((t) => t.id === templateId);
-    setForm((prev) => ({
-      ...prev,
-      template_id: templateId,
-      project_type: tpl ? tpl.project_type : prev.project_type,
-    }));
   };
 
   const handleSubmit = () => {
@@ -145,6 +147,7 @@ export default function Projects() {
       total_effort_hours: form.total_effort_hours ? parseInt(form.total_effort_hours) : null,
       budget_amount: form.budget_amount || null,
       currency: form.currency,
+      color: form.color,
     };
     updateMutation.mutate({ id: editProject.id, data: payload });
   };
@@ -155,13 +158,20 @@ export default function Projects() {
       p.name.toLowerCase().includes(search.toLowerCase()) ||
       (p.client_name && p.client_name.toLowerCase().includes(search.toLowerCase()));
     const matchStatus = statusFilter === "all" || p.status === statusFilter;
-    return matchSearch && matchStatus;
+    const matchType = typeFilter === "all" || p.project_type === typeFilter;
+    const matchConfirmed =
+      confirmedFilter === "all" ||
+      (confirmedFilter === "confirmed" && p.is_confirmed) ||
+      (confirmedFilter === "unconfirmed" && !p.is_confirmed);
+    return matchSearch && matchStatus && matchType && matchConfirmed;
   });
 
   const getTemplateName = (templateId: string | null) => {
     if (!templateId) return null;
     return templates.find((t) => t.id === templateId)?.name ?? null;
   };
+
+  const projectColor = (p: Project) => (p as any).color ?? "#6366f1";
 
   return (
     <div className="p-6 space-y-6">
@@ -180,8 +190,8 @@ export default function Projects() {
       </div>
 
       {/* Filters */}
-      <div className="flex items-center gap-3">
-        <div className="relative flex-1 max-w-xs">
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative min-w-48 flex-1 max-w-xs">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
           <Input
             placeholder="Search projects..."
@@ -192,7 +202,7 @@ export default function Projects() {
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-36">
-            <SelectValue />
+            <SelectValue placeholder="Status" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Statuses</SelectItem>
@@ -201,6 +211,37 @@ export default function Projects() {
             ))}
           </SelectContent>
         </Select>
+        <Select value={typeFilter} onValueChange={setTypeFilter}>
+          <SelectTrigger className="w-44">
+            <SelectValue placeholder="Type" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Types</SelectItem>
+            {Object.entries(PROJECT_TYPE_LABELS).map(([v, l]) => (
+              <SelectItem key={v} value={v}>{l}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={confirmedFilter} onValueChange={setConfirmedFilter}>
+          <SelectTrigger className="w-40">
+            <SelectValue placeholder="Confirmation" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All</SelectItem>
+            <SelectItem value="confirmed">Confirmed</SelectItem>
+            <SelectItem value="unconfirmed">Unconfirmed</SelectItem>
+          </SelectContent>
+        </Select>
+        {(search || statusFilter !== "all" || typeFilter !== "all" || confirmedFilter !== "all") && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-gray-500 text-xs"
+            onClick={() => { setSearch(""); setStatusFilter("all"); setTypeFilter("all"); setConfirmedFilter("all"); }}
+          >
+            Clear filters
+          </Button>
+        )}
       </div>
 
       {/* Project grid */}
@@ -219,84 +260,106 @@ export default function Projects() {
         <div className="text-center py-16 text-gray-500 dark:text-gray-400">
           <Folder className="h-12 w-12 mx-auto mb-3 opacity-30" />
           <p className="font-medium">
-            {search || statusFilter !== "all" ? "No projects match your filters" : "No projects yet"}
+            {search || statusFilter !== "all" || typeFilter !== "all" || confirmedFilter !== "all"
+              ? "No projects match your filters"
+              : "No projects yet"}
           </p>
-          {!search && statusFilter === "all" && (
+          {!search && statusFilter === "all" && typeFilter === "all" && confirmedFilter === "all" && (
             <p className="text-sm mt-1">Click "New Project" to get started</p>
           )}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filtered.map((project) => (
-            <Link key={project.id} to={`/projects/${project.id}`} className="block">
-              <Card className="hover:shadow-md transition-shadow cursor-pointer border hover:border-blue-300 dark:hover:border-blue-600">
-                <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <CardTitle className="text-base font-semibold leading-tight line-clamp-2">
-                      {project.name}
-                    </CardTitle>
-                    <Badge className={`text-xs shrink-0 border-0 ${STATUS_COLORS[project.status]}`}>
-                      {STATUS_LABELS[project.status]}
-                    </Badge>
-                  </div>
-                  {project.client_name && (
-                    <p className="text-sm text-gray-500 dark:text-gray-400">{project.client_name}</p>
-                  )}
-                </CardHeader>
-                <CardContent className="pt-0 space-y-3">
-                  <div className="flex flex-wrap gap-2">
-                    <Badge variant="outline" className="text-xs">
-                      {PROJECT_TYPE_LABELS[project.project_type] ?? project.project_type}
-                    </Badge>
-                    {getTemplateName(project.template_id) && (
-                      <Badge variant="secondary" className="text-xs">
-                        {getTemplateName(project.template_id)}
+          {filtered.map((project) => {
+            const color = projectColor(project);
+            return (
+              <Link key={project.id} to={`/projects/${project.id}`} className="block group">
+                <Card
+                  className="hover:shadow-lg transition-all duration-200 cursor-pointer overflow-hidden border border-gray-200 dark:border-gray-700"
+                  style={{ borderLeft: `5px solid ${color}` }}
+                >
+                  <CardHeader className="pb-2 pt-4 px-4">
+                    {/* Status row */}
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                      <Badge className={`text-xs border-0 ${STATUS_COLORS[project.status]}`}>
+                        {STATUS_LABELS[project.status]}
                       </Badge>
-                    )}
-                    {project.is_confirmed && (
-                      <Badge className="text-xs bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200 border-0">
-                        Confirmed
-                      </Badge>
-                    )}
-                  </div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400 space-y-1">
-                    {project.start_date && (
-                      <div className="flex items-center gap-1.5">
-                        <Calendar className="h-3 w-3" />
-                        <span>Start: {format(new Date(project.start_date), "MMM d, yyyy")}</span>
-                      </div>
-                    )}
-                    {project.projected_end_date && (
-                      <div className="flex items-center gap-1.5">
-                        <Calendar className="h-3 w-3" />
-                        <span>Due: {format(new Date(project.projected_end_date), "MMM d, yyyy")}</span>
-                      </div>
-                    )}
-                    {project.total_effort_hours && (
-                      <div className="flex items-center gap-1.5">
-                        <Clock className="h-3 w-3" />
-                        <span>{project.total_effort_hours}h estimated</span>
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-xs h-7 px-2"
-                      onClick={(e) => handleOpenEdit(project, e)}
-                    >
-                      Edit
-                    </Button>
-                    <div className="flex items-center text-blue-600 dark:text-blue-400">
-                      <span className="text-xs font-medium">View details</span>
-                      <ChevronRight className="h-3.5 w-3.5" />
+                      {project.is_confirmed && (
+                        <span className="flex items-center gap-1 text-xs text-purple-600 dark:text-purple-400 font-medium">
+                          <CheckCircle2 className="h-3 w-3" />
+                          Confirmed
+                        </span>
+                      )}
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
-          ))}
+
+                    {/* Project name */}
+                    <h3 className="font-semibold text-gray-900 dark:text-white leading-snug line-clamp-2 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                      {project.name}
+                    </h3>
+                    {project.client_name && (
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{project.client_name}</p>
+                    )}
+                  </CardHeader>
+
+                  <CardContent className="pt-0 pb-4 px-4 space-y-3">
+                    {/* Type & template badges */}
+                    <div className="flex flex-wrap gap-1.5">
+                      <Badge variant="outline" className="text-xs">
+                        {PROJECT_TYPE_LABELS[project.project_type] ?? project.project_type}
+                      </Badge>
+                      {getTemplateName(project.template_id) && (
+                        <Badge variant="secondary" className="text-xs">
+                          {getTemplateName(project.template_id)}
+                        </Badge>
+                      )}
+                    </div>
+
+                    {/* Meta info */}
+                    <div className="text-xs text-gray-500 dark:text-gray-400 space-y-1.5">
+                      {project.start_date && (
+                        <div className="flex items-center gap-1.5">
+                          <Calendar className="h-3 w-3 shrink-0" />
+                          <span>
+                            {format(new Date(project.start_date), "MMM d, yyyy")}
+                            {project.projected_end_date && (
+                              <> → {format(new Date(project.projected_end_date), "MMM d, yyyy")}</>
+                            )}
+                          </span>
+                        </div>
+                      )}
+                      {project.total_effort_hours && (
+                        <div className="flex items-center gap-1.5">
+                          <Clock className="h-3 w-3 shrink-0" />
+                          <span>{project.total_effort_hours.toLocaleString()} hrs estimated</span>
+                        </div>
+                      )}
+                      {project.budget_amount && (
+                        <div className="flex items-center gap-1.5">
+                          <DollarSign className="h-3 w-3 shrink-0" />
+                          <span>{project.currency ?? "USD"} {parseFloat(project.budget_amount).toLocaleString()}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Footer row */}
+                    <div className="flex items-center justify-between pt-1 border-t border-gray-100 dark:border-gray-800">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-xs h-7 px-2 text-gray-500 hover:text-gray-700"
+                        onClick={(e) => handleOpenEdit(project, e)}
+                      >
+                        Edit
+                      </Button>
+                      <span className="flex items-center gap-1 text-xs font-medium text-blue-600 dark:text-blue-400 group-hover:gap-2 transition-all">
+                        View details <ChevronRight className="h-3.5 w-3.5" />
+                      </span>
+                    </div>
+                  </CardContent>
+                </Card>
+              </Link>
+            );
+          })}
         </div>
       )}
 
@@ -333,7 +396,14 @@ export default function Projects() {
               <Label>Project Template</Label>
               <Select
                 value={form.template_id || "none"}
-                onValueChange={(v) => handleTemplateChange(v === "none" ? "" : v)}
+                onValueChange={(v) => {
+                  const tpl = activeTemplates.find((t) => t.id === v);
+                  setForm((p) => ({
+                    ...p,
+                    template_id: v === "none" ? "" : v,
+                    project_type: tpl ? tpl.project_type : p.project_type,
+                  }));
+                }}
                 disabled={!!(editProject?.is_confirmed)}
               >
                 <SelectTrigger>
@@ -371,6 +441,40 @@ export default function Projects() {
               {form.template_id && (
                 <p className="text-xs text-gray-400">Set by template</p>
               )}
+            </div>
+
+            {/* Project Color */}
+            <div className="space-y-1.5">
+              <Label>Project Color</Label>
+              <div className="flex items-center gap-3">
+                <div
+                  className="w-8 h-8 rounded-md border border-gray-200 dark:border-gray-700 shrink-0"
+                  style={{ backgroundColor: form.color }}
+                />
+                <div className="flex flex-wrap gap-1.5">
+                  {COLOR_SWATCHES.map((c) => (
+                    <button
+                      key={c}
+                      type="button"
+                      title={c}
+                      onClick={() => setForm((p) => ({ ...p, color: c }))}
+                      className="w-5 h-5 rounded-full border-2 transition-transform hover:scale-110"
+                      style={{
+                        backgroundColor: c,
+                        borderColor: form.color === c ? "#1d4ed8" : "transparent",
+                        outline: form.color === c ? "2px solid #bfdbfe" : "none",
+                      }}
+                    />
+                  ))}
+                  <input
+                    type="color"
+                    value={form.color}
+                    onChange={(e) => setForm((p) => ({ ...p, color: e.target.value }))}
+                    className="w-5 h-5 rounded cursor-pointer border border-gray-300 dark:border-gray-600 p-0"
+                    title="Custom color"
+                  />
+                </div>
+              </div>
             </div>
 
             {/* Start Date */}
@@ -441,10 +545,7 @@ export default function Projects() {
             <Button variant="outline" onClick={() => { setOpen(false); setEditProject(null); }}>
               Cancel
             </Button>
-            <Button
-              onClick={handleSubmit}
-              disabled={updateMutation.isPending}
-            >
+            <Button onClick={handleSubmit} disabled={updateMutation.isPending}>
               Save Changes
             </Button>
           </DialogFooter>
