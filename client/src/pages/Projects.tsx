@@ -6,6 +6,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -13,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import {
   Plus, Folder, Calendar, Clock, DollarSign, Search, BarChart3,
-  User, Users, CheckCircle2, Pencil, ChevronRight, AlertTriangle, Timer
+  User, Users, CheckCircle2, Pencil, ChevronRight, AlertTriangle, Timer, Trash2
 } from "lucide-react";
 import type { Project, ProjectTemplate } from "@shared/schema";
 import { format, differenceInDays } from "date-fns";
@@ -83,6 +84,7 @@ export default function Projects() {
   const [statusFilter, setStatusFilter]       = useState("all");
   const [typeFilter, setTypeFilter]           = useState("all");
   const [confirmedFilter, setConfirmedFilter] = useState("all");
+  const [deleteProject, setDeleteProject]     = useState<Project | null>(null);
 
   const { data: projects = [], isLoading } = useQuery<Project[]>({
     queryKey: ["/api/projects"],
@@ -120,6 +122,16 @@ export default function Projects() {
       setOpen(false); setEditProject(null);
     },
     onError: () => toast({ title: "Failed to update project", variant: "destructive" }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => apiClient.delete(`/projects/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+      toast({ title: "Project deleted", description: "All associated data has been permanently removed." });
+      setDeleteProject(null);
+    },
+    onError: () => toast({ title: "Failed to delete project", variant: "destructive" }),
   });
 
   const handleOpenEdit = (p: Project, e: React.MouseEvent) => {
@@ -359,8 +371,8 @@ export default function Projects() {
                   </div>
                 </Link>
 
-                {/* Edit button — overlaid so it doesn't bubble to Link */}
-                <div className="flex items-center pr-3 shrink-0">
+                {/* Action buttons — overlaid so they don't bubble to Link */}
+                <div className="flex items-center pr-3 gap-0.5 shrink-0">
                   <Button
                     variant="ghost"
                     size="sm"
@@ -369,6 +381,15 @@ export default function Projects() {
                     title="Edit project"
                   >
                     <Pencil className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 w-8 p-0 text-red-400 hover:text-red-600 dark:hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); setDeleteProject(project); }}
+                    title="Delete project"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
                   </Button>
                 </div>
               </div>
@@ -513,6 +534,39 @@ export default function Projects() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ── Delete Confirmation ──────────────────────────────────────────────── */}
+      <AlertDialog open={!!deleteProject} onOpenChange={(v) => { if (!v) setDeleteProject(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-red-600">
+              <Trash2 className="h-5 w-5" /> Delete Project?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <span className="block">
+                This will <strong>permanently delete</strong> the project <strong>&ldquo;{deleteProject?.name}&rdquo;</strong> and all of its associated data:
+              </span>
+              <ul className="list-disc list-inside text-sm space-y-1 mt-1">
+                <li>All members and membership history</li>
+                <li>All milestones and their stages</li>
+                <li>All feature groups and features</li>
+                <li>All tasks linked to this project</li>
+              </ul>
+              <span className="block mt-2 font-medium text-red-600">This action cannot be undone.</span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteMutation.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700 text-white"
+              disabled={deleteMutation.isPending}
+              onClick={(e) => { e.preventDefault(); if (deleteProject) deleteMutation.mutate(deleteProject.id); }}
+            >
+              {deleteMutation.isPending ? "Deleting…" : "Yes, Delete Project"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -368,6 +368,7 @@ export default function ProjectDetail() {
 
   // State for dialogs
   const [confirmDialog, setConfirmDialog] = useState(false);
+  const [deleteDialog, setDeleteDialog] = useState(false);
   const [memberDialog, setMemberDialog] = useState(false);
   const [editMember, setEditMember] = useState<ProjectMember | null>(null);
   const [memberForm, setMemberForm] = useState({ user_id: "", member_type: "member", project_role: "", allocation_percentage: 100 });
@@ -392,6 +393,16 @@ export default function ProjectDetail() {
       setConfirmDialog(false);
     },
     onError: () => toast({ title: "Failed to confirm project", variant: "destructive" }),
+  });
+
+  const deleteProjectMutation = useMutation({
+    mutationFn: () => apiClient.delete(`/projects/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+      toast({ title: "Project deleted", description: "All associated data has been permanently removed." });
+      navigate("/projects");
+    },
+    onError: () => toast({ title: "Failed to delete project", variant: "destructive" }),
   });
 
   const addMemberMutation = useMutation({
@@ -637,11 +648,21 @@ export default function ProjectDetail() {
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{project.client_name}</p>
           )}
         </div>
-        {!project.is_confirmed && (
-          <Button onClick={() => setConfirmDialog(true)} className="bg-green-600 hover:bg-green-700 text-white">
-            <CheckCircle2 className="h-4 w-4 mr-1.5" /> Confirm Project
+        <div className="flex items-center gap-2 shrink-0">
+          {!project.is_confirmed && (
+            <Button onClick={() => setConfirmDialog(true)} className="bg-green-600 hover:bg-green-700 text-white">
+              <CheckCircle2 className="h-4 w-4 mr-1.5" /> Confirm Project
+            </Button>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            className="text-red-600 border-red-200 hover:bg-red-50 hover:border-red-400 dark:text-red-400 dark:border-red-800 dark:hover:bg-red-950"
+            onClick={() => setDeleteDialog(true)}
+          >
+            <Trash2 className="h-4 w-4 mr-1.5" /> Delete Project
           </Button>
-        )}
+        </div>
       </div>
 
       {/* Tabs */}
@@ -1239,6 +1260,39 @@ export default function ProjectDetail() {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={() => confirmMutation.mutate()} className="bg-green-600 hover:bg-green-700">
               Confirm Project
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* ===== DELETE PROJECT DIALOG ===== */}
+      <AlertDialog open={deleteDialog} onOpenChange={setDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-red-600">
+              <Trash2 className="h-5 w-5" /> Delete Project?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <span className="block">
+                This will <strong>permanently delete</strong> the project <strong>&ldquo;{project?.name}&rdquo;</strong> and all of its associated data:
+              </span>
+              <ul className="list-disc list-inside text-sm space-y-1 mt-1">
+                <li>All members and membership history</li>
+                <li>All milestones and their stages</li>
+                <li>All feature groups and features</li>
+                <li>All tasks linked to this project</li>
+              </ul>
+              <span className="block mt-2 font-medium text-red-600">This action cannot be undone.</span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteProjectMutation.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700 text-white"
+              disabled={deleteProjectMutation.isPending}
+              onClick={(e) => { e.preventDefault(); deleteProjectMutation.mutate(); }}
+            >
+              {deleteProjectMutation.isPending ? "Deleting…" : "Yes, Delete Project"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
