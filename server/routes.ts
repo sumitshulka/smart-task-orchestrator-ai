@@ -1127,6 +1127,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Project tasks
+  app.get("/api/projects/:id/tasks", requireAnyAuthenticated, async (req, res) => {
+    try {
+      const projectTasks = await storage.getTasksByProject(req.params.id);
+      res.json(projectTasks);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch project tasks" });
+    }
+  });
+
   // Task Group member management routes
   app.post("/api/task-groups/:id/members", requireAnyAuthenticated, async (req, res) => {
     try {

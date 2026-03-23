@@ -97,6 +97,7 @@ export interface IStorage {
   getAllTasks(): Promise<Task[]>;
   getTasksByUser(userId: string): Promise<Task[]>;
   getTasksByTeam(teamId: string): Promise<Task[]>;
+  getTasksByProject(projectId: string): Promise<Task[]>;
   createTask(task: InsertTask): Promise<Task>;
   updateTask(id: string, updates: Partial<Task>): Promise<Task>;
   deleteTask(id: string): Promise<void>;
@@ -401,6 +402,10 @@ export class DatabaseStorage implements IStorage {
 
   async getTasksByTeam(teamId: string): Promise<Task[]> {
     return await db.select().from(tasks).where(eq(tasks.team_id, teamId)).orderBy(desc(tasks.created_at));
+  }
+
+  async getTasksByProject(projectId: string): Promise<Task[]> {
+    return await db.select().from(tasks).where(eq(tasks.project_id, projectId)).orderBy(desc(tasks.created_at));
   }
 
   async createTask(task: InsertTask): Promise<Task> {

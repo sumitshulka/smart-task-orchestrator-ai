@@ -17,13 +17,14 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useToast } from "@/hooks/use-toast";
 import {
   ArrowLeft, CheckCircle2, Users, Milestone, Layers, Plus, Pencil, Trash2,
-  Calendar, Clock, DollarSign, History, UserCircle, Tag, Grip, ChevronDown, ChevronUp
+  Calendar, Clock, DollarSign, History, UserCircle, Tag, Grip, ChevronDown, ChevronUp,
+  Search, ListTodo, ExternalLink, Flag,
 } from "lucide-react";
 import { format } from "date-fns";
 import type {
   Project, ProjectTemplate, ProjectMember, ProjectMemberHistory,
   ProjectMilestone, MilestoneStage, ProjectTemplateStage,
-  ProjectFeatureGroup, ProjectFeature, User
+  ProjectFeatureGroup, ProjectFeature, User, Task, TaskStatus,
 } from "@shared/schema";
 
 const STATUS_COLORS: Record<string, string> = {
@@ -344,6 +345,28 @@ export default function ProjectDetail() {
     enabled: !!id,
   });
 
+  const { data: projectTasks = [], refetch: refetchTasks } = useQuery<Task[]>({
+    queryKey: ["/api/projects", id, "tasks"],
+    queryFn: () => apiClient.get(`/projects/${id}/tasks`),
+    enabled: !!id,
+  });
+
+  const { data: taskStatuses = [] } = useQuery<TaskStatus[]>({
+    queryKey: ["/api/task-statuses"],
+    queryFn: () => apiClient.get("/task-statuses"),
+  });
+
+  // Task tab filters
+  const [taskSearch, setTaskSearch]         = useState("");
+  const [taskMilestoneFilter, setTaskMilestoneFilter] = useState("all");
+  const [taskStatusFilter, setTaskStatusFilter]       = useState("all");
+  const [taskAssigneeFilter, setTaskAssigneeFilter]   = useState("all");
+  const [newTaskDialog, setNewTaskDialog]             = useState(false);
+  const [newTaskForm, setNewTaskForm] = useState({
+    title: "", description: "", milestone_id: "none", feature_id: "none",
+    priority: 3, due_date: "", assigned_to: "unassigned",
+  });
+
   // State for dialogs
   const [confirmDialog, setConfirmDialog] = useState(false);
   const [memberDialog, setMemberDialog] = useState(false);
@@ -496,6 +519,53 @@ export default function ProjectDetail() {
     },
   });
 
+  // Create task linked to this project
+  const createTaskMutation = useMutation({
+    mutationFn: (data: Record<string, unknown>) => apiClient.post("/tasks", data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", id, "tasks"] });
+      setNewTaskDialog(false);
+      setNewTaskForm({ title: "", description: "", milestone_id: "none", feature_id: "none", priority: 3, due_date: "", assigned_to: "unassigned" });
+      toast({ title: "Task created and linked to project" });
+    },
+    onError: () => toast({ title: "Failed to create task", variant: "destructive" }),
+  });
+
+  // Filtered tasks for Tasks tab
+  const filteredProjectTasks = projectTasks.filter((t) => {
+    if (taskSearch && !t.title.toLowerCase().includes(taskSearch.toLowerCase())) return false;
+    if (taskMilestoneFilter !== "all") {
+      if (taskMilestoneFilter === "none" && t.milestone_id) return false;
+      if (taskMilestoneFilter !== "none" && t.milestone_id !== taskMilestoneFilter) return false;
+    }
+    if (taskStatusFilter !== "all" && t.status !== taskStatusFilter) return false;
+    if (taskAssigneeFilter !== "all" && t.assigned_to !== taskAssigneeFilter) return false;
+    return true;
+  });
+
+  // Group tasks by milestone for Tasks tab
+  const tasksByMilestone: { milestoneId: string | null; milestoneName: string; tasks: Task[] }[] = [];
+  const milestonesWithTasks = milestones.filter((ms) => filteredProjectTasks.some((t) => t.milestone_id === ms.id));
+  milestonesWithTasks.forEach((ms) => {
+    tasksByMilestone.push({
+      milestoneId: ms.id,
+      milestoneName: ms.name,
+      tasks: filteredProjectTasks.filter((t) => t.milestone_id === ms.id),
+    });
+  });
+  const unlinkedTasks = filteredProjectTasks.filter((t) => !t.milestone_id);
+  if (unlinkedTasks.length > 0) {
+    tasksByMilestone.push({ milestoneId: null, milestoneName: "No Milestone", tasks: unlinkedTasks });
+  }
+
+  const PRIORITY_MAP: Record<number, { label: string; color: string }> = {
+    1: { label: "Critical", color: "text-red-600"    },
+    2: { label: "High",     color: "text-orange-500" },
+    3: { label: "Medium",   color: "text-yellow-500" },
+    4: { label: "Low",      color: "text-blue-400"   },
+    5: { label: "Minimal",  color: "text-gray-400"   },
+  };
+
   // Helpers
   const getUserName = (userId: string | null) => {
     if (!userId) return "Unknown";
@@ -589,7 +659,7 @@ export default function ProjectDetail() {
 
       {/* Tabs */}
       <Tabs defaultValue="overview">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="members">
             <Users className="h-3.5 w-3.5 mr-1" />Members ({members.length})
@@ -599,6 +669,9 @@ export default function ProjectDetail() {
           </TabsTrigger>
           <TabsTrigger value="features">
             <Layers className="h-3.5 w-3.5 mr-1" />Features ({features.length})
+          </TabsTrigger>
+          <TabsTrigger value="tasks">
+            <ListTodo className="h-3.5 w-3.5 mr-1" />Tasks ({projectTasks.length})
           </TabsTrigger>
         </TabsList>
 
@@ -950,7 +1023,311 @@ export default function ProjectDetail() {
             </div>
           )}
         </TabsContent>
+
+        {/* ===== TASKS TAB ===== */}
+        <TabsContent value="tasks" className="mt-4 space-y-4">
+          {/* Filter bar */}
+          <div className="flex flex-wrap gap-2 items-center">
+            <div className="relative flex-1 min-w-[180px]">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
+              <Input
+                placeholder="Search tasks..."
+                value={taskSearch}
+                onChange={(e) => setTaskSearch(e.target.value)}
+                className="pl-9 h-9 text-sm"
+              />
+            </div>
+            {/* Milestone filter */}
+            <Select value={taskMilestoneFilter} onValueChange={setTaskMilestoneFilter}>
+              <SelectTrigger className="w-44 h-9 text-xs"><SelectValue placeholder="All Milestones" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Milestones</SelectItem>
+                <SelectItem value="none">No Milestone</SelectItem>
+                {milestones.map((ms) => (
+                  <SelectItem key={ms.id} value={ms.id}>{ms.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {/* Status filter */}
+            <Select value={taskStatusFilter} onValueChange={setTaskStatusFilter}>
+              <SelectTrigger className="w-36 h-9 text-xs"><SelectValue placeholder="All Statuses" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                {taskStatuses.map((s) => (
+                  <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {/* Assignee filter */}
+            <Select value={taskAssigneeFilter} onValueChange={setTaskAssigneeFilter}>
+              <SelectTrigger className="w-40 h-9 text-xs"><SelectValue placeholder="All Assignees" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Assignees</SelectItem>
+                {members.map((m) => (
+                  <SelectItem key={m.user_id} value={m.user_id}>{getUserName(m.user_id)}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {/* Clear filters */}
+            {(taskSearch || taskMilestoneFilter !== "all" || taskStatusFilter !== "all" || taskAssigneeFilter !== "all") && (
+              <Button variant="ghost" size="sm" className="h-9 text-xs text-gray-400" onClick={() => {
+                setTaskSearch(""); setTaskMilestoneFilter("all"); setTaskStatusFilter("all"); setTaskAssigneeFilter("all");
+              }}>Clear filters</Button>
+            )}
+            <Button
+              size="sm"
+              className="h-9 text-xs ml-auto gap-1.5"
+              onClick={() => setNewTaskDialog(true)}
+            >
+              <Plus className="h-3.5 w-3.5" /> New Task
+            </Button>
+          </div>
+
+          {/* Tasks grouped by milestone */}
+          {filteredProjectTasks.length === 0 ? (
+            <div className="text-center py-16 text-gray-400">
+              <ListTodo className="h-10 w-10 mx-auto mb-2 opacity-30" />
+              <p className="text-sm">
+                {projectTasks.length === 0
+                  ? "No tasks linked to this project yet. Click \"New Task\" to create one."
+                  : "No tasks match the current filters."}
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {tasksByMilestone.map(({ milestoneId, milestoneName, tasks: groupTasks }) => {
+                const doneTasks = groupTasks.filter((t) => t.status.toLowerCase().includes("complet")).length;
+                return (
+                  <div key={milestoneId ?? "none"} className="border rounded-lg overflow-hidden">
+                    {/* Milestone group header */}
+                    <div className={`px-4 py-2.5 flex items-center justify-between text-sm font-medium ${
+                      milestoneId
+                        ? "bg-blue-50 text-blue-800 border-b border-blue-100 dark:bg-blue-950 dark:text-blue-200 dark:border-blue-900"
+                        : "bg-gray-50 text-gray-600 border-b border-gray-100 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700"
+                    }`}>
+                      <div className="flex items-center gap-2">
+                        {milestoneId ? (
+                          <Milestone className="h-3.5 w-3.5" />
+                        ) : (
+                          <Tag className="h-3.5 w-3.5" />
+                        )}
+                        <span>{milestoneName}</span>
+                        <span className="font-normal text-xs opacity-70">
+                          {doneTasks}/{groupTasks.length} done
+                        </span>
+                      </div>
+                      {/* Progress bar */}
+                      <div className="flex items-center gap-2">
+                        <div className="w-24 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-blue-500 rounded-full transition-all"
+                            style={{ width: `${groupTasks.length > 0 ? Math.round((doneTasks / groupTasks.length) * 100) : 0}%` }}
+                          />
+                        </div>
+                        <span className="text-xs opacity-70">
+                          {groupTasks.length > 0 ? Math.round((doneTasks / groupTasks.length) * 100) : 0}%
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Task rows */}
+                    <div className="divide-y divide-gray-100 dark:divide-gray-800">
+                      {groupTasks.map((task) => {
+                        const statusObj = taskStatuses.find((s) => s.name === task.status);
+                        const priorityInfo = task.priority ? PRIORITY_MAP[task.priority] : null;
+                        const featureName = features.find((f) => f.id === task.feature_id)?.name;
+                        return (
+                          <div key={task.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors text-sm">
+                            {/* Task number */}
+                            <span className="text-xs text-gray-400 font-mono shrink-0 w-14">
+                              #{task.task_number}
+                            </span>
+
+                            {/* Status dot */}
+                            <div
+                              className="w-2.5 h-2.5 rounded-full shrink-0 border border-white/30 shadow-sm"
+                              style={{ backgroundColor: statusObj?.color ?? "#9ca3af" }}
+                              title={task.status}
+                            />
+
+                            {/* Title */}
+                            <span className="flex-1 font-medium text-gray-800 dark:text-gray-200 truncate">
+                              {task.title}
+                            </span>
+
+                            {/* Feature tag */}
+                            {featureName && (
+                              <Badge variant="outline" className="text-xs shrink-0 gap-1 hidden md:flex">
+                                <Layers className="h-2.5 w-2.5" />{featureName}
+                              </Badge>
+                            )}
+
+                            {/* Status badge */}
+                            <Badge
+                              className="text-xs shrink-0 border-0"
+                              style={{
+                                backgroundColor: statusObj?.color ? `${statusObj.color}22` : undefined,
+                                color: statusObj?.color ?? undefined,
+                              }}
+                            >
+                              {task.status}
+                            </Badge>
+
+                            {/* Priority */}
+                            {priorityInfo && (
+                              <span className={`text-xs shrink-0 hidden sm:flex items-center gap-1 ${priorityInfo.color}`}>
+                                <Flag className="h-3 w-3" />{priorityInfo.label}
+                              </span>
+                            )}
+
+                            {/* Assignee */}
+                            <span className="text-xs text-gray-400 shrink-0 hidden lg:block w-24 truncate">
+                              {task.assigned_to ? getUserName(task.assigned_to) : "Unassigned"}
+                            </span>
+
+                            {/* Due date */}
+                            {task.due_date && (
+                              <span className="text-xs text-gray-400 shrink-0 hidden sm:flex items-center gap-1">
+                                <Calendar className="h-3 w-3" />
+                                {format(new Date(task.due_date), "d MMM")}
+                              </span>
+                            )}
+
+                            {/* Open task link — navigate to tasks page */}
+                            <Link
+                              to="/tasks"
+                              title="Open in Tasks"
+                              className="shrink-0 text-gray-400 hover:text-blue-500 transition-colors"
+                            >
+                              <ExternalLink className="h-3.5 w-3.5" />
+                            </Link>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </TabsContent>
       </Tabs>
+
+      {/* ===== NEW TASK DIALOG ===== */}
+      <Dialog open={newTaskDialog} onOpenChange={setNewTaskDialog}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>New Task — {project?.name}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label>Title *</Label>
+              <Input
+                placeholder="Task title"
+                value={newTaskForm.title}
+                onChange={(e) => setNewTaskForm(p => ({ ...p, title: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Description</Label>
+              <Textarea
+                rows={2}
+                placeholder="Optional description..."
+                value={newTaskForm.description}
+                onChange={(e) => setNewTaskForm(p => ({ ...p, description: e.target.value }))}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              {/* Milestone */}
+              <div className="space-y-1.5">
+                <Label>Milestone</Label>
+                <Select value={newTaskForm.milestone_id} onValueChange={(v) => setNewTaskForm(p => ({ ...p, milestone_id: v }))}>
+                  <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="None" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    {milestones.map((ms) => (
+                      <SelectItem key={ms.id} value={ms.id}>{ms.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {/* Feature */}
+              <div className="space-y-1.5">
+                <Label>Feature</Label>
+                <Select value={newTaskForm.feature_id} onValueChange={(v) => setNewTaskForm(p => ({ ...p, feature_id: v }))}>
+                  <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="None" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    {features.map((f) => (
+                      <SelectItem key={f.id} value={f.id}>{f.tracking_number} — {f.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {/* Assignee */}
+              <div className="space-y-1.5">
+                <Label>Assignee</Label>
+                <Select value={newTaskForm.assigned_to} onValueChange={(v) => setNewTaskForm(p => ({ ...p, assigned_to: v }))}>
+                  <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Unassigned" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="unassigned">Unassigned</SelectItem>
+                    {members.map((m) => (
+                      <SelectItem key={m.user_id} value={m.user_id}>{getUserName(m.user_id)}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {/* Priority */}
+              <div className="space-y-1.5">
+                <Label>Priority</Label>
+                <Select value={String(newTaskForm.priority)} onValueChange={(v) => setNewTaskForm(p => ({ ...p, priority: Number(v) }))}>
+                  <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">Critical</SelectItem>
+                    <SelectItem value="2">High</SelectItem>
+                    <SelectItem value="3">Medium</SelectItem>
+                    <SelectItem value="4">Low</SelectItem>
+                    <SelectItem value="5">Minimal</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {/* Due date */}
+              <div className="space-y-1.5 col-span-2">
+                <Label>Due Date</Label>
+                <Input
+                  type="date"
+                  value={newTaskForm.due_date}
+                  onChange={(e) => setNewTaskForm(p => ({ ...p, due_date: e.target.value }))}
+                  className="h-9 text-sm"
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setNewTaskDialog(false)}>Cancel</Button>
+            <Button
+              disabled={!newTaskForm.title.trim() || createTaskMutation.isPending}
+              onClick={() => {
+                const payload: Record<string, unknown> = {
+                  title: newTaskForm.title.trim(),
+                  description: newTaskForm.description || null,
+                  project_id: id,
+                  milestone_id: newTaskForm.milestone_id === "none" ? null : newTaskForm.milestone_id,
+                  feature_id: newTaskForm.feature_id === "none" ? null : newTaskForm.feature_id,
+                  assigned_to: newTaskForm.assigned_to === "unassigned" ? null : newTaskForm.assigned_to,
+                  priority: newTaskForm.priority,
+                  due_date: newTaskForm.due_date || null,
+                  type: "task",
+                  created_by: user?.id,
+                };
+                createTaskMutation.mutate(payload);
+              }}
+            >
+              {createTaskMutation.isPending ? "Creating..." : "Create Task"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ===== CONFIRM DIALOG ===== */}
       <AlertDialog open={confirmDialog} onOpenChange={setConfirmDialog}>
