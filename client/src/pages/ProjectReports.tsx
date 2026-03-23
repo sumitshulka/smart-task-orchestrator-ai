@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   ArrowLeft, AlertTriangle, CheckCircle2, Clock, TrendingUp, Users,
   Milestone, BarChart3, FileText, RefreshCw, Activity, Search,
-  Filter, X, ChevronDown, ChevronUp, Download,
+  Filter, X, ChevronDown, ChevronUp, Download, PackageCheck, Printer, Layers,
 } from "lucide-react";
 import { format, differenceInDays, isPast } from "date-fns";
 import * as XLSX from "xlsx";
@@ -28,11 +28,14 @@ interface ProjectMember {
   id: string; user_id: string; project_id: string;
   member_type: string; project_role: string | null; allocation_percentage: number;
 }
-interface ProjectFeature { id: string; name: string; status: string; project_id: string; }
+interface ProjectFeature {
+  id: string; name: string; status: string; project_id: string;
+  tracking_number: string; description: string | null; feature_group_id: string | null;
+}
 interface ProjectTask {
-  id: string; title: string; status: string; assigned_to: string | null;
-  project_id: string | null; estimated_hours: number | null;
-  time_spent_minutes: number | null;
+  id: string; task_number: number; title: string; status: string; assigned_to: string | null;
+  project_id: string | null; milestone_id: string | null; feature_id: string | null;
+  estimated_hours: number | null; time_spent_minutes: number | null;
 }
 interface ReportProject {
   id: string; name: string; client_name: string | null; status: string;
@@ -454,11 +457,12 @@ export default function ProjectReports() {
       {/* ═══ TABS ═══ */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="flex flex-wrap gap-1 h-auto">
-          <TabsTrigger value="status"      className="gap-1.5 text-xs"><BarChart3   className="h-3.5 w-3.5" />Status Report</TabsTrigger>
-          <TabsTrigger value="resource"    className="gap-1.5 text-xs"><Users       className="h-3.5 w-3.5" />Resource Utilization</TabsTrigger>
-          <TabsTrigger value="milestones"  className="gap-1.5 text-xs"><Milestone   className="h-3.5 w-3.5" />Milestone Status</TabsTrigger>
-          <TabsTrigger value="performance" className="gap-1.5 text-xs"><TrendingUp  className="h-3.5 w-3.5" />Performance Analysis</TabsTrigger>
-          <TabsTrigger value="time"        className="gap-1.5 text-xs"><Clock       className="h-3.5 w-3.5" />Time Utilization</TabsTrigger>
+          <TabsTrigger value="status"      className="gap-1.5 text-xs"><BarChart3    className="h-3.5 w-3.5" />Status Report</TabsTrigger>
+          <TabsTrigger value="resource"    className="gap-1.5 text-xs"><Users        className="h-3.5 w-3.5" />Resource Utilization</TabsTrigger>
+          <TabsTrigger value="milestones"  className="gap-1.5 text-xs"><Milestone    className="h-3.5 w-3.5" />Milestone Status</TabsTrigger>
+          <TabsTrigger value="performance" className="gap-1.5 text-xs"><TrendingUp   className="h-3.5 w-3.5" />Performance Analysis</TabsTrigger>
+          <TabsTrigger value="time"        className="gap-1.5 text-xs"><Clock        className="h-3.5 w-3.5" />Time Utilization</TabsTrigger>
+          <TabsTrigger value="release"     className="gap-1.5 text-xs"><PackageCheck className="h-3.5 w-3.5" />Feature Release</TabsTrigger>
         </TabsList>
 
         {/* ══════════════════════════════════════════════════════════
@@ -1070,6 +1074,303 @@ export default function ProjectReports() {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* ══════════════════════════════════════════════════════════
+            REPORT 6: FEATURE RELEASE DOCUMENT
+        ═══════════════════════════════════════════════════════════ */}
+        <TabsContent value="release" className="mt-4 space-y-3">
+          {/* Intro + toolbar */}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium text-gray-800 dark:text-gray-200">Feature Release Document</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                Features delivered per milestone, derived from tasks tagged to each milestone and feature.
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5 h-8 text-xs"
+                onClick={() => {
+                  document.body.classList.add("printing");
+                  window.print();
+                  document.body.classList.remove("printing");
+                }}
+              >
+                <Printer className="h-3.5 w-3.5" /> Print
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5 h-8 text-xs"
+                onClick={() => {
+                  const meta = [
+                    ["Feature Release Report"],
+                    [`Generated: ${format(new Date(), "PPP")}`],
+                    [`Filters: ${activeFilters.length ? activeFilters.map((f) => f.label).join(", ") : "None"}`],
+                  ];
+                  const headers = [
+                    "Project", "Client", "Project Status",
+                    "Milestone", "Milestone Status", "Milestone End Date",
+                    "Tracking #", "Feature", "Feature Status", "Release Status",
+                    "Tasks in Milestone", "Tasks Done", "% Complete",
+                    "Description",
+                  ];
+                  const rows: (string | number)[][] = [];
+                  projects.forEach((p) => {
+                    p.milestones.forEach((ms) => {
+                      const msTaskIds = p.tasks
+                        .filter((t) => t.milestone_id === ms.id && t.feature_id)
+                        .map((t) => t.feature_id as string);
+                      const uniqueFeatureIds = [...new Set(msTaskIds)];
+                      if (uniqueFeatureIds.length === 0) return;
+                      uniqueFeatureIds.forEach((fid) => {
+                        const feat     = p.features.find((f) => f.id === fid);
+                        if (!feat) return;
+                        const msTasks  = p.tasks.filter((t) => t.milestone_id === ms.id && t.feature_id === fid);
+                        const doneTasks = msTasks.filter((t) => isCompleted(t.status)).length;
+                        const relStatus = doneTasks === msTasks.length && isCompleted(feat.status)
+                          ? "Released"
+                          : doneTasks === msTasks.length
+                          ? "Tasks Done — Feature Pending"
+                          : doneTasks > 0
+                          ? "In Progress"
+                          : "Not Started";
+                        rows.push([
+                          p.name,
+                          p.client_name ?? "",
+                          STATUS_LABELS[p.status] ?? p.status,
+                          ms.name,
+                          ms.status.replace(/_/g, " "),
+                          ms.end_date ? format(new Date(ms.end_date), "d MMM yyyy") : "",
+                          feat.tracking_number,
+                          feat.name,
+                          feat.status.replace(/_/g, " "),
+                          relStatus,
+                          msTasks.length,
+                          doneTasks,
+                          msTasks.length > 0 ? pct(doneTasks, msTasks.length) : 0,
+                          feat.description ?? "",
+                        ]);
+                      });
+                    });
+                  });
+                  if (rows.length === 0) {
+                    rows.push(["No features linked to milestones via tasks in the current filter."]);
+                  }
+                  downloadExcel("Feature_Release_Report", "Feature Release", headers, rows, meta);
+                }}
+              >
+                <Download className="h-3.5 w-3.5" /> Download Excel
+              </Button>
+            </div>
+          </div>
+
+          {/* Document body */}
+          {projects.length === 0 ? (
+            <div className="text-center py-16 text-gray-400">
+              <PackageCheck className="h-10 w-10 mx-auto mb-2 opacity-30" />
+              <p>No projects match the current filters</p>
+            </div>
+          ) : (
+            <div className="space-y-6 print-area" id="feature-release-print">
+              {projects.map((p) => {
+                // Build per-milestone feature release data
+                const msData = p.milestones.map((ms) => {
+                  const msTasks = p.tasks.filter((t) => t.milestone_id === ms.id);
+                  const uniqueFeatureIds = [...new Set(
+                    msTasks.filter((t) => t.feature_id).map((t) => t.feature_id as string)
+                  )];
+                  const featureRows = uniqueFeatureIds.map((fid) => {
+                    const feat       = p.features.find((f) => f.id === fid);
+                    const fTasks     = msTasks.filter((t) => t.feature_id === fid);
+                    const doneTasks  = fTasks.filter((t) => isCompleted(t.status)).length;
+                    const released   = doneTasks === fTasks.length && feat && isCompleted(feat.status);
+                    const tasksDone  = doneTasks === fTasks.length;
+                    return { feat, fTasks, doneTasks, released, tasksDone };
+                  });
+                  return { ms, featureRows };
+                }).filter((d) => d.featureRows.length > 0);
+
+                if (msData.length === 0) return null;
+
+                return (
+                  <div key={p.id} className="border rounded-xl overflow-hidden shadow-sm bg-white dark:bg-gray-900">
+                    {/* Project header */}
+                    <div
+                      className="px-5 py-3 flex items-center justify-between"
+                      style={{ backgroundColor: (p as any).color ?? "#6366f1", color: "#fff" }}
+                    >
+                      <div>
+                        <p className="font-semibold text-base">{p.name}</p>
+                        <p className="text-xs opacity-80">
+                          {p.client_name && <span>{p.client_name} · </span>}
+                          {TYPE_LABELS[p.project_type] ?? p.project_type}
+                          {p.projected_end_date && (
+                            <span> · Target: {format(new Date(p.projected_end_date), "d MMM yyyy")}</span>
+                          )}
+                        </p>
+                      </div>
+                      <Badge className="border-0 bg-white/20 text-white text-xs capitalize">
+                        {STATUS_LABELS[p.status] ?? p.status}
+                      </Badge>
+                    </div>
+
+                    {/* Milestones */}
+                    <div className="divide-y divide-gray-100 dark:divide-gray-800">
+                      {msData.map(({ ms, featureRows }) => {
+                        const totalFeatures  = featureRows.length;
+                        const releasedCount  = featureRows.filter((r) => r.released).length;
+                        const allTasksDone   = featureRows.every((r) => r.tasksDone);
+
+                        return (
+                          <div key={ms.id}>
+                            {/* Milestone sub-header */}
+                            <div className="px-5 py-2.5 bg-gray-50 dark:bg-gray-800/50 flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <Milestone className="h-3.5 w-3.5 text-blue-500" />
+                                <span className="text-sm font-semibold text-gray-800 dark:text-gray-200">
+                                  {ms.name}
+                                </span>
+                                <Badge className={`text-xs border-0 ${MS_STATUS_COLORS[ms.status] ?? ""}`}>
+                                  {ms.status.replace(/_/g, " ")}
+                                </Badge>
+                              </div>
+                              <div className="flex items-center gap-3 text-xs text-gray-500">
+                                {ms.end_date && (
+                                  <span>{format(new Date(ms.end_date), "d MMM yyyy")}</span>
+                                )}
+                                <span className="font-medium">
+                                  {releasedCount}/{totalFeatures} released
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Feature table */}
+                            <table className="w-full text-sm">
+                              <thead>
+                                <tr className="border-b border-gray-100 dark:border-gray-800">
+                                  <th className="px-5 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-24">
+                                    Tracking #
+                                  </th>
+                                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                                    Feature
+                                  </th>
+                                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide hidden md:table-cell">
+                                    Description
+                                  </th>
+                                  <th className="px-3 py-2 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide w-28">
+                                    Tasks
+                                  </th>
+                                  <th className="px-3 py-2 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide w-32">
+                                    Release Status
+                                  </th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-gray-50 dark:divide-gray-800/60">
+                                {featureRows.map(({ feat, fTasks, doneTasks, released, tasksDone }) => {
+                                  if (!feat) return null;
+                                  const completePct = pct(doneTasks, fTasks.length);
+
+                                  // Determine release status + styling
+                                  let statusLabel = "Not Started";
+                                  let statusCls   = "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400";
+                                  let statusIcon  = "⚪";
+                                  if (released) {
+                                    statusLabel = "Released";
+                                    statusCls   = "bg-green-100 text-green-800 dark:bg-green-900/60 dark:text-green-300";
+                                    statusIcon  = "✅";
+                                  } else if (tasksDone) {
+                                    statusLabel = "Tasks Done";
+                                    statusCls   = "bg-blue-100 text-blue-800 dark:bg-blue-900/60 dark:text-blue-300";
+                                    statusIcon  = "🔵";
+                                  } else if (doneTasks > 0) {
+                                    statusLabel = "In Progress";
+                                    statusCls   = "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/60 dark:text-yellow-300";
+                                    statusIcon  = "🟡";
+                                  }
+
+                                  return (
+                                    <tr key={feat.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors">
+                                      {/* Tracking number */}
+                                      <td className="px-5 py-3">
+                                        <span className="inline-flex items-center gap-1.5 text-xs font-mono text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/50 px-2 py-0.5 rounded">
+                                          <Layers className="h-3 w-3" />
+                                          {feat.tracking_number}
+                                        </span>
+                                      </td>
+                                      {/* Feature name + feature-level status */}
+                                      <td className="px-3 py-3">
+                                        <p className="font-medium text-gray-900 dark:text-gray-100 text-sm">{feat.name}</p>
+                                        <p className="text-xs text-gray-400 capitalize mt-0.5">
+                                          Feature: {feat.status.replace(/_/g, " ")}
+                                        </p>
+                                      </td>
+                                      {/* Description */}
+                                      <td className="px-3 py-3 text-xs text-gray-500 dark:text-gray-400 max-w-xs hidden md:table-cell">
+                                        {feat.description ?? <span className="italic opacity-50">No description</span>}
+                                      </td>
+                                      {/* Tasks progress */}
+                                      <td className="px-3 py-3 text-center">
+                                        <p className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                                          {doneTasks} / {fTasks.length}
+                                        </p>
+                                        <div className="mt-1 w-16 mx-auto h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                                          <div
+                                            className={`h-full rounded-full ${released ? "bg-green-500" : tasksDone ? "bg-blue-400" : "bg-yellow-400"}`}
+                                            style={{ width: `${completePct}%` }}
+                                          />
+                                        </div>
+                                        <p className="text-xs text-gray-400 mt-0.5">{completePct}%</p>
+                                      </td>
+                                      {/* Release status badge */}
+                                      <td className="px-3 py-3 text-center">
+                                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold ${statusCls}`}>
+                                          {statusIcon} {statusLabel}
+                                        </span>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                              {/* Milestone summary footer row */}
+                              <tfoot>
+                                <tr className="border-t border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/20">
+                                  <td colSpan={2} className="px-5 py-2 text-xs text-gray-500">
+                                    {featureRows.length} feature{featureRows.length !== 1 ? "s" : ""} in this milestone
+                                  </td>
+                                  <td className="hidden md:table-cell" />
+                                  <td className="px-3 py-2 text-center text-xs text-gray-500">
+                                    {featureRows.reduce((s, r) => s + r.doneTasks, 0)}&thinsp;/&thinsp;{featureRows.reduce((s, r) => s + r.fTasks.length, 0)} tasks done
+                                  </td>
+                                  <td className="px-3 py-2 text-center text-xs font-semibold text-gray-600 dark:text-gray-300">
+                                    {releasedCount} Released
+                                  </td>
+                                </tr>
+                              </tfoot>
+                            </table>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Empty state when no feature-milestone links exist */}
+          {projects.length > 0 && projects.every((p) => !p.milestones.some((ms) => p.tasks.some((t) => t.milestone_id === ms.id && t.feature_id))) && (
+            <div className="text-center py-12 text-gray-400 border rounded-xl bg-gray-50 dark:bg-gray-900">
+              <PackageCheck className="h-10 w-10 mx-auto mb-3 opacity-30" />
+              <p className="text-sm font-medium">No feature-milestone links found</p>
+              <p className="text-xs mt-1 max-w-sm mx-auto">
+                To see features here, create tasks that are linked to both a <strong>milestone</strong> and a <strong>feature</strong> within a project.
+              </p>
+            </div>
+          )}
         </TabsContent>
       </Tabs>
     </div>

@@ -159,3 +159,25 @@ html, body {
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+/* ── Print styles for Feature Release Document ────────────────────────── */
+@media print {
+  body > *:not(#print-portal) { display: none !important; }
+  #print-portal { display: block !important; }
+
+  /* When triggered via window.print() from the reports page,
+     hide everything except the release document container */
+  body.printing * { visibility: hidden; }
+  body.printing #feature-release-print,
+  body.printing #feature-release-print * { visibility: visible; }
+  body.printing #feature-release-print {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    background: white;
+    padding: 24px;
+    z-index: 9999;
+  }
+
+  /* General print clean-up */
+  @page { margin: 1.5cm; }
+  .no-print { display: none !important; }
+}
