@@ -902,20 +902,31 @@ const CreateTaskSheet: React.FC<Props> = ({
                     <span className="mr-2">🗂️</span>
                     <span className="text-base font-medium text-gray-700">Link to Project</span>
                   </div>
-                  <p className="text-sm text-gray-500 mb-3">Optionally associate this task with a project milestone or feature</p>
+                  <p className="text-sm text-gray-500 mb-3">
+                    {defaultProjectId
+                      ? "This task will be linked to the current project."
+                      : "Optionally associate this task with a project milestone or feature"}
+                  </p>
                   <div className="space-y-3">
                     <div>
                       <label className="block text-sm font-semibold text-gray-700 mb-1">Project</label>
-                      <select
-                        value={selectedProjectId}
-                        onChange={e => setSelectedProjectId(e.target.value)}
-                        className="w-full h-10 text-sm border border-gray-300 rounded-lg px-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      >
-                        <option value="">— None —</option>
-                        {projectsList.map(p => (
-                          <option key={p.id} value={p.id}>{p.name}</option>
-                        ))}
-                      </select>
+                      {defaultProjectId ? (
+                        <div className="w-full h-10 text-sm border border-gray-200 bg-gray-50 rounded-lg px-3 flex items-center gap-2 text-gray-700">
+                          <span className="text-gray-400">🔒</span>
+                          {projectsList.find(p => p.id === defaultProjectId)?.name ?? "Current Project"}
+                        </div>
+                      ) : (
+                        <select
+                          value={selectedProjectId}
+                          onChange={e => setSelectedProjectId(e.target.value)}
+                          className="w-full h-10 text-sm border border-gray-300 rounded-lg px-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        >
+                          <option value="">— None —</option>
+                          {projectsList.map(p => (
+                            <option key={p.id} value={p.id}>{p.name}</option>
+                          ))}
+                        </select>
+                      )}
                     </div>
                     {selectedProjectId && (
                       <>
