@@ -2069,6 +2069,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
   //  REPORTING ENDPOINTS
   // ============================================================
 
+  // All project members across all projects (for listing page PM display)
+  app.get("/api/projects-members-all", requireAnyAuthenticated, async (req, res) => {
+    try {
+      const allProjects = await storage.getAllProjects();
+      const allUsers = await storage.getAllUsers();
+      const result: { project_id: string; user_id: string; member_type: string; project_role: string | null; allocation_percentage: number; user_name: string }[] = [];
+      await Promise.all(
+        allProjects.map(async (p) => {
+          const members = await storage.getProjectMembers(p.id);
+          members.forEach((m) => {
+            const user = allUsers.find((u) => u.id === m.user_id);
+            result.push({
+              project_id: p.id,
+              user_id: m.user_id,
+              member_type: m.member_type,
+              project_role: m.project_role,
+              allocation_percentage: m.allocation_percentage,
+              user_name: user?.user_name ?? "Unknown",
+            });
+          });
+        })
+      );
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch project members" });
+    }
+  });
+
   // Comprehensive project data for all project reports
   app.get("/api/reports/project-summary", requireAnyAuthenticated, async (req, res) => {
     try {
