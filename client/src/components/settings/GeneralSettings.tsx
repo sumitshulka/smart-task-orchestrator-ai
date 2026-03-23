@@ -25,6 +25,7 @@ type OrganizationSettings = {
   min_hours_per_month: number;
   max_hours_per_month: number;
   allow_user_level_override: boolean;
+  project_management_enabled: boolean;
   created_at: string;
   updated_at: string;
 };
@@ -73,6 +74,7 @@ const GeneralSettings: React.FC = () => {
     min_hours_per_month: 0,
     max_hours_per_month: 160,
     allow_user_level_override: false,
+    project_management_enabled: false,
   });
 
   // Update form data when settings are loaded
@@ -92,6 +94,7 @@ const GeneralSettings: React.FC = () => {
         min_hours_per_month: settings.min_hours_per_month || 0,
         max_hours_per_month: settings.max_hours_per_month || 160,
         allow_user_level_override: settings.allow_user_level_override || false,
+        project_management_enabled: settings.project_management_enabled || false,
       });
     }
   }, [settings]);
@@ -393,6 +396,33 @@ const GeneralSettings: React.FC = () => {
                   When enabled, admins can exclude individual users from benchmarking or set custom hour requirements per user.
                 </p>
               </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Project Management Settings */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Project Management</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center space-x-2">
+            <Switch
+              id="project-management-enabled"
+              checked={formData.project_management_enabled}
+              onCheckedChange={(checked) => handleFormChange('project_management_enabled', checked)}
+            />
+            <Label htmlFor="project-management-enabled">Enable Project Management Feature</Label>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            When enabled, the Project Management section will appear in the navigation, allowing you to create and manage projects using templates with defined stages. You can set up project templates from the <strong>Project Templates</strong> settings tab.
+          </p>
+          {formData.project_management_enabled && (
+            <div className="rounded-md border border-blue-200 bg-blue-50 dark:bg-blue-950 dark:border-blue-800 p-3">
+              <p className="text-sm text-blue-700 dark:text-blue-300">
+                Project Management is enabled. Go to the <strong>Project Templates</strong> tab to set up your templates and stages.
+              </p>
             </div>
           )}
         </CardContent>

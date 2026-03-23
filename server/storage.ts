@@ -19,6 +19,8 @@ import {
   organizationSettings,
   officeLocations,
   licenses,
+  projectTemplates,
+  projectTemplateStages,
   User, 
   InsertUser, 
   Task, 
@@ -46,7 +48,11 @@ import {
   OfficeLocation,
   InsertOfficeLocation,
   License,
-  InsertLicense
+  InsertLicense,
+  ProjectTemplate,
+  InsertProjectTemplate,
+  ProjectTemplateStage,
+  InsertProjectTemplateStage,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -160,6 +166,20 @@ export interface IStorage {
   createLicense(license: InsertLicense): Promise<License>;
   updateLicense(id: number, updates: Partial<License>): Promise<License>;
   deleteLicense(id: number): Promise<void>;
+
+  // Project template operations
+  getAllProjectTemplates(): Promise<ProjectTemplate[]>;
+  getProjectTemplate(id: string): Promise<ProjectTemplate | undefined>;
+  createProjectTemplate(template: InsertProjectTemplate): Promise<ProjectTemplate>;
+  updateProjectTemplate(id: string, updates: Partial<ProjectTemplate>): Promise<ProjectTemplate>;
+  deleteProjectTemplate(id: string): Promise<void>;
+
+  // Project template stage operations
+  getStagesByTemplate(templateId: string): Promise<ProjectTemplateStage[]>;
+  createProjectTemplateStage(stage: InsertProjectTemplateStage): Promise<ProjectTemplateStage>;
+  updateProjectTemplateStage(id: string, updates: Partial<ProjectTemplateStage>): Promise<ProjectTemplateStage>;
+  deleteProjectTemplateStage(id: string): Promise<void>;
+  reorderProjectTemplateStages(templateId: string, stageIds: string[]): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1080,6 +1100,65 @@ export class DatabaseStorage implements IStorage {
 
   async deleteLicense(id: number): Promise<void> {
     await db.delete(licenses).where(eq(licenses.id, id));
+  }
+
+  // Project template operations
+  async getAllProjectTemplates(): Promise<ProjectTemplate[]> {
+    return await db.select().from(projectTemplates).orderBy(projectTemplates.created_at);
+  }
+
+  async getProjectTemplate(id: string): Promise<ProjectTemplate | undefined> {
+    const result = await db.select().from(projectTemplates).where(eq(projectTemplates.id, id)).limit(1);
+    return result[0];
+  }
+
+  async createProjectTemplate(template: InsertProjectTemplate): Promise<ProjectTemplate> {
+    const result = await db.insert(projectTemplates).values(template).returning();
+    return result[0];
+  }
+
+  async updateProjectTemplate(id: string, updates: Partial<ProjectTemplate>): Promise<ProjectTemplate> {
+    const result = await db.update(projectTemplates).set({
+      ...updates,
+      updated_at: new Date()
+    }).where(eq(projectTemplates.id, id)).returning();
+    return result[0];
+  }
+
+  async deleteProjectTemplate(id: string): Promise<void> {
+    await db.delete(projectTemplates).where(eq(projectTemplates.id, id));
+  }
+
+  // Project template stage operations
+  async getStagesByTemplate(templateId: string): Promise<ProjectTemplateStage[]> {
+    return await db.select().from(projectTemplateStages)
+      .where(eq(projectTemplateStages.template_id, templateId))
+      .orderBy(projectTemplateStages.stage_order);
+  }
+
+  async createProjectTemplateStage(stage: InsertProjectTemplateStage): Promise<ProjectTemplateStage> {
+    const result = await db.insert(projectTemplateStages).values(stage).returning();
+    return result[0];
+  }
+
+  async updateProjectTemplateStage(id: string, updates: Partial<ProjectTemplateStage>): Promise<ProjectTemplateStage> {
+    const result = await db.update(projectTemplateStages).set({
+      ...updates,
+      updated_at: new Date()
+    }).where(eq(projectTemplateStages.id, id)).returning();
+    return result[0];
+  }
+
+  async deleteProjectTemplateStage(id: string): Promise<void> {
+    await db.delete(projectTemplateStages).where(eq(projectTemplateStages.id, id));
+  }
+
+  async reorderProjectTemplateStages(templateId: string, stageIds: string[]): Promise<void> {
+    for (let i = 0; i < stageIds.length; i++) {
+      await db.update(projectTemplateStages)
+        .set({ stage_order: i + 1, updated_at: new Date() })
+        .where(and(eq(projectTemplateStages.id, stageIds[i]), eq(projectTemplateStages.template_id, templateId)));
+    }
   }
 }
 

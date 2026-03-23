@@ -45,6 +45,7 @@ Preferred communication style: Simple, everyday language.
 - **Workflow Automation**: Database-migrated status transitions with proper validation rules (forward progression, limited rework, no reopening completed tasks).
 - **Pagination & Sorting**: Enhanced pagination display with task count and page size selector; comprehensive sorting functionality for tasks (Priority, Due Date, Effort, Status, Created Date).
 - **Notifications & Timers**: Real-time active timer updates and configurable daily hour limits with validation.
+- **Project Management (Step 1)**: Feature toggle in General Settings (off by default). When enabled, shows "Project Templates" tab in settings and "Project Management" section in sidebar. Admin can create templates per project type (Fixed Cost, Time & Material, Milestone-Based, Retainer), each with customizable ordered stages. Default stages auto-populate per type. Full CRUD for templates and stages. Constraint: project type cannot be changed after template creation.
 
 ## External Dependencies
 

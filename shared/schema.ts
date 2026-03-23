@@ -21,6 +21,32 @@ export const organizationSettings = pgTable("organization_settings", {
   min_hours_per_month: integer("min_hours_per_month").default(0),
   max_hours_per_month: integer("max_hours_per_month").default(160),
   allow_user_level_override: boolean("allow_user_level_override").default(false),
+  // Project Management feature toggle
+  project_management_enabled: boolean("project_management_enabled").default(false),
+  created_at: timestamp("created_at").defaultNow(),
+  updated_at: timestamp("updated_at").defaultNow(),
+});
+
+// Project Templates table
+export const projectTemplates = pgTable("project_templates", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull(),
+  description: text("description"),
+  project_type: text("project_type").notNull().default("fixed_cost"), // fixed_cost, time_material, milestone, retainer
+  is_active: boolean("is_active").default(true),
+  created_by: uuid("created_by"),
+  created_at: timestamp("created_at").defaultNow(),
+  updated_at: timestamp("updated_at").defaultNow(),
+});
+
+// Project Template Stages table
+export const projectTemplateStages = pgTable("project_template_stages", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  template_id: uuid("template_id").notNull().references(() => projectTemplates.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  description: text("description"),
+  color: text("color").default("#6b7280"),
+  stage_order: integer("stage_order").notNull(),
   created_at: timestamp("created_at").defaultNow(),
   updated_at: timestamp("updated_at").defaultNow(),
 });
@@ -354,6 +380,14 @@ export const rolePermissionsRelations = relations(rolePermissions, ({ one }) => 
   role: one(roles, { fields: [rolePermissions.role_id], references: [roles.id] }),
 }));
 
+export const projectTemplatesRelations = relations(projectTemplates, ({ many }) => ({
+  stages: many(projectTemplateStages),
+}));
+
+export const projectTemplateStagesRelations = relations(projectTemplateStages, ({ one }) => ({
+  template: one(projectTemplates, { fields: [projectTemplateStages.template_id], references: [projectTemplates.id] }),
+}));
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
@@ -426,6 +460,20 @@ export const insertOfficeLocationSchema = createInsertSchema(officeLocations).om
   updated_at: true,
 });
 
+export const insertProjectTemplateSchema = createInsertSchema(projectTemplates).omit({
+  id: true,
+  created_at: true,
+  updated_at: true,
+}).extend({
+  project_type: z.enum(["fixed_cost", "time_material", "milestone", "retainer"]).default("fixed_cost"),
+});
+
+export const insertProjectTemplateStageSchema = createInsertSchema(projectTemplateStages).omit({
+  id: true,
+  created_at: true,
+  updated_at: true,
+});
+
 // License management schema
 export const licenses = pgTable('licenses', {
   id: serial('id').primaryKey(),
@@ -480,3 +528,7 @@ export type InsertOfficeLocation = z.infer<typeof insertOfficeLocationSchema>;
 export type OfficeLocation = typeof officeLocations.$inferSelect;
 export type InsertLicense = z.infer<typeof insertLicenseSchema>;
 export type License = typeof licenses.$inferSelect;
+export type InsertProjectTemplate = z.infer<typeof insertProjectTemplateSchema>;
+export type ProjectTemplate = typeof projectTemplates.$inferSelect;
+export type InsertProjectTemplateStage = z.infer<typeof insertProjectTemplateStageSchema>;
+export type ProjectTemplateStage = typeof projectTemplateStages.$inferSelect;

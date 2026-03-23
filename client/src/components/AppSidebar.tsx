@@ -1,21 +1,31 @@
 import React from "react";
 import { useLocation } from "react-router-dom";
 import { useCurrentUserRoleAndTeams } from "@/hooks/useCurrentUserRoleAndTeams";
+import { useQuery } from "@tanstack/react-query";
+import { apiClient } from "@/lib/api";
 import DashboardMenu from "./AppSidebarParts/DashboardMenu";
 import TaskManagementMenu from "./AppSidebarParts/TaskManagementMenu";
 import SidebarHeader from "./AppSidebarParts/SidebarHeader";
 import ManagementMenu from "./AppSidebarParts/ManagementMenu";
 import ReportsMenu from "./AppSidebarParts/ReportsMenu";
 import WarningNoTeams from "./AppSidebarParts/WarningNoTeams";
+import ProjectManagementMenu from "./AppSidebarParts/ProjectManagementMenu";
 
 export default function AppSidebar() {
   const location = useLocation();
   const { roles, teams, loading } = useCurrentUserRoleAndTeams();
 
+  const { data: settings } = useQuery({
+    queryKey: ["/api/organization-settings"],
+    queryFn: () => apiClient.get("/organization-settings"),
+  });
+
   // Simple role helpers
   const isAdmin = roles.includes("admin");
   const isManager = roles.includes("manager") || roles.includes("team_manager");
   const isUserOnly = !isAdmin && !isManager && roles.includes("user");
+
+  const projectManagementEnabled = settings?.project_management_enabled ?? false;
 
   // Teams logic for warning
   const isOnTeams = location.pathname.startsWith("/admin/teams");
@@ -49,6 +59,9 @@ export default function AppSidebar() {
         <div className="space-y-2">
           <DashboardMenu isUserOnly={isUserOnly} collapsed={false} />
           <TaskManagementMenu collapsed={false} />
+          {projectManagementEnabled && (
+            <ProjectManagementMenu collapsed={false} />
+          )}
           <ManagementMenu isAdmin={isAdmin} isManager={isManager} collapsed={false} />
           <WarningNoTeams isOnTeams={isOnTeams} loading={loading} isUserOnly={isUserOnly} hasTeams={hasTeams} />
           <ReportsMenu isUserOnly={isUserOnly} collapsed={false} />

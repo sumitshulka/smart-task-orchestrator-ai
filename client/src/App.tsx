@@ -28,6 +28,7 @@ import { RoleProvider } from "@/contexts/RoleProvider";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { queryClient } from "@/lib/queryClient";
 import HelpPage from "@/pages/HelpPage";
+import Projects from "@/pages/Projects";
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -195,6 +196,15 @@ const App = () => (
               element={
                 <AdminLayout>
                   <HelpPage />
+                </AdminLayout>
+              }
+            />
+            {/* Projects route */}
+            <Route
+              path="/projects"
+              element={
+                <AdminLayout>
+                  <Projects />
                 </AdminLayout>
               }
             />

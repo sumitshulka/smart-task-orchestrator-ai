@@ -1653,6 +1653,108 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Project Templates routes - Admin only
+  app.get("/api/project-templates", requireAnyAuthenticated, async (req, res) => {
+    try {
+      const templates = await storage.getAllProjectTemplates();
+      res.json(templates);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch project templates" });
+    }
+  });
+
+  app.get("/api/project-templates/:id", requireAnyAuthenticated, async (req, res) => {
+    try {
+      const template = await storage.getProjectTemplate(req.params.id);
+      if (!template) return res.status(404).json({ error: "Template not found" });
+      res.json(template);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch project template" });
+    }
+  });
+
+  app.post("/api/project-templates", requireAdmin, async (req, res) => {
+    try {
+      const userId = req.headers['x-user-id'] as string;
+      const template = await storage.createProjectTemplate({ ...req.body, created_by: userId });
+      res.status(201).json(template);
+    } catch (error) {
+      res.status(400).json({ error: "Failed to create project template" });
+    }
+  });
+
+  app.put("/api/project-templates/:id", requireAdmin, async (req, res) => {
+    try {
+      const template = await storage.updateProjectTemplate(req.params.id, req.body);
+      res.json(template);
+    } catch (error) {
+      res.status(400).json({ error: "Failed to update project template" });
+    }
+  });
+
+  app.delete("/api/project-templates/:id", requireAdmin, async (req, res) => {
+    try {
+      await storage.deleteProjectTemplate(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete project template" });
+    }
+  });
+
+  // Project Template Stages routes
+  app.get("/api/project-templates/:templateId/stages", requireAnyAuthenticated, async (req, res) => {
+    try {
+      const stages = await storage.getStagesByTemplate(req.params.templateId);
+      res.json(stages);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch template stages" });
+    }
+  });
+
+  app.post("/api/project-templates/:templateId/stages", requireAdmin, async (req, res) => {
+    try {
+      const templateId = req.params.templateId;
+      const existingStages = await storage.getStagesByTemplate(templateId);
+      const nextOrder = existingStages.length > 0 ? Math.max(...existingStages.map(s => s.stage_order)) + 1 : 1;
+      const stage = await storage.createProjectTemplateStage({
+        ...req.body,
+        template_id: templateId,
+        stage_order: req.body.stage_order ?? nextOrder,
+      });
+      res.status(201).json(stage);
+    } catch (error) {
+      res.status(400).json({ error: "Failed to create template stage" });
+    }
+  });
+
+  app.put("/api/project-templates/:templateId/stages/:stageId", requireAdmin, async (req, res) => {
+    try {
+      const stage = await storage.updateProjectTemplateStage(req.params.stageId, req.body);
+      res.json(stage);
+    } catch (error) {
+      res.status(400).json({ error: "Failed to update template stage" });
+    }
+  });
+
+  app.delete("/api/project-templates/:templateId/stages/:stageId", requireAdmin, async (req, res) => {
+    try {
+      await storage.deleteProjectTemplateStage(req.params.stageId);
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete template stage" });
+    }
+  });
+
+  app.put("/api/project-templates/:templateId/stages/reorder", requireAdmin, async (req, res) => {
+    try {
+      const { stageIds } = req.body;
+      await storage.reorderProjectTemplateStages(req.params.templateId, stageIds);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(400).json({ error: "Failed to reorder stages" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
