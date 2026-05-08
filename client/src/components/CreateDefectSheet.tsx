@@ -24,6 +24,8 @@ interface Props {
   currentUserId: string;
   /** When set, pre-fills and locks the project field */
   defaultProjectId?: string;
+  /** Display name for the locked project (avoids lookup issues) */
+  defaultProjectName?: string;
 }
 
 const defaultForm = {
@@ -45,7 +47,7 @@ const defaultForm = {
   due_date: "",
 };
 
-export default function CreateDefectSheet({ open, onOpenChange, currentUserId, defaultProjectId }: Props) {
+export default function CreateDefectSheet({ open, onOpenChange, currentUserId, defaultProjectId, defaultProjectName }: Props) {
   const queryClient = useQueryClient();
   const { users, teams } = useUsersAndTeams();
   const { user } = useSupabaseSession();
@@ -57,7 +59,7 @@ export default function CreateDefectSheet({ open, onOpenChange, currentUserId, d
 
   const { data: projects = [] } = useQuery<any[]>({
     queryKey: ["/api/projects"],
-    queryFn: () => apiClient.get("/projects").then((data: any[]) => data.filter((p: any) => p.is_confirmed)),
+    queryFn: () => apiClient.get("/projects"),
     enabled: open,
   });
 
@@ -376,7 +378,7 @@ export default function CreateDefectSheet({ open, onOpenChange, currentUserId, d
                   <div className="h-10 flex items-center px-3 text-sm rounded-lg border border-emerald-300 bg-emerald-50 dark:bg-emerald-900/20 dark:border-emerald-700 text-emerald-800 dark:text-emerald-300 gap-2">
                     <span className="text-emerald-500">🔒</span>
                     <span className="font-medium truncate">
-                      {(projects as any[]).find((p: any) => p.id === defaultProjectId)?.name ?? "Current project"}
+                      {defaultProjectName || (projects as any[]).find((p: any) => p.id === defaultProjectId)?.name || "Current project"}
                     </span>
                     <span className="ml-auto text-xs opacity-60">auto-linked</span>
                   </div>

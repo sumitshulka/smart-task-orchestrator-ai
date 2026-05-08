@@ -1395,6 +1395,7 @@ export default function ProjectDetail() {
           if (!v) queryClient.invalidateQueries({ queryKey: ["/api/projects", id, "defects"] });
         }}
         defaultProjectId={id}
+        defaultProjectName={(project as any)?.name}
       />
 
       {/* ===== DEFECT DETAILS SHEET ===== */}
