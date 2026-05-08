@@ -15,12 +15,14 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import CreateTaskSheet from "@/components/CreateTaskSheet";
 import EditTaskSheet from "@/components/EditTaskSheet";
+import CreateDefectSheet from "@/components/CreateDefectSheet";
+import DefectDetailsSheet from "@/components/DefectDetailsSheet";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import {
   ArrowLeft, CheckCircle2, Users, Milestone, Layers, Plus, Pencil, Trash2,
   Calendar, Clock, DollarSign, History, UserCircle, Tag, Grip, ChevronDown, ChevronUp,
-  Search, ListTodo, ExternalLink, Flag,
+  Search, ListTodo, ExternalLink, Flag, Bug,
 } from "lucide-react";
 import { format } from "date-fns";
 import type {
@@ -366,6 +368,27 @@ export default function ProjectDetail() {
   const [editingTask, setEditingTask]       = useState<Task | null>(null);
   const [editTaskOpen, setEditTaskOpen]     = useState(false);
 
+  // Defects tab state
+  const [createDefectOpen, setCreateDefectOpen] = useState(false);
+  const [selectedDefect, setSelectedDefect]     = useState<any>(null);
+  const [defectSearch, setDefectSearch]         = useState("");
+  const [defectStatusFilter, setDefectStatusFilter] = useState("all");
+  const [defectSeverityFilter, setDefectSeverityFilter] = useState("all");
+
+  const { data: projectDefects = [], refetch: refetchDefects } = useQuery<any[]>({
+    queryKey: ["/api/projects", id, "defects"],
+    queryFn: () => apiClient.get(`/projects/${id}/defects`),
+    enabled: !!id,
+  });
+
+  const filteredDefects = projectDefects.filter((d: any) => {
+    const q = defectSearch.toLowerCase();
+    const matchesSearch = !q || d.title.toLowerCase().includes(q);
+    const matchesStatus   = defectStatusFilter   === "all" || d.status   === defectStatusFilter;
+    const matchesSeverity = defectSeverityFilter === "all" || d.severity === defectSeverityFilter;
+    return matchesSearch && matchesStatus && matchesSeverity;
+  });
+
   // State for dialogs
   const [confirmDialog, setConfirmDialog] = useState(false);
   const [deleteDialog, setDeleteDialog] = useState(false);
@@ -667,7 +690,7 @@ export default function ProjectDetail() {
 
       {/* Tabs */}
       <Tabs defaultValue="overview">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="members">
             <Users className="h-3.5 w-3.5 mr-1" />Members ({members.length})
@@ -680,6 +703,15 @@ export default function ProjectDetail() {
           </TabsTrigger>
           <TabsTrigger value="tasks">
             <ListTodo className="h-3.5 w-3.5 mr-1" />Tasks ({projectTasks.length})
+          </TabsTrigger>
+          <TabsTrigger value="defects" className="gap-1">
+            <Bug className="h-3.5 w-3.5" />
+            Defects
+            {projectDefects.length > 0 && (
+              <span className="ml-1 bg-orange-100 text-orange-700 text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                {projectDefects.length}
+              </span>
+            )}
           </TabsTrigger>
         </TabsList>
 
@@ -1231,7 +1263,155 @@ export default function ProjectDetail() {
             </div>
           )}
         </TabsContent>
+
+        {/* ===== DEFECTS TAB ===== */}
+        <TabsContent value="defects" className="mt-4">
+          {/* Toolbar */}
+          <div className="flex flex-wrap items-center gap-2 mb-4">
+            <div className="relative flex-1 min-w-[180px]">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <input
+                type="text"
+                placeholder="Search defects…"
+                value={defectSearch}
+                onChange={(e) => setDefectSearch(e.target.value)}
+                className="pl-8 pr-3 h-9 w-full rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+            </div>
+            <select
+              value={defectSeverityFilter}
+              onChange={(e) => setDefectSeverityFilter(e.target.value)}
+              className="h-9 text-sm border border-input bg-background rounded-md px-2"
+            >
+              <option value="all">All Severities</option>
+              <option value="critical">Critical</option>
+              <option value="high">High</option>
+              <option value="medium">Medium</option>
+              <option value="low">Low</option>
+              <option value="trivial">Trivial</option>
+            </select>
+            <select
+              value={defectStatusFilter}
+              onChange={(e) => setDefectStatusFilter(e.target.value)}
+              className="h-9 text-sm border border-input bg-background rounded-md px-2"
+            >
+              <option value="all">All Statuses</option>
+              <option value="draft">Draft</option>
+              <option value="submitted">Submitted</option>
+              <option value="approved">Approved</option>
+              <option value="rejected">Rejected</option>
+              <option value="in_progress">In Progress</option>
+              <option value="resolved">Resolved</option>
+              <option value="verified">Verified</option>
+              <option value="closed">Closed</option>
+              <option value="reopened">Reopened</option>
+            </select>
+            <Button size="sm" className="ml-auto gap-1" onClick={() => setCreateDefectOpen(true)}>
+              <Plus className="h-4 w-4" /> Report Defect
+            </Button>
+          </div>
+
+          {/* Table */}
+          {filteredDefects.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 text-center text-muted-foreground gap-3">
+              <Bug className="h-10 w-10 opacity-30" />
+              <p className="font-medium">No defects found</p>
+              <p className="text-sm">Click "Report Defect" to log the first one for this project.</p>
+            </div>
+          ) : (
+            <div className="rounded-lg border overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/50 border-b">
+                  <tr>
+                    <th className="text-left px-4 py-2.5 font-semibold text-muted-foreground w-[110px]">#</th>
+                    <th className="text-left px-4 py-2.5 font-semibold text-muted-foreground">Title</th>
+                    <th className="text-left px-4 py-2.5 font-semibold text-muted-foreground w-[100px]">Severity</th>
+                    <th className="text-left px-4 py-2.5 font-semibold text-muted-foreground w-[110px]">Status</th>
+                    <th className="text-left px-4 py-2.5 font-semibold text-muted-foreground w-[130px]">Assignee</th>
+                    <th className="text-left px-4 py-2.5 font-semibold text-muted-foreground w-[80px]">Tasks</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {filteredDefects.map((defect: any) => {
+                    const sevColors: Record<string, string> = {
+                      critical: "bg-red-100 text-red-700 border-red-200",
+                      high:     "bg-orange-100 text-orange-700 border-orange-200",
+                      medium:   "bg-yellow-100 text-yellow-700 border-yellow-200",
+                      low:      "bg-blue-100 text-blue-700 border-blue-200",
+                      trivial:  "bg-gray-100 text-gray-600 border-gray-200",
+                    };
+                    const statusColors: Record<string, string> = {
+                      draft:       "bg-gray-100 text-gray-600",
+                      submitted:   "bg-blue-100 text-blue-700",
+                      approved:    "bg-emerald-100 text-emerald-700",
+                      rejected:    "bg-red-100 text-red-700",
+                      in_progress: "bg-purple-100 text-purple-700",
+                      resolved:    "bg-teal-100 text-teal-700",
+                      verified:    "bg-emerald-100 text-emerald-700",
+                      closed:      "bg-gray-200 text-gray-600",
+                      reopened:    "bg-red-100 text-red-700",
+                    };
+                    const assignee = (users as User[]).find((u) => u.id === defect.assigned_to);
+                    return (
+                      <tr
+                        key={defect.id}
+                        className="hover:bg-muted/30 cursor-pointer transition-colors"
+                        onClick={() => setSelectedDefect(defect)}
+                      >
+                        <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
+                          {defect.defect_number ?? "—"}
+                        </td>
+                        <td className="px-4 py-3 font-medium max-w-[280px] truncate">{defect.title}</td>
+                        <td className="px-4 py-3">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold border ${sevColors[defect.severity] ?? "bg-gray-100 text-gray-600"}`}>
+                            {defect.severity}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${statusColors[defect.status] ?? "bg-gray-100 text-gray-600"}`}>
+                            {defect.status.replace(/_/g, " ")}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-muted-foreground">
+                          {assignee ? (assignee.user_name || assignee.email) : "—"}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-muted-foreground">
+                          {defect.linked_task_count ?? 0}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </TabsContent>
       </Tabs>
+
+      {/* ===== CREATE DEFECT SHEET ===== */}
+      <CreateDefectSheet
+        open={createDefectOpen}
+        onOpenChange={(v) => {
+          setCreateDefectOpen(v);
+          if (!v) queryClient.invalidateQueries({ queryKey: ["/api/projects", id, "defects"] });
+        }}
+        defaultProjectId={id}
+      />
+
+      {/* ===== DEFECT DETAILS SHEET ===== */}
+      {selectedDefect && (
+        <DefectDetailsSheet
+          defect={selectedDefect}
+          open={!!selectedDefect}
+          onOpenChange={(v) => {
+            if (!v) {
+              setSelectedDefect(null);
+              queryClient.invalidateQueries({ queryKey: ["/api/projects", id, "defects"] });
+              queryClient.invalidateQueries({ queryKey: ["/api/defect-task-ids"] });
+            }
+          }}
+        />
+      )}
 
       {/* ===== EDIT TASK SHEET ===== */}
       <EditTaskSheet

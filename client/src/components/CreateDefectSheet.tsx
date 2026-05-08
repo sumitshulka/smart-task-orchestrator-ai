@@ -22,6 +22,8 @@ interface Props {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   currentUserId: string;
+  /** When set, pre-fills and locks the project field */
+  defaultProjectId?: string;
 }
 
 const defaultForm = {
@@ -43,12 +45,12 @@ const defaultForm = {
   due_date: "",
 };
 
-export default function CreateDefectSheet({ open, onOpenChange, currentUserId }: Props) {
+export default function CreateDefectSheet({ open, onOpenChange, currentUserId, defaultProjectId }: Props) {
   const queryClient = useQueryClient();
   const { users, teams } = useUsersAndTeams();
   const { user } = useSupabaseSession();
 
-  const [form, setForm] = useState({ ...defaultForm });
+  const [form, setForm] = useState({ ...defaultForm, project_id: defaultProjectId || "" });
   const [milestonesList, setMilestonesList] = useState<any[]>([]);
   const [featureGroupsList, setFeatureGroupsList] = useState<any[]>([]);
   const [featuresList, setFeaturesList] = useState<any[]>([]);
@@ -104,10 +106,11 @@ export default function CreateDefectSheet({ open, onOpenChange, currentUserId }:
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/defects"] });
       toast({ title: "Defect reported", description: "Saved as draft. Submit it for manager approval when ready." });
-      setForm({ ...defaultForm });
+      setForm({ ...defaultForm, project_id: defaultProjectId || "" });
       setMilestonesList([]);
       setFeatureGroupsList([]);
       setFeaturesList([]);
+      queryClient.invalidateQueries({ queryKey: ["/api/defect-task-ids"] });
       onOpenChange(false);
     },
     onError: (e: any) => {
@@ -366,19 +369,29 @@ export default function CreateDefectSheet({ open, onOpenChange, currentUserId }:
             </p>
 
             <div className="space-y-3">
-              {/* Project */}
+              {/* Project — locked when opened from inside a project */}
               <div>
                 <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">Project</label>
-                <select
-                  value={form.project_id}
-                  onChange={(e) => set("project_id", e.target.value)}
-                  className="w-full h-10 text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 bg-white dark:bg-gray-800 focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">— None —</option>
-                  {(projects as any[]).map((p: any) => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-                </select>
+                {defaultProjectId ? (
+                  <div className="h-10 flex items-center px-3 text-sm rounded-lg border border-emerald-300 bg-emerald-50 dark:bg-emerald-900/20 dark:border-emerald-700 text-emerald-800 dark:text-emerald-300 gap-2">
+                    <span className="text-emerald-500">🔒</span>
+                    <span className="font-medium truncate">
+                      {(projects as any[]).find((p: any) => p.id === defaultProjectId)?.name ?? "Current project"}
+                    </span>
+                    <span className="ml-auto text-xs opacity-60">auto-linked</span>
+                  </div>
+                ) : (
+                  <select
+                    value={form.project_id}
+                    onChange={(e) => set("project_id", e.target.value)}
+                    className="w-full h-10 text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 bg-white dark:bg-gray-800 focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">— None —</option>
+                    {(projects as any[]).map((p: any) => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
+                )}
               </div>
 
               {form.project_id && (
@@ -457,7 +470,7 @@ export default function CreateDefectSheet({ open, onOpenChange, currentUserId }:
             </Button>
             <SheetClose asChild>
               <Button type="button" variant="outline" className="h-12 px-6 text-base font-semibold"
-                onClick={() => { setForm({ ...defaultForm }); onOpenChange(false); }}>
+                onClick={() => { setForm({ ...defaultForm, project_id: defaultProjectId || "" }); onOpenChange(false); }}>
                 Cancel
               </Button>
             </SheetClose>

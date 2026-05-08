@@ -4,6 +4,8 @@ import { useDrag } from "react-dnd";
 import { Task } from "@/integrations/supabase/tasks";
 import { formatOrgDate } from "@/lib/dateUtils";
 import { useUserName } from "@/hooks/useUserName";
+import { useDefectTaskIds } from "@/hooks/useDefectTaskIds";
+import { Bug } from "lucide-react";
 
 // Utility to convert hex to RGB for lighter colors
 const hexToRgb = (hex: string) => {
@@ -122,6 +124,8 @@ function KanbanTaskCard({ task, onClick, CARD_TYPE, statusColor }: {
   const cardStyling = getCardStyling(statusKey);
   const dynamicStyling = getDynamicCardStyling(statusColor);
   const assignedUserName = useUserName(task.assigned_to);
+  const defectTaskIds = useDefectTaskIds();
+  const isDefectTask = defectTaskIds.has(task.id);
   
   const [{ isDragging }, dragRef] = useDrag({
     type: CARD_TYPE,
@@ -160,6 +164,15 @@ function KanbanTaskCard({ task, onClick, CARD_TYPE, statusColor }: {
           </div>
         </div>
         
+        {/* Defect Fix badge */}
+        {isDefectTask && (
+          <div className="mb-2">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-700 border border-orange-200">
+              <Bug size={10} /> Defect Fix
+            </span>
+          </div>
+        )}
+
         {/* Task Meta */}
         <div className="flex items-center justify-between">
           <span className={`

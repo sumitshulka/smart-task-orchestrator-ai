@@ -2604,6 +2604,26 @@ Rules:
 
   // ─── Defect Management Routes ────────────────────────────────────────────────
 
+  // GET /api/defect-task-ids — all task IDs that are linked to a defect
+  app.get("/api/defect-task-ids", requireAnyAuthenticated, async (_req: any, res: any) => {
+    try {
+      const ids = await storage.getAllDefectTaskIds();
+      return res.json(ids);
+    } catch (err: any) {
+      return res.status(500).json({ error: "Failed to fetch defect task IDs" });
+    }
+  });
+
+  // GET /api/projects/:id/defects — defects scoped to a project
+  app.get("/api/projects/:id/defects", requireAnyAuthenticated, async (req: any, res: any) => {
+    try {
+      const list = await storage.getDefectsByProject(req.params.id);
+      return res.json(list);
+    } catch (err: any) {
+      return res.status(500).json({ error: "Failed to fetch project defects" });
+    }
+  });
+
   // GET /api/defects — list all defects
   app.get("/api/defects", requireAnyAuthenticated, async (req: any, res: any) => {
     try {

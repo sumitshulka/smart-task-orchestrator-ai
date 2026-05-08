@@ -10,6 +10,8 @@ import { Badge } from "@/components/ui/badge";
 import { formatOrgDate } from "@/lib/dateUtils";
 import { useUserNames } from "@/hooks/useUserName";
 import { useStatusTransitionValidation } from "@/hooks/useStatusTransitionValidation";
+import { useDefectTaskIds } from "@/hooks/useDefectTaskIds";
+import { Bug } from "lucide-react";
 import TaskTimer from "./TaskTimer";
 
 // Utility to convert hex to RGB for lighter colors
@@ -114,6 +116,8 @@ export default function TaskCard({ task, onTaskUpdated, canDelete, statusColor, 
   const timeStatus = getTimeIndicator(task);
 
   // BADGE LOGIC: Now actually available on Task
+  const defectTaskIds = useDefectTaskIds();
+  const isDefectTask = defectTaskIds.has(task.id);
   const isSubTask = !!(task.group_ids && Array.isArray(task.group_ids) && task.group_ids.length > 0);
   const isDependent = !!task.is_dependent;
 
@@ -195,6 +199,12 @@ export default function TaskCard({ task, onTaskUpdated, canDelete, statusColor, 
               <span className="text-xs px-2 py-1 rounded-full bg-red-100 text-red-700 font-medium">
                 Overdue
               </span>
+            )}
+            {/* Defect Fix badge */}
+            {isDefectTask && (
+              <Badge className="bg-orange-100 text-orange-700 flex items-center gap-1 text-xs border border-orange-200" variant="secondary" title="This task was created to fix a defect">
+                <Bug size={12} /> <span className="hidden sm:inline">Defect Fix</span>
+              </Badge>
             )}
             {/* Subtask and Dependency Badges */}
             {isSubTask && (

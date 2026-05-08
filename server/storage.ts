@@ -268,6 +268,8 @@ export interface IStorage {
 
   // Defect operations
   getAllDefects(): Promise<Defect[]>;
+  getDefectsByProject(projectId: string): Promise<Defect[]>;
+  getAllDefectTaskIds(): Promise<string[]>;
   getDefect(id: string): Promise<Defect | undefined>;
   getDefectsByUser(userId: string): Promise<Defect[]>;
   createDefect(defect: InsertDefect): Promise<Defect>;
@@ -1537,6 +1539,19 @@ export class DatabaseStorage implements IStorage {
   // ─── Defect operations ───────────────────────────────────────────────────────
   async getAllDefects(): Promise<Defect[]> {
     return db.select().from(defects).orderBy(desc(defects.created_at));
+  }
+
+  async getDefectsByProject(projectId: string): Promise<Defect[]> {
+    return db
+      .select()
+      .from(defects)
+      .where(eq(defects.project_id, projectId))
+      .orderBy(desc(defects.created_at));
+  }
+
+  async getAllDefectTaskIds(): Promise<string[]> {
+    const rows = await db.select({ task_id: defectTasks.task_id }).from(defectTasks);
+    return rows.map((r) => r.task_id);
   }
 
   async getDefect(id: string): Promise<Defect | undefined> {
