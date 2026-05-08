@@ -29,6 +29,9 @@ import {
   projectFeatureGroups,
   projectFeatures,
   aiSettings,
+  defects,
+  defectComments,
+  defectActivity,
   User, 
   InsertUser, 
   Task, 
@@ -77,6 +80,12 @@ import {
   InsertProjectFeature,
   AiSettings,
   InsertAiSettings,
+  Defect,
+  InsertDefect,
+  DefectComment,
+  InsertDefectComment,
+  DefectActivity,
+  InsertDefectActivity,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -253,6 +262,24 @@ export interface IStorage {
   // AI Settings operations
   getAiSettings(): Promise<AiSettings | null>;
   upsertAiSettings(data: Partial<InsertAiSettings>): Promise<AiSettings>;
+
+  // Defect operations
+  getAllDefects(): Promise<Defect[]>;
+  getDefect(id: string): Promise<Defect | undefined>;
+  getDefectsByUser(userId: string): Promise<Defect[]>;
+  createDefect(defect: InsertDefect): Promise<Defect>;
+  updateDefect(id: string, updates: Partial<Defect>): Promise<Defect>;
+  deleteDefect(id: string): Promise<void>;
+
+  // Defect comment operations
+  getDefectComments(defectId: string): Promise<DefectComment[]>;
+  createDefectComment(comment: InsertDefectComment): Promise<DefectComment>;
+  updateDefectComment(id: string, content: string): Promise<DefectComment>;
+  deleteDefectComment(id: string): Promise<void>;
+
+  // Defect activity operations
+  getDefectActivity(defectId: string): Promise<DefectActivity[]>;
+  logDefectActivity(activity: InsertDefectActivity): Promise<DefectActivity>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1497,6 +1524,85 @@ export class DatabaseStorage implements IStorage {
         .returning();
       return result[0];
     }
+  }
+
+  // ─── Defect operations ───────────────────────────────────────────────────────
+  async getAllDefects(): Promise<Defect[]> {
+    return db.select().from(defects).orderBy(desc(defects.created_at));
+  }
+
+  async getDefect(id: string): Promise<Defect | undefined> {
+    const result = await db.select().from(defects).where(eq(defects.id, id)).limit(1);
+    return result[0];
+  }
+
+  async getDefectsByUser(userId: string): Promise<Defect[]> {
+    return db
+      .select()
+      .from(defects)
+      .where(or(eq(defects.reported_by, userId), eq(defects.assigned_to, userId)))
+      .orderBy(desc(defects.created_at));
+  }
+
+  async createDefect(defect: InsertDefect): Promise<Defect> {
+    const result = await db.insert(defects).values(defect).returning();
+    return result[0];
+  }
+
+  async updateDefect(id: string, updates: Partial<Defect>): Promise<Defect> {
+    const result = await db
+      .update(defects)
+      .set({ ...updates, updated_at: new Date() })
+      .where(eq(defects.id, id))
+      .returning();
+    if (!result[0]) throw new Error("Defect not found");
+    return result[0];
+  }
+
+  async deleteDefect(id: string): Promise<void> {
+    await db.delete(defects).where(eq(defects.id, id));
+  }
+
+  // ─── Defect comment operations ───────────────────────────────────────────────
+  async getDefectComments(defectId: string): Promise<DefectComment[]> {
+    return db
+      .select()
+      .from(defectComments)
+      .where(eq(defectComments.defect_id, defectId))
+      .orderBy(defectComments.created_at);
+  }
+
+  async createDefectComment(comment: InsertDefectComment): Promise<DefectComment> {
+    const result = await db.insert(defectComments).values(comment).returning();
+    return result[0];
+  }
+
+  async updateDefectComment(id: string, content: string): Promise<DefectComment> {
+    const result = await db
+      .update(defectComments)
+      .set({ content, updated_at: new Date() })
+      .where(eq(defectComments.id, id))
+      .returning();
+    if (!result[0]) throw new Error("Comment not found");
+    return result[0];
+  }
+
+  async deleteDefectComment(id: string): Promise<void> {
+    await db.delete(defectComments).where(eq(defectComments.id, id));
+  }
+
+  // ─── Defect activity operations ──────────────────────────────────────────────
+  async getDefectActivity(defectId: string): Promise<DefectActivity[]> {
+    return db
+      .select()
+      .from(defectActivity)
+      .where(eq(defectActivity.defect_id, defectId))
+      .orderBy(desc(defectActivity.created_at));
+  }
+
+  async logDefectActivity(activity: InsertDefectActivity): Promise<DefectActivity> {
+    const result = await db.insert(defectActivity).values(activity).returning();
+    return result[0];
   }
 }
 

@@ -32,6 +32,9 @@ import Projects from "@/pages/Projects";
 import ProjectDetail from "@/pages/ProjectDetail";
 import CreateProject from "@/pages/CreateProject";
 import ProjectReports from "@/pages/ProjectReports";
+import DefectsPage from "@/pages/Defects";
+import DefectBoardPage from "@/pages/DefectBoard";
+import MyDefectsPage from "@/pages/MyDefects";
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -232,6 +235,31 @@ const App = () => (
               element={
                 <AdminLayout>
                   <ProjectDetail />
+                </AdminLayout>
+              }
+            />
+            {/* Defect Management routes */}
+            <Route
+              path="/defects"
+              element={
+                <AdminLayout>
+                  <DefectsPage />
+                </AdminLayout>
+              }
+            />
+            <Route
+              path="/defects/board"
+              element={
+                <AdminLayout>
+                  <DefectBoardPage />
+                </AdminLayout>
+              }
+            />
+            <Route
+              path="/defects/my"
+              element={
+                <AdminLayout>
+                  <MyDefectsPage />
                 </AdminLayout>
               }
             />

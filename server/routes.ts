@@ -2602,6 +2602,158 @@ Rules:
     }
   });
 
+  // ─── Defect Management Routes ────────────────────────────────────────────────
+
+  // GET /api/defects — list all defects
+  app.get("/api/defects", requireAnyAuthenticated, async (req: any, res: any) => {
+    try {
+      const defects = await storage.getAllDefects();
+      return res.json(defects);
+    } catch (err: any) {
+      return res.status(500).json({ error: "Failed to fetch defects" });
+    }
+  });
+
+  // GET /api/defects/:id — get single defect
+  app.get("/api/defects/:id", requireAnyAuthenticated, async (req: any, res: any) => {
+    try {
+      const defect = await storage.getDefect(req.params.id);
+      if (!defect) return res.status(404).json({ error: "Defect not found" });
+      return res.json(defect);
+    } catch (err: any) {
+      return res.status(500).json({ error: "Failed to fetch defect" });
+    }
+  });
+
+  // POST /api/defects — create defect (any authenticated user)
+  app.post("/api/defects", requireAnyAuthenticated, async (req: any, res: any) => {
+    try {
+      const userId = req.headers['x-user-id'];
+      const body = { ...req.body, reported_by: req.body.reported_by || userId };
+      const defect = await storage.createDefect(body);
+      // Log creation activity
+      await storage.logDefectActivity({
+        defect_id: defect.id,
+        action_type: "created",
+        old_value: null,
+        new_value: defect.title,
+        acted_by: userId,
+      });
+      return res.json(defect);
+    } catch (err: any) {
+      console.error("POST /api/defects error:", err);
+      return res.status(500).json({ error: "Failed to create defect", details: err.message });
+    }
+  });
+
+  // PATCH /api/defects/:id — update defect
+  app.patch("/api/defects/:id", requireAnyAuthenticated, async (req: any, res: any) => {
+    try {
+      const userId = req.headers['x-user-id'];
+      const existing = await storage.getDefect(req.params.id);
+      if (!existing) return res.status(404).json({ error: "Defect not found" });
+
+      const updates = req.body;
+      const defect = await storage.updateDefect(req.params.id, updates);
+
+      // Log specific activity events
+      if (updates.status && updates.status !== existing.status) {
+        await storage.logDefectActivity({
+          defect_id: defect.id,
+          action_type: "status_changed",
+          old_value: existing.status,
+          new_value: updates.status,
+          acted_by: userId,
+        });
+        // Set resolved_at / verified_at timestamps
+        if (updates.status === "resolved" && !existing.resolved_at) {
+          await storage.updateDefect(req.params.id, { resolved_at: new Date() });
+        }
+        if (updates.status === "verified" && !existing.verified_at) {
+          await storage.updateDefect(req.params.id, { verified_at: new Date() });
+        }
+      }
+      if (updates.assigned_to !== undefined && updates.assigned_to !== existing.assigned_to) {
+        await storage.logDefectActivity({
+          defect_id: defect.id,
+          action_type: "assigned",
+          old_value: existing.assigned_to,
+          new_value: updates.assigned_to,
+          acted_by: userId,
+        });
+      }
+      if (updates.severity && updates.severity !== existing.severity) {
+        await storage.logDefectActivity({
+          defect_id: defect.id,
+          action_type: "severity_changed",
+          old_value: existing.severity,
+          new_value: updates.severity,
+          acted_by: userId,
+        });
+      }
+
+      return res.json(defect);
+    } catch (err: any) {
+      console.error("PATCH /api/defects/:id error:", err);
+      return res.status(500).json({ error: "Failed to update defect", details: err.message });
+    }
+  });
+
+  // DELETE /api/defects/:id — admin / manager only
+  app.delete("/api/defects/:id", requireRole(["admin", "manager", "team_manager"]), async (req: any, res: any) => {
+    try {
+      await storage.deleteDefect(req.params.id);
+      return res.json({ success: true });
+    } catch (err: any) {
+      return res.status(500).json({ error: "Failed to delete defect" });
+    }
+  });
+
+  // GET /api/defects/:id/comments
+  app.get("/api/defects/:id/comments", requireAnyAuthenticated, async (req: any, res: any) => {
+    try {
+      const comments = await storage.getDefectComments(req.params.id);
+      return res.json(comments);
+    } catch (err: any) {
+      return res.status(500).json({ error: "Failed to fetch comments" });
+    }
+  });
+
+  // POST /api/defects/:id/comments
+  app.post("/api/defects/:id/comments", requireAnyAuthenticated, async (req: any, res: any) => {
+    try {
+      const userId = req.headers['x-user-id'];
+      const comment = await storage.createDefectComment({
+        defect_id: req.params.id,
+        content: req.body.content,
+        commented_by: req.body.commented_by || userId,
+      });
+      return res.json(comment);
+    } catch (err: any) {
+      return res.status(500).json({ error: "Failed to create comment" });
+    }
+  });
+
+  // DELETE /api/defects/comments/:id
+  app.delete("/api/defects/comments/:id", requireAnyAuthenticated, async (req: any, res: any) => {
+    try {
+      await storage.deleteDefectComment(req.params.id);
+      return res.json({ success: true });
+    } catch (err: any) {
+      return res.status(500).json({ error: "Failed to delete comment" });
+    }
+  });
+
+  // GET /api/defects/:id/activity
+  app.get("/api/defects/:id/activity", requireAnyAuthenticated, async (req: any, res: any) => {
+    try {
+      const activity = await storage.getDefectActivity(req.params.id);
+      return res.json(activity);
+    } catch (err: any) {
+      return res.status(500).json({ error: "Failed to fetch activity" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

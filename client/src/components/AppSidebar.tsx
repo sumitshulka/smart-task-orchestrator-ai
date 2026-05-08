@@ -10,6 +10,7 @@ import ManagementMenu from "./AppSidebarParts/ManagementMenu";
 import ReportsMenu from "./AppSidebarParts/ReportsMenu";
 import WarningNoTeams from "./AppSidebarParts/WarningNoTeams";
 import ProjectManagementMenu from "./AppSidebarParts/ProjectManagementMenu";
+import DefectManagementMenu from "./AppSidebarParts/DefectManagementMenu";
 
 export default function AppSidebar() {
   const location = useLocation();
@@ -26,6 +27,7 @@ export default function AppSidebar() {
   const isUserOnly = !isAdmin && !isManager && roles.includes("user");
 
   const projectManagementEnabled = settings?.project_management_enabled ?? false;
+  const defectManagementEnabled = settings?.defect_management_enabled ?? false;
 
   // Teams logic for warning
   const isOnTeams = location.pathname.startsWith("/admin/teams");
@@ -61,6 +63,9 @@ export default function AppSidebar() {
           <TaskManagementMenu collapsed={false} />
           {projectManagementEnabled && (
             <ProjectManagementMenu collapsed={false} />
+          )}
+          {defectManagementEnabled && (
+            <DefectManagementMenu collapsed={false} />
           )}
           <ManagementMenu isAdmin={isAdmin} isManager={isManager} collapsed={false} />
           <WarningNoTeams isOnTeams={isOnTeams} loading={loading} isUserOnly={isUserOnly} hasTeams={hasTeams} />

@@ -23,6 +23,8 @@ export const organizationSettings = pgTable("organization_settings", {
   allow_user_level_override: boolean("allow_user_level_override").default(false),
   // Project Management feature toggle
   project_management_enabled: boolean("project_management_enabled").default(false),
+  // Defect Management feature toggle
+  defect_management_enabled: boolean("defect_management_enabled").default(false),
   created_at: timestamp("created_at").defaultNow(),
   updated_at: timestamp("updated_at").defaultNow(),
 });
@@ -317,6 +319,7 @@ export const tasks = pgTable("tasks", {
   project_id: uuid("project_id").references(() => projects.id, { onDelete: "set null" }),
   milestone_id: uuid("milestone_id"),
   feature_id: uuid("feature_id"),
+  defect_id: uuid("defect_id"), // optional reference to a defect this task is fixing
   actual_completion_date: timestamp("actual_completion_date"),
   // Timer-related fields
   is_time_managed: boolean("is_time_managed").default(false),
@@ -788,3 +791,116 @@ export const insertAiSettingsSchema = createInsertSchema(aiSettings).omit({
 });
 export type InsertAiSettings = z.infer<typeof insertAiSettingsSchema>;
 export type AiSettings = typeof aiSettings.$inferSelect;
+
+// ─── Defect Management ────────────────────────────────────────────────────────
+
+// Defects table — primary quality-tracking record
+export const defects = pgTable("defects", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  defect_number: serial("defect_number").unique(), // displayed as DEF-00001
+  title: text("title").notNull(),
+  description: text("description"),
+  steps_to_reproduce: text("steps_to_reproduce"),
+  expected_behavior: text("expected_behavior"),
+  actual_behavior: text("actual_behavior"),
+  // Classification
+  severity: text("severity").notNull().default("medium"), // critical, high, medium, low
+  priority: integer("priority").default(3),               // 1=Critical…5=Minimal
+  status: text("status").notNull().default("open"),       // open, in_progress, resolved, verified, closed, reopened
+  type: text("type").notNull().default("bug"),            // bug, regression, performance, ui, security, data
+  environment: text("environment").default("production"),  // production, staging, qa, development
+  // People
+  reported_by: uuid("reported_by").notNull().references(() => users.id),
+  assigned_to: uuid("assigned_to").references(() => users.id),
+  assigned_by: uuid("assigned_by").references(() => users.id),
+  team_id: uuid("team_id").references(() => teams.id),
+  // Optional cross-module references (not containment)
+  project_id: uuid("project_id").references(() => projects.id, { onDelete: "set null" }),
+  milestone_id: uuid("milestone_id"),   // → project_milestones.id
+  task_id: uuid("task_id"),             // → tasks.id
+  // Resolution
+  resolution: text("resolution"),
+  due_date: timestamp("due_date"),
+  resolved_at: timestamp("resolved_at"),
+  verified_at: timestamp("verified_at"),
+  created_at: timestamp("created_at").defaultNow(),
+  updated_at: timestamp("updated_at").defaultNow(),
+});
+
+// Defect comments — threaded discussion on a defect
+export const defectComments = pgTable("defect_comments", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  defect_id: uuid("defect_id").notNull().references(() => defects.id, { onDelete: "cascade" }),
+  content: text("content").notNull(),
+  commented_by: uuid("commented_by").notNull().references(() => users.id),
+  created_at: timestamp("created_at").defaultNow(),
+  updated_at: timestamp("updated_at").defaultNow(),
+});
+
+// Defect activity — audit log (status changes, assignments, etc.)
+export const defectActivity = pgTable("defect_activity", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  defect_id: uuid("defect_id").notNull().references(() => defects.id, { onDelete: "cascade" }),
+  action_type: text("action_type").notNull(), // created, status_changed, assigned, severity_changed, …
+  old_value: text("old_value"),
+  new_value: text("new_value"),
+  acted_by: uuid("acted_by").references(() => users.id),
+  created_at: timestamp("created_at").defaultNow(),
+});
+
+// Relations
+export const defectsRelations = relations(defects, ({ one, many }) => ({
+  reportedBy: one(users, { fields: [defects.reported_by], references: [users.id], relationName: "defectReportedBy" }),
+  assignedTo:  one(users, { fields: [defects.assigned_to],  references: [users.id], relationName: "defectAssignedTo"  }),
+  assignedBy:  one(users, { fields: [defects.assigned_by],  references: [users.id], relationName: "defectAssignedBy"  }),
+  team:        one(teams,  { fields: [defects.team_id],      references: [teams.id]                                    }),
+  project:     one(projects, { fields: [defects.project_id], references: [projects.id]                                 }),
+  comments:    many(defectComments),
+  activity:    many(defectActivity),
+}));
+
+export const defectCommentsRelations = relations(defectComments, ({ one }) => ({
+  defect:      one(defects, { fields: [defectComments.defect_id],     references: [defects.id]   }),
+  commentedBy: one(users,   { fields: [defectComments.commented_by],  references: [users.id]     }),
+}));
+
+export const defectActivityRelations = relations(defectActivity, ({ one }) => ({
+  defect:   one(defects, { fields: [defectActivity.defect_id], references: [defects.id] }),
+  actedBy:  one(users,   { fields: [defectActivity.acted_by],  references: [users.id]  }),
+}));
+
+// Insert schemas
+export const insertDefectSchema = createInsertSchema(defects).omit({
+  id: true,
+  defect_number: true,
+  created_at: true,
+  updated_at: true,
+}).extend({
+  severity:    z.enum(["critical", "high", "medium", "low"]).default("medium"),
+  priority:    z.number().min(1).max(5).default(3).optional(),
+  status:      z.enum(["open", "in_progress", "resolved", "verified", "closed", "reopened"]).default("open"),
+  type:        z.enum(["bug", "regression", "performance", "ui", "security", "data"]).default("bug"),
+  environment: z.enum(["production", "staging", "qa", "development"]).default("production").optional(),
+  due_date:    z.union([z.date(), z.string().transform((s) => s ? new Date(s) : null)]).nullable().optional(),
+  resolved_at: z.union([z.date(), z.string().transform((s) => s ? new Date(s) : null)]).nullable().optional(),
+  verified_at: z.union([z.date(), z.string().transform((s) => s ? new Date(s) : null)]).nullable().optional(),
+});
+
+export const insertDefectCommentSchema = createInsertSchema(defectComments).omit({
+  id: true,
+  created_at: true,
+  updated_at: true,
+});
+
+export const insertDefectActivitySchema = createInsertSchema(defectActivity).omit({
+  id: true,
+  created_at: true,
+});
+
+// Types
+export type InsertDefect = z.infer<typeof insertDefectSchema>;
+export type Defect = typeof defects.$inferSelect;
+export type InsertDefectComment = z.infer<typeof insertDefectCommentSchema>;
+export type DefectComment = typeof defectComments.$inferSelect;
+export type InsertDefectActivity = z.infer<typeof insertDefectActivitySchema>;
+export type DefectActivity = typeof defectActivity.$inferSelect;

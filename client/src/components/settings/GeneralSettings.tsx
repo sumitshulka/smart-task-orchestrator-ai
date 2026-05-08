@@ -26,6 +26,7 @@ type OrganizationSettings = {
   max_hours_per_month: number;
   allow_user_level_override: boolean;
   project_management_enabled: boolean;
+  defect_management_enabled: boolean;
   created_at: string;
   updated_at: string;
 };
@@ -75,6 +76,7 @@ const GeneralSettings: React.FC = () => {
     max_hours_per_month: 160,
     allow_user_level_override: false,
     project_management_enabled: false,
+    defect_management_enabled: false,
   });
 
   // Update form data when settings are loaded
@@ -95,6 +97,7 @@ const GeneralSettings: React.FC = () => {
         max_hours_per_month: settings.max_hours_per_month || 160,
         allow_user_level_override: settings.allow_user_level_override || false,
         project_management_enabled: settings.project_management_enabled || false,
+        defect_management_enabled: settings.defect_management_enabled || false,
       });
     }
   }, [settings]);
@@ -422,6 +425,33 @@ const GeneralSettings: React.FC = () => {
             <div className="rounded-md border border-blue-200 bg-blue-50 dark:bg-blue-950 dark:border-blue-800 p-3">
               <p className="text-sm text-blue-700 dark:text-blue-300">
                 Project Management is enabled. Go to the <strong>Project Templates</strong> tab to set up your templates and stages.
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Defect Management Settings */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Defect Management</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center space-x-2">
+            <Switch
+              id="defect-management-enabled"
+              checked={formData.defect_management_enabled}
+              onCheckedChange={(checked) => handleFormChange('defect_management_enabled', checked)}
+            />
+            <Label htmlFor="defect-management-enabled">Enable Defect Management Feature</Label>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            When enabled, the Defect Management section will appear in the navigation, allowing all team members to report and track bugs, regressions, and other quality issues across environments.
+          </p>
+          {formData.defect_management_enabled && (
+            <div className="rounded-md border border-orange-200 bg-orange-50 dark:bg-orange-950 dark:border-orange-800 p-3">
+              <p className="text-sm text-orange-700 dark:text-orange-300">
+                Defect Management is enabled. All users can report defects; managers and admins can assign and resolve them.
               </p>
             </div>
           )}
