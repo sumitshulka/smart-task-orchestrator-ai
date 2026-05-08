@@ -6,7 +6,7 @@ import { useUsersAndTeams } from "@/hooks/useUsersAndTeams";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Filter, Search, Kanban, List, Plus } from "lucide-react";
+import { Filter, Search, Kanban, List, Plus, Sparkles } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useTaskStatuses } from "@/hooks/useTaskStatuses";
 import { useStatusTransitionValidation } from "@/hooks/useStatusTransitionValidation";
@@ -15,6 +15,8 @@ import { HTML5Backend } from "react-dnd-html5-backend";
 import TaskDetailsSheet from "@/components/TaskDetailsSheet";
 import TaskCard from "@/components/TaskCard";
 import CreateTaskSheet from "@/components/CreateTaskSheet";
+import AiTaskCreationSheet from "@/components/AiTaskCreationSheet";
+import { useQuery } from "@tanstack/react-query";
 import KanbanColumn from "./MyTasks/KanbanColumn";
 import KanbanTaskCard from "./MyTasks/KanbanTaskCard";
 import TaskCardClickable from "./MyTasks/TaskCardClickable";
@@ -232,6 +234,18 @@ export default function MyTasksPage() {
   const { users, teams } = useUsersAndTeams();
   const { statuses, loading: statusesLoading } = useTaskStatuses();
   const { getStatusSequence } = useStatusTransitionValidation();
+
+  // AI Task Creation
+  const [aiSheetOpen, setAiSheetOpen] = useState(false);
+  const { data: aiAccess } = useQuery({
+    queryKey: ["/api/ai/access"],
+    queryFn: async () => {
+      try { return await apiClient.get("/ai/access"); }
+      catch { return { can_use: false }; }
+    },
+    enabled: !!user,
+  });
+  const aiEnabled = !!(aiAccess?.can_use);
 
   // Sheet (modal) state for Task Details
   const [detailsTask, setDetailsTask] = useState<Task | null>(null);
@@ -502,6 +516,17 @@ export default function MyTasksPage() {
               Create Task
             </Button>
           </CreateTaskSheet>
+          {aiEnabled && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-2 border-purple-300 text-purple-700 hover:bg-purple-50 dark:border-purple-700 dark:text-purple-300 dark:hover:bg-purple-950"
+              onClick={() => setAiSheetOpen(true)}
+            >
+              <Sparkles className="w-4 h-4" />
+              AI Create
+            </Button>
+          )}
         </div>
       </div>
 
@@ -738,7 +763,13 @@ export default function MyTasksPage() {
                 pageSizeOptions={pageSizeOptions}
               />
             )}
+            <AiTaskCreationSheet
+              open={aiSheetOpen}
+              onOpenChange={setAiSheetOpen}
+              onTaskCreated={load}
+              currentUserId={user?.id}
+            />
         </div>
       </div>
-    );
-  }
+  );
+}
