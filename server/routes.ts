@@ -2322,10 +2322,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const decryptedKey = decryptApiKey(settings.api_key);
 
       // Build runtime system prompt footer
-      const allUsers = await storage.getUsers();
+      const allUsers = await storage.getAllUsers();
       const activeUsers = allUsers
         .filter((u: any) => u.is_active)
-        .map((u: any) => ({ id: u.id, name: `${u.first_name} ${u.last_name}`.trim() }));
+        .map((u: any) => ({ id: u.id, name: u.user_name || u.email }));
 
       const allStatuses = await storage.getTaskStatuses();
       const statusNames = allStatuses.map((s: any) => s.name);
