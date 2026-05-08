@@ -28,6 +28,7 @@ import {
   milestoneStages,
   projectFeatureGroups,
   projectFeatures,
+  aiSettings,
   User, 
   InsertUser, 
   Task, 
@@ -74,6 +75,8 @@ import {
   InsertProjectFeatureGroup,
   ProjectFeature,
   InsertProjectFeature,
+  AiSettings,
+  InsertAiSettings,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -246,6 +249,10 @@ export interface IStorage {
   createFeature(feature: InsertProjectFeature): Promise<ProjectFeature>;
   updateFeature(id: string, updates: Partial<ProjectFeature>): Promise<ProjectFeature>;
   deleteFeature(id: string): Promise<void>;
+
+  // AI Settings operations
+  getAiSettings(): Promise<AiSettings | null>;
+  upsertAiSettings(data: Partial<InsertAiSettings>): Promise<AiSettings>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1466,6 +1473,30 @@ export class DatabaseStorage implements IStorage {
 
   async deleteFeature(id: string): Promise<void> {
     await db.delete(projectFeatures).where(eq(projectFeatures.id, id));
+  }
+
+  // AI Settings operations
+  async getAiSettings(): Promise<AiSettings | null> {
+    const result = await db.select().from(aiSettings).limit(1);
+    return result[0] ?? null;
+  }
+
+  async upsertAiSettings(data: Partial<InsertAiSettings>): Promise<AiSettings> {
+    const existing = await this.getAiSettings();
+    if (existing) {
+      const result = await db
+        .update(aiSettings)
+        .set({ ...data, updated_at: new Date() })
+        .where(eq(aiSettings.id, existing.id))
+        .returning();
+      return result[0];
+    } else {
+      const result = await db
+        .insert(aiSettings)
+        .values({ ...(data as InsertAiSettings) })
+        .returning();
+      return result[0];
+    }
   }
 }
 

@@ -5,13 +5,14 @@ import { fetchTasks, Task } from "@/integrations/supabase/tasks";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Filter, Search, Plus } from "lucide-react";
+import { Filter, Search, Plus, Sparkles } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import useSupabaseSession from "@/hooks/useSupabaseSession";
 import CreateTaskSheet from "@/components/CreateTaskSheet";
 import TaskCard from "@/components/TaskCard";
 import TaskDetailsSheet from "@/components/TaskDetailsSheet";
 import EditTaskSheet from "@/components/EditTaskSheet";
+import AiTaskCreationSheet from "@/components/AiTaskCreationSheet";
 import { useUsersAndTeams } from "@/hooks/useUsersAndTeams";
 import { useTaskStatuses } from "@/hooks/useTaskStatuses";
 import { fetchTasksPaginated, FetchTasksInput } from "@/integrations/supabase/tasks";
@@ -21,6 +22,7 @@ import TasksPagination from "@/components/TasksPagination";
 import { useCurrentUserRoleAndTeams } from "@/hooks/useCurrentUserRoleAndTeams";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import DateRangePresetSelector from "@/components/DateRangePresetSelector";
+import { apiClient } from "@/lib/api";
 
 function defaultDateRange() {
   const now = new Date();
@@ -61,7 +63,32 @@ const TasksPage: React.FC = () => {
 
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
-  
+
+  // AI Task Creation
+  const [aiSheetOpen, setAiSheetOpen] = useState(false);
+
+  const { data: aiSettings } = useQuery({
+    queryKey: ["/api/ai/settings/access"],
+    queryFn: async () => {
+      try {
+        return await apiClient.get("/ai/settings");
+      } catch {
+        return null;
+      }
+    },
+    enabled: !!user,
+  });
+
+  const roleName = (roles?.[0] ?? "").toLowerCase();
+  const aiEnabled = !!(
+    aiSettings?.is_enabled &&
+    (
+      (roleName === "admin" && aiSettings?.allow_admin) ||
+      (roleName === "manager" && aiSettings?.allow_manager) ||
+      (roleName !== "admin" && roleName !== "manager" && aiSettings?.allow_user)
+    )
+  );
+
   // Task Details Modal States
   const [detailsTask, setDetailsTask] = useState<Task | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -170,6 +197,17 @@ const TasksPage: React.FC = () => {
             <Filter size={16} />
             Filters
           </Button>
+          {aiEnabled && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2 border-purple-300 text-purple-700 hover:bg-purple-50 dark:border-purple-700 dark:text-purple-300 dark:hover:bg-purple-950"
+              onClick={() => setAiSheetOpen(true)}
+            >
+              <Sparkles className="w-4 h-4" />
+              AI Create
+            </Button>
+          )}
           <CreateTaskSheet onTaskCreated={handleSearch}>
             <Button size="sm" className="gap-2">
               <Plus className="w-4 h-4" />
@@ -350,6 +388,13 @@ const TasksPage: React.FC = () => {
         }}
         open={editOpen}
         onOpenChange={setEditOpen}
+      />
+
+      {/* AI Task Creation Sheet */}
+      <AiTaskCreationSheet
+        open={aiSheetOpen}
+        onOpenChange={setAiSheetOpen}
+        onTaskCreated={handleSearch}
       />
     </div>
   );

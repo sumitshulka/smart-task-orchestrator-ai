@@ -407,6 +407,22 @@ export const rolePermissions = pgTable("role_permissions", {
   updated_at: timestamp("updated_at").defaultNow(),
 });
 
+// AI Settings — singleton row for LLM provider configuration
+export const aiSettings = pgTable("ai_settings", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  provider: text("provider").notNull().default("openai"), // openai|anthropic|google|azure|mistral|ollama
+  api_key: text("api_key"),           // stored encrypted
+  model: text("model"),               // e.g. gpt-4o, claude-3-5-sonnet-20241022
+  base_url: text("base_url"),         // custom endpoint for Azure / Ollama
+  system_prompt_header: text("system_prompt_header"), // admin-editable portion of the prompt
+  is_enabled: boolean("is_enabled").notNull().default(false),
+  allow_admin: boolean("allow_admin").notNull().default(true),
+  allow_manager: boolean("allow_manager").notNull().default(false),
+  allow_user: boolean("allow_user").notNull().default(false),
+  created_at: timestamp("created_at").defaultNow(),
+  updated_at: timestamp("updated_at").defaultNow(),
+});
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   userRoles: many(userRoles),
@@ -764,3 +780,11 @@ export type InsertProjectFeatureGroup = z.infer<typeof insertProjectFeatureGroup
 export type ProjectFeatureGroup = typeof projectFeatureGroups.$inferSelect;
 export type InsertProjectFeature = z.infer<typeof insertProjectFeatureSchema>;
 export type ProjectFeature = typeof projectFeatures.$inferSelect;
+
+export const insertAiSettingsSchema = createInsertSchema(aiSettings).omit({
+  id: true,
+  created_at: true,
+  updated_at: true,
+});
+export type InsertAiSettings = z.infer<typeof insertAiSettingsSchema>;
+export type AiSettings = typeof aiSettings.$inferSelect;

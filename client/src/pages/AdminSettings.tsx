@@ -12,6 +12,7 @@ import StatusManager from "@/components/settings/StatusManager";
 import GeneralSettings from "@/components/settings/GeneralSettings";
 import { LicenseManager } from "@/components/settings/LicenseManager";
 import ProjectTemplates from "@/components/settings/ProjectTemplates";
+import AiSettings from "@/components/settings/AiSettings";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api";
 
@@ -64,6 +65,12 @@ const AdminSettings: React.FC = () => {
               </TabsTrigger>
             )}
             <TabsTrigger
+              value="ai-integration"
+              className="px-6 py-3 text-left justify-start"
+            >
+              AI Integration
+            </TabsTrigger>
+            <TabsTrigger
               value="license"
               className="px-6 py-3 text-left justify-start"
             >
@@ -87,6 +94,9 @@ const AdminSettings: React.FC = () => {
               <ProjectTemplates />
             </TabsContent>
           )}
+          <TabsContent value="ai-integration" className="w-full">
+            <AiSettings />
+          </TabsContent>
           <TabsContent value="license" className="w-full">
             <LicenseManager />
           </TabsContent>
