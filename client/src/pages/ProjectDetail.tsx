@@ -1288,7 +1288,6 @@ export default function ProjectDetail() {
               <option value="high">High</option>
               <option value="medium">Medium</option>
               <option value="low">Low</option>
-              <option value="trivial">Trivial</option>
             </select>
             <select
               value={defectStatusFilter}

@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { licenseManager, APP_ID } from "./license-manager";
-import { insertUserSchema, insertTaskSchema, insertTeamSchema, insertTaskGroupSchema, insertRoleSchema, insertOfficeLocationSchema, userRoles } from "@shared/schema";
+import { insertUserSchema, insertTaskSchema, insertTeamSchema, insertTaskGroupSchema, insertRoleSchema, insertOfficeLocationSchema, userRoles, insertDefectSchema } from "@shared/schema";
 import { callAiProvider, encryptApiKey, decryptApiKey, DEFAULT_SYSTEM_PROMPT_HEADER } from "./ai-provider";
 import { db } from "./db";
 import bcrypt from "bcrypt";
@@ -2649,7 +2649,9 @@ Rules:
   app.post("/api/defects", requireAnyAuthenticated, async (req: any, res: any) => {
     try {
       const userId = req.headers['x-user-id'];
-      const body = { ...req.body, reported_by: req.body.reported_by || userId };
+      const rawBody = { ...req.body, reported_by: req.body.reported_by || userId };
+      // Parse through insertDefectSchema so date strings are converted to Date objects
+      const body = insertDefectSchema.parse(rawBody);
       const defect = await storage.createDefect(body);
       // Log creation activity
       await storage.logDefectActivity({
@@ -2673,7 +2675,16 @@ Rules:
       const existing = await storage.getDefect(req.params.id);
       if (!existing) return res.status(404).json({ error: "Defect not found" });
 
-      const updates = req.body;
+      // Convert any date strings to Date objects
+      const rawUpdates = req.body;
+      const updates: Record<string, any> = { ...rawUpdates };
+      for (const field of ["due_date", "resolved_at", "verified_at", "approved_at"]) {
+        if (updates[field] && typeof updates[field] === "string") {
+          updates[field] = new Date(updates[field]);
+        } else if (updates[field] === "") {
+          updates[field] = null;
+        }
+      }
       const defect = await storage.updateDefect(req.params.id, updates);
 
       // Log specific activity events
