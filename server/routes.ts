@@ -2263,6 +2263,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // GET /api/ai/access  (any authenticated user — lightweight access check)
+  app.get("/api/ai/access", requireAnyAuthenticated, async (req, res) => {
+    try {
+      const userId = req.headers["x-user-id"] as string;
+      const settings = await storage.getAiSettings();
+      if (!settings || !settings.is_enabled) {
+        return res.json({ can_use: false });
+      }
+      const { roleNames } = await getUserVisibilityScope(userId);
+      const lower = roleNames.map((r) => r.toLowerCase());
+      const isAdmin   = lower.some((r) => r === "admin");
+      const isManager = lower.some((r) => r === "manager");
+      const canUse =
+        (isAdmin   && settings.allow_admin)   ||
+        (isManager && settings.allow_manager) ||
+        (!isAdmin && !isManager && settings.allow_user);
+      res.json({ can_use: !!canUse });
+    } catch (err) {
+      res.json({ can_use: false });
+    }
+  });
+
   // POST /api/ai/chat  (any authenticated user whose role is allowed)
   app.post("/api/ai/chat", requireAnyAuthenticated, async (req, res) => {
     try {
@@ -2278,11 +2300,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: "AI task creation is not enabled" });
       }
 
-      // Check role-based access
-      const userRoleNames = await storage.getUserRoles(userId);
-      const roleNames = userRoleNames.map((r: any) => r.name?.toLowerCase() ?? "");
-      const isAdmin = roleNames.some((r: string) => r === "admin");
-      const isManager = roleNames.some((r: string) => r === "manager");
+      // Check role-based access using the same cached lookup as the rest of the app
+      const { roleNames } = await getUserVisibilityScope(userId);
+      const lower = roleNames.map((r) => r.toLowerCase());
+      const isAdmin   = lower.some((r) => r === "admin");
+      const isManager = lower.some((r) => r === "manager");
 
       const allowed =
         (isAdmin && settings.allow_admin) ||

@@ -67,27 +67,19 @@ const TasksPage: React.FC = () => {
   // AI Task Creation
   const [aiSheetOpen, setAiSheetOpen] = useState(false);
 
-  const { data: aiSettings } = useQuery({
-    queryKey: ["/api/ai/settings/access"],
+  const { data: aiAccess } = useQuery({
+    queryKey: ["/api/ai/access"],
     queryFn: async () => {
       try {
-        return await apiClient.get("/ai/settings");
+        return await apiClient.get("/ai/access");
       } catch {
-        return null;
+        return { can_use: false };
       }
     },
     enabled: !!user,
   });
 
-  const roleName = (roles?.[0] ?? "").toLowerCase();
-  const aiEnabled = !!(
-    aiSettings?.is_enabled &&
-    (
-      (roleName === "admin" && aiSettings?.allow_admin) ||
-      (roleName === "manager" && aiSettings?.allow_manager) ||
-      (roleName !== "admin" && roleName !== "manager" && aiSettings?.allow_user)
-    )
-  );
+  const aiEnabled = !!(aiAccess?.can_use);
 
   // Task Details Modal States
   const [detailsTask, setDetailsTask] = useState<Task | null>(null);
