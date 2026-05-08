@@ -2754,6 +2754,158 @@ Rules:
     }
   });
 
+  // POST /api/defects/:id/submit — reporter submits for approval
+  app.post("/api/defects/:id/submit", requireAnyAuthenticated, async (req: any, res: any) => {
+    try {
+      const userId = req.headers['x-user-id'];
+      const defect = await storage.getDefect(req.params.id);
+      if (!defect) return res.status(404).json({ error: "Defect not found" });
+      if (!["draft", "rejected"].includes(defect.status)) {
+        return res.status(400).json({ error: "Only draft or rejected defects can be submitted" });
+      }
+      const updated = await storage.updateDefect(req.params.id, { status: "submitted", updated_at: new Date() });
+      await storage.logDefectActivity({ defect_id: defect.id, action_type: "status_changed", old_value: defect.status, new_value: "submitted", acted_by: userId });
+      return res.json(updated);
+    } catch (err: any) {
+      return res.status(500).json({ error: "Failed to submit defect" });
+    }
+  });
+
+  // POST /api/defects/:id/approve — manager/admin approves
+  app.post("/api/defects/:id/approve", requireRole(["admin", "manager", "team_manager"]), async (req: any, res: any) => {
+    try {
+      const userId = req.headers['x-user-id'];
+      const defect = await storage.getDefect(req.params.id);
+      if (!defect) return res.status(404).json({ error: "Defect not found" });
+      if (defect.status !== "submitted") {
+        return res.status(400).json({ error: "Only submitted defects can be approved" });
+      }
+      const updated = await storage.updateDefect(req.params.id, {
+        status: "approved",
+        approved_by: userId,
+        approved_at: new Date(),
+        updated_at: new Date(),
+      });
+      await storage.logDefectActivity({ defect_id: defect.id, action_type: "status_changed", old_value: "submitted", new_value: "approved", acted_by: userId });
+      return res.json(updated);
+    } catch (err: any) {
+      return res.status(500).json({ error: "Failed to approve defect" });
+    }
+  });
+
+  // POST /api/defects/:id/reject — manager/admin rejects
+  app.post("/api/defects/:id/reject", requireRole(["admin", "manager", "team_manager"]), async (req: any, res: any) => {
+    try {
+      const userId = req.headers['x-user-id'];
+      const defect = await storage.getDefect(req.params.id);
+      if (!defect) return res.status(404).json({ error: "Defect not found" });
+      if (defect.status !== "submitted") {
+        return res.status(400).json({ error: "Only submitted defects can be rejected" });
+      }
+      const { reason } = req.body;
+      const updated = await storage.updateDefect(req.params.id, {
+        status: "rejected",
+        rejection_reason: reason || null,
+        updated_at: new Date(),
+      });
+      await storage.logDefectActivity({ defect_id: defect.id, action_type: "status_changed", old_value: "submitted", new_value: "rejected", acted_by: userId });
+      return res.json(updated);
+    } catch (err: any) {
+      return res.status(500).json({ error: "Failed to reject defect" });
+    }
+  });
+
+  // GET /api/defects/:id/tasks — list tasks linked to this defect
+  app.get("/api/defects/:id/tasks", requireAnyAuthenticated, async (req: any, res: any) => {
+    try {
+      const linked = await storage.getDefectTasks(req.params.id);
+      return res.json(linked);
+    } catch (err: any) {
+      return res.status(500).json({ error: "Failed to fetch linked tasks" });
+    }
+  });
+
+  // POST /api/defects/:id/tasks — link an existing task to a defect
+  app.post("/api/defects/:id/tasks", requireRole(["admin", "manager", "team_manager"]), async (req: any, res: any) => {
+    try {
+      const userId = req.headers['x-user-id'];
+      const { task_id } = req.body;
+      if (!task_id) return res.status(400).json({ error: "task_id required" });
+      const linked = await storage.linkDefectTask(req.params.id, task_id, userId);
+      await storage.logDefectActivity({ defect_id: req.params.id, action_type: "task_linked", new_value: task_id, acted_by: userId });
+      return res.json(linked);
+    } catch (err: any) {
+      return res.status(500).json({ error: "Failed to link task" });
+    }
+  });
+
+  // DELETE /api/defects/:id/tasks/:taskId — unlink a task
+  app.delete("/api/defects/:id/tasks/:taskId", requireRole(["admin", "manager", "team_manager"]), async (req: any, res: any) => {
+    try {
+      const userId = req.headers['x-user-id'];
+      await storage.unlinkDefectTask(req.params.id, req.params.taskId);
+      await storage.logDefectActivity({ defect_id: req.params.id, action_type: "task_unlinked", new_value: req.params.taskId, acted_by: userId });
+      return res.json({ success: true });
+    } catch (err: any) {
+      return res.status(500).json({ error: "Failed to unlink task" });
+    }
+  });
+
+  // POST /api/defects/:id/convert-to-task — create a new task from this defect and link it
+  app.post("/api/defects/:id/convert-to-task", requireRole(["admin", "manager", "team_manager"]), async (req: any, res: any) => {
+    try {
+      const userId = req.headers['x-user-id'];
+      const defect = await storage.getDefect(req.params.id);
+      if (!defect) return res.status(404).json({ error: "Defect not found" });
+      if (defect.status !== "approved") {
+        return res.status(400).json({ error: "Only approved defects can be converted to tasks" });
+      }
+      // Find a default task status (first status or whatever is supplied)
+      const statuses = await storage.getAllTaskStatuses();
+      const defaultStatus = statuses[0]?.name ?? "pending";
+      const taskData: any = {
+        title: req.body.title || `[Defect Fix] ${defect.title}`,
+        description: req.body.description || defect.description,
+        priority: defect.priority ?? 2,
+        status: req.body.status || defaultStatus,
+        type: "team",
+        created_by: userId,
+        assigned_to: req.body.assigned_to || defect.assigned_to || null,
+        estimated_hours: req.body.estimated_hours ? Number(req.body.estimated_hours) : null,
+        start_date: req.body.start_date || null,
+        due_date: req.body.due_date || (defect.due_date ? defect.due_date.toISOString().split("T")[0] : null),
+        team_id: defect.team_id || null,
+        project_id: defect.project_id || null,
+        milestone_id: defect.milestone_id || null,
+        feature_id: defect.feature_id || null,
+        is_time_managed: false,
+        timer_state: "stopped",
+        time_spent_minutes: 0,
+      };
+      const newTask = await storage.createTask(taskData);
+      // Link the task to the defect
+      await storage.linkDefectTask(defect.id, newTask.id, userId);
+      // Update defect status to in_progress
+      await storage.updateDefect(defect.id, { status: "in_progress", updated_at: new Date() });
+      await storage.logDefectActivity({ defect_id: defect.id, action_type: "converted_to_task", new_value: newTask.id, acted_by: userId });
+      return res.json({ task: newTask, defect: await storage.getDefect(defect.id) });
+    } catch (err: any) {
+      console.error("convert-to-task error:", err);
+      return res.status(500).json({ error: "Failed to convert defect to task", details: err.message });
+    }
+  });
+
+  // GET /api/projects/:id/feature-groups/:groupId/features — features within a group
+  app.get("/api/projects/:id/feature-groups/:groupId/features", requireAnyAuthenticated, async (req: any, res: any) => {
+    try {
+      const all = await storage.getProjectFeatures(req.params.id);
+      const filtered = all.filter((f: any) => f.feature_group_id === req.params.groupId);
+      return res.json(filtered);
+    } catch (err: any) {
+      return res.status(500).json({ error: "Failed to fetch features" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

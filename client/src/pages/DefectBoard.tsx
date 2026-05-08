@@ -12,11 +12,14 @@ import CreateDefectSheet from "@/components/CreateDefectSheet";
 import DefectDetailsSheet from "@/components/DefectDetailsSheet";
 
 const COLUMNS = [
-  { key: "open",        label: "Open",        color: "border-t-blue-500"    },
+  { key: "draft",       label: "Draft",        color: "border-t-gray-400"    },
+  { key: "submitted",   label: "Submitted",    color: "border-t-blue-400"    },
+  { key: "approved",    label: "Approved",     color: "border-t-emerald-400" },
+  { key: "rejected",    label: "Rejected",     color: "border-t-red-400"     },
   { key: "in_progress", label: "In Progress",  color: "border-t-purple-500"  },
   { key: "resolved",    label: "Resolved",     color: "border-t-teal-500"    },
   { key: "verified",    label: "Verified",     color: "border-t-emerald-500" },
-  { key: "closed",      label: "Closed",       color: "border-t-gray-400"    },
+  { key: "closed",      label: "Closed",       color: "border-t-gray-500"    },
   { key: "reopened",    label: "Reopened",     color: "border-t-red-500"     },
 ];
 
@@ -53,7 +56,7 @@ export default function DefectBoardPage() {
     for (const col of COLUMNS) map[col.key] = [];
     for (const d of defects) {
       if (map[d.status]) map[d.status].push(d);
-      else map["open"].push(d);
+      else map["draft"].push(d);
     }
     return map;
   }, [defects]);

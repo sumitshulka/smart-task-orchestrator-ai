@@ -22,11 +22,14 @@ const SEVERITY_COLORS: Record<string, string> = {
 };
 
 const STATUS_COLORS: Record<string, string> = {
-  open:        "bg-blue-100 text-blue-800 border-blue-200",
+  draft:       "bg-gray-100 text-gray-600 border-gray-200",
+  submitted:   "bg-blue-100 text-blue-800 border-blue-200",
+  approved:    "bg-emerald-100 text-emerald-800 border-emerald-200",
+  rejected:    "bg-red-100 text-red-800 border-red-200",
   in_progress: "bg-purple-100 text-purple-800 border-purple-200",
   resolved:    "bg-teal-100 text-teal-800 border-teal-200",
   verified:    "bg-emerald-100 text-emerald-800 border-emerald-200",
-  closed:      "bg-gray-100 text-gray-800 border-gray-200",
+  closed:      "bg-gray-200 text-gray-700 border-gray-300",
   reopened:    "bg-red-100 text-red-800 border-red-200",
 };
 
@@ -80,7 +83,7 @@ export default function MyDefectsPage() {
 
   const reportedByMe = myDefects.filter((d) => d.reported_by === user?.id).length;
   const assignedToMe = myDefects.filter((d) => d.assigned_to === user?.id).length;
-  const openCount    = myDefects.filter((d) => d.status === "open" || d.status === "in_progress" || d.status === "reopened").length;
+  const openCount    = myDefects.filter((d) => ["draft","submitted","approved","in_progress","reopened"].includes(d.status)).length;
 
   return (
     <div className="w-full min-h-screen bg-background">
@@ -126,7 +129,10 @@ export default function MyDefectsPage() {
             <SelectTrigger className="w-36"><SelectValue placeholder="Status" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Statuses</SelectItem>
-              <SelectItem value="open">Open</SelectItem>
+              <SelectItem value="draft">Draft</SelectItem>
+              <SelectItem value="submitted">Submitted</SelectItem>
+              <SelectItem value="approved">Approved</SelectItem>
+              <SelectItem value="rejected">Rejected</SelectItem>
               <SelectItem value="in_progress">In Progress</SelectItem>
               <SelectItem value="resolved">Resolved</SelectItem>
               <SelectItem value="verified">Verified</SelectItem>

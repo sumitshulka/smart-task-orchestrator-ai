@@ -30,6 +30,7 @@ import {
   projectFeatures,
   aiSettings,
   defects,
+  defectTasks,
   defectComments,
   defectActivity,
   User, 
@@ -82,6 +83,8 @@ import {
   InsertAiSettings,
   Defect,
   InsertDefect,
+  DefectTask,
+  InsertDefectTask,
   DefectComment,
   InsertDefectComment,
   DefectActivity,
@@ -270,6 +273,11 @@ export interface IStorage {
   createDefect(defect: InsertDefect): Promise<Defect>;
   updateDefect(id: string, updates: Partial<Defect>): Promise<Defect>;
   deleteDefect(id: string): Promise<void>;
+
+  // Defect ↔ Task junction operations
+  getDefectTasks(defectId: string): Promise<(DefectTask & { task: Task })[]>;
+  linkDefectTask(defectId: string, taskId: string, linkedBy: string): Promise<DefectTask>;
+  unlinkDefectTask(defectId: string, taskId: string): Promise<void>;
 
   // Defect comment operations
   getDefectComments(defectId: string): Promise<DefectComment[]>;
@@ -1603,6 +1611,37 @@ export class DatabaseStorage implements IStorage {
   async logDefectActivity(activity: InsertDefectActivity): Promise<DefectActivity> {
     const result = await db.insert(defectActivity).values(activity).returning();
     return result[0];
+  }
+
+  // ─── Defect ↔ Task junction ────────────────────────────────────────────────
+  async getDefectTasks(defectId: string): Promise<(DefectTask & { task: Task })[]> {
+    const rows = await db
+      .select()
+      .from(defectTasks)
+      .innerJoin(tasks, eq(defectTasks.task_id, tasks.id))
+      .where(eq(defectTasks.defect_id, defectId))
+      .orderBy(defectTasks.linked_at);
+    return rows.map((r) => ({ ...r.defect_tasks, task: r.tasks }));
+  }
+
+  async linkDefectTask(defectId: string, taskId: string, linkedBy: string): Promise<DefectTask> {
+    const existing = await db
+      .select()
+      .from(defectTasks)
+      .where(and(eq(defectTasks.defect_id, defectId), eq(defectTasks.task_id, taskId)))
+      .limit(1);
+    if (existing[0]) return existing[0];
+    const result = await db
+      .insert(defectTasks)
+      .values({ defect_id: defectId, task_id: taskId, linked_by: linkedBy })
+      .returning();
+    return result[0];
+  }
+
+  async unlinkDefectTask(defectId: string, taskId: string): Promise<void> {
+    await db
+      .delete(defectTasks)
+      .where(and(eq(defectTasks.defect_id, defectId), eq(defectTasks.task_id, taskId)));
   }
 }
 
