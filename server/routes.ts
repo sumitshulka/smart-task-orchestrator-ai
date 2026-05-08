@@ -2894,6 +2894,12 @@ Rules:
       // Find a default task status (first status or whatever is supplied)
       const statuses = await storage.getAllTaskStatuses();
       const defaultStatus = statuses[0]?.name ?? "pending";
+      const toDate = (v: any): Date | null => {
+        if (!v) return null;
+        if (v instanceof Date) return v;
+        const d = new Date(v);
+        return isNaN(d.getTime()) ? null : d;
+      };
       const taskData: any = {
         title: req.body.title || `[Defect Fix] ${defect.title}`,
         description: req.body.description || defect.description,
@@ -2903,8 +2909,8 @@ Rules:
         created_by: userId,
         assigned_to: req.body.assigned_to || defect.assigned_to || null,
         estimated_hours: req.body.estimated_hours ? Number(req.body.estimated_hours) : null,
-        start_date: req.body.start_date || null,
-        due_date: req.body.due_date || (defect.due_date ? defect.due_date.toISOString().split("T")[0] : null),
+        start_date: toDate(req.body.start_date),
+        due_date: toDate(req.body.due_date) ?? toDate(defect.due_date),
         team_id: defect.team_id || null,
         project_id: defect.project_id || null,
         milestone_id: defect.milestone_id || null,
