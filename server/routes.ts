@@ -2327,7 +2327,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .filter((u: any) => u.is_active)
         .map((u: any) => ({ id: u.id, name: u.user_name || u.email }));
 
-      const allStatuses = await storage.getTaskStatuses();
+      const allStatuses = await storage.getAllTaskStatuses();
       const statusNames = allStatuses.map((s: any) => s.name);
 
       const today = new Date().toISOString().split("T")[0];
