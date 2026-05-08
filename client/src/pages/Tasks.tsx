@@ -387,6 +387,7 @@ const TasksPage: React.FC = () => {
         open={aiSheetOpen}
         onOpenChange={setAiSheetOpen}
         onTaskCreated={handleSearch}
+        currentUserId={user?.id}
       />
     </div>
   );

@@ -44,9 +44,10 @@ interface Props {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   onTaskCreated?: () => void;
+  currentUserId?: string;
 }
 
-const AiTaskCreationSheet: React.FC<Props> = ({ open, onOpenChange, onTaskCreated }) => {
+const AiTaskCreationSheet: React.FC<Props> = ({ open, onOpenChange, onTaskCreated, currentUserId }) => {
   const qc = useQueryClient();
   const { users } = useUsersAndTeams();
   const { statuses } = useTaskStatuses();
@@ -86,7 +87,7 @@ const AiTaskCreationSheet: React.FC<Props> = ({ open, onOpenChange, onTaskCreate
   const getUserName = (id: string) => {
     const u = users.find((u: any) => u.id === id);
     if (!u) return id;
-    return `${u.first_name ?? ""} ${u.last_name ?? ""}`.trim() || u.email;
+    return u.user_name || u.email || id;
   };
 
   const getInitials = (id: string) => {
@@ -118,7 +119,7 @@ const AiTaskCreationSheet: React.FC<Props> = ({ open, onOpenChange, onTaskCreate
   };
 
   const insertMention = (user: any) => {
-    const name = `${user.first_name ?? ""} ${user.last_name ?? ""}`.trim() || user.email;
+    const name = user.user_name || user.email || "";
     const before = input.slice(0, mentionStart);
     const after = input.slice(inputRef.current?.selectionStart ?? input.length);
     setInput(before + "@" + name + " " + after);
@@ -127,7 +128,7 @@ const AiTaskCreationSheet: React.FC<Props> = ({ open, onOpenChange, onTaskCreate
   };
 
   const filteredMentions = users.filter((u: any) => {
-    const name = `${u.first_name ?? ""} ${u.last_name ?? ""}`.trim().toLowerCase();
+    const name = (u.user_name || u.email || "").toLowerCase();
     return name.includes(mentionQuery.toLowerCase());
   });
 
@@ -196,7 +197,8 @@ const AiTaskCreationSheet: React.FC<Props> = ({ open, onOpenChange, onTaskCreate
         title: mergedTask.title,
         description: mergedTask.description ?? null,
         assigned_to: mergedTask.assigned_to,
-        assigned_by: null,
+        assigned_by: currentUserId ?? null,
+        created_by: currentUserId ?? mergedTask.assigned_to,
         priority: mergedTask.priority ?? 3,
         due_date: mergedTask.due_date ?? null,
         status: statusObj?.name ?? "Open",
@@ -328,7 +330,7 @@ const AiTaskCreationSheet: React.FC<Props> = ({ open, onOpenChange, onTaskCreate
                         <option value="">Select user…</option>
                         {users.filter((u: any) => u.is_active).map((u: any) => (
                           <option key={u.id} value={u.id}>
-                            {`${u.first_name ?? ""} ${u.last_name ?? ""}`.trim() || u.email}
+                            {u.user_name || u.email}
                           </option>
                         ))}
                       </select>
@@ -464,10 +466,10 @@ const AiTaskCreationSheet: React.FC<Props> = ({ open, onOpenChange, onTaskCreate
                 >
                   <Avatar className="w-5 h-5">
                     <AvatarFallback className="text-xs">
-                      {`${u.first_name?.[0] ?? ""}${u.last_name?.[0] ?? ""}`.toUpperCase()}
+                      {(u.user_name || u.email || "?")[0].toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
-                  {`${u.first_name ?? ""} ${u.last_name ?? ""}`.trim() || u.email}
+                  {u.user_name || u.email}
                 </button>
               ))}
             </div>
