@@ -2219,15 +2219,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // POST /api/ai/test-connection  (admin only)
+  // Accepts { provider, api_key, model, base_url } in body.
+  // If api_key starts with "••••" (masked placeholder), falls back to the stored encrypted key.
   app.post("/api/ai/test-connection", requireAdmin, async (req, res) => {
     try {
-      const settings = await storage.getAiSettings();
-      if (!settings || !settings.api_key) {
-        return res.status(400).json({ error: "No API key configured" });
+      const { provider: bodyProvider, api_key: bodyKey, model: bodyModel, base_url: bodyBaseUrl } = req.body ?? {};
+
+      let resolvedKey: string | null = null;
+      let resolvedProvider = bodyProvider || "openai";
+      let resolvedModel = bodyModel || "gpt-4o";
+      let resolvedBaseUrl = bodyBaseUrl || null;
+
+      if (bodyKey && !String(bodyKey).startsWith("••••")) {
+        // Real key supplied in the request — use it directly
+        resolvedKey = String(bodyKey);
+      } else {
+        // Masked or missing — fall back to what is stored in the database
+        const settings = await storage.getAiSettings();
+        if (!settings?.api_key) {
+          return res.status(400).json({ error: "No API key configured. Please enter your API key and try again." });
+        }
+        resolvedKey = decryptApiKey(settings.api_key);
+        // Use stored values for anything not supplied
+        if (!bodyProvider) resolvedProvider = settings.provider;
+        if (!bodyModel) resolvedModel = settings.model || "gpt-4o";
+        if (!bodyBaseUrl) resolvedBaseUrl = settings.base_url;
       }
-      const decrypted = decryptApiKey(settings.api_key);
+
+      if (!resolvedKey) {
+        return res.status(400).json({ error: "No API key configured. Please enter your API key and try again." });
+      }
+
       await callAiProvider(
-        { provider: settings.provider, apiKey: decrypted, model: settings.model || "gpt-4o", baseUrl: settings.base_url },
+        { provider: resolvedProvider, apiKey: resolvedKey, model: resolvedModel, baseUrl: resolvedBaseUrl },
         [
           { role: "system", content: "You are a helpful assistant." },
           { role: "user", content: "Reply with exactly: OK" },

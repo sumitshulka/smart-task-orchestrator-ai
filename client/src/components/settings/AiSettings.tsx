@@ -123,9 +123,19 @@ const AiSettings: React.FC = () => {
   });
 
   const handleTest = async () => {
+    if (!form.api_key) {
+      toast({ title: "Enter an API key first before testing", variant: "destructive" });
+      return;
+    }
     setTestStatus("testing");
     try {
-      await apiClient.post("/ai/test-connection", {});
+      // Pass current form values so the test works even before saving
+      await apiClient.post("/ai/test-connection", {
+        provider: form.provider,
+        api_key: form.api_key,
+        model: form.model,
+        base_url: form.base_url || null,
+      });
       setTestStatus("ok");
       toast({ title: "Connection successful" });
     } catch (err: any) {
