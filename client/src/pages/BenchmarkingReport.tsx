@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { AlertCircle, Search, TrendingDown, TrendingUp, Target, Calendar, Users } from "lucide-react";
+import { AlertCircle, Search, TrendingDown, TrendingUp, Target, Calendar, Users, Sparkles } from "lucide-react";
 import { apiClient } from "@/lib/api";
 import { useCurrentUserRoleAndTeams } from "@/hooks/useCurrentUserRoleAndTeams";
 import { format, subDays, subWeeks, subMonths, parseISO, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from "date-fns";
@@ -79,6 +79,18 @@ const BenchmarkingReport: React.FC = () => {
   const [timeRange, setTimeRange] = useState("month");
   const [queryResult, setQueryResult] = useState<QueryResult | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [aiSummary, setAiSummary] = useState<string | null>(null);
+
+  // Check if AI is available for the current user
+  const { data: aiAccess } = useQuery<{ can_use: boolean }>({
+    queryKey: ["/api/ai/access"],
+    queryFn: async () => {
+      try { return await apiClient.get("/ai/access"); }
+      catch { return { can_use: false }; }
+    },
+    enabled: !!user,
+  });
+  const isAiEnabled = !!aiAccess?.can_use;
 
   // Fetch organization settings
   const { data: settings } = useQuery<OrganizationSettings>({
@@ -1172,6 +1184,49 @@ const BenchmarkingReport: React.FC = () => {
     if (!query.trim()) return;
 
     setIsProcessing(true);
+    setAiSummary(null);
+
+    // ── AI path ────────────────────────────────────────────────────────────────
+    if (isAiEnabled) {
+      try {
+        const aiResult = await apiClient.post("/ai/benchmark-query", {
+          query,
+          time_range: timeRange,
+        });
+
+        // Map matched IDs back to the benchmarkingData computed on the frontend
+        const matchedUsers = benchmarkingData.filter(u =>
+          (aiResult.matched_user_ids as string[]).includes(u.userId)
+        );
+
+        setAiSummary(aiResult.summary || null);
+        setQueryResult({
+          users: matchedUsers,
+          queryType: aiResult.query_type || "ai_query",
+          description: aiResult.description || query,
+          matchedPattern: "AI-powered analysis",
+        });
+        setIsProcessing(false);
+        return;
+      } catch (err: any) {
+        // If the server explicitly says to fall back, continue to pattern matching
+        const shouldFallback = err?.fallback === true || err?.status === 403;
+        if (!shouldFallback) {
+          // Real error — surface it but don't crash
+          setQueryResult({
+            users: [],
+            queryType: "error",
+            description: err?.message || "AI request failed. Please try again.",
+            matchedPattern: "ai_error",
+          });
+          setIsProcessing(false);
+          return;
+        }
+        // else fall through to pattern matching below
+      }
+    }
+    // ── Pattern-matching path (AI disabled or graceful fallback) ───────────────
+
     const lowerQuery = query.toLowerCase();
 
     console.log(`Processing query: "${query}" -> lowercased: "${lowerQuery}"`);
@@ -1402,19 +1457,33 @@ const BenchmarkingReport: React.FC = () => {
       {/* Query Input Section */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <Search className="w-5 h-5" />
-            <span>Natural Language Query</span>
+          <CardTitle className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <Search className="w-5 h-5" />
+              <span>Natural Language Query</span>
+            </div>
+            {isAiEnabled && (
+              <Badge variant="secondary" className="flex items-center gap-1 text-xs font-medium bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">
+                <Sparkles className="w-3 h-3" />
+                AI-powered
+              </Badge>
+            )}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="query">Ask about user benchmarking patterns:</Label>
+            <Label htmlFor="query">
+              {isAiEnabled
+                ? "Ask anything about your team's benchmarking data:"
+                : "Ask about user benchmarking patterns:"}
+            </Label>
             <Textarea
               id="query"
-              placeholder="Try: 'Show me users with highest completion rates' • 'Users at risk of burnout' • 'Top performing teams' • 'Users with balanced workload' • 'Users consistently meeting targets' • 'Users performing better than average' • 'Users needing support'"
+              placeholder={isAiEnabled
+                ? "e.g. 'Who is consistently underperforming?' • 'Which team members are at risk of burnout?' • 'Who always meets their targets?' • 'Compare performance across departments'"
+                : "Try: 'Show me users with highest completion rates' • 'Users at risk of burnout' • 'Top performing teams' • 'Users with balanced workload'"}
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={(e) => { setQuery(e.target.value); setAiSummary(null); }}
               onKeyPress={handleKeyPress}
               className="min-h-[80px]"
             />
@@ -1424,10 +1493,21 @@ const BenchmarkingReport: React.FC = () => {
             <div className="text-sm text-muted-foreground">
               <p>Example queries:</p>
               <ul className="list-disc list-inside mt-1 space-y-1">
-                <li>"Show me users consistently below min benchmark"</li>
-                <li>"Show me users with exact benchmark hours"</li>
-                <li>"Show me high performing users"</li>
-                <li>"Show me users from administration department"</li>
+                {isAiEnabled ? (
+                  <>
+                    <li>"Who has been consistently below benchmark this month?"</li>
+                    <li>"Show me team members at risk of burnout"</li>
+                    <li>"Which managers have the highest task loads?"</li>
+                    <li>"Who is performing above average across all metrics?"</li>
+                  </>
+                ) : (
+                  <>
+                    <li>"Show me users consistently below min benchmark"</li>
+                    <li>"Show me users with exact benchmark hours"</li>
+                    <li>"Show me high performing users"</li>
+                    <li>"Show me users from administration department"</li>
+                  </>
+                )}
               </ul>
             </div>
             <Button 
@@ -1438,7 +1518,17 @@ const BenchmarkingReport: React.FC = () => {
               disabled={isProcessing || !query.trim()}
               className="ml-4"
             >
-              {isProcessing ? "Processing..." : "Analyze"}
+              {isProcessing ? (
+                <span className="flex items-center gap-2">
+                  {isAiEnabled && <Sparkles className="w-4 h-4 animate-pulse" />}
+                  {isAiEnabled ? "Analyzing with AI..." : "Processing..."}
+                </span>
+              ) : (
+                <span className="flex items-center gap-2">
+                  {isAiEnabled && <Sparkles className="w-4 h-4" />}
+                  Analyze
+                </span>
+              )}
             </Button>
           </div>
         </CardContent>
@@ -1450,16 +1540,35 @@ const BenchmarkingReport: React.FC = () => {
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
               <span>Query Results</span>
-              <Badge variant="outline">
-                {queryResult.users.length} users found
-              </Badge>
+              <div className="flex items-center gap-2">
+                {queryResult.matchedPattern === "AI-powered analysis" && (
+                  <Badge variant="secondary" className="flex items-center gap-1 text-xs bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">
+                    <Sparkles className="w-3 h-3" />
+                    AI
+                  </Badge>
+                )}
+                <Badge variant="outline">
+                  {queryResult.users.length} users found
+                </Badge>
+              </div>
             </CardTitle>
             <div className="text-sm text-muted-foreground space-y-1">
               <p><strong>Query:</strong> "{query}"</p>
-              <p><strong>Matched Pattern:</strong> {queryResult.matchedPattern}</p>
               <p><strong>Description:</strong> {queryResult.description}</p>
+              {queryResult.matchedPattern !== "AI-powered analysis" && (
+                <p><strong>Matched Pattern:</strong> {queryResult.matchedPattern}</p>
+              )}
               <p><strong>Analysis Period:</strong> {queryResult.queryStartDate && queryResult.queryEndDate ? `${format(queryResult.queryStartDate, 'MMM dd, yyyy')} - ${format(queryResult.queryEndDate, 'MMM dd, yyyy')}` : `${format(analysisStartDate, 'MMM dd, yyyy')} - ${format(analysisEndDate, 'MMM dd, yyyy')}`} ({queryResult.timeToken ? queryResult.timeToken.replace('_', ' ') : (timeRange === "week" ? "4 weeks" : timeRange === "month" ? "3 months" : "30 days")})</p>
             </div>
+            {/* AI narrative summary */}
+            {aiSummary && (
+              <div className="mt-3 p-3 rounded-lg bg-purple-50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-800">
+                <div className="flex items-start gap-2">
+                  <Sparkles className="w-4 h-4 text-purple-600 dark:text-purple-400 mt-0.5 flex-shrink-0" />
+                  <p className="text-sm text-purple-900 dark:text-purple-200 leading-relaxed">{aiSummary}</p>
+                </div>
+              </div>
+            )}
           </CardHeader>
           <CardContent>
             {queryResult.users.length === 0 ? (

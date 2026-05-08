@@ -2402,6 +2402,206 @@ When you have enough information to create the task, output ONLY the following m
     }
   });
 
+  // POST /api/ai/benchmark-query  (any authenticated user whose role is allowed)
+  // Aggregates user performance data server-side, sends to LLM, returns matched user IDs + narrative.
+  app.post("/api/ai/benchmark-query", requireAnyAuthenticated, async (req, res) => {
+    try {
+      const userId = req.headers["x-user-id"] as string;
+      const { query, time_range = "month" } = req.body as { query: string; time_range?: string };
+
+      if (!query?.trim()) {
+        return res.status(400).json({ error: "query is required" });
+      }
+
+      // Check AI is enabled + role access
+      const aiSettings = await storage.getAiSettings();
+      if (!aiSettings || !aiSettings.is_enabled) {
+        return res.status(403).json({ error: "AI is not enabled", fallback: true });
+      }
+
+      const { roleNames } = await getUserVisibilityScope(userId);
+      const lower = roleNames.map((r) => r.toLowerCase());
+      const isAdmin   = lower.some((r) => r === "admin");
+      const isManager = lower.some((r) => r === "manager");
+      const allowed =
+        (isAdmin   && aiSettings.allow_admin)   ||
+        (isManager && aiSettings.allow_manager) ||
+        (!isAdmin && !isManager && aiSettings.allow_user);
+
+      if (!allowed) {
+        return res.status(403).json({ error: "Your role does not have access to AI features", fallback: true });
+      }
+
+      if (!aiSettings.api_key) {
+        return res.status(500).json({ error: "AI provider is not configured", fallback: true });
+      }
+
+      // Fetch data
+      const orgSettings  = await storage.getOrganizationSettings();
+      const allUsers     = await storage.getAllUsers();
+      const activeUsers  = allUsers.filter((u: any) => u.is_active);
+      const allTasks     = await storage.getAllTasks();
+
+      // Collect roles for each user
+      const userRolesMap: { [id: string]: string[] } = {};
+      await Promise.all(activeUsers.map(async (u: any) => {
+        try {
+          const roles = await storage.getUserRoles(u.id);
+          userRolesMap[u.id] = roles
+            .map((r: any) => r.name || (r.role && r.role.name) || "")
+            .filter(Boolean);
+        } catch {
+          userRolesMap[u.id] = [];
+        }
+      }));
+
+      // Determine analysis window
+      const now = new Date();
+      let windowStart: Date;
+      if (time_range === "week") {
+        windowStart = new Date(now.getTime() - 28 * 24 * 60 * 60 * 1000);
+      } else if (time_range === "month") {
+        windowStart = new Date(now); windowStart.setMonth(now.getMonth() - 3);
+      } else {
+        windowStart = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      }
+
+      // Helper: get ISO week-start (Sunday)
+      const getWeekStart = (d: Date) => {
+        const copy = new Date(d);
+        copy.setDate(copy.getDate() - copy.getDay());
+        return copy.toISOString().split("T")[0];
+      };
+
+      const minDay  = orgSettings?.min_hours_per_day  ?? 6;
+      const maxDay  = orgSettings?.max_hours_per_day  ?? 9;
+      const minWeek = orgSettings?.min_hours_per_week ?? 30;
+      const maxWeek = orgSettings?.max_hours_per_week ?? 45;
+
+      // Aggregate per-user metrics
+      const userMetrics = activeUsers.map((user: any) => {
+        const relevantTasks = allTasks.filter((t: any) => {
+          if (t.assigned_to !== user.id) return false;
+          const d = new Date(t.updated_at || t.created_at);
+          return d >= windowStart && d <= now;
+        });
+
+        const dailyHours:   { [k: string]: number } = {};
+        const weeklyHours:  { [k: string]: number } = {};
+        const monthlyHours: { [k: string]: number } = {};
+
+        relevantTasks.forEach((task: any) => {
+          let hours = 0;
+          if (task.is_time_managed && task.time_spent_minutes > 0) {
+            hours = task.time_spent_minutes / 60;
+          } else if (!task.is_time_managed && task.status === "completed" && task.estimated_hours > 0) {
+            hours = task.estimated_hours;
+          }
+          if (hours <= 0) return;
+
+          const d = new Date(task.actual_completion_date || task.updated_at || task.created_at);
+          const dk = d.toISOString().split("T")[0];
+          const wk = getWeekStart(d);
+          const mk = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
+          dailyHours[dk]   = (dailyHours[dk]   || 0) + hours;
+          weeklyHours[wk]  = (weeklyHours[wk]  || 0) + hours;
+          monthlyHours[mk] = (monthlyHours[mk] || 0) + hours;
+        });
+
+        const dv = Object.values(dailyHours);
+        const wv = Object.values(weeklyHours);
+        const mv = Object.values(monthlyHours);
+        const avg = (arr: number[]) => arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
+        const round2 = (n: number) => Math.round(n * 100) / 100;
+
+        return {
+          id: user.id,
+          name: user.user_name || user.email,
+          department: user.department || "Unknown",
+          roles: userRolesMap[user.id] || [],
+          avg_daily_hours:   round2(avg(dv)),
+          avg_weekly_hours:  round2(avg(wv)),
+          avg_monthly_hours: round2(avg(mv)),
+          total_tasks: relevantTasks.length,
+          days_above_max:  dv.filter(h => h > maxDay).length,
+          days_below_min:  dv.filter(h => h > 0 && h < minDay).length,
+          weeks_above_max: wv.filter(h => h > maxWeek).length,
+          weeks_below_min: wv.filter(h => h > 0 && h < minWeek).length,
+          is_consistently_low:  wv.length === 0 || wv.every(h => h < minWeek),
+          is_consistently_high: wv.length >= 2 && wv.every(h => h > maxWeek),
+        };
+      });
+
+      const benchmarkThresholds = {
+        min_hours_per_day: minDay, max_hours_per_day: maxDay,
+        min_hours_per_week: minWeek, max_hours_per_week: maxWeek,
+        min_hours_per_month: orgSettings?.min_hours_per_month ?? 120,
+        max_hours_per_month: orgSettings?.max_hours_per_month ?? 180,
+      };
+
+      const today = now.toISOString().split("T")[0];
+      const windowStartStr = windowStart.toISOString().split("T")[0];
+
+      const systemPrompt = `You are a workforce analytics assistant with access to team performance data.
+Your task: interpret a natural-language query and identify which team members match the described criteria.
+
+Today: ${today}
+Analysis window: ${windowStartStr} to ${today}
+
+Benchmark thresholds:
+${JSON.stringify(benchmarkThresholds, null, 2)}
+
+Team performance data (${userMetrics.length} members):
+${JSON.stringify(userMetrics, null, 2)}
+
+Rules:
+1. Read the query carefully and match it against the data above.
+2. Return ONLY the JSON block below — no preamble, no explanation outside the tags.
+3. matched_user_ids must contain only IDs from the dataset above.
+4. summary should be 2-4 insightful sentences about the findings.
+
+<BENCHMARK_JSON>
+{
+  "matched_user_ids": [],
+  "description": "Short label for what was found",
+  "summary": "2-4 sentences with actionable insights.",
+  "query_type": "descriptive_label"
+}
+</BENCHMARK_JSON>`;
+
+      const decryptedKey = decryptApiKey(aiSettings.api_key);
+      const reply = await callAiProvider(
+        {
+          provider: aiSettings.provider,
+          apiKey:   decryptedKey,
+          model:    aiSettings.model || "gpt-4o",
+          baseUrl:  aiSettings.base_url,
+        },
+        [
+          { role: "system", content: systemPrompt },
+          { role: "user",   content: query },
+        ]
+      );
+
+      const jsonMatch = reply.match(/<BENCHMARK_JSON>([\s\S]*?)<\/BENCHMARK_JSON>/);
+      if (!jsonMatch) {
+        console.error("AI benchmark-query: no BENCHMARK_JSON block in reply:", reply.slice(0, 300));
+        return res.status(500).json({ error: "AI did not return expected format", fallback: true });
+      }
+
+      const result = JSON.parse(jsonMatch[1].trim());
+      return res.json({
+        matched_user_ids: result.matched_user_ids || [],
+        description:      result.description     || "",
+        summary:          result.summary         || "",
+        query_type:       result.query_type      || "ai_query",
+      });
+    } catch (err: any) {
+      console.error("POST /api/ai/benchmark-query error:", err);
+      return res.status(500).json({ error: err.message || "AI request failed", fallback: true });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
