@@ -19,6 +19,7 @@ import { useTaskActivity } from "@/hooks/useTaskActivity";
 import TaskActivityTimeline from "./TaskActivityTimeline";
 import { createTaskActivity } from "@/integrations/supabase/taskActivity";
 import { EditTaskStatusSelect } from "./EditTaskStatusSelect";
+import { apiClient } from "@/lib/api";
 
 
 // Dummy role check! Replace with real logic if user roles are exposed
@@ -197,54 +198,59 @@ const TaskDetailsSheet: React.FC<Props> = ({
   const [linkFeatureId, setLinkFeatureId] = useState("");
   const [savingLinkage, setSavingLinkage] = useState(false);
 
-  // Fetch confirmed projects on open
+  // Fetch all projects on open (no is_confirmed filter so names always resolve)
   useEffect(() => {
     if (!open) return;
-    fetch("/api/projects")
-      .then(r => r.ok ? r.json() : [])
-      .then(data => setProjectsList(Array.isArray(data) ? data.filter((p: any) => p.is_confirmed) : []))
+    apiClient.get("/projects")
+      .then(data => setProjectsList(Array.isArray(data) ? data : []))
       .catch(() => setProjectsList([]));
   }, [open]);
 
-  // Fetch milestones + features when a project is chosen for editing
-  useEffect(() => {
-    if (!linkProjectId) {
+  // Fetch milestones + features for a given project id — used both for display and editing
+  const fetchMilestonesAndFeatures = (projectId: string) => {
+    if (!projectId) {
       setMilestonesList([]);
       setFeaturesList([]);
       return;
     }
-    fetch(`/api/projects/${linkProjectId}/milestones`)
-      .then(r => r.ok ? r.json() : [])
+    apiClient.get(`/projects/${projectId}/milestones`)
       .then(data => setMilestonesList(Array.isArray(data) ? data : []))
       .catch(() => setMilestonesList([]));
-    fetch(`/api/projects/${linkProjectId}/features`)
-      .then(r => r.ok ? r.json() : [])
+    apiClient.get(`/projects/${projectId}/features`)
       .then(data => setFeaturesList(Array.isArray(data) ? data : []))
       .catch(() => setFeaturesList([]));
+  };
+
+  // Re-fetch milestones + features whenever the editing project changes
+  useEffect(() => {
+    fetchMilestonesAndFeatures(linkProjectId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [linkProjectId]);
 
   // Resolve names for currently linked milestone/feature
   const linkedMilestoneName = useMemo(() => {
     if (!task?.milestone_id) return null;
-    // search in milestonesList (if already loaded) or show id
     const found = milestonesList.find(m => m.id === task.milestone_id);
-    return found ? found.name : task.milestone_id;
+    return found ? found.name : null;
   }, [task?.milestone_id, milestonesList]);
 
   const linkedFeatureName = useMemo(() => {
     if (!task?.feature_id) return null;
     const found = featuresList.find(f => f.id === task.feature_id);
     if (found) return `${found.tracking_number ? `[${found.tracking_number}] ` : ""}${found.name}`;
-    return task.feature_id;
+    return null;
   }, [task?.feature_id, featuresList]);
 
-  // Load milestone + feature names for the task's current project when open
+  // On open: sync edit state AND immediately fetch milestones/features for the task's project
   useEffect(() => {
     if (!open || !task) { setEditingLinkage(false); return; }
     setLinkProjectId(task.project_id || "");
     setLinkMilestoneId(task.milestone_id || "");
     setLinkFeatureId(task.feature_id || "");
-  }, [open, task]);
+    // Eagerly fetch so names resolve for the view (read-only) display
+    if (task.project_id) fetchMilestonesAndFeatures(task.project_id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, task?.id]);
 
   async function handleSaveLinkage() {
     if (!task || !currentUser?.id) return;
