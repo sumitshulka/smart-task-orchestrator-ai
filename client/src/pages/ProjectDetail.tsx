@@ -448,10 +448,11 @@ export default function ProjectDetail() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects", id, "members"] });
       queryClient.invalidateQueries({ queryKey: ["/api/projects", id, "members", "history"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects-members-all"] });
       toast({ title: editMember ? "Member updated" : "Member added" });
       setMemberDialog(false);
       setEditMember(null);
-      setMemberForm({ user_id: "", member_type: "member", project_role: "", allocation_percentage: 100 });
+      setMemberForm({ user_id: "", contact_id: "", member_user_type: "internal", member_type: "member", project_role: "", allocation_percentage: 100 });
     },
     onError: () => toast({ title: "Failed to add member", variant: "destructive" }),
   });
@@ -462,6 +463,7 @@ export default function ProjectDetail() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects", id, "members"] });
       queryClient.invalidateQueries({ queryKey: ["/api/projects", id, "members", "history"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects-members-all"] });
       toast({ title: "Member updated" });
       setMemberDialog(false);
       setEditMember(null);
@@ -474,6 +476,7 @@ export default function ProjectDetail() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects", id, "members"] });
       queryClient.invalidateQueries({ queryKey: ["/api/projects", id, "members", "history"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects-members-all"] });
       toast({ title: "Member removed" });
     },
   });
