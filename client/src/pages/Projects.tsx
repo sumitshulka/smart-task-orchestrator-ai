@@ -5,7 +5,8 @@ import { apiClient } from "@/integrations/supabase/client";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { Separator } from "@/components/ui/separator";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -415,191 +416,353 @@ export default function Projects() {
 
       {/* ── Edit Dialog ────────────────────────────────────────────── */}
       <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setEditProject(null); }}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Edit Project</DialogTitle>
-          </DialogHeader>
+        <DialogContent className="max-w-2xl max-h-[92vh] overflow-hidden flex flex-col p-0">
 
-          <div className="grid grid-cols-2 gap-4 py-2">
-            {/* Name */}
-            <div className="col-span-2 space-y-1">
-              <Label>Project Name <span className="text-red-500">*</span></Label>
-              <Input placeholder="Enter project name" value={form.name}
-                onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} />
-            </div>
+          {/* Colour accent bar + header */}
+          <div
+            className="h-1.5 w-full rounded-t-lg shrink-0"
+            style={{ backgroundColor: form.color }}
+          />
+          <div className="px-6 pt-5 pb-4 shrink-0">
+            <DialogHeader>
+              <DialogTitle className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                <div className="h-7 w-7 rounded-md flex items-center justify-center shrink-0" style={{ backgroundColor: form.color + "22" }}>
+                  <Folder className="h-4 w-4" style={{ color: form.color }} />
+                </div>
+                Edit Project
+              </DialogTitle>
+              <DialogDescription className="text-sm text-gray-500 mt-0.5">
+                {editProject?.name}
+              </DialogDescription>
+            </DialogHeader>
+          </div>
 
-            {/* Project Scope Toggle */}
-            <div className="col-span-2 space-y-2">
-              <Label>Project Scope <span className="text-red-500">*</span></Label>
-              <div className="flex rounded-lg border border-gray-200 dark:border-gray-700 p-1 gap-1 bg-gray-50 dark:bg-gray-800/50">
-                <button
-                  type="button"
-                  onClick={() => setForm((p) => ({ ...p, is_client_project: false, client_id: "" }))}
-                  className={`flex-1 flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-all ${
-                    !form.is_client_project
-                      ? "bg-white dark:bg-gray-700 shadow-sm text-gray-900 dark:text-white"
-                      : "text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
-                  }`}
-                >
-                  <Building2 className={`h-4 w-4 ${!form.is_client_project ? "text-blue-600" : "text-gray-400"}`} />
-                  Internal Project
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setForm((p) => ({ ...p, is_client_project: true }))}
-                  className={`flex-1 flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-all ${
-                    form.is_client_project
-                      ? "bg-blue-600 text-white shadow-sm"
-                      : "text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
-                  }`}
-                >
-                  <Users className={`h-4 w-4 ${form.is_client_project ? "text-blue-100" : "text-gray-400"}`} />
-                  Client Project
-                </button>
+          {/* Scrollable body */}
+          <div className="overflow-y-auto flex-1 px-6 pb-2 space-y-6">
+
+            {/* ── Section: Basic Information ─────────────────────────── */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Basic Information</span>
+                <Separator className="flex-1" />
               </div>
-            </div>
 
-            {/* Client selector — only when Client Project */}
-            {form.is_client_project && (
-              <div className="col-span-2 space-y-1 rounded-lg border border-blue-100 dark:border-blue-900/50 bg-blue-50 dark:bg-blue-900/20 p-3">
-                <Label>Client <span className="text-red-500">*</span></Label>
-                <Select
-                  value={form.client_id}
-                  onValueChange={(v) => setForm((p) => ({ ...p, client_id: v }))}
-                >
-                  <SelectTrigger className={`bg-white dark:bg-gray-800 ${!form.client_id ? "border-red-300" : ""}`}>
-                    <SelectValue placeholder="Select a client…" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {activeClients.map((c: any) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        <div className="flex items-center gap-2">
-                          <Building2 className="h-3.5 w-3.5 text-gray-400" />
-                          <span>{c.name}</span>
-                          {c.organization_type && <span className="text-xs text-gray-400">· {c.organization_type}</span>}
-                        </div>
-                      </SelectItem>
+              {/* Project Name */}
+              <div className="space-y-1.5">
+                <Label className="text-sm font-medium">
+                  Project Name <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  placeholder="e.g. Customer Portal Redesign"
+                  value={form.name}
+                  onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
+                  className="h-9"
+                />
+              </div>
+
+              {/* Description */}
+              <div className="space-y-1.5">
+                <Label className="text-sm font-medium">Description</Label>
+                <Textarea
+                  placeholder="Project overview, goals, scope..."
+                  value={form.description}
+                  onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
+                  rows={2}
+                  className="resize-none"
+                />
+              </div>
+
+              {/* Project Color */}
+              <div className="space-y-1.5">
+                <Label className="text-sm font-medium">Project Color</Label>
+                <div className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700">
+                  <div
+                    className="w-7 h-7 rounded-md border border-white shadow-sm shrink-0 ring-1 ring-gray-200 dark:ring-gray-600"
+                    style={{ backgroundColor: form.color }}
+                  />
+                  <div className="flex flex-wrap gap-1.5 flex-1">
+                    {COLOR_SWATCHES.map((c) => (
+                      <button key={c} type="button" title={c}
+                        onClick={() => setForm((p) => ({ ...p, color: c }))}
+                        className="w-5 h-5 rounded-full border-2 transition-transform hover:scale-110 focus:outline-none"
+                        style={{
+                          backgroundColor: c,
+                          borderColor: form.color === c ? "#1d4ed8" : "transparent",
+                          outline: form.color === c ? "2px solid #bfdbfe" : "none",
+                        }}
+                      />
                     ))}
-                  </SelectContent>
-                </Select>
-                {!form.client_id && (
-                  <p className="text-xs text-red-500">Client selection is required for client projects.</p>
-                )}
-              </div>
-            )}
-
-            {/* Template */}
-            <div className="space-y-1">
-              <Label>Project Template</Label>
-              <Select
-                value={form.template_id || "none"}
-                onValueChange={(v) => {
-                  const tpl = activeTemplates.find((t) => t.id === v);
-                  setForm((p) => ({
-                    ...p,
-                    template_id:  v === "none" ? "" : v,
-                    project_type: tpl ? tpl.project_type : p.project_type,
-                  }));
-                }}
-                disabled={!!(editProject?.is_confirmed)}
-              >
-                <SelectTrigger><SelectValue placeholder="Select a template" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">No template</SelectItem>
-                  {activeTemplates.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-              {editProject?.is_confirmed && (
-                <p className="text-xs text-amber-600">Template locked after confirmation</p>
-              )}
-            </div>
-
-            {/* Project Type */}
-            <div className="space-y-1">
-              <Label>Project Type <span className="text-red-500">*</span></Label>
-              <Select value={form.project_type}
-                onValueChange={(v) => setForm((p) => ({ ...p, project_type: v }))}
-                disabled={!!form.template_id}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {Object.entries(PROJECT_TYPE_LABELS).map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}
-                </SelectContent>
-              </Select>
-              {form.template_id && <p className="text-xs text-gray-400">Set by template</p>}
-            </div>
-
-            {/* Color */}
-            <div className="space-y-1.5">
-              <Label>Project Color</Label>
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-md border border-gray-200 dark:border-gray-700 shrink-0"
-                  style={{ backgroundColor: form.color }} />
-                <div className="flex flex-wrap gap-1.5">
-                  {COLOR_SWATCHES.map((c) => (
-                    <button key={c} type="button" title={c}
-                      onClick={() => setForm((p) => ({ ...p, color: c }))}
-                      className="w-5 h-5 rounded-full border-2 transition-transform hover:scale-110"
-                      style={{
-                        backgroundColor: c,
-                        borderColor: form.color === c ? "#1d4ed8" : "transparent",
-                        outline: form.color === c ? "2px solid #bfdbfe" : "none",
-                      }}
+                    <input
+                      type="color" value={form.color}
+                      onChange={(e) => setForm((p) => ({ ...p, color: e.target.value }))}
+                      className="w-5 h-5 rounded cursor-pointer border border-gray-300 dark:border-gray-600 p-0"
+                      title="Custom color"
                     />
-                  ))}
-                  <input type="color" value={form.color}
-                    onChange={(e) => setForm((p) => ({ ...p, color: e.target.value }))}
-                    className="w-5 h-5 rounded cursor-pointer border border-gray-300 dark:border-gray-600 p-0"
-                    title="Custom color" />
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* Dates */}
-            <div className="space-y-1">
-              <Label>Start Date</Label>
-              <Input type="date" value={form.start_date}
-                onChange={(e) => setForm((p) => ({ ...p, start_date: e.target.value }))} />
-            </div>
-            <div className="space-y-1">
-              <Label>Projected End Date</Label>
-              <Input type="date" value={form.projected_end_date}
-                onChange={(e) => setForm((p) => ({ ...p, projected_end_date: e.target.value }))} />
+            {/* ── Section: Project Scope ─────────────────────────────── */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Project Scope</span>
+                <Separator className="flex-1" />
+              </div>
+
+              {/* Internal / Client toggle */}
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">
+                  Scope Type <span className="text-red-500">*</span>
+                </Label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setForm((p) => ({ ...p, is_client_project: false, client_id: "" }))}
+                    className={`flex items-center gap-3 px-4 py-3 rounded-lg border-2 text-left transition-all ${
+                      !form.is_client_project
+                        ? "border-blue-500 bg-blue-50 dark:bg-blue-950/50"
+                        : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 bg-white dark:bg-transparent"
+                    }`}
+                  >
+                    <div className={`h-8 w-8 rounded-md flex items-center justify-center shrink-0 ${
+                      !form.is_client_project ? "bg-blue-100 dark:bg-blue-900" : "bg-gray-100 dark:bg-gray-800"
+                    }`}>
+                      <Building2 className={`h-4 w-4 ${!form.is_client_project ? "text-blue-600 dark:text-blue-400" : "text-gray-400"}`} />
+                    </div>
+                    <div>
+                      <p className={`text-sm font-medium leading-snug ${!form.is_client_project ? "text-blue-700 dark:text-blue-300" : "text-gray-700 dark:text-gray-300"}`}>
+                        Internal
+                      </p>
+                      <p className="text-xs text-gray-400 mt-0.5 leading-snug">No external client</p>
+                    </div>
+                    {!form.is_client_project && (
+                      <CheckCircle2 className="h-4 w-4 text-blue-500 ml-auto shrink-0" />
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setForm((p) => ({ ...p, is_client_project: true }))}
+                    className={`flex items-center gap-3 px-4 py-3 rounded-lg border-2 text-left transition-all ${
+                      form.is_client_project
+                        ? "border-blue-500 bg-blue-50 dark:bg-blue-950/50"
+                        : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 bg-white dark:bg-transparent"
+                    }`}
+                  >
+                    <div className={`h-8 w-8 rounded-md flex items-center justify-center shrink-0 ${
+                      form.is_client_project ? "bg-blue-100 dark:bg-blue-900" : "bg-gray-100 dark:bg-gray-800"
+                    }`}>
+                      <Users className={`h-4 w-4 ${form.is_client_project ? "text-blue-600 dark:text-blue-400" : "text-gray-400"}`} />
+                    </div>
+                    <div>
+                      <p className={`text-sm font-medium leading-snug ${form.is_client_project ? "text-blue-700 dark:text-blue-300" : "text-gray-700 dark:text-gray-300"}`}>
+                        Client Project
+                      </p>
+                      <p className="text-xs text-gray-400 mt-0.5 leading-snug">External client linked</p>
+                    </div>
+                    {form.is_client_project && (
+                      <CheckCircle2 className="h-4 w-4 text-blue-500 ml-auto shrink-0" />
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Client dropdown — only when Client Project */}
+              {form.is_client_project && (
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-medium">
+                    Client <span className="text-red-500">*</span>
+                  </Label>
+                  {activeClients.length === 0 ? (
+                    <div className="flex items-center gap-2 p-3 rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-800 text-sm text-amber-700 dark:text-amber-400">
+                      <AlertTriangle className="h-4 w-4 shrink-0" />
+                      <span>No active clients found. Add clients in the Clients section first.</span>
+                    </div>
+                  ) : (
+                    <>
+                      <Select value={form.client_id} onValueChange={(v) => setForm((p) => ({ ...p, client_id: v }))}>
+                        <SelectTrigger className={`h-9 ${!form.client_id ? "border-red-300 dark:border-red-700 focus:ring-red-500" : ""}`}>
+                          <SelectValue placeholder="Select a client…" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {activeClients.map((c: any) => (
+                            <SelectItem key={c.id} value={c.id}>
+                              <div className="flex items-center gap-2">
+                                <Building2 className="h-3.5 w-3.5 text-gray-400 shrink-0" />
+                                <span>{c.name}</span>
+                                {c.organization_type && (
+                                  <span className="text-xs text-gray-400">· {c.organization_type}</span>
+                                )}
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {!form.client_id && (
+                        <p className="text-xs text-red-500 flex items-center gap-1">
+                          <AlertTriangle className="h-3 w-3" /> Client selection is required for client projects.
+                        </p>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
             </div>
 
-            {/* Effort */}
-            <div className="space-y-1">
-              <Label>Total Effort (hours)</Label>
-              <Input type="number" min={0} placeholder="e.g. 500" value={form.total_effort_hours}
-                onChange={(e) => setForm((p) => ({ ...p, total_effort_hours: e.target.value }))} />
-            </div>
+            {/* ── Section: Template & Type ───────────────────────────── */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Template & Type</span>
+                <Separator className="flex-1" />
+              </div>
 
-            {/* Budget */}
-            <div className="space-y-1">
-              <Label>Budget Amount</Label>
-              <div className="flex gap-2">
-                <Select value={form.currency} onValueChange={(v) => setForm((p) => ({ ...p, currency: v }))}>
-                  <SelectTrigger className="w-24 shrink-0"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {CURRENCIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-                <Input placeholder="e.g. 50000" value={form.budget_amount}
-                  onChange={(e) => setForm((p) => ({ ...p, budget_amount: e.target.value }))} />
+              <div className="grid grid-cols-2 gap-4">
+                {/* Template */}
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-medium">Project Template</Label>
+                  <Select
+                    value={form.template_id || "none"}
+                    onValueChange={(v) => {
+                      const tpl = activeTemplates.find((t) => t.id === v);
+                      setForm((p) => ({
+                        ...p,
+                        template_id:  v === "none" ? "" : v,
+                        project_type: tpl ? tpl.project_type : p.project_type,
+                      }));
+                    }}
+                    disabled={!!(editProject?.is_confirmed)}
+                  >
+                    <SelectTrigger className="h-9"><SelectValue placeholder="No template" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No template</SelectItem>
+                      {activeTemplates.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  {editProject?.is_confirmed ? (
+                    <p className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                      <CheckCircle2 className="h-3 w-3" /> Locked after confirmation
+                    </p>
+                  ) : null}
+                </div>
+
+                {/* Project Type */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <Label className="text-sm font-medium">Project Type <span className="text-red-500">*</span></Label>
+                    {form.template_id && (
+                      <span className="text-xs text-blue-600 dark:text-blue-400 font-medium">· set by template</span>
+                    )}
+                  </div>
+                  <Select
+                    value={form.project_type}
+                    onValueChange={(v) => setForm((p) => ({ ...p, project_type: v }))}
+                    disabled={!!form.template_id}
+                  >
+                    <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(PROJECT_TYPE_LABELS).map(([v, l]) => (
+                        <SelectItem key={v} value={v}>{l}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </div>
 
-            {/* Description */}
-            <div className="col-span-2 space-y-1">
-              <Label>Description</Label>
-              <Textarea placeholder="Project overview, goals, scope..." value={form.description}
-                onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))} rows={3} />
+            {/* ── Section: Schedule ──────────────────────────────────── */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Schedule</span>
+                <Separator className="flex-1" />
+              </div>
+
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-medium flex items-center gap-1.5">
+                    <Calendar className="h-3.5 w-3.5 text-gray-400" /> Start Date
+                  </Label>
+                  <Input
+                    type="date" value={form.start_date} className="h-9"
+                    onChange={(e) => setForm((p) => ({ ...p, start_date: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-medium flex items-center gap-1.5">
+                    <Calendar className="h-3.5 w-3.5 text-gray-400" /> End Date
+                  </Label>
+                  <Input
+                    type="date" value={form.projected_end_date} className="h-9"
+                    onChange={(e) => setForm((p) => ({ ...p, projected_end_date: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-medium flex items-center gap-1.5">
+                    <Clock className="h-3.5 w-3.5 text-gray-400" /> Effort (hrs)
+                  </Label>
+                  <Input
+                    type="number" min={0} placeholder="e.g. 500" value={form.total_effort_hours} className="h-9"
+                    onChange={(e) => setForm((p) => ({ ...p, total_effort_hours: e.target.value }))}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* ── Section: Budget ────────────────────────────────────── */}
+            <div className="space-y-4 pb-2">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Budget</span>
+                <Separator className="flex-1" />
+              </div>
+
+              <div className="flex gap-3">
+                <div className="space-y-1.5 w-28 shrink-0">
+                  <Label className="text-sm font-medium flex items-center gap-1.5">
+                    <DollarSign className="h-3.5 w-3.5 text-gray-400" /> Currency
+                  </Label>
+                  <Select value={form.currency} onValueChange={(v) => setForm((p) => ({ ...p, currency: v }))}>
+                    <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {CURRENCIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5 flex-1">
+                  <Label className="text-sm font-medium">Budget Amount</Label>
+                  <Input
+                    placeholder="e.g. 50000" value={form.budget_amount} className="h-9"
+                    onChange={(e) => setForm((p) => ({ ...p, budget_amount: e.target.value }))}
+                  />
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          {/* Sticky footer */}
+          <div className="border-t border-gray-200 dark:border-gray-700 px-6 py-4 flex items-center justify-between shrink-0 bg-gray-50/80 dark:bg-gray-900/50 backdrop-blur-sm">
+            <div className="text-xs text-gray-400">
+              {editProject?.is_confirmed && (
+                <span className="flex items-center gap-1 text-purple-600 dark:text-purple-400">
+                  <CheckCircle2 className="h-3.5 w-3.5" /> Project confirmed — some fields are locked
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => { setOpen(false); setEditProject(null); }}>
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleSubmit}
+                disabled={updateMutation.isPending || (form.is_client_project && !form.client_id)}
+                className="min-w-28"
+              >
+                {updateMutation.isPending ? "Saving…" : "Save Changes"}
+              </Button>
             </div>
           </div>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => { setOpen(false); setEditProject(null); }}>Cancel</Button>
-            <Button onClick={handleSubmit} disabled={updateMutation.isPending}>Save Changes</Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
 
