@@ -1731,7 +1731,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getClientContactByEmail(email: string): Promise<ClientContact | undefined> {
-    const rows = await db.select().from(clientContacts).where(eq(clientContacts.email, email)).limit(1);
+    const rows = await db.select().from(clientContacts).where(eq(clientContacts.email, email.toLowerCase())).limit(1);
     return rows[0];
   }
 

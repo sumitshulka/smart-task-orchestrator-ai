@@ -3013,7 +3013,8 @@ Rules:
       const { password, ...rest } = req.body;
       const parsed = insertClientContactSchema.safeParse({ ...rest, client_id: req.params.clientId });
       if (!parsed.success) return res.status(400).json({ error: "Invalid data", details: parsed.error.flatten() });
-      const contact = await storage.createClientContact(parsed.data);
+      // Normalize email to lowercase before storing
+      const contact = await storage.createClientContact({ ...parsed.data, email: parsed.data.email.trim().toLowerCase() });
       if (password && password.length >= 6) {
         const hash = await bcrypt.hash(password, 10);
         await storage.setClientContactPassword(contact.id, hash);
@@ -3026,7 +3027,13 @@ Rules:
   app.put("/api/clients/:clientId/contacts/:contactId", requireManagerOrAdmin, async (req, res) => {
     try {
       const { password, password_hash, id, client_id, created_at, updated_at, last_login_at, ...updates } = req.body;
+      if (updates.email) updates.email = updates.email.trim().toLowerCase();
       const contact = await storage.updateClientContact(req.params.contactId, updates);
+      // If a new password was provided, hash and save it
+      if (password && password.length >= 6) {
+        const hash = await bcrypt.hash(password, 10);
+        await storage.setClientContactPassword(req.params.contactId, hash);
+      }
       const { password_hash: _, ...safe } = contact as any;
       res.json(safe);
     } catch (err: any) { res.status(500).json({ error: "Failed to update contact" }); }
@@ -3102,7 +3109,8 @@ Rules:
       const { email, password } = req.body;
       if (!email || !password) return res.status(400).json({ error: "Email and password required" });
       const contact = await storage.getClientContactByEmail(email.trim().toLowerCase());
-      if (!contact || !contact.is_active) return res.status(401).json({ error: "Invalid credentials or account inactive" });
+      if (!contact) return res.status(401).json({ error: "Invalid credentials" });
+      if (contact.is_active === false) return res.status(401).json({ error: "Account is inactive. Please contact your project manager." });
       if (!contact.password_hash) return res.status(401).json({ error: "Portal access not configured. Contact your project manager." });
       const valid = await bcrypt.compare(password, contact.password_hash);
       if (!valid) return res.status(401).json({ error: "Invalid credentials" });
