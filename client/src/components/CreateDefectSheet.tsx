@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -17,14 +17,22 @@ import {
 import { toast } from "@/hooks/use-toast";
 import { useUsersAndTeams } from "@/hooks/useUsersAndTeams";
 import useSupabaseSession from "@/hooks/useSupabaseSession";
+import { Paperclip, X, FileText, Image, File } from "lucide-react";
+
+const MAX_TOTAL_BYTES = 2 * 1024 * 1024; // 2 MB
+
+interface AttachmentFile {
+  name: string;
+  type: string;
+  size: number;
+  data: string; // base64
+}
 
 interface Props {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   currentUserId: string;
-  /** When set, pre-fills and locks the project field */
   defaultProjectId?: string;
-  /** Display name for the locked project (avoids lookup issues) */
   defaultProjectName?: string;
 }
 
@@ -56,6 +64,9 @@ export default function CreateDefectSheet({ open, onOpenChange, currentUserId, d
   const [milestonesList, setMilestonesList] = useState<any[]>([]);
   const [featureGroupsList, setFeatureGroupsList] = useState<any[]>([]);
   const [featuresList, setFeaturesList] = useState<any[]>([]);
+  const [attachments, setAttachments] = useState<AttachmentFile[]>([]);
+  const [attachSizeError, setAttachSizeError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: projects = [] } = useQuery<any[]>({
     queryKey: ["/api/projects"],
@@ -87,7 +98,7 @@ export default function CreateDefectSheet({ open, onOpenChange, currentUserId, d
     setForm((f) => ({ ...f, milestone_id: "", feature_group_id: "", feature_id: "" }));
   }, [form.project_id, user?.id]);
 
-  // Cascade: when feature group changes, fetch features in that group
+  // Cascade: when feature group changes, fetch features
   useEffect(() => {
     if (!form.project_id || !form.feature_group_id || !user?.id) {
       setFeaturesList([]);
@@ -103,16 +114,56 @@ export default function CreateDefectSheet({ open, onOpenChange, currentUserId, d
     setForm((f) => ({ ...f, feature_id: "" }));
   }, [form.feature_group_id, form.project_id, user?.id]);
 
+  // ── File attachment helpers ──────────────────────────────────────────────
+  const totalSize = attachments.reduce((s, f) => s + f.size, 0);
+
+  const handleFiles = (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    setAttachSizeError(null);
+
+    const incoming = Array.from(files);
+    const newTotal = totalSize + incoming.reduce((s, f) => s + f.size, 0);
+    if (newTotal > MAX_TOTAL_BYTES) {
+      setAttachSizeError(
+        `Adding these files would exceed the 2 MB limit. Current: ${formatBytes(totalSize)}, trying to add: ${formatBytes(incoming.reduce((s, f) => s + f.size, 0))}.`
+      );
+      return;
+    }
+
+    incoming.forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const data = (e.target?.result as string).split(",")[1]; // strip data URL prefix
+        setAttachments((prev) => [
+          ...prev,
+          { name: file.name, type: file.type, size: file.size, data },
+        ]);
+      };
+      reader.readAsDataURL(file);
+    });
+
+    // reset input so same file can be re-added after removal
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const removeAttachment = (idx: number) => {
+    setAttachments((prev) => prev.filter((_, i) => i !== idx));
+    setAttachSizeError(null);
+  };
+
+  // ── Submission ───────────────────────────────────────────────────────────
   const createMutation = useMutation({
     mutationFn: (data: any) => apiClient.post("/defects", data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/defects"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/defect-task-ids"] });
       toast({ title: "Defect reported", description: "Saved as draft. Submit it for manager approval when ready." });
       setForm({ ...defaultForm, project_id: defaultProjectId || "" });
       setMilestonesList([]);
       setFeatureGroupsList([]);
       setFeaturesList([]);
-      queryClient.invalidateQueries({ queryKey: ["/api/defect-task-ids"] });
+      setAttachments([]);
+      setAttachSizeError(null);
       onOpenChange(false);
     },
     onError: (e: any) => {
@@ -145,6 +196,7 @@ export default function CreateDefectSheet({ open, onOpenChange, currentUserId, d
       feature_group_id: form.feature_group_id || null,
       feature_id: form.feature_id || null,
       due_date: form.due_date || null,
+      attachments,
     };
     createMutation.mutate(payload);
   };
@@ -154,6 +206,12 @@ export default function CreateDefectSheet({ open, onOpenChange, currentUserId, d
       {n}
     </span>
   );
+
+  const fileIcon = (type: string) => {
+    if (type.startsWith("image/")) return <Image className="h-4 w-4 text-blue-500" />;
+    if (type === "application/pdf") return <FileText className="h-4 w-4 text-red-500" />;
+    return <File className="h-4 w-4 text-gray-500" />;
+  };
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -204,10 +262,102 @@ export default function CreateDefectSheet({ open, onOpenChange, currentUserId, d
             </div>
           </div>
 
-          {/* ── SECTION 2: Classification ── */}
+          {/* ── SECTION 2: Project Linkage ── */}
+          <div className="bg-indigo-50 dark:bg-indigo-900/20 p-3 sm:p-4 rounded-lg border border-indigo-200 dark:border-indigo-800">
+            <h3 className="text-sm sm:text-base font-medium text-gray-800 dark:text-gray-200 mb-1 flex items-center">
+              {sectionBadge(2, "bg-indigo-100 text-indigo-800")}
+              Project Linkage
+            </h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-3 ml-8">
+              Link this defect to a project so it can be tracked against milestones and features
+            </p>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">Project</label>
+                {defaultProjectId ? (
+                  <div className="h-10 flex items-center px-3 text-sm rounded-lg border border-emerald-300 bg-emerald-50 dark:bg-emerald-900/20 dark:border-emerald-700 text-emerald-800 dark:text-emerald-300 gap-2">
+                    <span className="text-emerald-500">🔒</span>
+                    <span className="font-medium truncate">
+                      {defaultProjectName || (projects as any[]).find((p: any) => p.id === defaultProjectId)?.name || "Current project"}
+                    </span>
+                    <span className="ml-auto text-xs opacity-60">auto-linked</span>
+                  </div>
+                ) : (
+                  <select
+                    value={form.project_id}
+                    onChange={(e) => set("project_id", e.target.value)}
+                    className="w-full h-10 text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 bg-white dark:bg-gray-800 focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">— None —</option>
+                    {(projects as any[]).map((p: any) => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
+              {form.project_id && (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">
+                      Milestone / Release
+                    </label>
+                    <select
+                      value={form.milestone_id}
+                      onChange={(e) => set("milestone_id", e.target.value)}
+                      className="w-full h-10 text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 bg-white dark:bg-gray-800 focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">— No milestone —</option>
+                      {milestonesList.map((m: any) => (
+                        <option key={m.id} value={m.id}>{m.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">
+                      Feature Group
+                    </label>
+                    <select
+                      value={form.feature_group_id}
+                      onChange={(e) => set("feature_group_id", e.target.value)}
+                      className="w-full h-10 text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 bg-white dark:bg-gray-800 focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">— No group —</option>
+                      {featureGroupsList.map((fg: any) => (
+                        <option key={fg.id} value={fg.id}>{fg.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">
+                      Feature
+                    </label>
+                    <select
+                      value={form.feature_id}
+                      onChange={(e) => set("feature_id", e.target.value)}
+                      disabled={!form.feature_group_id}
+                      className="w-full h-10 text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 bg-white dark:bg-gray-800 focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                    >
+                      <option value="">— No feature —</option>
+                      {featuresList.map((f: any) => (
+                        <option key={f.id} value={f.id}>
+                          {f.tracking_number ? `[${f.tracking_number}] ` : ""}{f.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* ── SECTION 3: Classification ── */}
           <div className="bg-green-50 dark:bg-green-900/20 p-3 sm:p-4 rounded-lg">
             <h3 className="text-sm sm:text-base font-medium text-gray-800 dark:text-gray-200 mb-3 flex items-center">
-              {sectionBadge(2, "bg-green-100 text-green-800")}
+              {sectionBadge(3, "bg-green-100 text-green-800")}
               Classification
             </h3>
             <div className="grid grid-cols-2 gap-3 sm:gap-4">
@@ -269,10 +419,10 @@ export default function CreateDefectSheet({ open, onOpenChange, currentUserId, d
             </div>
           </div>
 
-          {/* ── SECTION 3: Reproduction Details ── */}
+          {/* ── SECTION 4: Reproduction Details ── */}
           <div className="bg-purple-50 dark:bg-purple-900/20 p-3 sm:p-4 rounded-lg">
             <h3 className="text-sm sm:text-base font-medium text-gray-800 dark:text-gray-200 mb-3 flex items-center">
-              {sectionBadge(3, "bg-purple-100 text-purple-800")}
+              {sectionBadge(4, "bg-purple-100 text-purple-800")}
               Reproduction Details
             </h3>
             <div className="space-y-3">
@@ -314,10 +464,10 @@ export default function CreateDefectSheet({ open, onOpenChange, currentUserId, d
             </div>
           </div>
 
-          {/* ── SECTION 4: Assignment & Timeline ── */}
+          {/* ── SECTION 5: Assignment & Timeline ── */}
           <div className="bg-orange-50 dark:bg-orange-900/20 p-3 sm:p-4 rounded-lg">
             <h3 className="text-sm sm:text-base font-medium text-gray-800 dark:text-gray-200 mb-3 flex items-center">
-              {sectionBadge(4, "bg-orange-100 text-orange-800")}
+              {sectionBadge(5, "bg-orange-100 text-orange-800")}
               Assignment &amp; Timeline
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -359,102 +509,80 @@ export default function CreateDefectSheet({ open, onOpenChange, currentUserId, d
             </div>
           </div>
 
-          {/* ── SECTION 5: Project Linkage ── */}
-          <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600">
+          {/* ── SECTION 6: Attachments ── */}
+          <div className="bg-slate-50 dark:bg-slate-800/50 p-3 sm:p-4 rounded-lg border border-slate-200 dark:border-slate-700">
             <h3 className="text-sm sm:text-base font-medium text-gray-800 dark:text-gray-200 mb-1 flex items-center">
-              {sectionBadge(5, "bg-gray-100 text-gray-800")}
-              Project Linkage
+              {sectionBadge(6, "bg-slate-200 text-slate-700")}
+              Attachments
               <span className="ml-2 text-xs font-normal text-gray-500">(optional)</span>
             </h3>
             <p className="text-xs text-gray-500 dark:text-gray-400 mb-3 ml-8">
-              Associate this defect with a project, milestone, feature group, and/or feature
+              Attach screenshots or supporting documents. Total size limit: <span className="font-semibold">2 MB</span>.
+              Accepted: images (PNG, JPG, GIF, WebP), PDF, Word, Excel, text files.
             </p>
 
-            <div className="space-y-3">
-              {/* Project — locked when opened from inside a project */}
-              <div>
-                <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">Project</label>
-                {defaultProjectId ? (
-                  <div className="h-10 flex items-center px-3 text-sm rounded-lg border border-emerald-300 bg-emerald-50 dark:bg-emerald-900/20 dark:border-emerald-700 text-emerald-800 dark:text-emerald-300 gap-2">
-                    <span className="text-emerald-500">🔒</span>
-                    <span className="font-medium truncate">
-                      {defaultProjectName || (projects as any[]).find((p: any) => p.id === defaultProjectId)?.name || "Current project"}
-                    </span>
-                    <span className="ml-auto text-xs opacity-60">auto-linked</span>
-                  </div>
-                ) : (
-                  <select
-                    value={form.project_id}
-                    onChange={(e) => set("project_id", e.target.value)}
-                    className="w-full h-10 text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 bg-white dark:bg-gray-800 focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">— None —</option>
-                    {(projects as any[]).map((p: any) => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
-                    ))}
-                  </select>
-                )}
-              </div>
-
-              {form.project_id && (
-                <>
-                  {/* Milestone */}
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">
-                      Milestone / Release
-                    </label>
-                    <select
-                      value={form.milestone_id}
-                      onChange={(e) => set("milestone_id", e.target.value)}
-                      className="w-full h-10 text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 bg-white dark:bg-gray-800 focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">— No milestone —</option>
-                      {milestonesList.map((m: any) => (
-                        <option key={m.id} value={m.id}>{m.name}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Feature Group */}
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">
-                      Feature Group
-                    </label>
-                    <select
-                      value={form.feature_group_id}
-                      onChange={(e) => set("feature_group_id", e.target.value)}
-                      className="w-full h-10 text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 bg-white dark:bg-gray-800 focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">— No feature group —</option>
-                      {featureGroupsList.map((fg: any) => (
-                        <option key={fg.id} value={fg.id}>{fg.name}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Feature (only when a group is selected) */}
-                  {form.feature_group_id && (
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">
-                        Feature
-                      </label>
-                      <select
-                        value={form.feature_id}
-                        onChange={(e) => set("feature_id", e.target.value)}
-                        className="w-full h-10 text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 bg-white dark:bg-gray-800 focus:ring-2 focus:ring-blue-500"
-                      >
-                        <option value="">— No specific feature —</option>
-                        {featuresList.map((f: any) => (
-                          <option key={f.id} value={f.id}>
-                            {f.tracking_number ? `[${f.tracking_number}] ` : ""}{f.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-                </>
-              )}
+            {/* Drop zone / file picker */}
+            <div
+              className="border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-lg p-4 text-center cursor-pointer hover:border-blue-400 hover:bg-blue-50/30 dark:hover:bg-blue-900/10 transition-colors"
+              onClick={() => fileInputRef.current?.click()}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => { e.preventDefault(); handleFiles(e.dataTransfer.files); }}
+            >
+              <Paperclip className="h-6 w-6 mx-auto mb-2 text-slate-400" />
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                Click to browse or drag &amp; drop files here
+              </p>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv"
+                className="hidden"
+                onChange={(e) => handleFiles(e.target.files)}
+              />
             </div>
+
+            {/* Size bar */}
+            <div className="mt-2 flex items-center gap-2">
+              <div className="flex-1 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all ${totalSize / MAX_TOTAL_BYTES > 0.85 ? "bg-red-500" : totalSize / MAX_TOTAL_BYTES > 0.6 ? "bg-amber-400" : "bg-blue-500"}`}
+                  style={{ width: `${Math.min(100, (totalSize / MAX_TOTAL_BYTES) * 100)}%` }}
+                />
+              </div>
+              <span className="text-xs text-slate-500 whitespace-nowrap shrink-0">
+                {formatBytes(totalSize)} / 2 MB
+              </span>
+            </div>
+
+            {/* Error */}
+            {attachSizeError && (
+              <p className="mt-2 text-xs text-red-600 dark:text-red-400">{attachSizeError}</p>
+            )}
+
+            {/* File list */}
+            {attachments.length > 0 && (
+              <ul className="mt-3 space-y-1.5">
+                {attachments.map((att, idx) => (
+                  <li
+                    key={idx}
+                    className="flex items-center gap-2 bg-white dark:bg-gray-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm"
+                  >
+                    {fileIcon(att.type)}
+                    <span className="flex-1 truncate text-gray-700 dark:text-gray-300">{att.name}</span>
+                    <span className="text-xs text-gray-400 shrink-0">{formatBytes(att.size)}</span>
+                    <button
+                      type="button"
+                      onClick={() => removeAttachment(idx)}
+                      className="ml-1 text-gray-400 hover:text-red-500 transition-colors"
+                      title="Remove"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
 
           {/* ── Footer ── */}
@@ -471,8 +599,17 @@ export default function CreateDefectSheet({ open, onOpenChange, currentUserId, d
               )}
             </Button>
             <SheetClose asChild>
-              <Button type="button" variant="outline" className="h-12 px-6 text-base font-semibold"
-                onClick={() => { setForm({ ...defaultForm, project_id: defaultProjectId || "" }); onOpenChange(false); }}>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-12 px-6 text-base font-semibold"
+                onClick={() => {
+                  setForm({ ...defaultForm, project_id: defaultProjectId || "" });
+                  setAttachments([]);
+                  setAttachSizeError(null);
+                  onOpenChange(false);
+                }}
+              >
                 Cancel
               </Button>
             </SheetClose>
@@ -481,4 +618,11 @@ export default function CreateDefectSheet({ open, onOpenChange, currentUserId, d
       </SheetContent>
     </Sheet>
   );
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return "0 B";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
 }

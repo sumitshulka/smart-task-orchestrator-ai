@@ -1,4 +1,4 @@
-import { pgTable, text, uuid, timestamp, integer, boolean, pgEnum, serial } from "drizzle-orm/pg-core";
+import { pgTable, text, uuid, timestamp, integer, boolean, pgEnum, serial, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { relations } from "drizzle-orm";
@@ -827,6 +827,8 @@ export const defects = pgTable("defects", {
   milestone_id: uuid("milestone_id"),         // → project_milestones.id
   feature_group_id: uuid("feature_group_id"), // → project_feature_groups.id
   feature_id: uuid("feature_id"),             // → project_features.id
+  // Attachments — stored as JSON array of { name, type, size, data } (base64 encoded files)
+  attachments: jsonb("attachments").default([]),
   // Resolution
   resolution: text("resolution"),
   rejection_reason: text("rejection_reason"),
@@ -913,6 +915,12 @@ export const insertDefectSchema = createInsertSchema(defects).omit({
   resolved_at: z.union([z.date(), z.string().transform((s) => s ? new Date(s) : null)]).nullable().optional(),
   verified_at: z.union([z.date(), z.string().transform((s) => s ? new Date(s) : null)]).nullable().optional(),
   approved_at: z.union([z.date(), z.string().transform((s) => s ? new Date(s) : null)]).nullable().optional(),
+  attachments: z.array(z.object({
+    name: z.string(),
+    type: z.string(),
+    size: z.number(),
+    data: z.string(), // base64
+  })).optional().default([]),
 });
 
 export const insertDefectTaskSchema = createInsertSchema(defectTasks).omit({
