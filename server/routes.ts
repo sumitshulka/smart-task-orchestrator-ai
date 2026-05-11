@@ -3114,12 +3114,24 @@ Rules:
       if (!contact.password_hash) return res.status(401).json({ error: "Portal access not configured. Contact your project manager." });
       const valid = await bcrypt.compare(password, contact.password_hash);
       if (!valid) return res.status(401).json({ error: "Invalid credentials" });
+
+      // Set session — save explicitly to ensure it's persisted before responding
       req.session.clientContactId = contact.id;
-      await storage.updateClientContact(contact.id, { last_login_at: new Date() });
+      await new Promise<void>((resolve, reject) =>
+        req.session.save((err: any) => (err ? reject(err) : resolve()))
+      );
+
+      // Best-effort last-login timestamp update (don't block/fail login on error)
+      storage.updateClientContact(contact.id, { last_login_at: new Date() }).catch(() => {});
+
       const { password_hash, ...safe } = contact as any;
-      const client = await storage.getClient(contact.client_id);
+      let client: any = null;
+      try { client = await storage.getClient(contact.client_id); } catch {}
       res.json({ contact: safe, client });
-    } catch (err: any) { res.status(500).json({ error: "Login failed" }); }
+    } catch (err: any) {
+      console.error("POST /api/portal/login error:", err);
+      res.status(500).json({ error: "Login failed", details: err?.message });
+    }
   });
 
   app.get("/api/portal/me", requirePortalAuth, async (req: any, res) => {

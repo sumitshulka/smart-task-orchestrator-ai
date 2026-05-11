@@ -1,10 +1,28 @@
 import express, { type Request, Response, NextFunction } from "express";
+import session from "express-session";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 
 const app = express();
-app.use(express.json());
+app.use(express.json({ limit: "20mb" }));
 app.use(express.urlencoded({ extended: false }));
+
+// ── Session middleware (used by client portal auth) ────────────────────────
+// Using the built-in MemoryStore — sessions persist for the lifetime of the
+// server process. For production, swap to a persistent store (e.g. connect-pg-simple).
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET || "taskrep-portal-secret-key-change-in-prod",
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      httpOnly: true,
+      secure: false,
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    },
+  })
+);
+// ──────────────────────────────────────────────────────────────────────────
 
 app.use((req, res, next) => {
   const start = Date.now();
@@ -47,18 +65,12 @@ app.use((req, res, next) => {
     throw err;
   });
 
-  // importantly only setup vite in development and after
-  // setting up all the other routes so the catch-all route
-  // doesn't interfere with the other routes
   if (app.get("env") === "development") {
     await setupVite(app, server);
   } else {
     serveStatic(app);
   }
 
-  // ALWAYS serve the app on port 5000
-  // this serves both the API and the client.
-  // It is the only port that is not firewalled.
   const port = 5000;
   server.listen({
     port,

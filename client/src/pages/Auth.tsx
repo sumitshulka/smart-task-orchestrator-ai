@@ -256,13 +256,14 @@ const AuthPage: React.FC = () => {
                   </div>
                   <div className="border-t border-white/10 pt-3">
                     <p className="text-slate-500 text-xs mb-1.5">External client access?</p>
-                    <a
-                      href="/portal/login"
+                    <button
+                      type="button"
+                      onClick={() => navigate("/portal/login")}
                       className="inline-flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300 transition-colors font-medium"
                     >
                       <ShieldCheck className="h-3.5 w-3.5" />
                       Sign in to the Client Portal →
-                    </a>
+                    </button>
                   </div>
                   <div className="text-xs text-slate-500">
                     &copy; {new Date().getFullYear()} TaskRep. All rights reserved.
