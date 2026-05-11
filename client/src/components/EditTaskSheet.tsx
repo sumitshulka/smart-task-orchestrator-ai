@@ -21,23 +21,13 @@ import { queryClient } from "@/lib/queryClient";
 import { useUsersAndTeams } from "@/hooks/useUsersAndTeams";
 import useSupabaseSession from "@/hooks/useSupabaseSession";
 import { useCurrentUserRoleAndTeams } from "@/hooks/useCurrentUserRoleAndTeams";
-
-// Additional statuses for select
-const statusOptions = [
-  { label: "New", value: "new" },
-  { label: "Pending", value: "pending" },
-  { label: "Assigned", value: "assigned" },
-  { label: "In Progress", value: "in_progress" },
-  { label: "Completed", value: "completed" },
-];
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 type Props = {
   task: Task | null;
   onUpdated: () => void;
-  // For controlled usage
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
-  // For trigger-as-child pattern
   children?: React.ReactNode;
 };
 
@@ -48,7 +38,6 @@ const EditTaskSheet: React.FC<Props> = ({
   onOpenChange: controlledOnOpenChange,
   children,
 }) => {
-  // Use controlled or uncontrolled open state
   const [internalOpen, setInternalOpen] = useState(false);
   const open = controlledOpen !== undefined ? controlledOpen : internalOpen;
   const onOpenChange = controlledOnOpenChange !== undefined ? controlledOnOpenChange : setInternalOpen;
@@ -65,47 +54,25 @@ const EditTaskSheet: React.FC<Props> = ({
   });
   const [loading, setLoading] = useState(false);
 
-  // Permissions: Use real roles via hook
-  const { users } = useUsersAndTeams();
-  // NEW: Use the current user's roles from Supabase
-  const { roles: currentRoles, user: currentUser } = useCurrentUserRoleAndTeams();
+  // Project linkage state
+  const [projectsList, setProjectsList] = useState<any[]>([]);
+  const [milestonesList, setMilestonesList] = useState<any[]>([]);
+  const [featuresList, setFeaturesList] = useState<any[]>([]);
+  const [linkProjectId, setLinkProjectId] = useState("");
+  const [linkMilestoneId, setLinkMilestoneId] = useState("");
+  const [linkFeatureId, setLinkFeatureId] = useState("");
 
-  // Memoized role checks
+  const { users } = useUsersAndTeams();
+  const { roles: currentRoles, user: currentUser } = useCurrentUserRoleAndTeams();
+  const { statuses, loading: statusesLoading } = useTaskStatuses();
+
   const isAdmin = useMemo(() => currentRoles.includes("admin"), [currentRoles]);
   const isManager = useMemo(() => currentRoles.some(r => r === "manager" || r === "team manager"), [currentRoles]);
   const isAdminOrManager = isAdmin || isManager;
   const isUser = !isAdmin && !isManager;
 
-  // New hooks for assignment permissions and users
-  const { statuses, loading: statusesLoading } = useTaskStatuses();
-
-  // --- Assignment logic matching Create Task ---
-  function getAssignableUsersEdit() {
-    if (!currentUser) return [];
-    if (!users.length) return [];
-    if (isAdmin) {
-      return users;
-    }
-    if (isManager) {
-      // Show all users except self (optionally filter for direct reports, etc)
-      return users.filter((u) => u.id !== currentUser?.id);
-    }
-    // USER: show only their manager, if set
-    if (isUser) {
-      const myManagerName = currentUser.user_metadata?.manager || null;
-      let myManager = users.find((u) => u.user_name === myManagerName);
-      if (myManager && myManager.email !== currentUser.email) return [myManager];
-      myManager = users.find((u) => u.user_name === myManagerName && u.email !== currentUser.email);
-      return myManager ? [myManager] : [];
-    }
-    return [];
-  }
-
-  // Assignment options logic:
   const allowedAssignUsers = useMemo(() => {
-    if (isAdminOrManager) {
-      return users;
-    }
+    if (isAdminOrManager) return users;
     if (isUser) {
       const myManagerName = currentUser?.user_metadata?.manager || null;
       const myManager = users.find((u) => u.user_name === myManagerName);
@@ -114,12 +81,40 @@ const EditTaskSheet: React.FC<Props> = ({
     return [];
   }, [users, currentUser, isAdminOrManager, isUser]);
 
-  // Used to enable/disable assignment section for UI
   const canShowAssign = (
     (isAdminOrManager && users.length > 0) ||
     (isUser && task && task.type !== "personal" && allowedAssignUsers.length > 0)
   );
 
+  // Fetch projects on open
+  useEffect(() => {
+    if (!open) return;
+    apiClient.get("/projects")
+      .then(data => setProjectsList(Array.isArray(data) ? data : []))
+      .catch(() => setProjectsList([]));
+  }, [open]);
+
+  // Fetch milestones + features when project changes
+  const fetchMilestonesAndFeatures = (projectId: string) => {
+    if (!projectId) {
+      setMilestonesList([]);
+      setFeaturesList([]);
+      return;
+    }
+    apiClient.get(`/projects/${projectId}/milestones`)
+      .then(data => setMilestonesList(Array.isArray(data) ? data : []))
+      .catch(() => setMilestonesList([]));
+    apiClient.get(`/projects/${projectId}/features`)
+      .then(data => setFeaturesList(Array.isArray(data) ? data : []))
+      .catch(() => setFeaturesList([]));
+  };
+
+  useEffect(() => {
+    fetchMilestonesAndFeatures(linkProjectId);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [linkProjectId]);
+
+  // Sync form and linkage state on open
   useEffect(() => {
     if (open && task) {
       setForm({
@@ -131,8 +126,13 @@ const EditTaskSheet: React.FC<Props> = ({
         estimated_hours: task.estimated_hours || "",
         actual_completion_date: task.actual_completion_date || "",
       });
+      setLinkProjectId(task.project_id || "");
+      setLinkMilestoneId(task.milestone_id || "");
+      setLinkFeatureId(task.feature_id || "");
+      if (task.project_id) fetchMilestonesAndFeatures(task.project_id);
     }
-  }, [open, statuses, task]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, task?.id, statuses]);
 
   useEffect(() => {
     setNewAssignee(task?.assigned_to || "");
@@ -147,22 +147,12 @@ const EditTaskSheet: React.FC<Props> = ({
     }
   };
 
-  // --- Utility: get changed fields for activity log (returns array of {name, old, new}) ---
   function getChangedFields(oldObj: any, newObj: any) {
-    const CHK_KEYS = [
-      "title",
-      "description",
-      "priority",
-      "due_date",
-      "status",
-      "estimated_hours",
-      "actual_completion_date",
-    ];
+    const CHK_KEYS = ["title", "description", "priority", "due_date", "status", "estimated_hours", "actual_completion_date"];
     const changes = [];
     for (const k of CHK_KEYS) {
       const oldVal = oldObj[k] ?? "";
       const newVal = newObj[k] ?? "";
-      // Loose comparison (dates might be strings/null etc)
       if (String(oldVal) !== String(newVal)) {
         changes.push({ name: k, old: oldVal, new: newVal });
       }
@@ -170,7 +160,6 @@ const EditTaskSheet: React.FC<Props> = ({
     return changes;
   }
 
-  // --- New: Log assignment change ---
   const handleAssignment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (newAssignee === task?.assigned_to) {
@@ -180,35 +169,18 @@ const EditTaskSheet: React.FC<Props> = ({
     }
     setLoading(true);
     try {
-      const updatePayload: any = {
-        ...form,
-        assigned_to: newAssignee,
-      };
-      await apiClient.updateTask(task!.id, updatePayload);
+      await apiClient.updateTask(task!.id, { ...form, assigned_to: newAssignee });
       toast({ title: "Task assignee updated" });
-      
-      // Invalidate all task-related queries to refresh the UI
       await queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
-      await queryClient.invalidateQueries({ queryKey: ['overdue-tasks'] });
-      await queryClient.invalidateQueries({ queryKey: ['analytics-tasks'] });
-      await queryClient.invalidateQueries({ queryKey: ['task-activity'] });
-      await queryClient.invalidateQueries({ queryKey: ['my-tasks'] });
-      await queryClient.invalidateQueries({ queryKey: ['dashboard-tasks'] });
-      
-      // Force refetch of tasks to ensure UI updates
       await queryClient.refetchQueries({ queryKey: ['/api/tasks'] });
-      
       onOpenChange(false);
-      if (typeof onUpdated === 'function') {
-        onUpdated();
-      }
+      if (typeof onUpdated === 'function') onUpdated();
     } catch (err: any) {
       toast({ title: "Assignment failed", description: err.message });
     }
     setLoading(false);
   };
 
-  // --- New: log edits of any field (except assignee), each field as its own activity entry ---
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -223,47 +195,31 @@ const EditTaskSheet: React.FC<Props> = ({
         actual_completion_date: form.status === "completed"
           ? (form.actual_completion_date || new Date().toISOString().slice(0, 10))
           : null,
+        // Project linkage
+        project_id: linkProjectId || null,
+        milestone_id: linkMilestoneId || null,
+        feature_id: linkFeatureId || null,
       };
-
-      // 1. Identify changed fields:
-      const prevVals: any = {
-        title: task!.title,
-        description: task!.description || "",
-        priority: task!.priority || 2,
-        due_date: task!.due_date ? task!.due_date.slice(0, 10) : "",
-        status: task!.status || "",
-        estimated_hours: task!.estimated_hours || "",
-        actual_completion_date: task!.actual_completion_date || "",
-      };
-      const changedFields = getChangedFields(prevVals, form);
 
       await apiClient.updateTask(task!.id, updatePayload);
       toast({ title: "Task updated" });
-      
-      // Invalidate all task-related queries to refresh the UI
+
       await queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
       await queryClient.invalidateQueries({ queryKey: ['overdue-tasks'] });
       await queryClient.invalidateQueries({ queryKey: ['analytics-tasks'] });
       await queryClient.invalidateQueries({ queryKey: ['task-activity'] });
       await queryClient.invalidateQueries({ queryKey: ['my-tasks'] });
       await queryClient.invalidateQueries({ queryKey: ['dashboard-tasks'] });
-      
-      // Force refetch of tasks to ensure UI updates
       await queryClient.refetchQueries({ queryKey: ['/api/tasks'] });
-      
+
       onOpenChange(false);
-      if (typeof onUpdated === 'function') {
-        onUpdated();
-      }
+      if (typeof onUpdated === 'function') onUpdated();
     } catch (err: any) {
       toast({ title: "Update failed", description: err.message });
     }
     setLoading(false);
   };
 
-  // Only show editable fields allowed by role
-  // For admins/managers: all fields editable
-  // For users: only allow status, comment, and assigning to their manager (not due_date or general assignment)
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       {children && <SheetTrigger asChild>{children}</SheetTrigger>}
@@ -275,8 +231,8 @@ const EditTaskSheet: React.FC<Props> = ({
               Modify the fields below and click Update to save changes.
             </SheetDescription>
           </SheetHeader>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-            {/* Task Title (editable if not restricted to user) */}
             <div>
               <label className="block mb-1 text-sm font-medium">Task Title</label>
               <Input
@@ -320,7 +276,6 @@ const EditTaskSheet: React.FC<Props> = ({
                 disabled={isUser}
               />
             </div>
-            {/* Due Date (only editable for admin/manager) */}
             <div>
               <label className="block mb-1 text-sm font-medium">Due Date <span className="text-red-500">*</span></label>
               <Input
@@ -345,7 +300,6 @@ const EditTaskSheet: React.FC<Props> = ({
                 required
               />
             </div>
-            {/* Show field for completion date only if status is completed */}
             {form.status === 'completed' && (
               <div>
                 <label className="block mb-1 font-medium">Completion Date</label>
@@ -359,9 +313,87 @@ const EditTaskSheet: React.FC<Props> = ({
               </div>
             )}
           </div>
-          {/* Assignment section: always show if possible per assignment logic */}
+
+          {/* ── Project Linkage (admin/manager only) ── */}
+          {isAdminOrManager && (
+            <div className="border rounded-lg p-4 space-y-3 bg-gray-50 dark:bg-gray-900">
+              <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Project Linkage</p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block mb-1 text-xs font-medium text-gray-600 dark:text-gray-400">Project</label>
+                  <Select
+                    value={linkProjectId || "none"}
+                    onValueChange={(v) => {
+                      const val = v === "none" ? "" : v;
+                      setLinkProjectId(val);
+                      setLinkMilestoneId("");
+                      setLinkFeatureId("");
+                    }}
+                  >
+                    <SelectTrigger className="h-9 text-sm">
+                      <SelectValue placeholder="No project" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No project</SelectItem>
+                      {projectsList.map((p: any) => (
+                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label className="block mb-1 text-xs font-medium text-gray-600 dark:text-gray-400">Milestone</label>
+                  <Select
+                    value={linkMilestoneId || "none"}
+                    onValueChange={(v) => {
+                      setLinkMilestoneId(v === "none" ? "" : v);
+                      setLinkFeatureId("");
+                    }}
+                    disabled={!linkProjectId || milestonesList.length === 0}
+                  >
+                    <SelectTrigger className="h-9 text-sm">
+                      <SelectValue placeholder="No milestone" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No milestone</SelectItem>
+                      {milestonesList.map((m: any) => (
+                        <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label className="block mb-1 text-xs font-medium text-gray-600 dark:text-gray-400">Feature</label>
+                  <Select
+                    value={linkFeatureId || "none"}
+                    onValueChange={(v) => setLinkFeatureId(v === "none" ? "" : v)}
+                    disabled={!linkProjectId || featuresList.length === 0}
+                  >
+                    <SelectTrigger className="h-9 text-sm">
+                      <SelectValue placeholder="No feature" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No feature</SelectItem>
+                      {featuresList.map((f: any) => (
+                        <SelectItem key={f.id} value={f.id}>
+                          {f.tracking_number ? `[${f.tracking_number}] ` : ""}{f.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              {linkProjectId && !linkMilestoneId && (
+                <p className="text-xs text-amber-600 dark:text-amber-400">
+                  ⚠ A project-linked task requires a milestone to be completed.
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* ── Assignment ── */}
           {canShowAssign && (
-            <div className="my-6">
+            <div className="my-2">
               <label className="block mb-1 font-medium">Assign To</label>
               <select
                 name="assign_to"
@@ -387,6 +419,7 @@ const EditTaskSheet: React.FC<Props> = ({
               </Button>
             </div>
           )}
+
           <SheetFooter className="mt-8">
             <Button type="submit" disabled={loading || statusesLoading}>
               {loading ? "Updating..." : "Update Task"}

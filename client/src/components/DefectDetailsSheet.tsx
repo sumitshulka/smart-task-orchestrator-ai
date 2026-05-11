@@ -24,20 +24,21 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { toast } from "@/hooks/use-toast";
 import { useUsersAndTeams } from "@/hooks/useUsersAndTeams";
+import { useCurrentUserRoleAndTeams } from "@/hooks/useCurrentUserRoleAndTeams";
 import { format } from "date-fns";
 import {
   Send, Pencil, X, Check, ThumbsUp, ThumbsDown, ArrowUpCircle,
-  ListTodo, Unlink, Zap, ExternalLink,
+  ListTodo, Unlink, Zap, Link2, Search,
 } from "lucide-react";
 
 interface Props {
   defect: any;
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  currentUserId: string;
-  isAdmin: boolean;
-  isManager: boolean;
-  onUpdated: (d: any) => void;
+  currentUserId?: string;
+  isAdmin?: boolean;
+  isManager?: boolean;
+  onUpdated?: (d: any) => void;
 }
 
 const SEVERITY_COLORS: Record<string, string> = {
@@ -90,13 +91,19 @@ export default function DefectDetailsSheet({
   defect,
   open,
   onOpenChange,
-  currentUserId,
-  isAdmin,
-  isManager,
+  currentUserId: currentUserIdProp,
+  isAdmin: isAdminProp,
+  isManager: isManagerProp,
   onUpdated,
 }: Props) {
   const queryClient = useQueryClient();
   const { users } = useUsersAndTeams();
+
+  // Derive role internally so callers that don't pass props still work
+  const { roles: currentRoles, user: currentUser } = useCurrentUserRoleAndTeams();
+  const currentUserId = currentUserIdProp ?? currentUser?.id ?? "";
+  const isAdmin   = isAdminProp   ?? currentRoles.includes("admin");
+  const isManager = isManagerProp ?? currentRoles.some(r => r === "manager" || r === "team manager");
 
   const isPrivileged = isAdmin || isManager;
   const isReporter = defect.reported_by === currentUserId;
@@ -117,12 +124,21 @@ export default function DefectDetailsSheet({
     estimated_hours: "",
     status: "",
   });
+  const [linkTaskDialog, setLinkTaskDialog] = useState(false);
+  const [linkTaskSearch, setLinkTaskSearch] = useState("");
 
   // Fetch linked tasks
   const { data: linkedTasks = [], refetch: refetchLinkedTasks } = useQuery<any[]>({
     queryKey: ["/api/defects", defect.id, "tasks"],
     queryFn: () => apiClient.get(`/defects/${defect.id}/tasks`),
     enabled: open,
+  });
+
+  // Fetch all tasks for link-task picker
+  const { data: allTasks = [] } = useQuery<any[]>({
+    queryKey: ["/api/tasks"],
+    queryFn: () => apiClient.get("/tasks"),
+    enabled: linkTaskDialog,
   });
 
   // Fetch task statuses for convert dialog
@@ -150,32 +166,51 @@ export default function DefectDetailsSheet({
 
   const updateMutation = useMutation({
     mutationFn: (updates: any) => apiClient.patch(`/defects/${defect.id}`, updates),
-    onSuccess: (updated) => { onUpdated(updated); invalidate(); toast({ title: "Defect updated" }); setIsEditing(false); },
+    onSuccess: (updated) => {
+      if (onUpdated) onUpdated(updated);
+      invalidate();
+      toast({ title: "Defect updated" });
+      setIsEditing(false);
+    },
     onError: () => toast({ title: "Error", description: "Failed to update defect.", variant: "destructive" }),
   });
 
   const submitMutation = useMutation({
     mutationFn: () => apiClient.post(`/defects/${defect.id}/submit`, {}),
-    onSuccess: (updated) => { onUpdated(updated); invalidate(); toast({ title: "Submitted for approval", description: "A manager will review your defect." }); },
+    onSuccess: (updated) => {
+      if (onUpdated) onUpdated(updated);
+      invalidate();
+      toast({ title: "Submitted for approval", description: "A manager will review your defect." });
+    },
     onError: (e: any) => toast({ title: "Error", description: e?.message || "Failed to submit.", variant: "destructive" }),
   });
 
   const approveMutation = useMutation({
     mutationFn: () => apiClient.post(`/defects/${defect.id}/approve`, {}),
-    onSuccess: (updated) => { onUpdated(updated); invalidate(); toast({ title: "Defect approved", description: "It can now be converted to a task." }); },
+    onSuccess: (updated) => {
+      if (onUpdated) onUpdated(updated);
+      invalidate();
+      toast({ title: "Defect approved", description: "It can now be converted to a task." });
+    },
     onError: (e: any) => toast({ title: "Error", description: e?.message || "Failed to approve.", variant: "destructive" }),
   });
 
   const rejectMutation = useMutation({
     mutationFn: (reason: string) => apiClient.post(`/defects/${defect.id}/reject`, { reason }),
-    onSuccess: (updated) => { onUpdated(updated); invalidate(); toast({ title: "Defect rejected" }); setRejectDialog(false); setRejectReason(""); },
+    onSuccess: (updated) => {
+      if (onUpdated) onUpdated(updated);
+      invalidate();
+      toast({ title: "Defect rejected" });
+      setRejectDialog(false);
+      setRejectReason("");
+    },
     onError: (e: any) => toast({ title: "Error", description: e?.message || "Failed to reject.", variant: "destructive" }),
   });
 
   const convertMutation = useMutation({
     mutationFn: (data: any) => apiClient.post(`/defects/${defect.id}/convert-to-task`, data),
     onSuccess: (result: any) => {
-      onUpdated(result.defect);
+      if (onUpdated) onUpdated(result.defect);
       invalidate();
       refetchLinkedTasks();
       queryClient.invalidateQueries({ queryKey: ["/api/tasks"] });
@@ -187,8 +222,26 @@ export default function DefectDetailsSheet({
 
   const unlinkMutation = useMutation({
     mutationFn: (taskId: string) => apiClient.delete(`/defects/${defect.id}/tasks/${taskId}`),
-    onSuccess: () => { refetchLinkedTasks(); invalidate(); toast({ title: "Task unlinked" }); },
+    onSuccess: () => {
+      refetchLinkedTasks();
+      invalidate();
+      queryClient.invalidateQueries({ queryKey: ["/api/defect-task-ids"] });
+      toast({ title: "Task unlinked" });
+    },
     onError: () => toast({ title: "Error", description: "Failed to unlink task.", variant: "destructive" }),
+  });
+
+  const linkTaskMutation = useMutation({
+    mutationFn: (taskId: string) => apiClient.post(`/defects/${defect.id}/tasks`, { task_id: taskId }),
+    onSuccess: () => {
+      refetchLinkedTasks();
+      invalidate();
+      queryClient.invalidateQueries({ queryKey: ["/api/defect-task-ids"] });
+      toast({ title: "Task linked" });
+      setLinkTaskDialog(false);
+      setLinkTaskSearch("");
+    },
+    onError: (e: any) => toast({ title: "Error", description: e?.message || "Failed to link task.", variant: "destructive" }),
   });
 
   const commentMutation = useMutation({
@@ -243,6 +296,20 @@ export default function DefectDetailsSheet({
   };
 
   const nextStatuses = STATUS_TRANSITIONS[defect.status] || [];
+
+  // Linked task IDs for filtering
+  const linkedTaskIds = new Set(linkedTasks.map((lt: any) => lt.task_id));
+
+  // Filtered tasks for the link-task picker
+  const filteredPickerTasks = (allTasks as any[]).filter((t: any) => {
+    if (linkedTaskIds.has(t.id)) return false;
+    if (!linkTaskSearch.trim()) return true;
+    const q = linkTaskSearch.toLowerCase();
+    return (
+      t.title?.toLowerCase().includes(q) ||
+      String(t.task_number || "").includes(q)
+    );
+  });
 
   return (
     <>
@@ -550,13 +617,25 @@ export default function DefectDetailsSheet({
 
             {/* ── Linked Tasks ── */}
             <div className="space-y-2">
-              <Label className="text-xs text-muted-foreground uppercase tracking-wide flex items-center gap-1">
-                <ListTodo className="w-3 h-3" /> Linked Tasks {linkedTasks.length > 0 && `(${linkedTasks.length})`}
-              </Label>
+              <div className="flex items-center justify-between">
+                <Label className="text-xs text-muted-foreground uppercase tracking-wide flex items-center gap-1">
+                  <ListTodo className="w-3 h-3" /> Linked Tasks {linkedTasks.length > 0 && `(${linkedTasks.length})`}
+                </Label>
+                {isPrivileged && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs gap-1"
+                    onClick={() => { setLinkTaskSearch(""); setLinkTaskDialog(true); }}
+                  >
+                    <Link2 className="w-3 h-3" /> Link Task
+                  </Button>
+                )}
+              </div>
               {linkedTasks.length === 0 ? (
                 <p className="text-xs text-muted-foreground italic">
                   {defect.status === "approved"
-                    ? "No tasks yet. Use 'Convert to Task' above to create one."
+                    ? "No tasks yet. Convert to a task or link an existing one."
                     : "No tasks linked to this defect."}
                 </p>
               ) : (
@@ -565,7 +644,7 @@ export default function DefectDetailsSheet({
                     <div key={lt.id} className="flex items-center justify-between gap-2 p-2 rounded-md border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-medium truncate text-gray-900 dark:text-gray-100">
-                          {lt.task?.title || "Task"}
+                          {lt.task?.task_number ? `#${lt.task.task_number} ` : ""}{lt.task?.title || "Task"}
                         </p>
                         <div className="flex items-center gap-2 mt-0.5">
                           <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${TASK_STATUS_COLORS[lt.task?.status] || "bg-gray-100 text-gray-600"}`}>
@@ -806,6 +885,62 @@ export default function DefectDetailsSheet({
               <Zap className="w-4 h-4 mr-1" />
               {convertMutation.isPending ? "Creating…" : "Create Task & Link"}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Link Existing Task Dialog ── */}
+      <Dialog open={linkTaskDialog} onOpenChange={(v) => { setLinkTaskDialog(v); if (!v) setLinkTaskSearch(""); }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Link2 className="w-5 h-5 text-blue-600" /> Link Existing Task
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <p className="text-xs text-muted-foreground">
+              Search and select a task to link to this defect. Already-linked tasks are excluded.
+            </p>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Search by title or task number…"
+                value={linkTaskSearch}
+                onChange={(e) => setLinkTaskSearch(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            <div className="max-h-64 overflow-y-auto border rounded-lg divide-y">
+              {filteredPickerTasks.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-6 italic">
+                  {linkTaskSearch ? "No matching tasks found." : "No tasks available to link."}
+                </p>
+              ) : (
+                filteredPickerTasks.slice(0, 50).map((t: any) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    className="w-full text-left px-3 py-2.5 hover:bg-muted/50 transition-colors flex items-center justify-between gap-3"
+                    onClick={() => linkTaskMutation.mutate(t.id)}
+                    disabled={linkTaskMutation.isPending}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">
+                        {t.task_number ? <span className="text-muted-foreground font-mono text-xs mr-1.5">#{t.task_number}</span> : null}
+                        {t.title}
+                      </p>
+                      <p className="text-xs text-muted-foreground capitalize mt-0.5">
+                        {(t.status || "").replace(/_/g, " ")} · {t.type || "task"}
+                      </p>
+                    </div>
+                    <Link2 className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setLinkTaskDialog(false)}>Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
