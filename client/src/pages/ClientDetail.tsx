@@ -33,6 +33,12 @@ const ACCESS_LEVEL_CONFIG: Record<string, { label: string; color: string; icon: 
   approver:     { label: "Approver",     color: "bg-green-100 text-green-800 border-green-200",    icon: CheckCircle2,  description: "Can approve milestones and tasks" },
 };
 
+const ACCESS_LEVEL_PRESETS: Record<string, Partial<typeof EMPTY_ACCESS_FORM>> = {
+  observer:     { can_view_defects: true,  can_create_defects: false, can_edit_defects: false, can_approve_defects: false, can_approve_milestones: false, can_view_tasks: true,  can_view_timesheets: false },
+  collaborator: { can_view_defects: true,  can_create_defects: true,  can_edit_defects: true,  can_approve_defects: false, can_approve_milestones: false, can_view_tasks: true,  can_view_timesheets: false },
+  approver:     { can_view_defects: true,  can_create_defects: true,  can_edit_defects: true,  can_approve_defects: true,  can_approve_milestones: true,  can_view_tasks: true,  can_view_timesheets: true  },
+};
+
 const EMPTY_CONTACT_FORM = {
   name: "",
   email: "",
@@ -170,6 +176,16 @@ export default function ClientDetail() {
     onError: () => toast({ title: "Error", description: "Failed to update access.", variant: "destructive" }),
   });
 
+  const quickUpdateAccessMutation = useMutation({
+    mutationFn: ({ projectId, accessId, data }: { projectId: string; accessId: string; data: any }) =>
+      apiClient.put(`/projects/${projectId}/client-access/${accessId}`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/clients", id, "project-access"] });
+      toast({ title: "Access level updated" });
+    },
+    onError: () => toast({ title: "Error", description: "Failed to update access.", variant: "destructive" }),
+  });
+
   const revokeAccessMutation = useMutation({
     mutationFn: ({ projectId, accessId }: { projectId: string; accessId: string }) =>
       apiClient.delete(`/projects/${projectId}/client-access/${accessId}`),
@@ -213,10 +229,10 @@ export default function ClientDetail() {
     }
   };
 
-  const openGrantAccess = () => {
+  const openGrantAccess = (preContactId?: string) => {
     setEditAccess(null);
     setSelectedProject(null);
-    setAccessForm({ ...EMPTY_ACCESS_FORM, contact_id: contacts[0]?.id || "" });
+    setAccessForm({ ...EMPTY_ACCESS_FORM, contact_id: preContactId || contacts[0]?.id || "" });
     setAccessDialog(true);
   };
 
@@ -238,12 +254,7 @@ export default function ClientDetail() {
   };
 
   const applyAccessLevel = (level: string) => {
-    const presets: Record<string, Partial<typeof EMPTY_ACCESS_FORM>> = {
-      observer:     { can_view_defects: true,  can_create_defects: false, can_edit_defects: false, can_approve_defects: false, can_approve_milestones: false, can_view_tasks: true,  can_view_timesheets: false },
-      collaborator: { can_view_defects: true,  can_create_defects: true,  can_edit_defects: true,  can_approve_defects: false, can_approve_milestones: false, can_view_tasks: true,  can_view_timesheets: false },
-      approver:     { can_view_defects: true,  can_create_defects: true,  can_edit_defects: true,  can_approve_defects: true,  can_approve_milestones: true,  can_view_tasks: true,  can_view_timesheets: true  },
-    };
-    setAccessForm(p => ({ ...p, access_level: level, ...presets[level] }));
+    setAccessForm(p => ({ ...p, access_level: level, ...ACCESS_LEVEL_PRESETS[level] }));
   };
 
   const handleSaveAccess = () => {
@@ -491,82 +502,157 @@ export default function ClientDetail() {
           <div className="flex items-center justify-between">
             <div>
               <h3 className="font-semibold">Project Access</h3>
-              <p className="text-xs text-gray-500 mt-0.5">Control which projects each contact can access and what they can do.</p>
+              <p className="text-xs text-gray-500 mt-0.5">All contacts are listed below. Grant or adjust project access inline, or use Grant Access for fine-grained permissions.</p>
             </div>
-            <Button size="sm" onClick={openGrantAccess} disabled={contacts.length === 0}>
+            <Button size="sm" onClick={() => openGrantAccess()} disabled={contacts.length === 0}>
               <Plus className="h-3.5 w-3.5 mr-1" /> Grant Access
             </Button>
           </div>
 
-          {contacts.length === 0 && (
+          {contacts.length === 0 ? (
             <div className="rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-4 text-sm text-amber-700 dark:text-amber-300 flex items-center gap-2">
               <AlertCircle className="h-4 w-4 shrink-0" />
               Add at least one contact before granting project access.
             </div>
-          )}
-
-          {Object.keys(accessesByProject).length === 0 && contacts.length > 0 ? (
-            <div className="text-center py-16 text-gray-400">
-              <FolderKanban className="h-10 w-10 mx-auto mb-2 opacity-30" />
-              <p>No project access granted yet.</p>
-            </div>
           ) : (
-            <div className="space-y-4">
-              {Object.entries(accessesByProject).map(([projectId, accesses]) => {
-                const project = (projects as any[]).find((p: any) => p.id === projectId);
-                return (
-                  <Card key={projectId}>
-                    <CardHeader className="pb-3">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <FolderKanban className="h-4 w-4 text-blue-500" />
-                          <CardTitle className="text-sm font-semibold">{project?.name || "Unknown Project"}</CardTitle>
-                          {project?.status && (
-                            <Badge variant="outline" className="text-xs capitalize">{project.status.replace("_", " ")}</Badge>
-                          )}
-                        </div>
-                        <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => navigate(`/projects/${projectId}`)}>
-                          <ExternalLink className="h-3 w-3" /> View Project
-                        </Button>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="pt-0">
-                      <div className="space-y-2">
-                        {(accesses as any[]).map((access: any) => {
-                          const lvl = ACCESS_LEVEL_CONFIG[access.access_level] || ACCESS_LEVEL_CONFIG.observer;
-                          const Icon = lvl.icon;
-                          return (
-                            <div key={access.id} className="flex items-center gap-3 p-2.5 rounded-lg bg-gray-50 dark:bg-gray-800/40">
-                              <div className="h-6 w-6 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-xs font-bold text-gray-600 shrink-0">
-                                {getContactName(access.contact_id).charAt(0).toUpperCase()}
+            <div className="border rounded-xl overflow-hidden dark:border-gray-700">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 dark:bg-gray-800 border-b dark:border-gray-700">
+                  <tr>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Contact</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Project</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide w-44">Access Level</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide w-36">Permissions</th>
+                    <th className="px-4 py-3 w-20" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y dark:divide-gray-700">
+                  {(contacts as any[]).map((contact: any) => {
+                    const contactAccesses = (allAccesses as any[]).filter((a: any) => a.contact_id === contact.id);
+
+                    if (contactAccesses.length === 0) {
+                      return (
+                        <tr key={contact.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors">
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2.5">
+                              <div className="h-8 w-8 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-xs font-bold text-gray-500 dark:text-gray-300 shrink-0">
+                                {contact.name.charAt(0).toUpperCase()}
                               </div>
-                              <span className="text-sm font-medium flex-1">{getContactName(access.contact_id)}</span>
-                              <Badge className={`text-xs border flex items-center gap-1 ${lvl.color}`}>
-                                <Icon className="h-3 w-3" />{lvl.label}
-                              </Badge>
-                              <div className="flex gap-2 text-xs text-gray-400">
-                                {access.can_view_defects && <span title="View Defects">🔍</span>}
-                                {access.can_create_defects && <span title="Create Defects">📝</span>}
-                                {access.can_approve_milestones && <span title="Approve Milestones">✅</span>}
-                                {access.can_view_timesheets && <span title="View Timesheets">🕐</span>}
-                              </div>
-                              <div className="flex gap-1">
-                                <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => openEditAccess(access, project)}>
-                                  <Pencil className="h-3 w-3" />
-                                </Button>
-                                <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-red-500 hover:text-red-700"
-                                  onClick={() => revokeAccessMutation.mutate({ projectId: access.project_id, accessId: access.id })}>
-                                  <Trash2 className="h-3 w-3" />
-                                </Button>
+                              <div>
+                                <p className="font-medium leading-tight">{contact.name}</p>
+                                <p className="text-xs text-gray-400">{contact.job_title || contact.email}</p>
                               </div>
                             </div>
-                          );
-                        })}
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
+                          </td>
+                          <td className="px-4 py-3 text-gray-400 italic text-xs" colSpan={3}>No project access granted</td>
+                          <td className="px-4 py-3 text-right">
+                            <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={() => openGrantAccess(contact.id)}>
+                              <Plus className="h-3 w-3" /> Grant
+                            </Button>
+                          </td>
+                        </tr>
+                      );
+                    }
+
+                    return contactAccesses.map((access: any, idx: number) => {
+                      const proj = (projects as any[]).find((p: any) => p.id === access.project_id);
+                      const lvl = ACCESS_LEVEL_CONFIG[access.access_level] || ACCESS_LEVEL_CONFIG.observer;
+                      const LvlIcon = lvl.icon;
+                      return (
+                        <tr key={access.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors">
+                          {/* Contact cell — only show avatar/name on first access row */}
+                          <td className="px-4 py-3">
+                            {idx === 0 ? (
+                              <div className="flex items-center gap-2.5">
+                                <div className="h-8 w-8 rounded-full bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center text-xs font-bold text-blue-600 dark:text-blue-300 shrink-0">
+                                  {contact.name.charAt(0).toUpperCase()}
+                                </div>
+                                <div>
+                                  <p className="font-medium leading-tight">{contact.name}</p>
+                                  <p className="text-xs text-gray-400">{contact.job_title || contact.email}</p>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2.5">
+                                <div className="h-8 w-8 shrink-0" />
+                                <div className="h-px w-4 bg-gray-200 dark:bg-gray-600" />
+                              </div>
+                            )}
+                          </td>
+
+                          {/* Project */}
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-1.5">
+                              <FolderKanban className="h-3.5 w-3.5 text-indigo-400 shrink-0" />
+                              <span className="font-medium">{proj?.name || "Unknown Project"}</span>
+                            </div>
+                            {proj?.status && (
+                              <span className="text-xs text-gray-400 capitalize ml-5">{proj.status.replace("_", " ")}</span>
+                            )}
+                          </td>
+
+                          {/* Access level — inline select */}
+                          <td className="px-4 py-3">
+                            <Select
+                              value={access.access_level}
+                              onValueChange={(v) =>
+                                quickUpdateAccessMutation.mutate({
+                                  projectId: access.project_id,
+                                  accessId: access.id,
+                                  data: { ...access, access_level: v, ...ACCESS_LEVEL_PRESETS[v] },
+                                })
+                              }
+                            >
+                              <SelectTrigger className="h-8 text-xs w-36 border-dashed">
+                                <div className="flex items-center gap-1.5">
+                                  <LvlIcon className="h-3 w-3 shrink-0" />
+                                  <SelectValue />
+                                </div>
+                              </SelectTrigger>
+                              <SelectContent>
+                                {Object.entries(ACCESS_LEVEL_CONFIG).map(([k, v]) => (
+                                  <SelectItem key={k} value={k}>
+                                    <div className="flex items-center gap-1.5">
+                                      <v.icon className="h-3.5 w-3.5" />
+                                      {v.label}
+                                    </div>
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </td>
+
+                          {/* Permission chips */}
+                          <td className="px-4 py-3">
+                            <div className="flex flex-wrap gap-1">
+                              {access.can_view_defects    && <span className="text-xs px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-gray-500" title="View Defects">🔍 Defects</span>}
+                              {access.can_create_defects  && <span className="text-xs px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-gray-500" title="Create Defects">📝 Create</span>}
+                              {access.can_approve_milestones && <span className="text-xs px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-gray-500" title="Approve Milestones">✅ Milestones</span>}
+                              {access.can_view_timesheets && <span className="text-xs px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-gray-500" title="View Timesheets">🕐 Timesheets</span>}
+                              {!access.can_view_defects && !access.can_create_defects && !access.can_approve_milestones && !access.can_view_timesheets && (
+                                <span className="text-xs text-gray-400 italic">View only</span>
+                              )}
+                            </div>
+                          </td>
+
+                          {/* Actions */}
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-1 justify-end">
+                              <Button variant="ghost" size="sm" className="h-7 w-7 p-0" title="Edit full permissions" onClick={() => openEditAccess(access, proj)}>
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-500 hover:text-red-700" title="Revoke access"
+                                onClick={() => revokeAccessMutation.mutate({ projectId: access.project_id, accessId: access.id })}>
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    });
+                  })}
+                </tbody>
+              </table>
             </div>
           )}
         </TabsContent>
