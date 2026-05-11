@@ -45,6 +45,8 @@ export const projects = pgTable("projects", {
   budget_amount: text("budget_amount"), // stored as string for flexibility
   currency: text("currency").default("USD"),
   is_confirmed: boolean("is_confirmed").default(false), // locks template_id when true
+  is_client_project: boolean("is_client_project").default(false),
+  client_id: uuid("client_id").references(() => clients.id, { onDelete: "set null" }),
   color: text("color").default("#6366f1"), // project card accent color
   custom_fields: text("custom_fields"), // JSON string for template-specific fields
   created_by: uuid("created_by").references(() => users.id),

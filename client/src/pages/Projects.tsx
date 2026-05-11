@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import {
   Plus, Folder, Calendar, Clock, DollarSign, Search, BarChart3,
-  User, Users, CheckCircle2, Pencil, ChevronRight, AlertTriangle, Timer, Trash2
+  User, Users, CheckCircle2, Pencil, ChevronRight, AlertTriangle, Timer, Trash2, Building2
 } from "lucide-react";
 import type { Project, ProjectTemplate } from "@shared/schema";
 import { format, differenceInDays } from "date-fns";
@@ -44,7 +44,7 @@ const COLOR_SWATCHES = [
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface EditProjectForm {
-  name: string; client_name: string; template_id: string;
+  name: string; is_client_project: boolean; client_id: string; client_name: string; template_id: string;
   project_type: string; description: string; start_date: string;
   projected_end_date: string; total_effort_hours: string;
   budget_amount: string; currency: string; color: string;
@@ -55,7 +55,7 @@ interface MemberSummary {
 }
 
 const defaultForm: EditProjectForm = {
-  name: "", client_name: "", template_id: "", project_type: "fixed_cost",
+  name: "", is_client_project: false, client_id: "", client_name: "", template_id: "", project_type: "fixed_cost",
   description: "", start_date: "", projected_end_date: "",
   total_effort_hours: "", budget_amount: "", currency: "USD", color: "#6366f1",
 };
@@ -101,6 +101,13 @@ export default function Projects() {
     queryFn: () => apiClient.get("/projects-members-all"),
   });
 
+  const { data: clients = [] } = useQuery<any[]>({
+    queryKey: ["/api/clients"],
+    queryFn: () => apiClient.get("/clients"),
+  });
+
+  const activeClients = (clients as any[]).filter((c: any) => c.status === "active" || c.status === "prospect");
+
   const activeTemplates = templates.filter((t) => t.is_active);
 
   // PM lookup per project
@@ -139,6 +146,8 @@ export default function Projects() {
     setEditProject(p);
     setForm({
       name: p.name,
+      is_client_project: (p as any).is_client_project ?? false,
+      client_id: (p as any).client_id ?? "",
       client_name: p.client_name ?? "",
       template_id: p.template_id ?? "",
       project_type: p.project_type,
@@ -155,12 +164,18 @@ export default function Projects() {
 
   const handleSubmit = () => {
     if (!form.name.trim()) { toast({ title: "Project name is required", variant: "destructive" }); return; }
+    if (form.is_client_project && !form.client_id) {
+      toast({ title: "Please select a client for this project", variant: "destructive" }); return;
+    }
     if (!editProject) return;
+    const selectedClient = (clients as any[]).find((c: any) => c.id === form.client_id);
     updateMutation.mutate({
       id: editProject.id,
       data: {
         name:                form.name.trim(),
-        client_name:         form.client_name || null,
+        is_client_project:   form.is_client_project,
+        client_id:           form.is_client_project ? form.client_id || null : null,
+        client_name:         form.is_client_project ? (selectedClient?.name || null) : (form.client_name || null),
         template_id:         form.template_id || null,
         project_type:        form.project_type,
         description:         form.description || null,
@@ -413,12 +428,65 @@ export default function Projects() {
                 onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} />
             </div>
 
-            {/* Client */}
-            <div className="space-y-1">
-              <Label>Client Name</Label>
-              <Input placeholder="Client or organization" value={form.client_name}
-                onChange={(e) => setForm((p) => ({ ...p, client_name: e.target.value }))} />
+            {/* Project Scope Toggle */}
+            <div className="col-span-2 space-y-2">
+              <Label>Project Scope <span className="text-red-500">*</span></Label>
+              <div className="flex rounded-lg border border-gray-200 dark:border-gray-700 p-1 gap-1 bg-gray-50 dark:bg-gray-800/50">
+                <button
+                  type="button"
+                  onClick={() => setForm((p) => ({ ...p, is_client_project: false, client_id: "" }))}
+                  className={`flex-1 flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-all ${
+                    !form.is_client_project
+                      ? "bg-white dark:bg-gray-700 shadow-sm text-gray-900 dark:text-white"
+                      : "text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+                  }`}
+                >
+                  <Building2 className={`h-4 w-4 ${!form.is_client_project ? "text-blue-600" : "text-gray-400"}`} />
+                  Internal Project
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setForm((p) => ({ ...p, is_client_project: true }))}
+                  className={`flex-1 flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-all ${
+                    form.is_client_project
+                      ? "bg-blue-600 text-white shadow-sm"
+                      : "text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+                  }`}
+                >
+                  <Users className={`h-4 w-4 ${form.is_client_project ? "text-blue-100" : "text-gray-400"}`} />
+                  Client Project
+                </button>
+              </div>
             </div>
+
+            {/* Client selector — only when Client Project */}
+            {form.is_client_project && (
+              <div className="col-span-2 space-y-1 rounded-lg border border-blue-100 dark:border-blue-900/50 bg-blue-50 dark:bg-blue-900/20 p-3">
+                <Label>Client <span className="text-red-500">*</span></Label>
+                <Select
+                  value={form.client_id}
+                  onValueChange={(v) => setForm((p) => ({ ...p, client_id: v }))}
+                >
+                  <SelectTrigger className={`bg-white dark:bg-gray-800 ${!form.client_id ? "border-red-300" : ""}`}>
+                    <SelectValue placeholder="Select a client…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {activeClients.map((c: any) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        <div className="flex items-center gap-2">
+                          <Building2 className="h-3.5 w-3.5 text-gray-400" />
+                          <span>{c.name}</span>
+                          {c.organization_type && <span className="text-xs text-gray-400">· {c.organization_type}</span>}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {!form.client_id && (
+                  <p className="text-xs text-red-500">Client selection is required for client projects.</p>
+                )}
+              </div>
+            )}
 
             {/* Template */}
             <div className="space-y-1">

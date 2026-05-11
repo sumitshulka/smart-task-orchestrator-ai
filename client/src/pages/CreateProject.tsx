@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Folder, Calendar, DollarSign, Clock, FileText, Layers, Palette } from "lucide-react";
+import { ArrowLeft, Folder, Calendar, DollarSign, Clock, FileText, Layers, Palette, Building2, Users } from "lucide-react";
 import type { ProjectTemplate } from "@shared/schema";
 
 const PROJECT_TYPE_LABELS: Record<string, string> = {
@@ -37,6 +37,8 @@ const COLOR_SWATCHES = [
 
 interface CreateProjectForm {
   name: string;
+  is_client_project: boolean;
+  client_id: string;
   client_name: string;
   template_id: string;
   project_type: string;
@@ -51,6 +53,8 @@ interface CreateProjectForm {
 
 const defaultForm: CreateProjectForm = {
   name: "",
+  is_client_project: false,
+  client_id: "",
   client_name: "",
   template_id: "",
   project_type: "fixed_cost",
@@ -74,7 +78,13 @@ export default function CreateProject() {
     queryFn: () => apiClient.get("/project-templates"),
   });
 
+  const { data: clients = [] } = useQuery<any[]>({
+    queryKey: ["/api/clients"],
+    queryFn: () => apiClient.get("/clients"),
+  });
+
   const activeTemplates = templates.filter((t) => t.is_active);
+  const activeClients = (clients as any[]).filter((c: any) => c.status === "active" || c.status === "prospect");
 
   const handleTemplateChange = (templateId: string) => {
     if (templateId === "none") {
@@ -89,16 +99,26 @@ export default function CreateProject() {
     }));
   };
 
+  const selectedClient = (clients as any[]).find((c: any) => c.id === form.client_id);
+
   const handleSubmit = async () => {
     if (!form.name.trim()) {
       toast({ title: "Project name is required", variant: "destructive" });
+      return;
+    }
+    if (form.is_client_project && !form.client_id) {
+      toast({ title: "Please select a client for this project", variant: "destructive" });
       return;
     }
     setSaving(true);
     try {
       const payload = {
         name: form.name.trim(),
-        client_name: form.client_name || null,
+        is_client_project: form.is_client_project,
+        client_id: form.is_client_project ? form.client_id : null,
+        client_name: form.is_client_project
+          ? (selectedClient?.name || null)
+          : (form.client_name || null),
         template_id: form.template_id || null,
         project_type: form.project_type,
         description: form.description || null,
@@ -150,6 +170,7 @@ export default function CreateProject() {
           <CardDescription>Core details that identify this project</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* Project Name */}
           <div className="space-y-1.5">
             <Label htmlFor="project-name">
               Project Name <span className="text-red-500">*</span>
@@ -161,15 +182,98 @@ export default function CreateProject() {
               onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
             />
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="client-name">Client / Organization</Label>
-            <Input
-              id="client-name"
-              placeholder="e.g. Acme Corp"
-              value={form.client_name}
-              onChange={(e) => setForm((p) => ({ ...p, client_name: e.target.value }))}
-            />
+
+          {/* Project Scope Toggle */}
+          <div className="space-y-2">
+            <Label>Project Scope <span className="text-red-500">*</span></Label>
+            <div className="flex rounded-lg border border-gray-200 dark:border-gray-700 p-1 gap-1 bg-gray-50 dark:bg-gray-800/50">
+              <button
+                type="button"
+                onClick={() => setForm((p) => ({ ...p, is_client_project: false, client_id: "" }))}
+                className={`flex-1 flex items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-all ${
+                  !form.is_client_project
+                    ? "bg-white dark:bg-gray-700 shadow-sm text-gray-900 dark:text-white"
+                    : "text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+                }`}
+              >
+                <Building2 className={`h-4 w-4 ${!form.is_client_project ? "text-blue-600" : "text-gray-400"}`} />
+                Internal Project
+              </button>
+              <button
+                type="button"
+                onClick={() => setForm((p) => ({ ...p, is_client_project: true }))}
+                className={`flex-1 flex items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-all ${
+                  form.is_client_project
+                    ? "bg-blue-600 text-white shadow-sm"
+                    : "text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+                }`}
+              >
+                <Users className={`h-4 w-4 ${form.is_client_project ? "text-blue-100" : "text-gray-400"}`} />
+                Client Project
+              </button>
+            </div>
+            <p className="text-xs text-gray-400">
+              {form.is_client_project
+                ? "This project is being done for an external client — a client must be selected."
+                : "This is an internal project with no external client relationship."}
+            </p>
           </div>
+
+          {/* Client selector — only when Client Project */}
+          {form.is_client_project && (
+            <div className="space-y-1.5 rounded-lg border border-blue-100 dark:border-blue-900/50 bg-blue-50 dark:bg-blue-900/20 p-4">
+              <Label htmlFor="client-select">
+                Client <span className="text-red-500">*</span>
+              </Label>
+              {activeClients.length === 0 ? (
+                <div className="text-sm text-amber-600 dark:text-amber-400 flex items-center gap-2 mt-1">
+                  <span>No active clients found.</span>
+                  <Button
+                    variant="link"
+                    size="sm"
+                    className="h-auto p-0 text-blue-600"
+                    onClick={() => navigate("/clients")}
+                  >
+                    Go to Clients →
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <Select value={form.client_id} onValueChange={(v) => setForm((p) => ({ ...p, client_id: v }))}>
+                    <SelectTrigger id="client-select" className={`bg-white dark:bg-gray-800 ${!form.client_id ? "border-red-300 dark:border-red-700" : ""}`}>
+                      <SelectValue placeholder="Select a client…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {activeClients.map((c: any) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          <div className="flex items-center gap-2">
+                            <Building2 className="h-3.5 w-3.5 text-gray-400" />
+                            <span>{c.name}</span>
+                            {c.organization_type && (
+                              <span className="text-xs text-gray-400">· {c.organization_type}</span>
+                            )}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {!form.client_id && (
+                    <p className="text-xs text-red-500 mt-1">Client selection is required for client projects.</p>
+                  )}
+                  {form.client_id && selectedClient && (
+                    <div className="mt-2 flex items-center gap-2 text-xs text-gray-500">
+                      {selectedClient.primary_contact_name && (
+                        <span>Contact: <strong>{selectedClient.primary_contact_name}</strong></span>
+                      )}
+                      {selectedClient.email && <span>· {selectedClient.email}</span>}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Description */}
           <div className="space-y-1.5">
             <Label htmlFor="description">Description</Label>
             <Textarea
@@ -242,7 +346,6 @@ export default function CreateProject() {
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {/* "No template" option */}
                 <button
                   type="button"
                   onClick={() => handleTemplateChange("none")}
@@ -281,7 +384,7 @@ export default function CreateProject() {
             )}
           </div>
 
-          {/* Project type — disabled when template selected */}
+          {/* Project type */}
           <div className="space-y-1.5">
             <div className="flex items-center gap-2">
               <Label htmlFor="project-type">Project Type</Label>
@@ -401,7 +504,11 @@ export default function CreateProject() {
         <Button variant="outline" onClick={() => navigate("/projects")}>
           Cancel
         </Button>
-        <Button onClick={handleSubmit} disabled={saving} className="min-w-36">
+        <Button
+          onClick={handleSubmit}
+          disabled={saving || (form.is_client_project && !form.client_id)}
+          className="min-w-36"
+        >
           {saving ? "Creating..." : "Create Project"}
         </Button>
       </div>
