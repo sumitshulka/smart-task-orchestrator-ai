@@ -49,18 +49,33 @@ const AuthPage: React.FC = () => {
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    
+
     try {
+      // Try internal user login first
       await login(form.email, form.password);
       toast({ title: "Login successful!" });
       // Navigation will happen automatically via useEffect when user state changes
-    } catch (error: any) {
-      setError(error.message || "Login failed");
-      toast({ 
-        title: "Login failed", 
-        description: error.message || "Please check your credentials",
-        variant: "destructive"
-      });
+    } catch {
+      // Internal login failed — try portal (client contact) login as fallback
+      try {
+        const portalRes = await fetch("/api/portal/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ email: form.email.trim(), password: form.password }),
+        });
+        if (portalRes.ok) {
+          // Client contact successfully authenticated — send to portal
+          navigate("/portal/dashboard");
+          return;
+        }
+        // Both failed — show a generic error
+        throw new Error("Invalid credentials");
+      } catch {
+        const msg = "Invalid credentials. Please check your email and password.";
+        setError(msg);
+        toast({ title: "Login failed", description: msg, variant: "destructive" });
+      }
     }
   };
 
@@ -231,15 +246,25 @@ const AuthPage: React.FC = () => {
                 </form>
 
                 {/* Additional info */}
-                <div className="mt-8 text-center">
+                <div className="mt-8 text-center space-y-3">
                   <p className="text-slate-400 text-sm">
                     Secured by enterprise-grade encryption
                   </p>
-                  <div className="flex items-center justify-center space-x-2 mt-2">
+                  <div className="flex items-center justify-center space-x-2">
                     <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
                     <span className="text-green-400 text-sm font-medium">System Online</span>
                   </div>
-                  <div className="mt-4 text-xs text-slate-500">
+                  <div className="border-t border-white/10 pt-3">
+                    <p className="text-slate-500 text-xs mb-1.5">External client access?</p>
+                    <a
+                      href="/portal/login"
+                      className="inline-flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300 transition-colors font-medium"
+                    >
+                      <ShieldCheck className="h-3.5 w-3.5" />
+                      Sign in to the Client Portal →
+                    </a>
+                  </div>
+                  <div className="text-xs text-slate-500">
                     &copy; {new Date().getFullYear()} TaskRep. All rights reserved.
                   </div>
                 </div>
