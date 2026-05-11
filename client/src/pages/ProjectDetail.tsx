@@ -323,6 +323,12 @@ export default function ProjectDetail() {
     ? (clients as any[]).find((c: any) => c.id === (project as any).client_id)
     : null;
 
+  const { data: clientContacts = [] } = useQuery<any[]>({
+    queryKey: ["/api/clients", (project as any)?.client_id, "contacts"],
+    queryFn: () => apiClient.get(`/clients/${(project as any).client_id}/contacts`),
+    enabled: !!(project as any)?.client_id,
+  });
+
   const { data: users = [] } = useQuery<User[]>({
     queryKey: ["/api/users"],
     queryFn: () => apiClient.get("/users"),
@@ -403,7 +409,7 @@ export default function ProjectDetail() {
   const [deleteDialog, setDeleteDialog] = useState(false);
   const [memberDialog, setMemberDialog] = useState(false);
   const [editMember, setEditMember] = useState<ProjectMember | null>(null);
-  const [memberForm, setMemberForm] = useState({ user_id: "", member_type: "member", project_role: "", allocation_percentage: 100 });
+  const [memberForm, setMemberForm] = useState({ user_id: "", contact_id: "", member_user_type: "internal", member_type: "member", project_role: "", allocation_percentage: 100 });
   const [milestoneDialog, setMilestoneDialog] = useState(false);
   const [editMilestone, setEditMilestone] = useState<ProjectMilestone | null>(null);
   const [msForm, setMsForm] = useState({ name: "", description: "", start_date: "", end_date: "", status: "not_started", inherit_stages: true });
@@ -603,6 +609,17 @@ export default function ProjectDetail() {
     return u?.user_name ?? u?.email ?? "Unknown";
   };
 
+  const getMemberDisplayName = (m: any): string => {
+    if ((m.member_user_type === "client_contact" || m.contact_id) && !m.user_id) {
+      const contact = (clientContacts as any[]).find((c: any) => c.id === m.contact_id);
+      return contact?.name ?? "Client Contact";
+    }
+    return getUserName(m.user_id);
+  };
+
+  const getMemberTypeLabel = (m: any): "internal" | "client_contact" =>
+    m.member_user_type === "client_contact" || (m.contact_id && !m.user_id) ? "client_contact" : "internal";
+
   const getTemplateName = () => {
     if (!project?.template_id) return null;
     return templates.find(t => t.id === project.template_id)?.name ?? null;
@@ -614,7 +631,9 @@ export default function ProjectDetail() {
   const openEditMember = (m: ProjectMember) => {
     setEditMember(m);
     setMemberForm({
-      user_id: m.user_id,
+      user_id: m.user_id ?? "",
+      contact_id: (m as any).contact_id ?? "",
+      member_user_type: (m as any).member_user_type ?? "internal",
       member_type: m.member_type,
       project_role: m.project_role ?? "",
       allocation_percentage: m.allocation_percentage ?? 100,
@@ -833,9 +852,16 @@ export default function ProjectDetail() {
               <CardContent className="space-y-3">
                 {pm ? (
                   <div className="flex items-center gap-3 p-2 rounded-lg bg-blue-50 dark:bg-blue-900/20">
-                    <UserCircle className="h-8 w-8 text-blue-500 shrink-0" />
+                    {getMemberTypeLabel(pm) === "client_contact"
+                      ? <Building2 className="h-8 w-8 text-orange-400 shrink-0" />
+                      : <UserCircle className="h-8 w-8 text-blue-500 shrink-0" />}
                     <div>
-                      <p className="text-sm font-medium">{getUserName(pm.user_id)}</p>
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-sm font-medium">{getMemberDisplayName(pm)}</p>
+                        {getMemberTypeLabel(pm) === "client_contact" && (
+                          <span className="text-[10px] font-semibold px-1 py-0.5 rounded bg-orange-100 text-orange-600 border border-orange-200">Client</span>
+                        )}
+                      </div>
                       <p className="text-xs text-blue-600 dark:text-blue-400">Project Manager {pm.allocation_percentage}%</p>
                     </div>
                   </div>
@@ -846,7 +872,13 @@ export default function ProjectDetail() {
                   <div className="space-y-2">
                     {teamMembers.slice(0, 4).map((m) => (
                       <div key={m.id} className="flex items-center justify-between text-sm">
-                        <span>{getUserName(m.user_id)}</span>
+                        <div className="flex items-center gap-1.5">
+                          {getMemberTypeLabel(m) === "client_contact" && <Building2 className="h-3 w-3 text-orange-400 shrink-0" />}
+                          <span>{getMemberDisplayName(m)}</span>
+                          {getMemberTypeLabel(m) === "client_contact" && (
+                            <span className="text-[10px] font-semibold px-1 py-0.5 rounded bg-orange-100 text-orange-600 border border-orange-200">Client</span>
+                          )}
+                        </div>
                         <div className="flex items-center gap-2">
                           {m.project_role && <Badge variant="outline" className="text-xs">{m.project_role}</Badge>}
                           <span className="text-xs text-gray-400">{m.allocation_percentage}%</span>
@@ -893,7 +925,7 @@ export default function ProjectDetail() {
               <Button variant="outline" size="sm" onClick={() => setShowHistory(!showHistory)}>
                 <History className="h-3.5 w-3.5 mr-1" /> {showHistory ? "Hide" : "Show"} History
               </Button>
-              <Button size="sm" onClick={() => { setEditMember(null); setMemberForm({ user_id: "", member_type: "member", project_role: "", allocation_percentage: 100 }); setMemberDialog(true); }}>
+              <Button size="sm" onClick={() => { setEditMember(null); setMemberForm({ user_id: "", contact_id: "", member_user_type: "internal", member_type: "member", project_role: "", allocation_percentage: 100 }); setMemberDialog(true); }}>
                 <Plus className="h-3.5 w-3.5 mr-1" /> Add Member
               </Button>
             </div>
@@ -905,9 +937,16 @@ export default function ProjectDetail() {
               <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Project Manager</p>
               <Card className="border-blue-200 dark:border-blue-800">
                 <CardContent className="flex items-center gap-3 p-4">
-                  <UserCircle className="h-10 w-10 text-blue-500" />
+                  {getMemberTypeLabel(pm) === "client_contact"
+                    ? <Building2 className="h-10 w-10 text-orange-400 shrink-0" />
+                    : <UserCircle className="h-10 w-10 text-blue-500 shrink-0" />}
                   <div className="flex-1">
-                    <p className="font-medium">{getUserName(pm.user_id)}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium">{getMemberDisplayName(pm)}</p>
+                      {getMemberTypeLabel(pm) === "client_contact"
+                        ? <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700 border border-orange-200 dark:bg-orange-900/30 dark:text-orange-300 dark:border-orange-800"><Building2 className="h-2.5 w-2.5" />Client</span>
+                        : <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800">Internal</span>}
+                    </div>
                     <div className="flex items-center gap-2 mt-0.5">
                       {pm.project_role && <Badge variant="outline" className="text-xs">{pm.project_role}</Badge>}
                       <span className="text-xs text-gray-400">{pm.allocation_percentage}% allocation</span>
@@ -935,9 +974,16 @@ export default function ProjectDetail() {
                 {teamMembers.map((m) => (
                   <Card key={m.id}>
                     <CardContent className="flex items-center gap-3 p-3">
-                      <UserCircle className="h-8 w-8 text-gray-400" />
+                      {getMemberTypeLabel(m) === "client_contact"
+                        ? <Building2 className="h-8 w-8 text-orange-400 shrink-0" />
+                        : <UserCircle className="h-8 w-8 text-gray-400 shrink-0" />}
                       <div className="flex-1">
-                        <p className="text-sm font-medium">{getUserName(m.user_id)}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium">{getMemberDisplayName(m)}</p>
+                          {getMemberTypeLabel(m) === "client_contact"
+                            ? <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700 border border-orange-200 dark:bg-orange-900/30 dark:text-orange-300 dark:border-orange-800"><Building2 className="h-2.5 w-2.5" />Client</span>
+                            : <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500 border border-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700">Internal</span>}
+                        </div>
                         <div className="flex items-center gap-2 mt-0.5">
                           {m.project_role && <Badge variant="outline" className="text-xs">{m.project_role}</Badge>}
                           <span className="text-xs text-gray-400">{m.allocation_percentage}% allocation</span>
@@ -983,16 +1029,28 @@ export default function ProjectDetail() {
                     </tr>
                   </thead>
                   <tbody>
-                    {memberHistory.map((h) => (
-                      <tr key={h.id} className="border-t dark:border-gray-700">
-                        <td className="p-3">{getUserName(h.user_id)}</td>
-                        <td className="p-3"><Badge variant="outline" className="text-xs">{h.action.replace("_", " ")}</Badge></td>
-                        <td className="p-3">{h.project_role ?? "-"}</td>
-                        <td className="p-3">{h.allocation_percentage != null ? `${h.allocation_percentage}%` : "-"}</td>
-                        <td className="p-3">{h.action_date ? format(new Date(h.action_date), "MMM d, yyyy") : "-"}</td>
-                        <td className="p-3">{h.acted_by ? getUserName(h.acted_by) : "-"}</td>
-                      </tr>
-                    ))}
+                    {memberHistory.map((h: any) => {
+                      const isContact = h.member_user_type === "client_contact" || (h.contact_id && !h.user_id);
+                      const displayName = isContact
+                        ? ((clientContacts as any[]).find((c: any) => c.id === h.contact_id)?.name ?? "Client Contact")
+                        : getUserName(h.user_id);
+                      return (
+                        <tr key={h.id} className="border-t dark:border-gray-700">
+                          <td className="p-3">
+                            <div className="flex items-center gap-1.5">
+                              {isContact ? <Building2 className="h-3 w-3 text-orange-400 shrink-0" /> : null}
+                              <span>{displayName}</span>
+                              {isContact && <span className="text-[10px] px-1 py-0.5 rounded bg-orange-50 text-orange-600 border border-orange-200 dark:bg-orange-900/20 dark:text-orange-400">Client</span>}
+                            </div>
+                          </td>
+                          <td className="p-3"><Badge variant="outline" className="text-xs">{h.action.replace("_", " ")}</Badge></td>
+                          <td className="p-3">{h.project_role ?? "-"}</td>
+                          <td className="p-3">{h.allocation_percentage != null ? `${h.allocation_percentage}%` : "-"}</td>
+                          <td className="p-3">{h.action_date ? format(new Date(h.action_date), "MMM d, yyyy") : "-"}</td>
+                          <td className="p-3">{h.acted_by ? getUserName(h.acted_by) : "-"}</td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -1541,13 +1599,38 @@ export default function ProjectDetail() {
             <DialogTitle>{editMember ? "Edit Member" : "Add Member"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3 py-2">
+
+            {/* User type toggle — only when adding new */}
             {!editMember && (
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">Member Type</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { value: "internal", label: "Internal User", icon: UserCircle, desc: "Team staff member" },
+                    { value: "client_contact", label: "Client Contact", icon: Building2, desc: "External client stakeholder", disabled: (clientContacts as any[]).length === 0 },
+                  ].map(({ value, label, icon: Icon, desc, disabled }) => (
+                    <button
+                      key={value}
+                      type="button"
+                      disabled={disabled}
+                      onClick={() => setMemberForm(p => ({ ...p, member_user_type: value, user_id: "", contact_id: "", member_type: value === "client_contact" ? "member" : p.member_type }))}
+                      className={`p-3 rounded-lg border-2 text-left transition-all ${disabled ? "opacity-40 cursor-not-allowed border-gray-200 dark:border-gray-700" : memberForm.member_user_type === value ? "border-blue-500 bg-blue-50 dark:bg-blue-900/30" : "border-gray-200 dark:border-gray-700 hover:border-gray-300"}`}
+                    >
+                      <Icon className={`h-4 w-4 mb-1 ${memberForm.member_user_type === value ? "text-blue-600" : "text-gray-400"}`} />
+                      <p className="text-xs font-semibold">{label}</p>
+                      <p className="text-[10px] text-gray-400 mt-0.5">{disabled ? "No contacts on this client" : desc}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Person selector */}
+            {!editMember && memberForm.member_user_type === "internal" && (
               <div className="space-y-1">
-                <Label>User *</Label>
+                <Label className="text-xs font-semibold">User *</Label>
                 <Select value={memberForm.user_id || "none"} onValueChange={(v) => setMemberForm(p => ({ ...p, user_id: v === "none" ? "" : v }))}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a user" />
-                  </SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="Select a user" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">Select user...</SelectItem>
                     {users.filter(u => !members.find(m => m.user_id === u.id)).map(u => (
@@ -1557,29 +1640,66 @@ export default function ProjectDetail() {
                 </Select>
               </div>
             )}
-            {editMember && (
-              <div className="p-2 bg-gray-50 dark:bg-gray-800 rounded text-sm">
-                <span className="text-gray-500">Member: </span>
-                <span className="font-medium">{getUserName(editMember.user_id)}</span>
+
+            {!editMember && memberForm.member_user_type === "client_contact" && (
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Client Contact *</Label>
+                <Select value={memberForm.contact_id || "none"} onValueChange={(v) => setMemberForm(p => ({ ...p, contact_id: v === "none" ? "" : v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select a contact" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Select contact...</SelectItem>
+                    {(clientContacts as any[])
+                      .filter((c: any) => !(members as any[]).find(m => m.contact_id === c.id))
+                      .map((c: any) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          <div className="flex items-center gap-2">
+                            <Building2 className="h-3.5 w-3.5 text-orange-400" />
+                            {c.name}
+                            {c.job_title && <span className="text-xs text-gray-400">({c.job_title})</span>}
+                          </div>
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
               </div>
             )}
+
+            {editMember && (
+              <div className="flex items-center gap-2 p-2.5 bg-gray-50 dark:bg-gray-800 rounded-lg text-sm">
+                {getMemberTypeLabel(editMember) === "client_contact"
+                  ? <Building2 className="h-4 w-4 text-orange-400 shrink-0" />
+                  : <UserCircle className="h-4 w-4 text-blue-500 shrink-0" />}
+                <span className="font-medium">{getMemberDisplayName(editMember)}</span>
+                {getMemberTypeLabel(editMember) === "client_contact"
+                  ? <span className="ml-auto text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700">Client Contact</span>
+                  : <span className="ml-auto text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-600">Internal</span>}
+              </div>
+            )}
+
             <div className="space-y-1">
-              <Label>Role in Project *</Label>
-              <Select value={memberForm.member_type} onValueChange={(v) => setMemberForm(p => ({ ...p, member_type: v }))}>
+              <Label className="text-xs font-semibold">Role in Project *</Label>
+              <Select
+                value={memberForm.member_type}
+                onValueChange={(v) => setMemberForm(p => ({ ...p, member_type: v }))}
+                disabled={memberForm.member_user_type === "client_contact"}
+              >
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="project_manager">Project Manager</SelectItem>
                   <SelectItem value="member">Team Member</SelectItem>
                 </SelectContent>
               </Select>
+              {memberForm.member_user_type === "client_contact" && (
+                <p className="text-[10px] text-gray-400">Client contacts are added as Team Members only.</p>
+              )}
             </div>
             <div className="space-y-1">
-              <Label>Project-Specific Title</Label>
-              <Input placeholder="e.g. Lead Developer, UI Designer..." value={memberForm.project_role}
+              <Label className="text-xs font-semibold">Project-Specific Title</Label>
+              <Input placeholder="e.g. Project Sponsor, Reviewer..." value={memberForm.project_role}
                 onChange={(e) => setMemberForm(p => ({ ...p, project_role: e.target.value }))} />
             </div>
             <div className="space-y-1">
-              <Label>Allocation % (0–100)</Label>
+              <Label className="text-xs font-semibold">Allocation % (0–100)</Label>
               <Input type="number" min={0} max={100} value={memberForm.allocation_percentage}
                 onChange={(e) => setMemberForm(p => ({ ...p, allocation_percentage: parseInt(e.target.value) || 0 }))} />
             </div>
@@ -1587,11 +1707,19 @@ export default function ProjectDetail() {
           <DialogFooter>
             <Button variant="outline" onClick={() => { setMemberDialog(false); setEditMember(null); }}>Cancel</Button>
             <Button onClick={() => {
-              if (!memberForm.user_id && !editMember) { toast({ title: "Select a user", variant: "destructive" }); return; }
-              if (editMember) {
-                updateMemberMutation.mutate({ memberId: editMember.id, data: { member_type: memberForm.member_type, project_role: memberForm.project_role || null, allocation_percentage: memberForm.allocation_percentage } });
+              if (!editMember) {
+                if (memberForm.member_user_type === "internal" && !memberForm.user_id) { toast({ title: "Select a user", variant: "destructive" }); return; }
+                if (memberForm.member_user_type === "client_contact" && !memberForm.contact_id) { toast({ title: "Select a client contact", variant: "destructive" }); return; }
+                addMemberMutation.mutate({
+                  user_id: memberForm.member_user_type === "internal" ? memberForm.user_id : null,
+                  contact_id: memberForm.member_user_type === "client_contact" ? memberForm.contact_id : null,
+                  member_user_type: memberForm.member_user_type,
+                  member_type: memberForm.member_type,
+                  project_role: memberForm.project_role || null,
+                  allocation_percentage: memberForm.allocation_percentage,
+                } as any);
               } else {
-                addMemberMutation.mutate({ user_id: memberForm.user_id, member_type: memberForm.member_type, project_role: memberForm.project_role || null, allocation_percentage: memberForm.allocation_percentage });
+                updateMemberMutation.mutate({ memberId: editMember.id, data: { member_type: memberForm.member_type, project_role: memberForm.project_role || null, allocation_percentage: memberForm.allocation_percentage } });
               }
             }}>
               {editMember ? "Save Changes" : "Add Member"}

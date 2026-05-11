@@ -58,10 +58,12 @@ export const projects = pgTable("projects", {
 export const projectMembers = pgTable("project_members", {
   id: uuid("id").primaryKey().defaultRandom(),
   project_id: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
-  user_id: uuid("user_id").notNull().references(() => users.id),
-  member_type: text("member_type").notNull().default("member"), // project_manager, member
-  project_role: text("project_role"), // project-specific role title
-  allocation_percentage: integer("allocation_percentage").default(100), // 0-100
+  user_id: uuid("user_id").references(() => users.id),            // nullable — internal users only
+  contact_id: uuid("contact_id"),                                  // nullable — client contacts (FK added via migration)
+  member_user_type: text("member_user_type").notNull().default("internal"), // 'internal' | 'client_contact'
+  member_type: text("member_type").notNull().default("member"),    // project_manager | member
+  project_role: text("project_role"),
+  allocation_percentage: integer("allocation_percentage").default(100),
   is_active: boolean("is_active").default(true),
   joined_at: timestamp("joined_at").defaultNow(),
   left_at: timestamp("left_at"),
@@ -74,7 +76,9 @@ export const projectMembers = pgTable("project_members", {
 export const projectMemberHistory = pgTable("project_member_history", {
   id: uuid("id").primaryKey().defaultRandom(),
   project_id: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
-  user_id: uuid("user_id").notNull().references(() => users.id),
+  user_id: uuid("user_id").references(() => users.id),            // nullable
+  contact_id: uuid("contact_id"),                                  // nullable — for client contact history rows
+  member_user_type: text("member_user_type"),
   member_type: text("member_type"),
   project_role: text("project_role"),
   allocation_percentage: integer("allocation_percentage"),

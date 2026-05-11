@@ -1353,10 +1353,12 @@ export class DatabaseStorage implements IStorage {
 
   async addProjectMember(member: InsertProjectMember): Promise<ProjectMember> {
     const result = await db.insert(projectMembers).values(member).returning();
-    // Log history
+    // Log history — user_id may be null for client contacts
     await db.insert(projectMemberHistory).values({
       project_id: member.project_id,
-      user_id: member.user_id,
+      user_id: member.user_id ?? null,
+      contact_id: (member as any).contact_id ?? null,
+      member_user_type: (member as any).member_user_type ?? "internal",
       member_type: member.member_type,
       project_role: member.project_role,
       allocation_percentage: member.allocation_percentage,
@@ -1378,7 +1380,9 @@ export class DatabaseStorage implements IStorage {
     else if (updates.member_type === "member" && existing[0].member_type === "project_manager") action = "demoted_pm";
     await db.insert(projectMemberHistory).values({
       project_id: existing[0].project_id,
-      user_id: existing[0].user_id,
+      user_id: existing[0].user_id ?? null,
+      contact_id: (existing[0] as any).contact_id ?? null,
+      member_user_type: (existing[0] as any).member_user_type ?? "internal",
       member_type: updates.member_type ?? existing[0].member_type,
       project_role: updates.project_role ?? existing[0].project_role,
       allocation_percentage: updates.allocation_percentage ?? existing[0].allocation_percentage,
@@ -1393,7 +1397,9 @@ export class DatabaseStorage implements IStorage {
     await db.update(projectMembers).set({ is_active: false, left_at: new Date(), updated_at: new Date() }).where(eq(projectMembers.id, id));
     await db.insert(projectMemberHistory).values({
       project_id: existing[0].project_id,
-      user_id: existing[0].user_id,
+      user_id: existing[0].user_id ?? null,
+      contact_id: (existing[0] as any).contact_id ?? null,
+      member_user_type: (existing[0] as any).member_user_type ?? "internal",
       member_type: existing[0].member_type,
       project_role: existing[0].project_role,
       allocation_percentage: existing[0].allocation_percentage,
