@@ -738,14 +738,43 @@ export default function ClientDetail() {
                 {!editAccess && (
                   <div className="space-y-1">
                     <Label className="text-xs font-semibold">Project *</Label>
-                    <Select value={selectedProject?.id || ""} onValueChange={(v) => setSelectedProject((projects as any[]).find((p: any) => p.id === v))}>
-                      <SelectTrigger className="h-10"><SelectValue placeholder="Select a project" /></SelectTrigger>
-                      <SelectContent>
-                        {(projects as any[]).map((p: any) => (
-                          <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    {(() => {
+                      const clientProjects = (projects as any[]).filter(
+                        (p: any) => p.is_client_project && p.client_id === id
+                      );
+                      if (clientProjects.length === 0) {
+                        return (
+                          <div className="flex items-start gap-2 p-3 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 text-xs text-amber-700 dark:text-amber-400">
+                            <AlertCircle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                            <span>
+                              No projects are linked to this client yet. To link a project, open it from the{" "}
+                              <strong>Projects</strong> section and set its scope to{" "}
+                              <strong>Client Project</strong> with this client selected.
+                            </span>
+                          </div>
+                        );
+                      }
+                      return (
+                        <Select
+                          value={selectedProject?.id || ""}
+                          onValueChange={(v) => setSelectedProject(clientProjects.find((p: any) => p.id === v))}
+                        >
+                          <SelectTrigger className="h-10">
+                            <SelectValue placeholder="Select a project" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {clientProjects.map((p: any) => (
+                              <SelectItem key={p.id} value={p.id}>
+                                <div className="flex items-center gap-2">
+                                  <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: p.color || "#6366f1" }} />
+                                  {p.name}
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      );
+                    })()}
                   </div>
                 )}
                 {editAccess && (
