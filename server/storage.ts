@@ -33,6 +33,9 @@ import {
   defectTasks,
   defectComments,
   defectActivity,
+  clients,
+  clientContacts,
+  clientProjectAccess,
   User, 
   InsertUser, 
   Task, 
@@ -89,6 +92,12 @@ import {
   InsertDefectComment,
   DefectActivity,
   InsertDefectActivity,
+  Client,
+  InsertClient,
+  ClientContact,
+  InsertClientContact,
+  ClientProjectAccess,
+  InsertClientProjectAccess,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -290,6 +299,26 @@ export interface IStorage {
   // Defect activity operations
   getDefectActivity(defectId: string): Promise<DefectActivity[]>;
   logDefectActivity(activity: InsertDefectActivity): Promise<DefectActivity>;
+
+  // Client management
+  getAllClients(): Promise<Client[]>;
+  getClient(id: string): Promise<Client | undefined>;
+  createClient(client: InsertClient): Promise<Client>;
+  updateClient(id: string, updates: Partial<Client>): Promise<Client>;
+  deleteClient(id: string): Promise<void>;
+  getClientContacts(clientId: string): Promise<ClientContact[]>;
+  getClientContact(id: string): Promise<ClientContact | undefined>;
+  getClientContactByEmail(email: string): Promise<ClientContact | undefined>;
+  createClientContact(contact: InsertClientContact): Promise<ClientContact>;
+  updateClientContact(id: string, updates: Partial<ClientContact>): Promise<ClientContact>;
+  deleteClientContact(id: string): Promise<void>;
+  setClientContactPassword(id: string, passwordHash: string): Promise<void>;
+  getClientProjectAccess(contactId: string): Promise<ClientProjectAccess[]>;
+  getProjectClientAccess(projectId: string): Promise<ClientProjectAccess[]>;
+  getClientContactProjectAccess(contactId: string, projectId: string): Promise<ClientProjectAccess | undefined>;
+  grantClientProjectAccess(access: InsertClientProjectAccess): Promise<ClientProjectAccess>;
+  updateClientProjectAccess(id: string, updates: Partial<ClientProjectAccess>): Promise<ClientProjectAccess>;
+  revokeClientProjectAccess(id: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1657,6 +1686,94 @@ export class DatabaseStorage implements IStorage {
     await db
       .delete(defectTasks)
       .where(and(eq(defectTasks.defect_id, defectId), eq(defectTasks.task_id, taskId)));
+  }
+
+  // ============================
+  // CLIENT MANAGEMENT
+  // ============================
+
+  async getAllClients(): Promise<Client[]> {
+    return db.select().from(clients).orderBy(clients.name);
+  }
+
+  async getClient(id: string): Promise<Client | undefined> {
+    const rows = await db.select().from(clients).where(eq(clients.id, id)).limit(1);
+    return rows[0];
+  }
+
+  async createClient(client: InsertClient): Promise<Client> {
+    const rows = await db.insert(clients).values(client).returning();
+    return rows[0];
+  }
+
+  async updateClient(id: string, updates: Partial<Client>): Promise<Client> {
+    const rows = await db.update(clients).set({ ...updates, updated_at: new Date() }).where(eq(clients.id, id)).returning();
+    return rows[0];
+  }
+
+  async deleteClient(id: string): Promise<void> {
+    await db.delete(clients).where(eq(clients.id, id));
+  }
+
+  async getClientContacts(clientId: string): Promise<ClientContact[]> {
+    return db.select().from(clientContacts).where(eq(clientContacts.client_id, clientId)).orderBy(clientContacts.name);
+  }
+
+  async getClientContact(id: string): Promise<ClientContact | undefined> {
+    const rows = await db.select().from(clientContacts).where(eq(clientContacts.id, id)).limit(1);
+    return rows[0];
+  }
+
+  async getClientContactByEmail(email: string): Promise<ClientContact | undefined> {
+    const rows = await db.select().from(clientContacts).where(eq(clientContacts.email, email)).limit(1);
+    return rows[0];
+  }
+
+  async createClientContact(contact: InsertClientContact): Promise<ClientContact> {
+    const rows = await db.insert(clientContacts).values(contact).returning();
+    return rows[0];
+  }
+
+  async updateClientContact(id: string, updates: Partial<ClientContact>): Promise<ClientContact> {
+    const rows = await db.update(clientContacts).set({ ...updates, updated_at: new Date() }).where(eq(clientContacts.id, id)).returning();
+    return rows[0];
+  }
+
+  async deleteClientContact(id: string): Promise<void> {
+    await db.delete(clientContacts).where(eq(clientContacts.id, id));
+  }
+
+  async setClientContactPassword(id: string, passwordHash: string): Promise<void> {
+    await db.update(clientContacts).set({ password_hash: passwordHash, updated_at: new Date() }).where(eq(clientContacts.id, id));
+  }
+
+  async getClientProjectAccess(contactId: string): Promise<ClientProjectAccess[]> {
+    return db.select().from(clientProjectAccess).where(eq(clientProjectAccess.contact_id, contactId));
+  }
+
+  async getProjectClientAccess(projectId: string): Promise<ClientProjectAccess[]> {
+    return db.select().from(clientProjectAccess).where(eq(clientProjectAccess.project_id, projectId));
+  }
+
+  async getClientContactProjectAccess(contactId: string, projectId: string): Promise<ClientProjectAccess | undefined> {
+    const rows = await db.select().from(clientProjectAccess)
+      .where(and(eq(clientProjectAccess.contact_id, contactId), eq(clientProjectAccess.project_id, projectId)))
+      .limit(1);
+    return rows[0];
+  }
+
+  async grantClientProjectAccess(access: InsertClientProjectAccess): Promise<ClientProjectAccess> {
+    const rows = await db.insert(clientProjectAccess).values(access).returning();
+    return rows[0];
+  }
+
+  async updateClientProjectAccess(id: string, updates: Partial<ClientProjectAccess>): Promise<ClientProjectAccess> {
+    const rows = await db.update(clientProjectAccess).set(updates).where(eq(clientProjectAccess.id, id)).returning();
+    return rows[0];
+  }
+
+  async revokeClientProjectAccess(id: string): Promise<void> {
+    await db.delete(clientProjectAccess).where(eq(clientProjectAccess.id, id));
   }
 }
 

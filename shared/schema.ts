@@ -934,3 +934,80 @@ export type InsertDefectComment = z.infer<typeof insertDefectCommentSchema>;
 export type DefectComment = typeof defectComments.$inferSelect;
 export type InsertDefectActivity = z.infer<typeof insertDefectActivitySchema>;
 export type DefectActivity = typeof defectActivity.$inferSelect;
+
+// ============================
+// CLIENT MANAGEMENT
+// ============================
+
+export const clients = pgTable("clients", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull(),
+  organization_type: text("organization_type"), // Enterprise, SMB, Startup, Government, NGO
+  industry: text("industry"),                   // Technology, Finance, Healthcare, etc.
+  primary_contact_name: text("primary_contact_name"),
+  email: text("email"),
+  phone: text("phone"),
+  status: text("status").notNull().default("active"), // active, inactive, prospect
+  notes: text("notes"),
+  created_at: timestamp("created_at").defaultNow(),
+  updated_at: timestamp("updated_at").defaultNow(),
+});
+
+export const clientContacts = pgTable("client_contacts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  client_id: uuid("client_id").notNull().references(() => clients.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  email: text("email").notNull(),
+  phone: text("phone"),
+  job_title: text("job_title"),
+  access_level: text("access_level").notNull().default("observer"), // observer, collaborator, approver
+  is_active: boolean("is_active").default(true),
+  password_hash: text("password_hash"),
+  last_login_at: timestamp("last_login_at"),
+  created_at: timestamp("created_at").defaultNow(),
+  updated_at: timestamp("updated_at").defaultNow(),
+});
+
+export const clientProjectAccess = pgTable("client_project_access", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  contact_id: uuid("contact_id").notNull().references(() => clientContacts.id, { onDelete: "cascade" }),
+  project_id: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  access_level: text("access_level").notNull().default("observer"), // observer, collaborator, approver
+  can_view_defects: boolean("can_view_defects").default(true),
+  can_create_defects: boolean("can_create_defects").default(false),
+  can_edit_defects: boolean("can_edit_defects").default(false),
+  can_approve_defects: boolean("can_approve_defects").default(false),
+  can_approve_milestones: boolean("can_approve_milestones").default(false),
+  can_view_tasks: boolean("can_view_tasks").default(true),
+  can_view_timesheets: boolean("can_view_timesheets").default(false),
+  granted_at: timestamp("granted_at").defaultNow(),
+  granted_by: uuid("granted_by"),
+});
+
+// Relations
+export const clientsRelations = relations(clients, ({ many }) => ({
+  contacts: many(clientContacts),
+}));
+
+export const clientContactsRelations = relations(clientContacts, ({ one, many }) => ({
+  client: one(clients, { fields: [clientContacts.client_id], references: [clients.id] }),
+  projectAccess: many(clientProjectAccess),
+}));
+
+export const clientProjectAccessRelations = relations(clientProjectAccess, ({ one }) => ({
+  contact: one(clientContacts, { fields: [clientProjectAccess.contact_id], references: [clientContacts.id] }),
+  project: one(projects, { fields: [clientProjectAccess.project_id], references: [projects.id] }),
+}));
+
+// Insert schemas
+export const insertClientSchema = createInsertSchema(clients).omit({ id: true, created_at: true, updated_at: true });
+export const insertClientContactSchema = createInsertSchema(clientContacts).omit({ id: true, password_hash: true, last_login_at: true, created_at: true, updated_at: true });
+export const insertClientProjectAccessSchema = createInsertSchema(clientProjectAccess).omit({ id: true, granted_at: true });
+
+// Types
+export type InsertClient = z.infer<typeof insertClientSchema>;
+export type Client = typeof clients.$inferSelect;
+export type InsertClientContact = z.infer<typeof insertClientContactSchema>;
+export type ClientContact = typeof clientContacts.$inferSelect;
+export type InsertClientProjectAccess = z.infer<typeof insertClientProjectAccessSchema>;
+export type ClientProjectAccess = typeof clientProjectAccess.$inferSelect;

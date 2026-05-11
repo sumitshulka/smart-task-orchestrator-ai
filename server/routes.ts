@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { licenseManager, APP_ID } from "./license-manager";
-import { insertUserSchema, insertTaskSchema, insertTeamSchema, insertTaskGroupSchema, insertRoleSchema, insertOfficeLocationSchema, userRoles, insertDefectSchema } from "@shared/schema";
+import { insertUserSchema, insertTaskSchema, insertTeamSchema, insertTaskGroupSchema, insertRoleSchema, insertOfficeLocationSchema, userRoles, insertDefectSchema, insertClientSchema, insertClientContactSchema, insertClientProjectAccessSchema } from "@shared/schema";
 import { callAiProvider, encryptApiKey, decryptApiKey, DEFAULT_SYSTEM_PROMPT_HEADER } from "./ai-provider";
 import { db } from "./db";
 import bcrypt from "bcrypt";
@@ -73,6 +73,13 @@ const requireAnyAuthenticated = async (req: any, res: any, next: any) => {
   const userId = req.headers['x-user-id'];
   if (!userId) {
     return res.status(401).json({ error: "Authentication required" });
+  }
+  next();
+};
+
+const requirePortalAuth = (req: any, res: any, next: any) => {
+  if (!req.session?.clientContactId) {
+    return res.status(401).json({ error: "Portal authentication required" });
   }
   next();
 };
@@ -2941,6 +2948,248 @@ Rules:
     } catch (err: any) {
       return res.status(500).json({ error: "Failed to fetch features" });
     }
+  });
+
+  // ── CLIENT MANAGEMENT ─────────────────────────────────────────────
+
+  app.get("/api/clients", requireManagerOrAdmin, async (req, res) => {
+    try {
+      const all = await storage.getAllClients();
+      res.json(all);
+    } catch (err: any) { res.status(500).json({ error: "Failed to fetch clients" }); }
+  });
+
+  app.get("/api/clients/all-contacts", requireManagerOrAdmin, async (req, res) => {
+    try {
+      const all = await storage.getAllClients();
+      const contactArrays = await Promise.all(all.map(c => storage.getClientContacts(c.id)));
+      const contacts = contactArrays.flat().map(({ password_hash, ...rest }: any) => rest);
+      res.json(contacts);
+    } catch (err: any) { res.status(500).json({ error: "Failed to fetch contacts" }); }
+  });
+
+  app.get("/api/clients/:id", requireManagerOrAdmin, async (req, res) => {
+    try {
+      const c = await storage.getClient(req.params.id);
+      if (!c) return res.status(404).json({ error: "Client not found" });
+      res.json(c);
+    } catch (err: any) { res.status(500).json({ error: "Failed to fetch client" }); }
+  });
+
+  app.post("/api/clients", requireManagerOrAdmin, async (req, res) => {
+    try {
+      const parsed = insertClientSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "Invalid data", details: parsed.error.flatten() });
+      const c = await storage.createClient(parsed.data);
+      res.status(201).json(c);
+    } catch (err: any) { res.status(500).json({ error: "Failed to create client" }); }
+  });
+
+  app.put("/api/clients/:id", requireManagerOrAdmin, async (req, res) => {
+    try {
+      const c = await storage.updateClient(req.params.id, req.body);
+      res.json(c);
+    } catch (err: any) { res.status(500).json({ error: "Failed to update client" }); }
+  });
+
+  app.delete("/api/clients/:id", requireManagerOrAdmin, async (req, res) => {
+    try {
+      await storage.deleteClient(req.params.id);
+      res.status(204).end();
+    } catch (err: any) { res.status(500).json({ error: "Failed to delete client" }); }
+  });
+
+  // Client contacts
+  app.get("/api/clients/:clientId/contacts", requireManagerOrAdmin, async (req, res) => {
+    try {
+      const contacts = await storage.getClientContacts(req.params.clientId);
+      const safe = contacts.map(({ password_hash, ...rest }: any) => rest);
+      res.json(safe);
+    } catch (err: any) { res.status(500).json({ error: "Failed to fetch contacts" }); }
+  });
+
+  app.post("/api/clients/:clientId/contacts", requireManagerOrAdmin, async (req, res) => {
+    try {
+      const { password, ...rest } = req.body;
+      const parsed = insertClientContactSchema.safeParse({ ...rest, client_id: req.params.clientId });
+      if (!parsed.success) return res.status(400).json({ error: "Invalid data", details: parsed.error.flatten() });
+      const contact = await storage.createClientContact(parsed.data);
+      if (password && password.length >= 6) {
+        const hash = await bcrypt.hash(password, 10);
+        await storage.setClientContactPassword(contact.id, hash);
+      }
+      const { password_hash, ...safe } = contact as any;
+      res.status(201).json(safe);
+    } catch (err: any) { res.status(500).json({ error: "Failed to create contact" }); }
+  });
+
+  app.put("/api/clients/:clientId/contacts/:contactId", requireManagerOrAdmin, async (req, res) => {
+    try {
+      const { password, password_hash, id, client_id, created_at, updated_at, last_login_at, ...updates } = req.body;
+      const contact = await storage.updateClientContact(req.params.contactId, updates);
+      const { password_hash: _, ...safe } = contact as any;
+      res.json(safe);
+    } catch (err: any) { res.status(500).json({ error: "Failed to update contact" }); }
+  });
+
+  app.delete("/api/clients/:clientId/contacts/:contactId", requireManagerOrAdmin, async (req, res) => {
+    try {
+      await storage.deleteClientContact(req.params.contactId);
+      res.status(204).end();
+    } catch (err: any) { res.status(500).json({ error: "Failed to delete contact" }); }
+  });
+
+  app.post("/api/clients/:clientId/contacts/:contactId/set-password", requireManagerOrAdmin, async (req, res) => {
+    try {
+      const { password } = req.body;
+      if (!password || password.length < 6) return res.status(400).json({ error: "Password must be at least 6 characters" });
+      const hash = await bcrypt.hash(password, 10);
+      await storage.setClientContactPassword(req.params.contactId, hash);
+      res.json({ success: true });
+    } catch (err: any) { res.status(500).json({ error: "Failed to set password" }); }
+  });
+
+  // Contact project access (used by ClientDetail to fetch per-contact access)
+  app.get("/api/contacts/:contactId/project-access", requireManagerOrAdmin, async (req, res) => {
+    try {
+      const access = await storage.getClientProjectAccess(req.params.contactId);
+      res.json(access);
+    } catch (err: any) { res.status(500).json({ error: "Failed to fetch access" }); }
+  });
+
+  // Project-level client access management
+  app.get("/api/projects/:id/client-access", requireManagerOrAdmin, async (req, res) => {
+    try {
+      const access = await storage.getProjectClientAccess(req.params.id);
+      res.json(access);
+    } catch (err: any) { res.status(500).json({ error: "Failed to fetch project access" }); }
+  });
+
+  app.post("/api/projects/:id/client-access", requireManagerOrAdmin, async (req: any, res) => {
+    try {
+      const parsed = insertClientProjectAccessSchema.safeParse({
+        ...req.body,
+        project_id: req.params.id,
+        granted_by: req.headers['x-user-id'],
+      });
+      if (!parsed.success) return res.status(400).json({ error: "Invalid data", details: parsed.error.flatten() });
+      const existing = await storage.getClientContactProjectAccess(parsed.data.contact_id, parsed.data.project_id);
+      if (existing) return res.status(409).json({ error: "This contact already has access to this project" });
+      const access = await storage.grantClientProjectAccess(parsed.data);
+      res.status(201).json(access);
+    } catch (err: any) { res.status(500).json({ error: "Failed to grant access" }); }
+  });
+
+  app.put("/api/projects/:projectId/client-access/:accessId", requireManagerOrAdmin, async (req, res) => {
+    try {
+      const { id, contact_id, project_id, granted_at, granted_by, ...updates } = req.body;
+      const access = await storage.updateClientProjectAccess(req.params.accessId, updates);
+      res.json(access);
+    } catch (err: any) { res.status(500).json({ error: "Failed to update access" }); }
+  });
+
+  app.delete("/api/projects/:projectId/client-access/:accessId", requireManagerOrAdmin, async (req, res) => {
+    try {
+      await storage.revokeClientProjectAccess(req.params.accessId);
+      res.status(204).end();
+    } catch (err: any) { res.status(500).json({ error: "Failed to revoke access" }); }
+  });
+
+  // ── CLIENT PORTAL ──────────────────────────────────────────────────
+
+  app.post("/api/portal/login", async (req: any, res) => {
+    try {
+      const { email, password } = req.body;
+      if (!email || !password) return res.status(400).json({ error: "Email and password required" });
+      const contact = await storage.getClientContactByEmail(email.trim().toLowerCase());
+      if (!contact || !contact.is_active) return res.status(401).json({ error: "Invalid credentials or account inactive" });
+      if (!contact.password_hash) return res.status(401).json({ error: "Portal access not configured. Contact your project manager." });
+      const valid = await bcrypt.compare(password, contact.password_hash);
+      if (!valid) return res.status(401).json({ error: "Invalid credentials" });
+      req.session.clientContactId = contact.id;
+      await storage.updateClientContact(contact.id, { last_login_at: new Date() });
+      const { password_hash, ...safe } = contact as any;
+      const client = await storage.getClient(contact.client_id);
+      res.json({ contact: safe, client });
+    } catch (err: any) { res.status(500).json({ error: "Login failed" }); }
+  });
+
+  app.get("/api/portal/me", requirePortalAuth, async (req: any, res) => {
+    try {
+      const contact = await storage.getClientContact(req.session.clientContactId);
+      if (!contact) { req.session.clientContactId = null; return res.status(401).json({ error: "Session expired" }); }
+      const client = await storage.getClient(contact.client_id);
+      const { password_hash, ...safe } = contact as any;
+      res.json({ contact: safe, client });
+    } catch (err: any) { res.status(500).json({ error: "Failed" }); }
+  });
+
+  app.post("/api/portal/logout", (req: any, res) => {
+    req.session.clientContactId = null;
+    res.json({ success: true });
+  });
+
+  app.get("/api/portal/projects", requirePortalAuth, async (req: any, res) => {
+    try {
+      const accessList = await storage.getClientProjectAccess(req.session.clientContactId);
+      const results = await Promise.all(
+        accessList.map(async (access) => ({
+          access,
+          project: await storage.getProject(access.project_id),
+        }))
+      );
+      res.json(results.filter(r => r.project));
+    } catch (err: any) { res.status(500).json({ error: "Failed to fetch projects" }); }
+  });
+
+  app.get("/api/portal/projects/:id", requirePortalAuth, async (req: any, res) => {
+    try {
+      const access = await storage.getClientContactProjectAccess(req.session.clientContactId, req.params.id);
+      if (!access) return res.status(403).json({ error: "Access denied" });
+      const project = await storage.getProject(req.params.id);
+      if (!project) return res.status(404).json({ error: "Not found" });
+      res.json({ project, access });
+    } catch (err: any) { res.status(500).json({ error: "Failed" }); }
+  });
+
+  app.get("/api/portal/projects/:id/milestones", requirePortalAuth, async (req: any, res) => {
+    try {
+      const access = await storage.getClientContactProjectAccess(req.session.clientContactId, req.params.id);
+      if (!access) return res.status(403).json({ error: "Access denied" });
+      res.json(await storage.getProjectMilestones(req.params.id));
+    } catch (err: any) { res.status(500).json({ error: "Failed" }); }
+  });
+
+  app.get("/api/portal/projects/:id/defects", requirePortalAuth, async (req: any, res) => {
+    try {
+      const access = await storage.getClientContactProjectAccess(req.session.clientContactId, req.params.id);
+      if (!access || !access.can_view_defects) return res.status(403).json({ error: "Access denied" });
+      res.json(await storage.getDefectsByProject(req.params.id));
+    } catch (err: any) { res.status(500).json({ error: "Failed" }); }
+  });
+
+  app.post("/api/portal/projects/:id/defects", requirePortalAuth, async (req: any, res) => {
+    try {
+      const access = await storage.getClientContactProjectAccess(req.session.clientContactId, req.params.id);
+      if (!access || !access.can_create_defects) return res.status(403).json({ error: "Access denied" });
+      const contact = await storage.getClientContact(req.session.clientContactId);
+      const parsed = insertDefectSchema.safeParse({
+        ...req.body,
+        project_id: req.params.id,
+        reported_by: contact?.name || "Portal User",
+      });
+      if (!parsed.success) return res.status(400).json({ error: "Invalid data" });
+      const defect = await storage.createDefect(parsed.data);
+      res.status(201).json(defect);
+    } catch (err: any) { res.status(500).json({ error: "Failed to create defect" }); }
+  });
+
+  app.get("/api/portal/projects/:id/tasks", requirePortalAuth, async (req: any, res) => {
+    try {
+      const access = await storage.getClientContactProjectAccess(req.session.clientContactId, req.params.id);
+      if (!access || !access.can_view_tasks) return res.status(403).json({ error: "Access denied" });
+      res.json(await storage.getTasksByProject(req.params.id));
+    } catch (err: any) { res.status(500).json({ error: "Failed" }); }
   });
 
   const httpServer = createServer(app);

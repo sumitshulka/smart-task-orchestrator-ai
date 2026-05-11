@@ -32,6 +32,11 @@ import Projects from "@/pages/Projects";
 import ProjectDetail from "@/pages/ProjectDetail";
 import CreateProject from "@/pages/CreateProject";
 import ProjectReports from "@/pages/ProjectReports";
+import Clients from "@/pages/Clients";
+import ClientDetail from "@/pages/ClientDetail";
+import PortalLogin from "@/pages/PortalLogin";
+import PortalDashboard from "@/pages/PortalDashboard";
+import PortalProjectView from "@/pages/PortalProjectView";
 import DefectsPage from "@/pages/Defects";
 import DefectBoardPage from "@/pages/DefectBoard";
 import MyDefectsPage from "@/pages/MyDefects";
@@ -263,6 +268,27 @@ const App = () => (
                 </AdminLayout>
               }
             />
+            {/* Client Management routes */}
+            <Route
+              path="/clients"
+              element={
+                <AdminLayout>
+                  <Clients />
+                </AdminLayout>
+              }
+            />
+            <Route
+              path="/clients/:id"
+              element={
+                <AdminLayout>
+                  <ClientDetail />
+                </AdminLayout>
+              }
+            />
+            {/* Client Portal routes (no AdminLayout) */}
+            <Route path="/portal/login" element={<PortalLogin />} />
+            <Route path="/portal/dashboard" element={<PortalDashboard />} />
+            <Route path="/portal/projects/:id" element={<PortalProjectView />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
