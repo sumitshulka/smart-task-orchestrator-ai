@@ -141,6 +141,18 @@ export default function DefectDetailsSheet({
     enabled: linkTaskDialog,
   });
 
+  // Fetch task status transitions to determine which statuses are "open"
+  const { data: statusTransitions = [] } = useQuery<any[]>({
+    queryKey: ["/api/task-status-transitions"],
+    enabled: linkTaskDialog,
+  });
+
+  // Statuses with at least one outgoing transition = open/active statuses
+  // Terminal statuses (no outgoing transitions) = closed/completed
+  const openStatusNames = new Set(
+    (statusTransitions as any[]).map((tr: any) => tr.from_status)
+  );
+
   // Fetch task statuses for convert dialog
   const { data: taskStatuses = [] } = useQuery<any[]>({
     queryKey: ["/api/task-statuses"],
@@ -301,8 +313,12 @@ export default function DefectDetailsSheet({
   const linkedTaskIds = new Set(linkedTasks.map((lt: any) => lt.task_id));
 
   // Filtered tasks for the link-task picker
+  // Only show open tasks (statuses that have at least one outgoing transition).
+  // If no transitions are configured at all, fall back to showing all tasks.
   const filteredPickerTasks = (allTasks as any[]).filter((t: any) => {
     if (linkedTaskIds.has(t.id)) return false;
+    // Exclude terminal (closed/completed) statuses when transitions are configured
+    if (openStatusNames.size > 0 && !openStatusNames.has(t.status)) return false;
     if (!linkTaskSearch.trim()) return true;
     const q = linkTaskSearch.toLowerCase();
     return (
@@ -899,7 +915,7 @@ export default function DefectDetailsSheet({
           </DialogHeader>
           <div className="space-y-3 py-2">
             <p className="text-xs text-muted-foreground">
-              Search and select a task to link to this defect. Already-linked tasks are excluded.
+              Only open tasks are shown. Closed and completed tasks are excluded. Already-linked tasks are also excluded.
             </p>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
