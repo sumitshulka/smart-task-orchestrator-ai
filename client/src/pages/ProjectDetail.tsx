@@ -22,7 +22,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   ArrowLeft, CheckCircle2, Users, Milestone, Layers, Plus, Pencil, Trash2,
   Calendar, Clock, DollarSign, History, UserCircle, Tag, Grip, ChevronDown, ChevronUp,
-  Search, ListTodo, ExternalLink, Flag, Bug,
+  Search, ListTodo, ExternalLink, Flag, Bug, Building2,
 } from "lucide-react";
 import { format } from "date-fns";
 import type {
@@ -313,6 +313,15 @@ export default function ProjectDetail() {
     queryKey: ["/api/project-templates"],
     queryFn: () => apiClient.get("/project-templates"),
   });
+
+  const { data: clients = [] } = useQuery<any[]>({
+    queryKey: ["/api/clients"],
+    queryFn: () => apiClient.get("/clients"),
+  });
+
+  const linkedClient = (project as any)?.client_id
+    ? (clients as any[]).find((c: any) => c.id === (project as any).client_id)
+    : null;
 
   const { data: users = [] } = useQuery<User[]>({
     queryKey: ["/api/users"],
@@ -667,9 +676,30 @@ export default function ProjectDetail() {
               </Badge>
             )}
           </div>
-          {project.client_name && (
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{project.client_name}</p>
-          )}
+          <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+            {(project as any).is_client_project && project.client_name ? (
+              linkedClient ? (
+                <Link
+                  to={`/clients/${linkedClient.id}`}
+                  className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-orange-50 text-orange-700 border border-orange-200 dark:bg-orange-900/30 dark:text-orange-300 dark:border-orange-800 hover:bg-orange-100 dark:hover:bg-orange-900/50 transition-colors"
+                >
+                  <Building2 className="h-3.5 w-3.5 shrink-0" />
+                  {project.client_name}
+                  <ExternalLink className="h-3 w-3 opacity-60" />
+                </Link>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-orange-50 text-orange-700 border border-orange-200 dark:bg-orange-900/30 dark:text-orange-300 dark:border-orange-800">
+                  <Building2 className="h-3.5 w-3.5 shrink-0" />
+                  {project.client_name}
+                </span>
+              )
+            ) : !(project as any).is_client_project ? (
+              <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-gray-100 text-gray-500 border border-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700">
+                <Building2 className="h-3.5 w-3.5 shrink-0" />
+                Internal Project
+              </span>
+            ) : null}
+          </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {!project.is_confirmed && (
@@ -724,6 +754,32 @@ export default function ProjectDetail() {
                 <CardTitle className="text-sm font-semibold">Project Information</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3 text-sm">
+                {/* Client info row */}
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-500">Scope</span>
+                  {(project as any).is_client_project && project.client_name ? (
+                    linkedClient ? (
+                      <Link
+                        to={`/clients/${linkedClient.id}`}
+                        className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-orange-50 text-orange-700 border border-orange-200 dark:bg-orange-900/30 dark:text-orange-300 dark:border-orange-800 hover:bg-orange-100 dark:hover:bg-orange-900/50 transition-colors"
+                      >
+                        <Building2 className="h-3.5 w-3.5 shrink-0" />
+                        {project.client_name}
+                        <ExternalLink className="h-3 w-3 opacity-60" />
+                      </Link>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-orange-50 text-orange-700 border border-orange-200 dark:bg-orange-900/30 dark:text-orange-300 dark:border-orange-800">
+                        <Building2 className="h-3.5 w-3.5 shrink-0" />
+                        {project.client_name}
+                      </span>
+                    )
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-gray-100 text-gray-500 border border-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700">
+                      <Building2 className="h-3.5 w-3.5 shrink-0" />
+                      Internal
+                    </span>
+                  )}
+                </div>
                 <div className="flex justify-between">
                   <span className="text-gray-500">Type</span>
                   <span>{PROJECT_TYPE_LABELS[project.project_type] ?? project.project_type}</span>

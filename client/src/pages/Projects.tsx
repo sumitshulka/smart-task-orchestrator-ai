@@ -317,10 +317,18 @@ export default function Projects() {
                         </span>
                       )}
                     </div>
-                    {project.client_name && (
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 truncate">{project.client_name}</p>
-                    )}
-                    <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                    <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                      {(project as any).is_client_project && project.client_name ? (
+                        <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-orange-50 text-orange-700 border border-orange-200 dark:bg-orange-900/30 dark:text-orange-300 dark:border-orange-800 whitespace-nowrap">
+                          <Building2 className="h-3 w-3 shrink-0" />
+                          {project.client_name}
+                        </span>
+                      ) : !(project as any).is_client_project ? (
+                        <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 border border-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700 whitespace-nowrap">
+                          <Building2 className="h-3 w-3 shrink-0" />
+                          Internal
+                        </span>
+                      ) : null}
                       <Badge variant="outline" className="text-xs h-5 px-1.5 font-normal">
                         {PROJECT_TYPE_LABELS[project.project_type] ?? project.project_type}
                       </Badge>
