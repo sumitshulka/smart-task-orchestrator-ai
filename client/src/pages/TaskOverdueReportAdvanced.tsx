@@ -4,11 +4,15 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchTasksPaginated } from "@/integrations/supabase/tasks";
 import { useUsersAndTeams } from "@/hooks/useUsersAndTeams";
 import { useCurrentUserRoleAndTeams } from "@/hooks/useCurrentUserRoleAndTeams";
-import { Calendar, CalendarIcon } from "lucide-react";
+import { CalendarIcon, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import DateRangePresetSelector from "@/components/DateRangePresetSelector";
+import { apiClient } from "@/lib/api";
 
 function defaultDateRange() {
   const now = new Date();
@@ -24,11 +28,47 @@ export default function TaskOverdueReport() {
   const [alphabetFilter, setAlphabetFilter] = React.useState<string>("all");
   const [selectedEmployees, setSelectedEmployees] = React.useState<any[]>([]);
   const [preset, setPreset] = React.useState<string>("This Month");
+  const [cfFilters, setCfFilters] = React.useState<Record<string, string>>({});
 
   const { users } = useUsersAndTeams();
   const { roles, loading: rolesLoading } = useCurrentUserRoleAndTeams();
 
   const isAdmin = roles.includes("admin");
+
+  // Fetch reportable CF fields for task module
+  const { data: cfFieldsRaw = [] } = useQuery<any[]>({
+    queryKey: ["/api/custom-fields/definitions", "task", "reportable"],
+    queryFn: async () => {
+      const res = await apiClient.get("/custom-fields/definitions?module=task");
+      return Array.isArray(res) ? res : res?.definitions ?? [];
+    },
+  });
+  const reportableCfFields = React.useMemo(
+    () => cfFieldsRaw.filter((f: any) => f.is_reportable && f.field_type !== "user_reference"),
+    [cfFieldsRaw],
+  );
+
+  // Build active CF filters
+  const activeCfFilters = React.useMemo(() =>
+    Object.entries(cfFilters)
+      .filter(([, v]) => v.trim() !== "")
+      .map(([field_id, value]) => ({ field_id, value: value.trim() })),
+    [cfFilters],
+  );
+
+  const { data: cfMatchData } = useQuery<{ taskIds: string[] }>({
+    queryKey: ["/api/custom-fields/task-ids-filter", activeCfFilters],
+    queryFn: () => {
+      if (activeCfFilters.length === 0) return Promise.resolve({ taskIds: [] });
+      return apiClient.post("/custom-fields/task-ids-filter", { filters: activeCfFilters });
+    },
+    enabled: activeCfFilters.length > 0,
+  });
+
+  const cfMatchSet = React.useMemo(() => {
+    if (activeCfFilters.length === 0) return null;
+    return new Set(cfMatchData?.taskIds ?? []);
+  }, [activeCfFilters, cfMatchData]);
 
   const { data: tasks, isLoading } = useQuery({
     queryKey: ["overdue-tasks", format(dateRange.from, "yyyy-MM-dd"), format(dateRange.to, "yyyy-MM-dd")],
@@ -54,6 +94,11 @@ export default function TaskOverdueReport() {
     if (!tasks) return [];
     
     let filteredTasks = tasks;
+
+    // Custom field filter
+    if (cfMatchSet !== null) {
+      filteredTasks = filteredTasks.filter(task => cfMatchSet.has(task.id));
+    }
     
     // Apply admin filters
     if (isAdmin) {
@@ -125,7 +170,7 @@ export default function TaskOverdueReport() {
     });
     
     return Object.values(userMap);
-  }, [tasks, users, departmentFilter, alphabetFilter, selectedEmployees, isAdmin]);
+  }, [tasks, users, departmentFilter, alphabetFilter, selectedEmployees, isAdmin, cfMatchSet]);
 
   function handlePresetChange(range: { from: Date | null; to: Date | null }, p: string) {
     setPreset(p);
@@ -198,6 +243,71 @@ export default function TaskOverdueReport() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+          </div>
+        )}
+
+        {/* Custom Field Filters */}
+        {reportableCfFields.length > 0 && (
+          <div className="pt-3 border-t mt-3">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-medium flex items-center gap-1.5">
+                <SlidersHorizontal className="w-3.5 h-3.5 text-purple-500" />
+                Custom Field Filters
+                {activeCfFilters.length > 0 && (
+                  <Badge className="text-[10px] px-1.5 py-0 bg-purple-100 text-purple-700 border-purple-200 ml-1">
+                    {activeCfFilters.length} active
+                  </Badge>
+                )}
+              </span>
+              {activeCfFilters.length > 0 && (
+                <button
+                  className="text-xs text-gray-400 hover:text-gray-600 underline"
+                  onClick={() => setCfFilters({})}
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+              {reportableCfFields.map((f: any) => (
+                <div key={f.id}>
+                  <Label className="text-xs text-gray-500 mb-1 block">{f.label}</Label>
+                  {(f.field_type === "select" || f.field_type === "multiselect") && f.options?.length ? (
+                    <select
+                      className="w-full border border-gray-200 rounded-md px-2 py-1.5 text-sm bg-white"
+                      value={cfFilters[f.id] ?? ""}
+                      onChange={e => setCfFilters(prev => ({ ...prev, [f.id]: e.target.value }))}
+                    >
+                      <option value="">Any</option>
+                      {f.options.map((o: any) => (
+                        <option key={o.value} value={o.value}>{o.label}</option>
+                      ))}
+                    </select>
+                  ) : f.field_type === "boolean" ? (
+                    <select
+                      className="w-full border border-gray-200 rounded-md px-2 py-1.5 text-sm bg-white"
+                      value={cfFilters[f.id] ?? ""}
+                      onChange={e => setCfFilters(prev => ({ ...prev, [f.id]: e.target.value }))}
+                    >
+                      <option value="">Any</option>
+                      <option value="true">Yes</option>
+                      <option value="false">No</option>
+                    </select>
+                  ) : (
+                    <Input
+                      className="h-8 text-sm"
+                      placeholder={
+                        f.field_type === "date" || f.field_type === "datetime"
+                          ? "YYYY-MM-DD"
+                          : `Filter by ${f.label}…`
+                      }
+                      value={cfFilters[f.id] ?? ""}
+                      onChange={e => setCfFilters(prev => ({ ...prev, [f.id]: e.target.value }))}
+                    />
+                  )}
+                </div>
+              ))}
             </div>
           </div>
         )}

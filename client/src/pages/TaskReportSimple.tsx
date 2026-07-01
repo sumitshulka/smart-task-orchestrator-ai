@@ -5,6 +5,7 @@ import { fetchTasksPaginated } from "@/integrations/supabase/tasks";
 import { useUsersAndTeams } from "@/hooks/useUsersAndTeams";
 import { useCurrentUserRoleAndTeams } from "@/hooks/useCurrentUserRoleAndTeams";
 import { useTaskStatuses } from "@/hooks/useTaskStatuses";
+import { apiClient } from "@/lib/api";
 import TaskReportAdvancedFilters from "@/components/report/TaskReportAdvancedFilters";
 import TaskReportTable from "@/components/report/TaskReportTable";
 import TaskReportExportButton from "@/components/report/TaskReportExportButton";
@@ -35,6 +36,7 @@ export default function TaskReport() {
   const [departmentFilter, setDepartmentFilter] = React.useState<string>("all");
   const [alphabetFilter, setAlphabetFilter] = React.useState<string>("all");
   const [selectedEmployees, setSelectedEmployees] = React.useState<any[]>([]);
+  const [cfFilters, setCfFilters] = React.useState<Record<string, string>>({});
 
   // Make sure we always have valid dates
   const fromDate = dateRange.from || new Date();
@@ -64,6 +66,29 @@ export default function TaskReport() {
       setReportUserIds([]);
     }
   }, [userRow?.id, roles.join(","), rolesLoading]);
+
+  // Build active CF filters (non-empty values only)
+  const activeCfFilters = React.useMemo(() =>
+    Object.entries(cfFilters)
+      .filter(([, v]) => v.trim() !== "")
+      .map(([field_id, value]) => ({ field_id, value: value.trim() })),
+    [cfFilters],
+  );
+
+  // Fetch matching task IDs from the backend when CF filters are set
+  const { data: cfMatchData } = useQuery<{ taskIds: string[] }>({
+    queryKey: ["/api/custom-fields/task-ids-filter", activeCfFilters],
+    queryFn: () => {
+      if (activeCfFilters.length === 0) return Promise.resolve({ taskIds: [] });
+      return apiClient.post("/custom-fields/task-ids-filter", { filters: activeCfFilters });
+    },
+    enabled: activeCfFilters.length > 0,
+  });
+
+  const cfMatchSet = React.useMemo(() => {
+    if (activeCfFilters.length === 0) return null;
+    return new Set(cfMatchData?.taskIds ?? []);
+  }, [activeCfFilters, cfMatchData]);
 
   const { data: taskData, isLoading } = useQuery({
     queryKey: ["task-report", fromDate, toDate, reportUserIds.join(","), roles.join(",")],
@@ -118,6 +143,11 @@ export default function TaskReport() {
     
     // Filter task data based on admin filters
     let filteredTaskData = taskData;
+
+    // Custom field filter — restrict to tasks matching CF criteria
+    if (cfMatchSet !== null) {
+      filteredTaskData = filteredTaskData.filter(task => cfMatchSet.has(task.id));
+    }
     
     if (isAdmin) {
       // Department filter
@@ -198,7 +228,7 @@ export default function TaskReport() {
     });
 
     return reportList;
-  }, [taskData, statusNames, departmentFilter, alphabetFilter, selectedEmployees, isAdmin]);
+  }, [taskData, statusNames, departmentFilter, alphabetFilter, selectedEmployees, isAdmin, cfMatchSet]);
 
   if (isLoading || rolesLoading || statusesLoading) {
     return (
@@ -225,6 +255,8 @@ export default function TaskReport() {
         setSelectedEmployees={setSelectedEmployees}
         isAdmin={isAdmin}
         allUsers={users}
+        cfFilters={cfFilters}
+        setCfFilters={setCfFilters}
       />
 
       {/* Export Button */}
