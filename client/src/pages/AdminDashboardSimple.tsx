@@ -42,19 +42,21 @@ const PRIORITY_LABELS = ["High", "Medium", "Low", "Normal"];
 
 // ─── Stat card ───────────────────────────────────────────────────────────────
 function StatCard({
-  label, value, icon: Icon, iconBg, iconColor, trend, trendLabel,
+  label, value, icon: Icon, iconBg, iconColor, cardBg, cardBorder, trend, trendLabel,
 }: {
   label: string;
   value: string | number;
   icon: React.ElementType;
   iconBg: string;
   iconColor: string;
+  cardBg: string;
+  cardBorder: string;
   trend?: number | null;
   trendLabel?: string;
 }) {
   const up = (trend ?? 0) >= 0;
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-start justify-between hover:shadow-md transition-shadow">
+    <div className={`${cardBg} rounded-2xl border ${cardBorder} shadow-sm p-5 flex items-start justify-between hover:shadow-md transition-shadow`}>
       <div className="flex-1">
         <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">{label}</p>
         <p className="text-3xl font-bold text-gray-900 mt-1 mb-2">{value}</p>
@@ -73,12 +75,19 @@ function StatCard({
 }
 
 // ─── Section header ──────────────────────────────────────────────────────────
-function SectionCard({ title, action, children, className = "" }: {
-  title: string; action?: React.ReactNode; children: React.ReactNode; className?: string;
+function SectionCard({ title, action, children, className = "", cardBg = "bg-white", cardBorder = "border-gray-200", accentBar = "" }: {
+  title: string;
+  action?: React.ReactNode;
+  children: React.ReactNode;
+  className?: string;
+  cardBg?: string;
+  cardBorder?: string;
+  accentBar?: string;
 }) {
   return (
-    <div className={`bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden ${className}`}>
-      <div className="flex items-center justify-between px-5 pt-5 pb-3">
+    <div className={`${cardBg} rounded-2xl border ${cardBorder} shadow-sm overflow-hidden ${className}`}>
+      {accentBar && <div className={`h-1 w-full ${accentBar}`} />}
+      <div className="flex items-center justify-between px-5 pt-4 pb-3">
         <h3 className="text-sm font-semibold text-gray-800">{title}</h3>
         {action}
       </div>
@@ -264,7 +273,7 @@ const AdminDashboard = () => {
   }
 
   return (
-    <div className="bg-gray-50 min-h-screen p-6 space-y-6">
+    <div className="bg-slate-100 min-h-screen p-6 space-y-6">
 
       {/* Active timers */}
       <ActiveTimersBar onTaskUpdated={handleTaskUpdated} />
@@ -291,39 +300,49 @@ const AdminDashboard = () => {
           label="Total Tasks"
           value={stats.totalTasks}
           icon={ClipboardList}
-          iconBg="bg-indigo-50"
+          iconBg="bg-indigo-100"
           iconColor="text-indigo-600"
+          cardBg="bg-indigo-50"
+          cardBorder="border-indigo-200"
           trend={stats.trendTotal}
         />
         <StatCard
           label="Completed Tasks"
           value={stats.completedTasks}
           icon={CheckCircle2}
-          iconBg="bg-emerald-50"
+          iconBg="bg-emerald-100"
           iconColor="text-emerald-600"
+          cardBg="bg-emerald-50"
+          cardBorder="border-emerald-200"
           trend={stats.trendCompleted}
         />
         <StatCard
           label="Overdue Tasks"
           value={stats.overdueTasks}
           icon={AlertCircle}
-          iconBg="bg-red-50"
-          iconColor="text-red-500"
+          iconBg="bg-red-100"
+          iconColor="text-red-600"
+          cardBg="bg-red-50"
+          cardBorder="border-red-200"
           trend={stats.overdueTasks > 0 ? null : undefined}
         />
         <StatCard
           label="Completion Rate"
           value={`${stats.completionRate}%`}
           icon={TrendingUp}
-          iconBg="bg-purple-50"
+          iconBg="bg-purple-100"
           iconColor="text-purple-600"
+          cardBg="bg-purple-50"
+          cardBorder="border-purple-200"
         />
         <StatCard
           label="Active Teams"
           value={teams.length}
           icon={Users}
-          iconBg="bg-amber-50"
+          iconBg="bg-amber-100"
           iconColor="text-amber-600"
+          cardBg="bg-amber-50"
+          cardBorder="border-amber-200"
         />
       </div>
 
@@ -331,7 +350,7 @@ const AdminDashboard = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
         {/* Task Status Overview */}
-        <SectionCard title="Task Status Overview">
+        <SectionCard title="Task Status Overview" cardBg="bg-white" cardBorder="border-violet-200" accentBar="bg-gradient-to-r from-violet-400 to-indigo-400">
           {stats.statusData.length === 0 ? (
             <div className="flex items-center justify-center h-52 text-gray-400 text-sm">No data yet</div>
           ) : (
@@ -378,7 +397,7 @@ const AdminDashboard = () => {
         </SectionCard>
 
         {/* Tasks Trend */}
-        <SectionCard title="Tasks Trend" className="lg:col-span-1">
+        <SectionCard title="Tasks Trend" className="lg:col-span-1" cardBg="bg-white" cardBorder="border-blue-200" accentBar="bg-gradient-to-r from-blue-400 to-cyan-400">
           <div className="px-4 pb-4">
             <ResponsiveContainer width="100%" height={260}>
               <LineChart data={stats.trendData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
@@ -397,7 +416,7 @@ const AdminDashboard = () => {
         </SectionCard>
 
         {/* Quick Actions */}
-        <SectionCard title="Quick Actions">
+        <SectionCard title="Quick Actions" cardBg="bg-white" cardBorder="border-indigo-200" accentBar="bg-gradient-to-r from-indigo-400 to-purple-400">
           <div className="px-4 pb-4 space-y-2">
             {[
               { icon: Plus,        label: "Create New Task",     sub: "Add a task to the board",  path: "/admin/tasks",          color: "text-indigo-600 bg-indigo-50" },
@@ -432,6 +451,9 @@ const AdminDashboard = () => {
         {/* Overdue by Priority */}
         <SectionCard
           title="Overdue Tasks by Priority"
+          cardBg="bg-white"
+          cardBorder="border-red-200"
+          accentBar="bg-gradient-to-r from-red-400 to-orange-400"
           action={
             <button
               onClick={() => navigate("/admin/overdue-report")}
@@ -493,6 +515,9 @@ const AdminDashboard = () => {
         {/* Top Active Projects */}
         <SectionCard
           title="Top Active Projects"
+          cardBg="bg-white"
+          cardBorder="border-amber-200"
+          accentBar="bg-gradient-to-r from-amber-400 to-yellow-300"
           action={
             <button
               onClick={() => navigate("/admin/projects")}
@@ -543,6 +568,9 @@ const AdminDashboard = () => {
         {/* Recent Activity */}
         <SectionCard
           title="Recent Activity"
+          cardBg="bg-white"
+          cardBorder="border-emerald-200"
+          accentBar="bg-gradient-to-r from-emerald-400 to-teal-400"
           action={
             <button
               onClick={() => navigate("/admin/tasks")}
@@ -594,7 +622,7 @@ const AdminDashboard = () => {
 
       {/* ── Row 4: Workload Distribution ─────────────────────────────────── */}
       {stats.workloadData.length > 0 && (
-        <SectionCard title="Workload Distribution">
+        <SectionCard title="Workload Distribution" cardBg="bg-white" cardBorder="border-sky-200" accentBar="bg-gradient-to-r from-sky-400 to-blue-400">
           <div className="px-4 pb-4">
             <ResponsiveContainer width="100%" height={200}>
               <BarChart data={stats.workloadData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
