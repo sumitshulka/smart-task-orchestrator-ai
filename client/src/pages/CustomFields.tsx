@@ -830,11 +830,51 @@ export default function CustomFieldsPage() {
             </div>
           </div>
           {isAdmin && (
-            <Button onClick={openCreate} className="gap-2">
-              <Plus className="w-4 h-4" /> New Field
-            </Button>
+            <div className="flex items-center gap-3">
+              {/* Field usage counter */}
+              <div className="flex items-center gap-2">
+                <div className="text-right">
+                  <p className="text-xs text-gray-500 leading-none">Fields used</p>
+                  <p className={`text-sm font-semibold leading-tight ${allFields.length >= 40 ? "text-red-600" : allFields.length >= 35 ? "text-amber-600" : "text-gray-700"}`}>
+                    {allFields.length} / 40
+                  </p>
+                </div>
+                <div className="w-16 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all ${allFields.length >= 40 ? "bg-red-500" : allFields.length >= 35 ? "bg-amber-500" : "bg-indigo-500"}`}
+                    style={{ width: `${Math.min(100, (allFields.length / 40) * 100)}%` }}
+                  />
+                </div>
+              </div>
+              <Button
+                onClick={openCreate}
+                className="gap-2"
+                disabled={allFields.length >= 40}
+                title={allFields.length >= 40 ? "Maximum of 40 custom fields reached. Delete or archive fields to add new ones." : undefined}
+              >
+                <Plus className="w-4 h-4" /> New Field
+              </Button>
+            </div>
           )}
         </div>
+
+        {/* Limit reached banner */}
+        {isAdmin && allFields.length >= 40 && (
+          <div className="flex items-start gap-3 bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-800">
+            <span className="text-red-500 mt-0.5 flex-shrink-0">⛔</span>
+            <span>
+              <strong>Custom field limit reached (40/40).</strong> You cannot create additional fields. Delete or archive unused fields first to free up space.
+            </span>
+          </div>
+        )}
+        {isAdmin && allFields.length >= 35 && allFields.length < 40 && (
+          <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-sm text-amber-800">
+            <span className="text-amber-500 mt-0.5 flex-shrink-0">⚠️</span>
+            <span>
+              <strong>Approaching the limit</strong> — {allFields.length}/40 fields used. You can create {40 - allFields.length} more custom field{40 - allFields.length !== 1 ? "s" : ""}.
+            </span>
+          </div>
+        )}
 
         {/* ── Field Groups Panel ─────────────────────────────────────────── */}
         <div className="border rounded-lg bg-white overflow-hidden">

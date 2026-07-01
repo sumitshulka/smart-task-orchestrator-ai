@@ -3298,6 +3298,8 @@ Rules:
   });
 
   // POST /api/custom-fields/definitions
+  const CUSTOM_FIELD_LIMIT = 40;
+
   app.post("/api/custom-fields/definitions", requireAnyAuthenticated, async (req: any, res) => {
     try {
       const parsed = insertCustomFieldDefinitionSchema.safeParse({
@@ -3307,6 +3309,13 @@ Rules:
       if (!parsed.success) return res.status(400).json({ error: "Invalid data", details: parsed.error.flatten() });
       if (!CF_MODULES.includes(parsed.data.module))
         return res.status(400).json({ error: `module must be one of: ${CF_MODULES.join(", ")}` });
+      // Enforce global limit of 40 custom fields across all modules
+      const allDefs = await storage.getAllCustomFieldDefinitions();
+      if (allDefs.length >= CUSTOM_FIELD_LIMIT)
+        return res.status(422).json({
+          error: `Custom field limit reached`,
+          details: `You can create a maximum of ${CUSTOM_FIELD_LIMIT} custom fields across all modules. Currently using ${allDefs.length}/${CUSTOM_FIELD_LIMIT}. Delete or archive unused fields to add new ones.`,
+        });
       // Reject duplicate field_key within the same module
       const existing = await storage.getCustomFieldDefinitionByKey(parsed.data.module, parsed.data.field_key);
       if (existing) return res.status(409).json({ error: `field_key "${parsed.data.field_key}" already exists for module "${parsed.data.module}"` });
