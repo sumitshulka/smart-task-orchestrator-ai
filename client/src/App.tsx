@@ -24,6 +24,7 @@ import TaskGroupsPage from "./pages/TaskGroups";
 import MyTeams from "./pages/MyTeams";
 import Benchmarking from "./pages/Benchmarking";
 import BenchmarkingReport from "./pages/BenchmarkingReport";
+import TaskCustomFieldReport from "./pages/TaskCustomFieldReport";
 import { RoleProvider } from "@/contexts/RoleProvider";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { queryClient } from "@/lib/queryClient";
@@ -163,6 +164,14 @@ const App = () => (
               element={
                 <AdminLayout>
                   <BenchmarkingReport />
+                </AdminLayout>
+              }
+            />
+            <Route
+              path="/admin/reports/custom-fields"
+              element={
+                <AdminLayout>
+                  <TaskCustomFieldReport />
                 </AdminLayout>
               }
             />

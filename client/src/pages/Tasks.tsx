@@ -4,8 +4,9 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchTasks, Task } from "@/integrations/supabase/tasks";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Filter, Search, Plus, Sparkles } from "lucide-react";
+import { Filter, Search, Plus, Sparkles, X } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import useSupabaseSession from "@/hooks/useSupabaseSession";
 import CreateTaskSheet from "@/components/CreateTaskSheet";
@@ -23,6 +24,13 @@ import { useCurrentUserRoleAndTeams } from "@/hooks/useCurrentUserRoleAndTeams";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import DateRangePresetSelector from "@/components/DateRangePresetSelector";
 import { apiClient } from "@/lib/api";
+
+interface SearchableCfField {
+  id: string;
+  label: string;
+  field_type: string;
+  options: { value: string; label: string }[] | null;
+}
 
 function defaultDateRange() {
   const now = new Date();
@@ -96,12 +104,50 @@ const TasksPage: React.FC = () => {
   const [teamFilter, setTeamFilter] = useState("all");
   const [dateRange, setDateRange] = useState(defaultDateRange());
   const [preset, setPreset] = useState<string>("This Month");
+  const [cfFilters, setCfFilters] = useState<Record<string, string>>({});
   
   function handlePresetChange(range: { from: Date | null; to: Date | null }, p: string) {
     setPreset(p);
     if (p === "custom") return;
     setDateRange(range);
   }
+
+  // ── Load searchable task CF fields ──────────────────────────────────────────
+  const { data: cfFieldsRaw = [] } = useQuery({
+    queryKey: ["/api/custom-fields/definitions", "task", "searchable"],
+    queryFn: async () => {
+      const res = await apiClient.get("/custom-fields/definitions?module=task");
+      const all: SearchableCfField[] = Array.isArray(res) ? res : res?.definitions ?? [];
+      return all.filter((f: any) => f.is_searchable);
+    },
+    enabled: !!user,
+  });
+
+  const searchableCfFields: SearchableCfField[] = cfFieldsRaw;
+
+  // ── Active CF filters ──────────────────────────────────────────────────────
+  const activeCfFilters = useMemo(() =>
+    Object.entries(cfFilters)
+      .filter(([, v]) => v.trim() !== "")
+      .map(([field_id, value]) => ({ field_id, value: value.trim() })),
+    [cfFilters],
+  );
+
+  // ── Fetch CF-matched task IDs when any CF filter is active ──────────────────
+  const { data: cfMatchData } = useQuery<{ taskIds: string[] }>({
+    queryKey: ["/api/custom-fields/task-ids-filter", activeCfFilters],
+    queryFn: async () => {
+      if (activeCfFilters.length === 0) return { taskIds: [] };
+      return apiClient.post("/custom-fields/task-ids-filter", { filters: activeCfFilters });
+    },
+    enabled: !!user && activeCfFilters.length > 0,
+  });
+
+  const cfMatchIds: Set<string> | null = useMemo(() => {
+    if (activeCfFilters.length === 0) return null;
+    if (!cfMatchData) return null;
+    return new Set(cfMatchData.taskIds);
+  }, [activeCfFilters, cfMatchData]);
 
   const filters = useMemo(() => ({
     priorityFilter,
@@ -146,9 +192,15 @@ const TasksPage: React.FC = () => {
     gcTime: 2 * 60 * 1000, // 2 minutes
   });
 
-  const tasks = tasksResult?.tasks || [];
+  const rawTasks = tasksResult?.tasks || [];
   const totalTasks = tasksResult?.total || 0;
   const showTooManyWarning = tasksResult?.showTooManyWarning || false;
+
+  // If CF filters are active, filter current page tasks by matched IDs
+  const tasks = useMemo(() => {
+    if (!cfMatchIds) return rawTasks;
+    return rawTasks.filter(t => cfMatchIds.has(t.id));
+  }, [rawTasks, cfMatchIds]);
 
   // Restrict delete to status 'pending' or 'new'
   function canDelete(status: string) {
@@ -310,6 +362,67 @@ const TasksPage: React.FC = () => {
                 </Select>
               </div>
             </div>
+
+            {/* Custom Field Filters */}
+            {searchableCfFields.length > 0 && (
+              <div className="mt-4 pt-4 border-t border-gray-100">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-sm font-medium text-gray-700 flex items-center gap-1.5">
+                    <span className="inline-block w-2 h-2 rounded-full bg-blue-500" />
+                    Custom Field Filters
+                  </h4>
+                  {activeCfFilters.length > 0 && (
+                    <button
+                      className="text-xs text-gray-400 hover:text-red-500 flex items-center gap-1"
+                      onClick={() => setCfFilters({})}
+                    >
+                      <X className="w-3 h-3" /> Clear all
+                    </button>
+                  )}
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                  {searchableCfFields.map(f => (
+                    <div key={f.id}>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">{f.label}</label>
+                      {(f.field_type === "select" || f.field_type === "multiselect") && f.options?.length ? (
+                        <select
+                          className="w-full border border-gray-200 rounded-md px-2 py-1.5 text-sm bg-white"
+                          value={cfFilters[f.id] ?? ""}
+                          onChange={e => setCfFilters(prev => ({ ...prev, [f.id]: e.target.value }))}
+                        >
+                          <option value="">Any</option>
+                          {f.options.map(o => (
+                            <option key={o.value} value={o.value}>{o.label}</option>
+                          ))}
+                        </select>
+                      ) : f.field_type === "boolean" ? (
+                        <select
+                          className="w-full border border-gray-200 rounded-md px-2 py-1.5 text-sm bg-white"
+                          value={cfFilters[f.id] ?? ""}
+                          onChange={e => setCfFilters(prev => ({ ...prev, [f.id]: e.target.value }))}
+                        >
+                          <option value="">Any</option>
+                          <option value="true">Yes</option>
+                          <option value="false">No</option>
+                        </select>
+                      ) : (
+                        <Input
+                          className="h-8 text-sm"
+                          placeholder={`Filter by ${f.label}…`}
+                          value={cfFilters[f.id] ?? ""}
+                          onChange={e => setCfFilters(prev => ({ ...prev, [f.id]: e.target.value }))}
+                        />
+                      )}
+                    </div>
+                  ))}
+                </div>
+                {activeCfFilters.length > 0 && (
+                  <p className="text-xs text-blue-600 mt-2">
+                    {activeCfFilters.length} custom field filter{activeCfFilters.length !== 1 ? "s" : ""} active — results filtered from current page
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>

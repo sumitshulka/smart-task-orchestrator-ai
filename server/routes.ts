@@ -3356,6 +3356,28 @@ Rules:
 
   // ── Values ─────────────────────────────────────────────────────────────────
 
+  // POST /api/custom-fields/task-ids-filter
+  // Returns task IDs that match ALL provided custom field filters (AND logic).
+  app.post("/api/custom-fields/task-ids-filter", requireAnyAuthenticated, async (req: any, res) => {
+    try {
+      const { filters } = req.body;
+      if (!Array.isArray(filters)) return res.status(400).json({ error: "filters must be an array" });
+      const taskIds = await storage.getTaskIdsByCustomFieldFilters(filters);
+      res.json({ taskIds });
+    } catch (err: any) { res.status(500).json({ error: "Failed to filter task IDs" }); }
+  });
+
+  // POST /api/custom-fields/values/task/batch
+  // Batch-fetch custom field values for a list of task IDs.
+  app.post("/api/custom-fields/values/task/batch", requireAnyAuthenticated, async (req: any, res) => {
+    try {
+      const { taskIds } = req.body;
+      if (!Array.isArray(taskIds)) return res.status(400).json({ error: "taskIds must be an array" });
+      const values = await storage.batchGetCustomFieldValuesByTaskIds(taskIds);
+      res.json(values);
+    } catch (err: any) { res.status(500).json({ error: "Failed to batch-fetch field values" }); }
+  });
+
   // GET /api/custom-fields/values/:entityType/:entityId
   // Returns all custom field values for the given entity, joined with their definition.
   app.get("/api/custom-fields/values/:entityType/:entityId", requireAnyAuthenticated, async (req: any, res) => {

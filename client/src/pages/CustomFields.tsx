@@ -56,6 +56,8 @@ interface CustomField {
   is_required: boolean;
   is_active: boolean;
   is_system: boolean;
+  is_searchable: boolean;
+  is_reportable: boolean;
   display_order: number;
   options: FieldOption[] | null;
   validation_rules: Record<string, any> | null;
@@ -119,7 +121,7 @@ function slugify(s: string) {
 type FormState = {
   label: string; ui_type: UiFieldType; module: string;
   field_group_id: string; field_key: string; description: string;
-  is_required: boolean; display_order: number;
+  is_required: boolean; is_searchable: boolean; is_reportable: boolean; display_order: number;
   // text / textarea
   min_length: string; max_length: string; regex: string;
   // number / decimal
@@ -134,7 +136,7 @@ type FormState = {
 
 const emptyForm = (): FormState => ({
   label: "", ui_type: "text", module: "task", field_group_id: "",
-  field_key: "", description: "", is_required: false, display_order: 0,
+  field_key: "", description: "", is_required: false, is_searchable: false, is_reportable: false, display_order: 0,
   min_length: "", max_length: "", regex: "",
   min_value: "", max_value: "", decimal_places: "",
   past_only: false, future_only: false, min_date: "", max_date: "",
@@ -178,7 +180,8 @@ function fieldToForm(f: CustomField): FormState {
     label: f.label, ui_type: uiType, module: f.module,
     field_group_id: f.field_group_id ?? "",
     field_key: f.field_key, description: f.description ?? "",
-    is_required: f.is_required, display_order: f.display_order,
+    is_required: f.is_required, is_searchable: !!f.is_searchable, is_reportable: !!f.is_reportable,
+    display_order: f.display_order,
     min_length:    vr.min_length    != null ? String(vr.min_length)    : "",
     max_length:    vr.max_length    != null ? String(vr.max_length)    : "",
     regex:         vr.regex         ?? "",
@@ -495,6 +498,8 @@ export default function CustomFieldsPage() {
       description:    form.description || null,
       field_group_id: form.field_group_id || null,
       is_required:    form.is_required,
+      is_searchable:  form.is_searchable,
+      is_reportable:  form.is_reportable,
       display_order:  form.display_order,
       validation_rules: buildValidationRules(form),
       options: (form.ui_type === "select" || form.ui_type === "multiselect") && form.options.length
@@ -595,6 +600,8 @@ export default function CustomFieldsPage() {
                 <TableHead className="font-semibold">Type</TableHead>
                 <TableHead className="font-semibold">Module</TableHead>
                 <TableHead className="font-semibold text-center">Required</TableHead>
+                <TableHead className="font-semibold text-center">Searchable</TableHead>
+                <TableHead className="font-semibold text-center">Reportable</TableHead>
                 <TableHead className="font-semibold text-center">Status</TableHead>
                 <TableHead className="font-semibold text-right">Actions</TableHead>
               </TableRow>
@@ -602,13 +609,13 @@ export default function CustomFieldsPage() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-12 text-gray-400">
+                  <TableCell colSpan={9} className="text-center py-12 text-gray-400">
                     Loading…
                   </TableCell>
                 </TableRow>
               ) : fields.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-12">
+                  <TableCell colSpan={9} className="text-center py-12">
                     <div className="flex flex-col items-center gap-2 text-gray-400">
                       <SlidersHorizontal className="w-8 h-8 opacity-30" />
                       <p className="text-sm">No custom fields found</p>
@@ -656,6 +663,20 @@ export default function CustomFieldsPage() {
                     <TableCell className="text-center">
                       {f.is_required ? (
                         <span className="text-red-500 font-bold text-sm">✓</span>
+                      ) : (
+                        <span className="text-gray-300 text-sm">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      {f.is_searchable ? (
+                        <span className="text-blue-600 font-bold text-sm">✓</span>
+                      ) : (
+                        <span className="text-gray-300 text-sm">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      {f.is_reportable ? (
+                        <span className="text-purple-600 font-bold text-sm">✓</span>
                       ) : (
                         <span className="text-gray-300 text-sm">—</span>
                       )}
@@ -815,15 +836,41 @@ export default function CustomFieldsPage() {
                       className="h-9"
                     />
                   </div>
-                  <div className="flex items-center justify-between pt-5 px-1">
-                    <div>
-                      <Label className="text-sm">Required field</Label>
-                      <p className="text-xs text-gray-500">Form won't submit without a value</p>
+                  <div className="col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-3 border border-dashed border-gray-200 rounded-lg p-3 bg-gray-50">
+                    <div className="flex items-center justify-between px-1">
+                      <div>
+                        <Label className="text-sm">Required field</Label>
+                        <p className="text-xs text-gray-500">Won't submit without a value</p>
+                      </div>
+                      <Switch
+                        checked={form.is_required}
+                        onCheckedChange={v => setForm({ is_required: v })}
+                      />
                     </div>
-                    <Switch
-                      checked={form.is_required}
-                      onCheckedChange={v => setForm({ is_required: v })}
-                    />
+                    <div className="flex items-center justify-between px-1 border-l border-gray-200 pl-3">
+                      <div>
+                        <Label className="text-sm text-blue-700">
+                          Searchable <span className="text-red-500">*</span>
+                        </Label>
+                        <p className="text-xs text-gray-500">Appears in Advanced Filters</p>
+                      </div>
+                      <Switch
+                        checked={form.is_searchable}
+                        onCheckedChange={v => setForm({ is_searchable: v })}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between px-1 border-l border-gray-200 pl-3">
+                      <div>
+                        <Label className="text-sm text-purple-700">
+                          Reportable <span className="text-red-500">*</span>
+                        </Label>
+                        <p className="text-xs text-gray-500">Available in Report Builder</p>
+                      </div>
+                      <Switch
+                        checked={form.is_reportable}
+                        onCheckedChange={v => setForm({ is_reportable: v })}
+                      />
+                    </div>
                   </div>
                 </div>
               </div>

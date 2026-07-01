@@ -356,6 +356,12 @@ export interface IStorage {
   deleteCustomFieldValue(fieldDefinitionId: string, entityType: string, entityId: string): Promise<void>;
   deleteAllCustomFieldValues(entityType: string, entityId: string): Promise<void>;
 
+  // Filter task IDs by custom field values (AND across all filters)
+  getTaskIdsByCustomFieldFilters(filters: { field_id: string; value: string }[]): Promise<string[]>;
+
+  // Batch-fetch CF values for multiple tasks at once
+  batchGetCustomFieldValuesByTaskIds(taskIds: string[]): Promise<Record<string, any[]>>;
+
   // Schema — returns groups + standalone fields organised for a module
   getCustomFieldSchema(module: string): Promise<{
     groups: (CustomFieldGroup & { fields: CustomFieldDefinition[] })[];
@@ -1992,6 +1998,102 @@ export class DatabaseStorage implements IStorage {
         eq(customFieldValues.entity_id, entityId),
       )
     );
+  }
+
+  async getTaskIdsByCustomFieldFilters(filters: { field_id: string; value: string }[]): Promise<string[]> {
+    if (filters.length === 0) return [];
+
+    const resultSets: Set<string>[] = [];
+
+    for (const filter of filters) {
+      const field = await this.getCustomFieldDefinition(filter.field_id);
+      if (!field) continue;
+
+      const t = field.field_type;
+      const val = filter.value;
+
+      let rows: { entity_id: string }[] = [];
+
+      if (t === "boolean") {
+        const boolVal = val === "true";
+        rows = await db
+          .select({ entity_id: customFieldValues.entity_id })
+          .from(customFieldValues)
+          .where(and(
+            eq(customFieldValues.field_definition_id, filter.field_id),
+            eq(customFieldValues.entity_type, "task"),
+            eq(customFieldValues.value_boolean, boolVal),
+          ));
+      } else if (t === "number" || t === "decimal") {
+        rows = await db
+          .select({ entity_id: customFieldValues.entity_id })
+          .from(customFieldValues)
+          .where(and(
+            eq(customFieldValues.field_definition_id, filter.field_id),
+            eq(customFieldValues.entity_type, "task"),
+            eq(customFieldValues.value_number, val),
+          ));
+      } else if (t === "date" || t === "datetime") {
+        // date filter: match by date prefix
+        rows = await db
+          .select({ entity_id: customFieldValues.entity_id })
+          .from(customFieldValues)
+          .where(and(
+            eq(customFieldValues.field_definition_id, filter.field_id),
+            eq(customFieldValues.entity_type, "task"),
+            sql`${customFieldValues.value_date}::text LIKE ${val + '%'}`,
+          ));
+      } else if (t === "multiselect") {
+        // Check if the JSON array contains the value
+        rows = await db
+          .select({ entity_id: customFieldValues.entity_id })
+          .from(customFieldValues)
+          .where(and(
+            eq(customFieldValues.field_definition_id, filter.field_id),
+            eq(customFieldValues.entity_type, "task"),
+            sql`${customFieldValues.value_json} @> ${JSON.stringify([val])}::jsonb`,
+          ));
+      } else {
+        // text, textarea, select, user_reference — case-insensitive contains
+        rows = await db
+          .select({ entity_id: customFieldValues.entity_id })
+          .from(customFieldValues)
+          .where(and(
+            eq(customFieldValues.field_definition_id, filter.field_id),
+            eq(customFieldValues.entity_type, "task"),
+            sql`lower(${customFieldValues.value_text}) LIKE lower(${'%' + val + '%'})`,
+          ));
+      }
+
+      resultSets.push(new Set(rows.map(r => r.entity_id)));
+    }
+
+    if (resultSets.length === 0) return [];
+
+    // AND intersection
+    let intersection = resultSets[0];
+    for (let i = 1; i < resultSets.length; i++) {
+      intersection = new Set([...intersection].filter(id => resultSets[i].has(id)));
+    }
+
+    return [...intersection];
+  }
+
+  async batchGetCustomFieldValuesByTaskIds(taskIds: string[]): Promise<Record<string, any[]>> {
+    if (taskIds.length === 0) return {};
+    const rows = await db
+      .select()
+      .from(customFieldValues)
+      .where(and(
+        eq(customFieldValues.entity_type, "task"),
+        inArray(customFieldValues.entity_id, taskIds),
+      ));
+    const result: Record<string, any[]> = {};
+    for (const row of rows) {
+      if (!result[row.entity_id]) result[row.entity_id] = [];
+      result[row.entity_id].push(row);
+    }
+    return result;
   }
 
   async getCustomFieldSchema(module: string): Promise<{

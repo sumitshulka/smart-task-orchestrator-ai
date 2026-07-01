@@ -1091,6 +1091,10 @@ export const customFieldDefinitions = pgTable("custom_field_definitions", {
   is_active:      boolean("is_active").default(true),
   // System fields are created by the platform and cannot be deleted by users
   is_system:      boolean("is_system").default(false),
+  // Whether this field appears in Advanced Filters on the task list
+  is_searchable:  boolean("is_searchable").default(false).notNull(),
+  // Whether this field is discoverable in the Report Builder
+  is_reportable:  boolean("is_reportable").default(false).notNull(),
   display_order:  integer("display_order").notNull().default(0),
 
   // For select / multiselect field types:
