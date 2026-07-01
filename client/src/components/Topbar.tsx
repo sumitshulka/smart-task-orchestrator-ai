@@ -56,13 +56,13 @@ const Topbar: React.FC<TopbarProps> = ({ sidebarOpen, setSidebarOpen }) => {
 
   return (
     <header
-      className="flex items-center justify-between px-4 sm:px-6 gap-4 bg-white border-b border-gray-200 shadow-sm"
+      className="flex items-center justify-between px-4 sm:px-6 gap-4 bg-slate-900 border-b border-white/[0.06]"
       style={{ height: "56px", minHeight: "56px", maxHeight: "56px" }}
     >
       {/* ── Left: mobile hamburger + logo ── */}
       <div className="flex items-center gap-3">
         <button
-          className="lg:hidden p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 transition-colors"
+          className="lg:hidden p-1.5 rounded-lg text-slate-400 hover:bg-white/[0.07] hover:text-white transition-colors"
           onClick={() => setSidebarOpen(!sidebarOpen)}
           aria-label="Toggle sidebar"
         >
@@ -73,7 +73,7 @@ const Topbar: React.FC<TopbarProps> = ({ sidebarOpen, setSidebarOpen }) => {
           <div className="w-7 h-7 bg-indigo-600 rounded-lg flex items-center justify-center">
             <span className="text-white font-bold text-xs">#</span>
           </div>
-          <span className="text-base font-semibold text-gray-800">TaskRep</span>
+          <span className="text-base font-semibold text-white">TaskRep</span>
         </div>
       </div>
 
@@ -88,44 +88,44 @@ const Topbar: React.FC<TopbarProps> = ({ sidebarOpen, setSidebarOpen }) => {
           <button
             onClick={() => navigate("/admin/settings")}
             aria-label="Settings"
-            className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-800 transition-colors"
+            className="p-2 rounded-lg text-slate-400 hover:bg-white/[0.07] hover:text-white transition-colors"
           >
             <Settings className="w-4.5 h-4.5 w-[18px] h-[18px]" />
           </button>
         )}
 
         {/* Divider */}
-        <div className="w-px h-6 bg-gray-200 mx-1 hidden sm:block" />
+        <div className="w-px h-6 bg-white/[0.08] mx-1 hidden sm:block" />
 
         {/* Logout — always visible */}
         <button
           onClick={handleLogout}
-          className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-red-600 border border-red-200 hover:bg-red-50 transition-colors"
+          className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-red-400 border border-red-500/30 hover:bg-red-500/10 hover:text-red-300 transition-colors"
         >
           <LogOut className="w-3.5 h-3.5" />
           Logout
         </button>
 
         {/* Divider */}
-        <div className="w-px h-6 bg-gray-200 mx-1 hidden sm:block" />
+        <div className="w-px h-6 bg-white/[0.08] mx-1 hidden sm:block" />
 
         {/* Avatar + name dropdown */}
         {!loading && (
           <DropdownMenu>
             <DropdownMenuTrigger className="outline-none">
-              <div className="flex items-center gap-2 pl-1 pr-2 py-1 rounded-xl hover:bg-gray-100 transition-colors cursor-pointer">
+              <div className="flex items-center gap-2 pl-1 pr-2 py-1 rounded-xl hover:bg-white/[0.07] transition-colors cursor-pointer">
                 <Avatar className="h-8 w-8">
                   <AvatarFallback className="bg-indigo-600 text-white text-xs font-semibold">
                     {initials}
                   </AvatarFallback>
                 </Avatar>
                 <div className="hidden md:flex flex-col items-start leading-none">
-                  <span className="text-sm font-medium text-gray-800 max-w-[120px] truncate">{displayName}</span>
+                  <span className="text-sm font-medium text-white max-w-[120px] truncate">{displayName}</span>
                   <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full mt-0.5 ${roleBadge}`}>
                     {roleLabel}
                   </span>
                 </div>
-                <ChevronDown className="w-3.5 h-3.5 text-gray-400 hidden md:block" />
+                <ChevronDown className="w-3.5 h-3.5 text-slate-400 hidden md:block" />
               </div>
             </DropdownMenuTrigger>
 
