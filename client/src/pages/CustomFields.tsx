@@ -466,6 +466,22 @@ export default function CustomFieldsPage() {
     });
   }, [allFields, search, moduleFilter, typeFilter, statusFilter]);
 
+  // ── Grouped fields — named groups first (in allGroups order), then ungrouped ─
+  const groupedFields = useMemo(() => {
+    const sections: { group: FieldGroup | null; fields: CustomField[] }[] = [];
+    // Named groups (in the order they were defined)
+    for (const g of allGroups) {
+      const gFields = fields.filter(f => f.field_group_id === g.id);
+      if (gFields.length > 0) sections.push({ group: g, fields: gFields });
+    }
+    // Ungrouped
+    const ungrouped = fields.filter(f => !f.field_group_id);
+    if (ungrouped.length > 0) sections.push({ group: null, fields: ungrouped });
+    // If no groups exist at all, show everything flat (null group = all fields)
+    if (sections.length === 0 && fields.length > 0) sections.push({ group: null, fields });
+    return sections;
+  }, [fields, allGroups]);
+
   // ── Mutations ─────────────────────────────────────────────────────────────
   const invalidate = () => qc.invalidateQueries({ queryKey: ["/api/custom-fields/definitions"] });
   const invalidateGroups = () => {
@@ -639,6 +655,126 @@ export default function CustomFieldsPage() {
   const isPending = createMutation.isPending || updateMutation.isPending;
 
   const hasOptions = form.ui_type === "select" || form.ui_type === "multiselect";
+
+  // ── Table body rows (pre-computed to avoid Babel JSX ternary ambiguity) ──
+  const tableBodyRows = isLoading
+    ? [<TableRow key="loading"><TableCell colSpan={9} className="text-center py-12 text-gray-400">Loading…</TableCell></TableRow>]
+    : fields.length === 0
+    ? [<TableRow key="empty"><TableCell colSpan={9} className="text-center py-12">
+        <div className="flex flex-col items-center gap-2 text-gray-400">
+          <SlidersHorizontal className="w-8 h-8 opacity-30" />
+          <p className="text-sm">No custom fields found</p>
+          {isAdmin && search === "" && (
+            <Button variant="outline" size="sm" onClick={openCreate} className="mt-1">
+              <Plus className="w-3.5 h-3.5 mr-1" /> Create your first field
+            </Button>
+          )}
+        </div>
+      </TableCell></TableRow>]
+    : groupedFields.flatMap(({ group, fields: gf }) => [
+        <TableRow key={`group-${group?.id ?? "ungrouped"}`} className="bg-slate-50 hover:bg-slate-50">
+          <TableCell colSpan={9} className="py-1.5 px-4">
+            <div className="flex items-center gap-2">
+              <Layers className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                {group ? group.name : "Ungrouped"}
+              </span>
+              <span className="text-xs text-slate-400">({gf.length})</span>
+              {group?.description && (
+                <span className="text-xs text-slate-400 font-normal normal-case tracking-normal truncate">
+                  — {group.description}
+                </span>
+              )}
+            </div>
+          </TableCell>
+        </TableRow>,
+        ...gf.map(f => {
+          const uiType = getUiType(f);
+          return (
+            <TableRow key={f.id} className={!f.is_active ? "opacity-50" : ""}>
+              <TableCell>
+                <div className="flex items-center gap-2">
+                  <span className="font-medium text-gray-900">{f.label}</span>
+                  {f.description && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Info className="w-3.5 h-3.5 text-gray-400 cursor-help flex-shrink-0" />
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-56 text-xs">{f.description}</TooltipContent>
+                    </Tooltip>
+                  )}
+                  {f.is_system && (
+                    <Badge variant="outline" className="text-[10px] px-1 py-0 border-amber-300 text-amber-600 bg-amber-50">System</Badge>
+                  )}
+                </div>
+              </TableCell>
+              <TableCell>
+                <code className="text-xs bg-gray-100 px-1.5 py-0.5 rounded font-mono text-gray-600">{f.field_key}</code>
+              </TableCell>
+              <TableCell>
+                <Badge variant="outline" className="text-xs font-normal">
+                  {uiTypeLabel(uiType)}
+                </Badge>
+              </TableCell>
+              <TableCell>
+                <Badge variant="outline" className={`text-xs font-normal capitalize ${MODULE_BADGE[f.module] ?? ""}`}>
+                  {f.module}
+                </Badge>
+              </TableCell>
+              <TableCell className="text-center">
+                {f.is_required ? <span className="text-red-500 font-bold text-sm">✓</span> : <span className="text-gray-300 text-sm">—</span>}
+              </TableCell>
+              <TableCell className="text-center">
+                {f.is_searchable ? <span className="text-blue-600 font-bold text-sm">✓</span> : <span className="text-gray-300 text-sm">—</span>}
+              </TableCell>
+              <TableCell className="text-center">
+                {f.is_reportable ? <span className="text-purple-600 font-bold text-sm">✓</span> : <span className="text-gray-300 text-sm">—</span>}
+              </TableCell>
+              <TableCell className="text-center">
+                {f.is_active
+                  ? <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-100 text-xs">Active</Badge>
+                  : <Badge variant="outline" className="text-gray-400 text-xs">Archived</Badge>}
+              </TableCell>
+              <TableCell className="text-right">
+                <div className="flex items-center justify-end gap-1">
+                  {isAdmin && !f.is_system && (
+                    <>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(f)}>
+                            <Pencil className="w-3.5 h-3.5" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Edit</TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-400 hover:text-indigo-600" onClick={() => openDuplicate(f)}>
+                            <Copy className="w-3.5 h-3.5" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Duplicate</TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost" size="icon"
+                            className={`h-8 w-8 ${f.is_active ? "text-gray-500 hover:text-amber-600" : "text-gray-400 hover:text-emerald-600"}`}
+                            onClick={() => f.is_active ? setArchiveTarget(f) : toggleActiveMutation.mutate({ id: f.id, is_active: true })}
+                          >
+                            {f.is_active ? <PowerOff className="w-3.5 h-3.5" /> : <Power className="w-3.5 h-3.5" />}
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>{f.is_active ? "Archive" : "Activate"}</TooltipContent>
+                      </Tooltip>
+                    </>
+                  )}
+                </div>
+              </TableCell>
+            </TableRow>
+          );
+        }),
+      ]);
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -817,130 +953,7 @@ export default function CustomFieldsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {isLoading ? (
-                <TableRow>
-                  <TableCell colSpan={9} className="text-center py-12 text-gray-400">
-                    Loading…
-                  </TableCell>
-                </TableRow>
-              ) : fields.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={9} className="text-center py-12">
-                    <div className="flex flex-col items-center gap-2 text-gray-400">
-                      <SlidersHorizontal className="w-8 h-8 opacity-30" />
-                      <p className="text-sm">No custom fields found</p>
-                      {isAdmin && search === "" && (
-                        <Button variant="outline" size="sm" onClick={openCreate} className="mt-1">
-                          <Plus className="w-3.5 h-3.5 mr-1" /> Create your first field
-                        </Button>
-                      )}
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ) : fields.map(f => {
-                const uiType = getUiType(f);
-                return (
-                  <TableRow key={f.id} className={!f.is_active ? "opacity-50" : ""}>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-gray-900">{f.label}</span>
-                        {f.description && (
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Info className="w-3.5 h-3.5 text-gray-400 cursor-help flex-shrink-0" />
-                            </TooltipTrigger>
-                            <TooltipContent className="max-w-56 text-xs">{f.description}</TooltipContent>
-                          </Tooltip>
-                        )}
-                        {f.is_system && (
-                          <Badge variant="outline" className="text-[10px] px-1 py-0 border-amber-300 text-amber-600 bg-amber-50">System</Badge>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <code className="text-xs bg-gray-100 px-1.5 py-0.5 rounded font-mono text-gray-600">{f.field_key}</code>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="text-xs font-normal">
-                        {uiTypeLabel(uiType)}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className={`text-xs font-normal capitalize ${MODULE_BADGE[f.module] ?? ""}`}>
-                        {f.module}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-center">
-                      {f.is_required ? (
-                        <span className="text-red-500 font-bold text-sm">✓</span>
-                      ) : (
-                        <span className="text-gray-300 text-sm">—</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      {f.is_searchable ? (
-                        <span className="text-blue-600 font-bold text-sm">✓</span>
-                      ) : (
-                        <span className="text-gray-300 text-sm">—</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      {f.is_reportable ? (
-                        <span className="text-purple-600 font-bold text-sm">✓</span>
-                      ) : (
-                        <span className="text-gray-300 text-sm">—</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      {f.is_active ? (
-                        <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-100 text-xs">Active</Badge>
-                      ) : (
-                        <Badge variant="outline" className="text-gray-400 text-xs">Archived</Badge>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        {isAdmin && !f.is_system && (
-                          <>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(f)}>
-                                  <Pencil className="w-3.5 h-3.5" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>Edit</TooltipContent>
-                            </Tooltip>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant="ghost" size="icon"
-                                  className="h-8 w-8 text-gray-400 hover:text-indigo-600"
-                                  onClick={() => openDuplicate(f)}
-                                >
-                                  <Copy className="w-3.5 h-3.5" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>Duplicate</TooltipContent>
-                            </Tooltip>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant="ghost" size="icon"
-                                  className={`h-8 w-8 ${f.is_active ? "text-gray-500 hover:text-amber-600" : "text-gray-400 hover:text-emerald-600"}`}
-                                  onClick={() => f.is_active ? setArchiveTarget(f) : toggleActiveMutation.mutate({ id: f.id, is_active: true })}
-                                >
-                                  {f.is_active ? <PowerOff className="w-3.5 h-3.5" /> : <Power className="w-3.5 h-3.5" />}
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>{f.is_active ? "Archive" : "Activate"}</TooltipContent>
-                            </Tooltip>
-                          </>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
+              {tableBodyRows}
             </TableBody>
           </Table>
         </div>
