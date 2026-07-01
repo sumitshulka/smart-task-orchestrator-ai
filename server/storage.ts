@@ -1,4 +1,4 @@
-import { eq, desc, and, or, ne, sql } from "drizzle-orm";
+import { eq, desc, and, or, ne, sql, asc, inArray } from "drizzle-orm";
 import { db } from "./db";
 import { 
   users, 
@@ -98,6 +98,15 @@ import {
   InsertClientContact,
   ClientProjectAccess,
   InsertClientProjectAccess,
+  CustomFieldGroup,
+  InsertCustomFieldGroup,
+  CustomFieldDefinition,
+  InsertCustomFieldDefinition,
+  CustomFieldValue,
+  InsertCustomFieldValue,
+  customFieldGroups,
+  customFieldDefinitions,
+  customFieldValues,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -319,6 +328,37 @@ export interface IStorage {
   grantClientProjectAccess(access: InsertClientProjectAccess): Promise<ClientProjectAccess>;
   updateClientProjectAccess(id: string, updates: Partial<ClientProjectAccess>): Promise<ClientProjectAccess>;
   revokeClientProjectAccess(id: string): Promise<void>;
+
+  // ── Custom Fields Engine ─────────────────────────────────────────────────
+  // Groups
+  getCustomFieldGroups(module: string): Promise<CustomFieldGroup[]>;
+  getCustomFieldGroup(id: string): Promise<CustomFieldGroup | undefined>;
+  createCustomFieldGroup(group: InsertCustomFieldGroup): Promise<CustomFieldGroup>;
+  updateCustomFieldGroup(id: string, updates: Partial<CustomFieldGroup>): Promise<CustomFieldGroup>;
+  deleteCustomFieldGroup(id: string): Promise<void>;
+  reorderCustomFieldGroups(orders: { id: string; display_order: number }[]): Promise<void>;
+
+  // Definitions
+  getCustomFieldDefinitions(module: string): Promise<CustomFieldDefinition[]>;
+  getCustomFieldDefinition(id: string): Promise<CustomFieldDefinition | undefined>;
+  getCustomFieldDefinitionByKey(module: string, fieldKey: string): Promise<CustomFieldDefinition | undefined>;
+  createCustomFieldDefinition(def: InsertCustomFieldDefinition): Promise<CustomFieldDefinition>;
+  updateCustomFieldDefinition(id: string, updates: Partial<CustomFieldDefinition>): Promise<CustomFieldDefinition>;
+  deleteCustomFieldDefinition(id: string): Promise<void>;
+  reorderCustomFieldDefinitions(orders: { id: string; display_order: number }[]): Promise<void>;
+
+  // Values
+  getCustomFieldValues(entityType: string, entityId: string): Promise<CustomFieldValue[]>;
+  upsertCustomFieldValue(value: InsertCustomFieldValue): Promise<CustomFieldValue>;
+  upsertCustomFieldValues(values: InsertCustomFieldValue[]): Promise<CustomFieldValue[]>;
+  deleteCustomFieldValue(fieldDefinitionId: string, entityType: string, entityId: string): Promise<void>;
+  deleteAllCustomFieldValues(entityType: string, entityId: string): Promise<void>;
+
+  // Schema — returns groups + standalone fields organised for a module
+  getCustomFieldSchema(module: string): Promise<{
+    groups: (CustomFieldGroup & { fields: CustomFieldDefinition[] })[];
+    standalone: CustomFieldDefinition[];
+  }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1780,6 +1820,188 @@ export class DatabaseStorage implements IStorage {
 
   async revokeClientProjectAccess(id: string): Promise<void> {
     await db.delete(clientProjectAccess).where(eq(clientProjectAccess.id, id));
+  }
+
+  // ── Custom Fields Engine ──────────────────────────────────────────────────
+
+  // Groups
+  async getCustomFieldGroups(module: string): Promise<CustomFieldGroup[]> {
+    return db.select().from(customFieldGroups)
+      .where(eq(customFieldGroups.module, module))
+      .orderBy(asc(customFieldGroups.display_order));
+  }
+
+  async getCustomFieldGroup(id: string): Promise<CustomFieldGroup | undefined> {
+    const rows = await db.select().from(customFieldGroups).where(eq(customFieldGroups.id, id)).limit(1);
+    return rows[0];
+  }
+
+  async createCustomFieldGroup(group: InsertCustomFieldGroup): Promise<CustomFieldGroup> {
+    const rows = await db.insert(customFieldGroups).values(group).returning();
+    return rows[0];
+  }
+
+  async updateCustomFieldGroup(id: string, updates: Partial<CustomFieldGroup>): Promise<CustomFieldGroup> {
+    const rows = await db.update(customFieldGroups)
+      .set({ ...updates, updated_at: new Date() })
+      .where(eq(customFieldGroups.id, id))
+      .returning();
+    return rows[0];
+  }
+
+  async deleteCustomFieldGroup(id: string): Promise<void> {
+    // Nullify field_group_id on child definitions before deleting the group
+    await db.update(customFieldDefinitions)
+      .set({ field_group_id: null })
+      .where(eq(customFieldDefinitions.field_group_id, id));
+    await db.delete(customFieldGroups).where(eq(customFieldGroups.id, id));
+  }
+
+  async reorderCustomFieldGroups(orders: { id: string; display_order: number }[]): Promise<void> {
+    await Promise.all(
+      orders.map(({ id, display_order }) =>
+        db.update(customFieldGroups)
+          .set({ display_order, updated_at: new Date() })
+          .where(eq(customFieldGroups.id, id))
+      )
+    );
+  }
+
+  // Definitions
+  async getCustomFieldDefinitions(module: string): Promise<CustomFieldDefinition[]> {
+    return db.select().from(customFieldDefinitions)
+      .where(eq(customFieldDefinitions.module, module))
+      .orderBy(asc(customFieldDefinitions.display_order));
+  }
+
+  async getCustomFieldDefinition(id: string): Promise<CustomFieldDefinition | undefined> {
+    const rows = await db.select().from(customFieldDefinitions)
+      .where(eq(customFieldDefinitions.id, id)).limit(1);
+    return rows[0];
+  }
+
+  async getCustomFieldDefinitionByKey(module: string, fieldKey: string): Promise<CustomFieldDefinition | undefined> {
+    const rows = await db.select().from(customFieldDefinitions)
+      .where(and(eq(customFieldDefinitions.module, module), eq(customFieldDefinitions.field_key, fieldKey)))
+      .limit(1);
+    return rows[0];
+  }
+
+  async createCustomFieldDefinition(def: InsertCustomFieldDefinition): Promise<CustomFieldDefinition> {
+    const rows = await db.insert(customFieldDefinitions).values(def).returning();
+    return rows[0];
+  }
+
+  async updateCustomFieldDefinition(id: string, updates: Partial<CustomFieldDefinition>): Promise<CustomFieldDefinition> {
+    const rows = await db.update(customFieldDefinitions)
+      .set({ ...updates, updated_at: new Date() })
+      .where(eq(customFieldDefinitions.id, id))
+      .returning();
+    return rows[0];
+  }
+
+  async deleteCustomFieldDefinition(id: string): Promise<void> {
+    // Cascades to custom_field_values via FK
+    await db.delete(customFieldDefinitions).where(eq(customFieldDefinitions.id, id));
+  }
+
+  async reorderCustomFieldDefinitions(orders: { id: string; display_order: number }[]): Promise<void> {
+    await Promise.all(
+      orders.map(({ id, display_order }) =>
+        db.update(customFieldDefinitions)
+          .set({ display_order, updated_at: new Date() })
+          .where(eq(customFieldDefinitions.id, id))
+      )
+    );
+  }
+
+  // Values
+  async getCustomFieldValues(entityType: string, entityId: string): Promise<CustomFieldValue[]> {
+    return db.select().from(customFieldValues)
+      .where(and(
+        eq(customFieldValues.entity_type, entityType),
+        eq(customFieldValues.entity_id, entityId),
+      ));
+  }
+
+  async upsertCustomFieldValue(value: InsertCustomFieldValue): Promise<CustomFieldValue> {
+    const rows = await db.insert(customFieldValues)
+      .values(value)
+      .onConflictDoUpdate({
+        target: [customFieldValues.field_definition_id, customFieldValues.entity_type, customFieldValues.entity_id],
+        set: {
+          value_text:    value.value_text    ?? null,
+          value_number:  value.value_number  ?? null,
+          value_date:    value.value_date    ?? null,
+          value_boolean: value.value_boolean ?? null,
+          value_json:    value.value_json    ?? null,
+          updated_by:    value.updated_by    ?? null,
+          updated_at:    new Date(),
+        },
+      })
+      .returning();
+    return rows[0];
+  }
+
+  async upsertCustomFieldValues(values: InsertCustomFieldValue[]): Promise<CustomFieldValue[]> {
+    if (values.length === 0) return [];
+    const rows = await db.insert(customFieldValues)
+      .values(values)
+      .onConflictDoUpdate({
+        target: [customFieldValues.field_definition_id, customFieldValues.entity_type, customFieldValues.entity_id],
+        set: {
+          value_text:    sql`excluded.value_text`,
+          value_number:  sql`excluded.value_number`,
+          value_date:    sql`excluded.value_date`,
+          value_boolean: sql`excluded.value_boolean`,
+          value_json:    sql`excluded.value_json`,
+          updated_by:    sql`excluded.updated_by`,
+          updated_at:    new Date(),
+        },
+      })
+      .returning();
+    return rows;
+  }
+
+  async deleteCustomFieldValue(fieldDefinitionId: string, entityType: string, entityId: string): Promise<void> {
+    await db.delete(customFieldValues).where(
+      and(
+        eq(customFieldValues.field_definition_id, fieldDefinitionId),
+        eq(customFieldValues.entity_type, entityType),
+        eq(customFieldValues.entity_id, entityId),
+      )
+    );
+  }
+
+  async deleteAllCustomFieldValues(entityType: string, entityId: string): Promise<void> {
+    await db.delete(customFieldValues).where(
+      and(
+        eq(customFieldValues.entity_type, entityType),
+        eq(customFieldValues.entity_id, entityId),
+      )
+    );
+  }
+
+  async getCustomFieldSchema(module: string): Promise<{
+    groups: (CustomFieldGroup & { fields: CustomFieldDefinition[] })[];
+    standalone: CustomFieldDefinition[];
+  }> {
+    const [groups, defs] = await Promise.all([
+      this.getCustomFieldGroups(module),
+      this.getCustomFieldDefinitions(module),
+    ]);
+
+    const grouped = defs.filter(d => d.field_group_id !== null);
+    const standalone = defs.filter(d => d.field_group_id === null);
+
+    const groupsWithFields = groups.map(g => ({
+      ...g,
+      fields: grouped
+        .filter(d => d.field_group_id === g.id)
+        .sort((a, b) => a.display_order - b.display_order),
+    }));
+
+    return { groups: groupsWithFields, standalone };
   }
 }
 

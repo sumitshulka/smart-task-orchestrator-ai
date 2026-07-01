@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { licenseManager, APP_ID } from "./license-manager";
-import { insertUserSchema, insertTaskSchema, insertTeamSchema, insertTaskGroupSchema, insertRoleSchema, insertOfficeLocationSchema, userRoles, insertDefectSchema, insertClientSchema, insertClientContactSchema, insertClientProjectAccessSchema } from "@shared/schema";
+import { insertUserSchema, insertTaskSchema, insertTeamSchema, insertTaskGroupSchema, insertRoleSchema, insertOfficeLocationSchema, userRoles, insertDefectSchema, insertClientSchema, insertClientContactSchema, insertClientProjectAccessSchema, insertCustomFieldGroupSchema, insertCustomFieldDefinitionSchema, insertCustomFieldValueSchema } from "@shared/schema";
 import { callAiProvider, encryptApiKey, decryptApiKey, DEFAULT_SYSTEM_PROMPT_HEADER } from "./ai-provider";
 import { db } from "./db";
 import bcrypt from "bcrypt";
@@ -3210,6 +3210,208 @@ Rules:
       if (!access || !access.can_view_tasks) return res.status(403).json({ error: "Access denied" });
       res.json(await storage.getTasksByProject(req.params.id));
     } catch (err: any) { res.status(500).json({ error: "Failed" }); }
+  });
+
+  // ── CUSTOM FIELDS ENGINE ─────────────────────────────────────────────────
+  // Allowed modules for request validation
+  const CF_MODULES = ["task", "project", "defect"];
+
+  // ── Groups ────────────────────────────────────────────────────────────────
+
+  // GET /api/custom-fields/groups?module=task
+  app.get("/api/custom-fields/groups", requireAnyAuthenticated, async (req: any, res) => {
+    try {
+      const { module } = req.query;
+      if (!module || !CF_MODULES.includes(module as string))
+        return res.status(400).json({ error: `module query param required. One of: ${CF_MODULES.join(", ")}` });
+      const groups = await storage.getCustomFieldGroups(module as string);
+      res.json(groups);
+    } catch (err: any) { res.status(500).json({ error: "Failed to fetch field groups" }); }
+  });
+
+  // POST /api/custom-fields/groups
+  app.post("/api/custom-fields/groups", requireAnyAuthenticated, async (req: any, res) => {
+    try {
+      const parsed = insertCustomFieldGroupSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "Invalid data", details: parsed.error.flatten() });
+      if (!CF_MODULES.includes(parsed.data.module))
+        return res.status(400).json({ error: `module must be one of: ${CF_MODULES.join(", ")}` });
+      const group = await storage.createCustomFieldGroup(parsed.data);
+      res.status(201).json(group);
+    } catch (err: any) { res.status(500).json({ error: "Failed to create field group" }); }
+  });
+
+  // PUT /api/custom-fields/groups/reorder  (must be before /:id)
+  app.put("/api/custom-fields/groups/reorder", requireAnyAuthenticated, async (req: any, res) => {
+    try {
+      const { orders } = req.body;
+      if (!Array.isArray(orders)) return res.status(400).json({ error: "orders must be an array of {id, display_order}" });
+      await storage.reorderCustomFieldGroups(orders);
+      res.json({ ok: true });
+    } catch (err: any) { res.status(500).json({ error: "Failed to reorder groups" }); }
+  });
+
+  // PUT /api/custom-fields/groups/:id
+  app.put("/api/custom-fields/groups/:id", requireAnyAuthenticated, async (req: any, res) => {
+    try {
+      const group = await storage.updateCustomFieldGroup(req.params.id, req.body);
+      res.json(group);
+    } catch (err: any) { res.status(500).json({ error: "Failed to update field group" }); }
+  });
+
+  // DELETE /api/custom-fields/groups/:id
+  app.delete("/api/custom-fields/groups/:id", requireAnyAuthenticated, async (req: any, res) => {
+    try {
+      await storage.deleteCustomFieldGroup(req.params.id);
+      res.json({ ok: true });
+    } catch (err: any) { res.status(500).json({ error: "Failed to delete field group" }); }
+  });
+
+  // ── Definitions ────────────────────────────────────────────────────────────
+
+  // GET /api/custom-fields/definitions?module=task
+  app.get("/api/custom-fields/definitions", requireAnyAuthenticated, async (req: any, res) => {
+    try {
+      const { module } = req.query;
+      if (!module || !CF_MODULES.includes(module as string))
+        return res.status(400).json({ error: `module query param required. One of: ${CF_MODULES.join(", ")}` });
+      const defs = await storage.getCustomFieldDefinitions(module as string);
+      res.json(defs);
+    } catch (err: any) { res.status(500).json({ error: "Failed to fetch field definitions" }); }
+  });
+
+  // GET /api/custom-fields/schema/:module
+  // Returns full structured schema: groups with their fields + ungrouped standalone fields.
+  // This is the primary endpoint for frontend rendering.
+  app.get("/api/custom-fields/schema/:module", requireAnyAuthenticated, async (req: any, res) => {
+    try {
+      const { module } = req.params;
+      if (!CF_MODULES.includes(module))
+        return res.status(400).json({ error: `module must be one of: ${CF_MODULES.join(", ")}` });
+      const schema = await storage.getCustomFieldSchema(module);
+      res.json(schema);
+    } catch (err: any) { res.status(500).json({ error: "Failed to fetch field schema" }); }
+  });
+
+  // POST /api/custom-fields/definitions
+  app.post("/api/custom-fields/definitions", requireAnyAuthenticated, async (req: any, res) => {
+    try {
+      const parsed = insertCustomFieldDefinitionSchema.safeParse({
+        ...req.body,
+        created_by: req.user?.id ?? null,
+      });
+      if (!parsed.success) return res.status(400).json({ error: "Invalid data", details: parsed.error.flatten() });
+      if (!CF_MODULES.includes(parsed.data.module))
+        return res.status(400).json({ error: `module must be one of: ${CF_MODULES.join(", ")}` });
+      // Reject duplicate field_key within the same module
+      const existing = await storage.getCustomFieldDefinitionByKey(parsed.data.module, parsed.data.field_key);
+      if (existing) return res.status(409).json({ error: `field_key "${parsed.data.field_key}" already exists for module "${parsed.data.module}"` });
+      const def = await storage.createCustomFieldDefinition(parsed.data);
+      res.status(201).json(def);
+    } catch (err: any) { res.status(500).json({ error: "Failed to create field definition" }); }
+  });
+
+  // PUT /api/custom-fields/definitions/reorder  (must be before /:id)
+  app.put("/api/custom-fields/definitions/reorder", requireAnyAuthenticated, async (req: any, res) => {
+    try {
+      const { orders } = req.body;
+      if (!Array.isArray(orders)) return res.status(400).json({ error: "orders must be an array of {id, display_order}" });
+      await storage.reorderCustomFieldDefinitions(orders);
+      res.json({ ok: true });
+    } catch (err: any) { res.status(500).json({ error: "Failed to reorder definitions" }); }
+  });
+
+  // PUT /api/custom-fields/definitions/:id
+  app.put("/api/custom-fields/definitions/:id", requireAnyAuthenticated, async (req: any, res) => {
+    try {
+      const current = await storage.getCustomFieldDefinition(req.params.id);
+      if (!current) return res.status(404).json({ error: "Field definition not found" });
+      // Prevent changing field_key or module on system fields
+      if (current.is_system && (req.body.field_key || req.body.module))
+        return res.status(400).json({ error: "Cannot change field_key or module on a system field" });
+      // If changing field_key, check uniqueness
+      if (req.body.field_key && req.body.field_key !== current.field_key) {
+        const clash = await storage.getCustomFieldDefinitionByKey(current.module, req.body.field_key);
+        if (clash) return res.status(409).json({ error: `field_key "${req.body.field_key}" already exists for this module` });
+      }
+      const def = await storage.updateCustomFieldDefinition(req.params.id, req.body);
+      res.json(def);
+    } catch (err: any) { res.status(500).json({ error: "Failed to update field definition" }); }
+  });
+
+  // DELETE /api/custom-fields/definitions/:id
+  app.delete("/api/custom-fields/definitions/:id", requireAnyAuthenticated, async (req: any, res) => {
+    try {
+      const current = await storage.getCustomFieldDefinition(req.params.id);
+      if (!current) return res.status(404).json({ error: "Field definition not found" });
+      if (current.is_system) return res.status(400).json({ error: "System fields cannot be deleted" });
+      await storage.deleteCustomFieldDefinition(req.params.id);
+      res.json({ ok: true });
+    } catch (err: any) { res.status(500).json({ error: "Failed to delete field definition" }); }
+  });
+
+  // ── Values ─────────────────────────────────────────────────────────────────
+
+  // GET /api/custom-fields/values/:entityType/:entityId
+  // Returns all custom field values for the given entity, joined with their definition.
+  app.get("/api/custom-fields/values/:entityType/:entityId", requireAnyAuthenticated, async (req: any, res) => {
+    try {
+      const { entityType, entityId } = req.params;
+      if (!CF_MODULES.includes(entityType))
+        return res.status(400).json({ error: `entityType must be one of: ${CF_MODULES.join(", ")}` });
+      const values = await storage.getCustomFieldValues(entityType, entityId);
+      res.json(values);
+    } catch (err: any) { res.status(500).json({ error: "Failed to fetch field values" }); }
+  });
+
+  // PUT /api/custom-fields/values/:entityType/:entityId
+  // Batch upsert — provide an array of value objects.  Each object must include
+  // field_definition_id and exactly one of: value_text, value_number, value_date,
+  // value_boolean, value_json.  Sending null for all typed columns clears the value.
+  app.put("/api/custom-fields/values/:entityType/:entityId", requireAnyAuthenticated, async (req: any, res) => {
+    try {
+      const { entityType, entityId } = req.params;
+      if (!CF_MODULES.includes(entityType))
+        return res.status(400).json({ error: `entityType must be one of: ${CF_MODULES.join(", ")}` });
+      const { values } = req.body;
+      if (!Array.isArray(values)) return res.status(400).json({ error: "values must be an array" });
+
+      const payload = values.map((v: any) => ({
+        field_definition_id: v.field_definition_id,
+        entity_type:         entityType,
+        entity_id:           entityId,
+        value_text:          v.value_text    ?? null,
+        value_number:        v.value_number  ?? null,
+        value_date:          v.value_date ? new Date(v.value_date) : null,
+        value_boolean:       v.value_boolean ?? null,
+        value_json:          v.value_json    ?? null,
+        created_by:          req.user?.id    ?? null,
+        updated_by:          req.user?.id    ?? null,
+      }));
+
+      const saved = await storage.upsertCustomFieldValues(payload);
+      res.json(saved);
+    } catch (err: any) { res.status(500).json({ error: "Failed to save field values" }); }
+  });
+
+  // DELETE /api/custom-fields/values/:entityType/:entityId/:fieldDefinitionId
+  // Clears the value for a single field on an entity.
+  app.delete("/api/custom-fields/values/:entityType/:entityId/:fieldDefinitionId", requireAnyAuthenticated, async (req: any, res) => {
+    try {
+      const { entityType, entityId, fieldDefinitionId } = req.params;
+      await storage.deleteCustomFieldValue(fieldDefinitionId, entityType, entityId);
+      res.json({ ok: true });
+    } catch (err: any) { res.status(500).json({ error: "Failed to delete field value" }); }
+  });
+
+  // DELETE /api/custom-fields/values/:entityType/:entityId
+  // Clears ALL custom field values for an entity (e.g. when the entity is deleted).
+  app.delete("/api/custom-fields/values/:entityType/:entityId", requireAnyAuthenticated, async (req: any, res) => {
+    try {
+      const { entityType, entityId } = req.params;
+      await storage.deleteAllCustomFieldValues(entityType, entityId);
+      res.json({ ok: true });
+    } catch (err: any) { res.status(500).json({ error: "Failed to delete field values" }); }
   });
 
   const httpServer = createServer(app);

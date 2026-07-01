@@ -1,4 +1,4 @@
-import { pgTable, text, uuid, timestamp, integer, boolean, pgEnum, serial, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, uuid, timestamp, integer, boolean, pgEnum, serial, jsonb, unique } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { relations } from "drizzle-orm";
@@ -1025,3 +1025,179 @@ export type InsertClientContact = z.infer<typeof insertClientContactSchema>;
 export type ClientContact = typeof clientContacts.$inferSelect;
 export type InsertClientProjectAccess = z.infer<typeof insertClientProjectAccessSchema>;
 export type ClientProjectAccess = typeof clientProjectAccess.$inferSelect;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CUSTOM FIELDS ENGINE
+//
+// Three-table design:
+//   1. custom_field_groups      — optional named sections that hold fields
+//   2. custom_field_definitions — master registry for every custom field
+//   3. custom_field_values      — per-entity stored values
+//
+// The `module` column uses plain text so new modules (e.g. "sprint", "ticket")
+// can be added without a DB migration.  The known values today are:
+//   "task" | "project" | "defect"
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Field-type enum — extend here as new input types are needed.
+export const customFieldTypeEnum = pgEnum("custom_field_type", [
+  "text",           // single-line text
+  "textarea",       // multi-line text
+  "number",         // integer
+  "decimal",        // floating-point / decimal
+  "date",           // date only
+  "datetime",       // date + time
+  "boolean",        // checkbox / toggle
+  "select",         // single-choice dropdown
+  "multiselect",    // multi-choice dropdown
+  "url",            // URL / hyperlink
+  "email",          // email address
+  "phone",          // phone number
+  "user_reference", // points to a user in the system (stored as user UUID)
+  "rating",         // numeric rating (e.g. 1–5 stars)
+  "attachment",     // file attachment(s) stored as JSON array
+]);
+
+// ── 1. Field Groups ─────────────────────────────────────────────────────────
+// A group is a named section inside a module's custom-field form.
+// Fields that do not belong to any group are "standalone" (field_group_id = null).
+export const customFieldGroups = pgTable("custom_field_groups", {
+  id:            uuid("id").primaryKey().defaultRandom(),
+  module:        text("module").notNull(),                // "task" | "project" | "defect" | …
+  name:          text("name").notNull(),                  // e.g. "Technical Details"
+  description:   text("description"),                     // shown as group sub-heading
+  display_order: integer("display_order").notNull().default(0),
+  is_collapsible: boolean("is_collapsible").default(false),
+  is_active:     boolean("is_active").default(true),
+  created_at:    timestamp("created_at").defaultNow(),
+  updated_at:    timestamp("updated_at").defaultNow(),
+});
+
+// ── 2. Field Definitions ────────────────────────────────────────────────────
+// Every custom field lives here exactly once.  A field belongs to one module
+// and is optionally placed inside a group.
+export const customFieldDefinitions = pgTable("custom_field_definitions", {
+  id:             uuid("id").primaryKey().defaultRandom(),
+  module:         text("module").notNull(),
+  field_group_id: uuid("field_group_id")
+                    .references(() => customFieldGroups.id, { onDelete: "set null" }),
+  // Unique machine-readable key per module (e.g. "risk_level", "customer_tier")
+  field_key:      text("field_key").notNull(),
+  field_type:     customFieldTypeEnum("field_type").notNull(),
+  label:          text("label").notNull(),
+  description:    text("description"),    // shown as help / tooltip text in UI
+  placeholder:    text("placeholder"),
+  is_required:    boolean("is_required").default(false),
+  is_active:      boolean("is_active").default(true),
+  // System fields are created by the platform and cannot be deleted by users
+  is_system:      boolean("is_system").default(false),
+  display_order:  integer("display_order").notNull().default(0),
+
+  // For select / multiselect field types:
+  // Array of option objects:
+  //   [{ value: string, label: string, color?: string, icon?: string, is_active: boolean }]
+  options: jsonb("options"),
+
+  // Flexible validation bag — none of these keys are mandatory:
+  //   text / textarea : { min_length?, max_length?, regex? }
+  //   number / decimal: { min_value?, max_value? }
+  //   date / datetime : { min_date?, max_date? }
+  //   select          : { (none) }
+  //   multiselect     : { min_selections?, max_selections? }
+  //   attachment      : { max_size_mb?, accept_types?: string[] }
+  //   rating          : { min_value?, max_value? }
+  validation_rules: jsonb("validation_rules"),
+
+  // Stored as JSON so it works for all field types without casting
+  default_value: jsonb("default_value"),
+
+  created_by: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+  created_at: timestamp("created_at").defaultNow(),
+  updated_at: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  // field_key must be unique within a module (not globally)
+  moduleKeyUnique: unique("cf_def_module_key_uq").on(table.module, table.field_key),
+}));
+
+// ── 3. Field Values ──────────────────────────────────────────────────────────
+// Stores the actual value for one custom field on one entity (task / project / defect).
+// Only ONE of the typed value columns will be populated per row based on field_type:
+//   value_text    ← text, textarea, url, email, phone, select, user_reference
+//   value_number  ← number, decimal, rating  (stored as text for precision)
+//   value_date    ← date, datetime
+//   value_boolean ← boolean
+//   value_json    ← multiselect (string[]), attachment ({name,url,size,mime_type}[])
+export const customFieldValues = pgTable("custom_field_values", {
+  id:                  uuid("id").primaryKey().defaultRandom(),
+  field_definition_id: uuid("field_definition_id").notNull()
+                         .references(() => customFieldDefinitions.id, { onDelete: "cascade" }),
+  entity_type:  text("entity_type").notNull(),   // "task" | "project" | "defect"
+  entity_id:    uuid("entity_id").notNull(),
+
+  value_text:    text("value_text"),
+  value_number:  text("value_number"),            // text preserves exact precision
+  value_date:    timestamp("value_date"),
+  value_boolean: boolean("value_boolean"),
+  value_json:    jsonb("value_json"),
+
+  created_by: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+  updated_by: uuid("updated_by").references(() => users.id, { onDelete: "set null" }),
+  created_at: timestamp("created_at").defaultNow(),
+  updated_at: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  // Only one value per (field, entity) — enforced here and with ON CONFLICT in upserts
+  entityFieldUnique: unique("cf_val_entity_field_uq").on(
+    table.field_definition_id, table.entity_type, table.entity_id
+  ),
+}));
+
+// ── Relations ────────────────────────────────────────────────────────────────
+export const customFieldGroupsRelations = relations(customFieldGroups, ({ many }) => ({
+  fields: many(customFieldDefinitions),
+}));
+
+export const customFieldDefinitionsRelations = relations(customFieldDefinitions, ({ one, many }) => ({
+  group:      one(customFieldGroups, {
+    fields:     [customFieldDefinitions.field_group_id],
+    references: [customFieldGroups.id],
+  }),
+  creator:    one(users, {
+    fields:     [customFieldDefinitions.created_by],
+    references: [users.id],
+  }),
+  values:     many(customFieldValues),
+}));
+
+export const customFieldValuesRelations = relations(customFieldValues, ({ one }) => ({
+  field_definition: one(customFieldDefinitions, {
+    fields:     [customFieldValues.field_definition_id],
+    references: [customFieldDefinitions.id],
+  }),
+  creator: one(users, {
+    fields:     [customFieldValues.created_by],
+    references: [users.id],
+  }),
+  updater: one(users, {
+    fields:     [customFieldValues.updated_by],
+    references: [users.id],
+  }),
+}));
+
+// ── Insert schemas ───────────────────────────────────────────────────────────
+export const insertCustomFieldGroupSchema = createInsertSchema(customFieldGroups).omit({
+  id: true, created_at: true, updated_at: true,
+});
+export const insertCustomFieldDefinitionSchema = createInsertSchema(customFieldDefinitions).omit({
+  id: true, created_at: true, updated_at: true,
+});
+export const insertCustomFieldValueSchema = createInsertSchema(customFieldValues).omit({
+  id: true, created_at: true, updated_at: true,
+});
+
+// ── TypeScript types ─────────────────────────────────────────────────────────
+export type CustomFieldGroup      = typeof customFieldGroups.$inferSelect;
+export type InsertCustomFieldGroup = z.infer<typeof insertCustomFieldGroupSchema>;
+export type CustomFieldDefinition  = typeof customFieldDefinitions.$inferSelect;
+export type InsertCustomFieldDefinition = z.infer<typeof insertCustomFieldDefinitionSchema>;
+export type CustomFieldValue       = typeof customFieldValues.$inferSelect;
+export type InsertCustomFieldValue = z.infer<typeof insertCustomFieldValueSchema>;
