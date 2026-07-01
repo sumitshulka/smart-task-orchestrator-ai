@@ -1,36 +1,20 @@
-
 import React from "react";
 import { NavLink } from "react-router-dom";
 import { FolderKanban, Building2 } from "lucide-react";
 
-export default function ProjectManagementMenu({ collapsed }: { collapsed: boolean }) {
-  const links = [
-    { to: "/projects", label: "Projects", icon: FolderKanban },
-    { to: "/clients",  label: "Clients",  icon: Building2 },
-  ];
+const link = ({ isActive }: { isActive: boolean }) =>
+  isActive
+    ? "flex w-full items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium bg-indigo-600 text-white shadow-md shadow-indigo-900/40 outline-none"
+    : "flex w-full items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-slate-400 hover:bg-white/[0.07] hover:text-white transition-all duration-150 outline-none";
 
+export default function ProjectManagementMenu({ collapsed }: { collapsed: boolean }) {
   return (
-    <div>
-      <div className="text-xs font-semibold uppercase tracking-wider mb-2 px-2 text-[#021133]">Project Management</div>
-      <div>
-        <ul className="flex w-full min-w-0 flex-col gap-1">
-          {links.map(({ to, label, icon: Icon }) => (
-            <li key={to} className="group/menu-item relative">
-              <NavLink
-                to={to}
-                end
-                className={({ isActive }) =>
-                  "flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm outline-none transition-[width,height,padding] hover:bg-gray-100 focus-visible:ring-2 " +
-                  (isActive ? "bg-gray-100 font-medium" : "")
-                }
-              >
-                <Icon className="w-4 h-4 shrink-0" />
-                {!collapsed && <span className="truncate">{label}</span>}
-              </NavLink>
-            </li>
-          ))}
-        </ul>
-      </div>
+    <div className="space-y-0.5">
+      <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-600 px-3 pb-1 pt-3">Project Management</p>
+      <ul className="space-y-0.5">
+        <li><NavLink to="/projects" end className={link}><FolderKanban className="w-4 h-4 shrink-0" />{!collapsed && <span className="truncate">Projects</span>}</NavLink></li>
+        <li><NavLink to="/clients" end className={link}><Building2 className="w-4 h-4 shrink-0" />{!collapsed && <span className="truncate">Clients</span>}</NavLink></li>
+      </ul>
     </div>
   );
 }

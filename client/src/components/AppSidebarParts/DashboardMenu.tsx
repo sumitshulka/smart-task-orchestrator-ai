@@ -1,31 +1,24 @@
-
 import React from "react";
-import { useLocation, NavLink } from "react-router-dom";
-import { Home, BarChart3 } from "lucide-react";
+import { NavLink } from "react-router-dom";
+import { Home } from "lucide-react";
 
-export default function DashboardMenu({ isUserOnly, collapsed }: { isUserOnly: boolean, collapsed: boolean }) {
-  const location = useLocation();
+const link = ({ isActive }: { isActive: boolean }) =>
+  isActive
+    ? "flex w-full items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium bg-indigo-600 text-white shadow-md shadow-indigo-900/40 outline-none"
+    : "flex w-full items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-slate-400 hover:bg-white/[0.07] hover:text-white transition-all duration-150 outline-none";
+
+export default function DashboardMenu({ isUserOnly, collapsed }: { isUserOnly: boolean; collapsed: boolean }) {
   return (
-    <div>
-      <div className="text-xs font-semibold uppercase tracking-wider mb-2 px-2 text-[#021133]">Dashboard</div>
-      <div>
-        <ul className="flex w-full min-w-0 flex-col gap-1">
-          <li className="group/menu-item relative">
-            <NavLink
-              to="/admin/dashboard"
-              end
-              className={({ isActive }) =>
-                "flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm outline-none transition-[width,height,padding] hover:bg-gray-100 focus-visible:ring-2 " +
-                (isActive ? "bg-gray-100 font-medium" : "")
-              }
-            >
-              <Home className="w-4 h-4 shrink-0" />
-              {!collapsed && <span className="truncate">Dashboard</span>}
-            </NavLink>
-          </li>
-
-        </ul>
-      </div>
+    <div className="space-y-0.5">
+      <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-600 px-3 pb-1 pt-2">Main</p>
+      <ul className="space-y-0.5">
+        <li>
+          <NavLink to="/admin/dashboard" end className={link}>
+            <Home className="w-4 h-4 shrink-0" />
+            {!collapsed && <span className="truncate">Dashboard</span>}
+          </NavLink>
+        </li>
+      </ul>
     </div>
   );
 }

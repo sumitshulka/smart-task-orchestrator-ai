@@ -21,7 +21,6 @@ export default function AppSidebar() {
     queryFn: () => apiClient.get("/organization-settings"),
   });
 
-  // Simple role helpers
   const isAdmin = roles.includes("admin");
   const isManager = roles.includes("manager") || roles.includes("team_manager");
   const isUserOnly = !isAdmin && !isManager && roles.includes("user");
@@ -29,48 +28,40 @@ export default function AppSidebar() {
   const projectManagementEnabled = settings?.project_management_enabled ?? false;
   const defectManagementEnabled = settings?.defect_management_enabled ?? false;
 
-  // Teams logic for warning
   const isOnTeams = location.pathname.startsWith("/admin/teams");
   const hasTeams = teams.length > 0;
 
   return (
-    <div 
-      className="w-64 flex flex-col h-full bg-sidebar text-sidebar-foreground"
-      style={{ 
-        backgroundColor: '#f8fafc', 
-        borderRight: '1px solid #e2e8f0'
-      }}
-    >
-      {/* Header section with logo - hidden on mobile (shown in topbar) */}
-      <div 
-        className="hidden lg:flex items-center px-6 border-b border-gray-200 bg-[#66655833]" 
-        style={{ height: '56px', minHeight: '56px', maxHeight: '56px' }}
+    <div className="w-64 flex flex-col h-full" style={{ background: "#0f172a", borderRight: "1px solid rgba(255,255,255,0.06)" }}>
+
+      {/* ── Logo / brand header ── */}
+      <div
+        className="hidden lg:flex items-center px-5 flex-shrink-0"
+        style={{ height: "56px", minHeight: "56px", background: "#0f172a", borderBottom: "1px solid rgba(255,255,255,0.08)" }}
       >
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-indigo-500 flex items-center justify-center shadow-lg shadow-indigo-900/50">
             <span className="text-white font-bold text-sm">#</span>
           </div>
-          <span className="text-lg font-semibold text-gray-800">
-            TaskRep
-          </span>
+          <div>
+            <span className="text-white font-semibold text-base tracking-tight">TaskRep</span>
+            <p className="text-slate-500 text-[10px] leading-none mt-0.5">Task Management</p>
+          </div>
         </div>
       </div>
 
-      {/* Scrollable content with menu items */}
-      <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-auto px-2 py-4 bg-[#e3e2de] lg:pt-4 pt-6" style={{ paddingTop: '16px' }}>
-        <div className="space-y-2">
-          <DashboardMenu isUserOnly={isUserOnly} collapsed={false} />
-          <TaskManagementMenu collapsed={false} />
-          {projectManagementEnabled && (
-            <ProjectManagementMenu collapsed={false} />
-          )}
-          {defectManagementEnabled && (
-            <DefectManagementMenu collapsed={false} />
-          )}
-          <ManagementMenu isAdmin={isAdmin} isManager={isManager} collapsed={false} />
-          <WarningNoTeams isOnTeams={isOnTeams} loading={loading} isUserOnly={isUserOnly} hasTeams={hasTeams} />
-          <ReportsMenu isUserOnly={isUserOnly} collapsed={false} />
-        </div>
+      {/* ── Scrollable nav ── */}
+      <div
+        className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-4 space-y-1"
+        style={{ background: "#0f172a" }}
+      >
+        <DashboardMenu isUserOnly={isUserOnly} collapsed={false} />
+        <TaskManagementMenu collapsed={false} />
+        {projectManagementEnabled && <ProjectManagementMenu collapsed={false} />}
+        {defectManagementEnabled && <DefectManagementMenu collapsed={false} />}
+        <ManagementMenu isAdmin={isAdmin} isManager={isManager} collapsed={false} />
+        <WarningNoTeams isOnTeams={isOnTeams} loading={loading} isUserOnly={isUserOnly} hasTeams={hasTeams} />
+        <ReportsMenu isUserOnly={isUserOnly} collapsed={false} />
       </div>
     </div>
   );

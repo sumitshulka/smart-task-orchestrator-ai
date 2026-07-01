@@ -1,102 +1,34 @@
-
 import React from "react";
-import { useLocation, NavLink } from "react-router-dom";
-import { FileText, AlertTriangle, Settings, BarChart3, TrendingUp, SlidersHorizontal } from "lucide-react";
+import { NavLink } from "react-router-dom";
+import { FileText, AlertTriangle, BarChart3, TrendingUp, SlidersHorizontal, Settings } from "lucide-react";
 import { useRolePermissions } from "@/hooks/useRolePermissions";
 
-export default function ReportsMenu({ isUserOnly, collapsed }: { isUserOnly: boolean, collapsed: boolean }) {
-  const location = useLocation();
+const link = ({ isActive }: { isActive: boolean }) =>
+  isActive
+    ? "flex w-full items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium bg-indigo-600 text-white shadow-md shadow-indigo-900/40 outline-none"
+    : "flex w-full items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-slate-400 hover:bg-white/[0.07] hover:text-white transition-all duration-150 outline-none";
+
+export default function ReportsMenu({ isUserOnly, collapsed }: { isUserOnly: boolean; collapsed: boolean }) {
   const { canViewSettings } = useRolePermissions();
-  
   if (isUserOnly) return null;
 
   return (
-    <div>
-      <div className="text-xs font-semibold uppercase tracking-wider mb-2 px-2 text-[#021133]">Reports</div>
-      <div>
-        <ul className="flex w-full min-w-0 flex-col gap-1">
-          <li className="group/menu-item relative">
-            <NavLink
-              to="/admin/reports/task"
-              end
-              className={({ isActive }) =>
-                "flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm outline-none transition-[width,height,padding] hover:bg-gray-100 focus-visible:ring-2 " +
-                (isActive ? "bg-gray-100 font-medium" : "")
-              }
-            >
-              <FileText className="w-4 h-4 shrink-0" />
-              {!collapsed && <span className="truncate">Task Report</span>}
-            </NavLink>
+    <div className="space-y-0.5">
+      <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-600 px-3 pb-1 pt-3">Reports</p>
+      <ul className="space-y-0.5">
+        <li><NavLink to="/admin/reports/task" end className={link}><FileText className="w-4 h-4 shrink-0" />{!collapsed && <span className="truncate">Task Report</span>}</NavLink></li>
+        <li><NavLink to="/admin/reports/overdue" end className={link}><AlertTriangle className="w-4 h-4 shrink-0" />{!collapsed && <span className="truncate">Overdue Report</span>}</NavLink></li>
+        <li><NavLink to="/admin/reports/analytics" end className={link}><BarChart3 className="w-4 h-4 shrink-0" />{!collapsed && <span className="truncate">Analytics Report</span>}</NavLink></li>
+        <li><NavLink to="/admin/reports/benchmarking" end className={link}><TrendingUp className="w-4 h-4 shrink-0" />{!collapsed && <span className="truncate">Benchmarking Report</span>}</NavLink></li>
+        <li><NavLink to="/admin/reports/custom-fields" end className={link}><SlidersHorizontal className="w-4 h-4 shrink-0" />{!collapsed && <span className="truncate">Custom Field Report</span>}</NavLink></li>
+        {canViewSettings && (
+          <li>
+            <div className="mt-2 pt-2" style={{ borderTop: "1px solid rgba(255,255,255,0.07)" }}>
+              <NavLink to="/admin/settings" end className={link}><Settings className="w-4 h-4 shrink-0" />{!collapsed && <span className="truncate">Settings</span>}</NavLink>
+            </div>
           </li>
-          <li className="group/menu-item relative">
-            <NavLink
-              to="/admin/reports/overdue"
-              end
-              className={({ isActive }) =>
-                "flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm outline-none transition-[width,height,padding] hover:bg-gray-100 focus-visible:ring-2 " +
-                (isActive ? "bg-gray-100 font-medium" : "")
-              }
-            >
-              <AlertTriangle className="w-4 h-4 shrink-0" />
-              {!collapsed && <span className="truncate">Overdue Report</span>}
-            </NavLink>
-          </li>
-          <li className="group/menu-item relative">
-            <NavLink
-              to="/admin/reports/analytics"
-              end
-              className={({ isActive }) =>
-                "flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm outline-none transition-[width,height,padding] hover:bg-gray-100 focus-visible:ring-2 " +
-                (isActive ? "bg-gray-100 font-medium" : "")
-              }
-            >
-              <BarChart3 className="w-4 h-4 shrink-0" />
-              {!collapsed && <span className="truncate">Analytics Report</span>}
-            </NavLink>
-          </li>
-          <li className="group/menu-item relative">
-            <NavLink
-              to="/admin/reports/benchmarking"
-              end
-              className={({ isActive }) =>
-                "flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm outline-none transition-[width,height,padding] hover:bg-gray-100 focus-visible:ring-2 " +
-                (isActive ? "bg-gray-100 font-medium" : "")
-              }
-            >
-              <TrendingUp className="w-4 h-4 shrink-0" />
-              {!collapsed && <span className="truncate">Benchmarking Report</span>}
-            </NavLink>
-          </li>
-          <li className="group/menu-item relative">
-            <NavLink
-              to="/admin/reports/custom-fields"
-              end
-              className={({ isActive }) =>
-                "flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm outline-none transition-[width,height,padding] hover:bg-gray-100 focus-visible:ring-2 " +
-                (isActive ? "bg-gray-100 font-medium" : "")
-              }
-            >
-              <SlidersHorizontal className="w-4 h-4 shrink-0" />
-              {!collapsed && <span className="truncate">Custom Field Report</span>}
-            </NavLink>
-          </li>
-          {canViewSettings && (
-            <li className="group/menu-item relative">
-              <NavLink
-                to="/admin/settings"
-                end
-                className={({ isActive }) =>
-                  "flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm outline-none transition-[width,height,padding] hover:bg-gray-100 focus-visible:ring-2 " +
-                  (isActive ? "bg-gray-100 font-medium" : "")
-                }
-              >
-                <Settings className="w-4 h-4 shrink-0" />
-                {!collapsed && <span className="truncate">Settings</span>}
-              </NavLink>
-            </li>
-          )}
-        </ul>
-      </div>
+        )}
+      </ul>
     </div>
   );
 }
