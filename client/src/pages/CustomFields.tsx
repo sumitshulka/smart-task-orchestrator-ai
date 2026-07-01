@@ -28,7 +28,7 @@ import {
 import { toast } from "@/hooks/use-toast";
 import {
   SlidersHorizontal, Plus, Pencil, Search, X, Trash2,
-  Power, PowerOff, Info, ChevronUp, ChevronDown, Layers, FolderPlus,
+  Power, PowerOff, Info, ChevronUp, ChevronDown, Layers, FolderPlus, Copy,
 } from "lucide-react";
 import { useCurrentUserRoleAndTeams } from "@/hooks/useCurrentUserRoleAndTeams";
 
@@ -586,6 +586,27 @@ export default function CustomFieldsPage() {
     setKeyManual(false);
   }
 
+  // ── Duplicate a field ─────────────────────────────────────────────────────
+  function openDuplicate(f: CustomField) {
+    // Strip any existing _N suffix from key/label before computing next suffix
+    const baseKey   = f.field_key.replace(/_\d+$/, "");
+    const baseLabel = f.label.replace(/\s+\d+$/, "");
+
+    // Find the next free suffix by scanning existing field keys
+    let suffix = 1;
+    const existingKeys = new Set(allFields.map(x => x.field_key));
+    while (existingKeys.has(`${baseKey}_${suffix}`)) suffix++;
+
+    const newKey   = `${baseKey}_${suffix}`;
+    const newLabel = `${baseLabel} ${suffix}`;
+
+    // Pre-fill from the source field but treat it as a new (create) form
+    setEditField(null);
+    setFormRaw({ ...fieldToForm(f), label: newLabel, field_key: newKey });
+    setKeyManual(true);
+    setDialogOpen(true);
+  }
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!form.label.trim()) return toast({ title: "Label is required", variant: "destructive" });
@@ -888,6 +909,18 @@ export default function CustomFieldsPage() {
                                 </Button>
                               </TooltipTrigger>
                               <TooltipContent>Edit</TooltipContent>
+                            </Tooltip>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost" size="icon"
+                                  className="h-8 w-8 text-gray-400 hover:text-indigo-600"
+                                  onClick={() => openDuplicate(f)}
+                                >
+                                  <Copy className="w-3.5 h-3.5" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Duplicate</TooltipContent>
                             </Tooltip>
                             <Tooltip>
                               <TooltipTrigger asChild>
