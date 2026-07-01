@@ -7,7 +7,7 @@ import useSupabaseSession from "@/hooks/useSupabaseSession";
 import { useCurrentUserRoleAndTeams } from "@/hooks/useCurrentUserRoleAndTeams";
 import { useTaskStatuses } from "@/hooks/useTaskStatuses";
 import { useUsersAndTeams } from "@/hooks/useUsersAndTeams";
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api";
 
 import TaskReportAdvancedFilters from "@/components/report/TaskReportAdvancedFilters";
 import TaskReportTable from "@/components/report/TaskReportTable";
@@ -41,27 +41,6 @@ async function fetchTaskReportView(fromDate: Date, toDate: Date, limit = 1000) {
   }
 }
 
-// NEW: Manager/Team Manager view fetcher - now uses API client
-async function fetchManagerTaskReportView(fromDate: Date, toDate: Date, limit = 1000) {
-  const { format } = await import("date-fns");
-  const { fetchTasksPaginated } = await import("@/integrations/supabase/tasks");
-  
-  const fromStr = format(fromDate, "yyyy-MM-dd");
-  const toStr = format(toDate, "yyyy-MM-dd");
-  
-  try {
-    const { tasks } = await fetchTasksPaginated({
-      fromDate: fromStr,
-      toDate: toStr,
-      limit: limit,
-    });
-    return tasks;
-  } catch (error) {
-    console.error("Error fetching manager tasks for report:", error);
-    return [];
-  }
-}
-
 const columns = ["Employee Name", "Total Tasks Assigned", "Completion Ratio"];
 
 type EmployeeReport = {
@@ -78,12 +57,11 @@ export default function TaskReport() {
     defaultDateRange()
   );
 
-  // New filter states for admin users
   const [departmentFilter, setDepartmentFilter] = React.useState<string>("all");
   const [alphabetFilter, setAlphabetFilter] = React.useState<string>("all");
   const [selectedEmployees, setSelectedEmployees] = React.useState<any[]>([]);
+  const [cfFilters, setCfFilters] = React.useState<Record<string, string>>({});
 
-  // Make sure we always have valid dates
   const fromDate = dateRange.from || new Date();
   const toDate = dateRange.to || new Date();
 
@@ -95,7 +73,6 @@ export default function TaskReport() {
 
   const isAdmin = roles.includes("admin");
 
-  // Keep userTeamIds and reportUserIds for possible filtering
   const userTeamIds = React.useMemo(() => userTeams?.map((t) => t.id) ?? [], [userTeams]);
   const [reportUserIds, setReportUserIds] = React.useState<string[]>([]);
 
@@ -107,8 +84,6 @@ export default function TaskReport() {
         return;
       }
       if (roles.includes("manager") || roles.includes("team_manager")) {
-        // For now, simplified approach - managers see all users
-        // TODO: Implement proper manager hierarchy via API
         setReportUserIds([]);
       } else if (roles.includes("user")) {
         setReportUserIds([user.id]);
@@ -120,6 +95,29 @@ export default function TaskReport() {
     // eslint-disable-next-line
   }, [user?.id, roles, userRow?.user_name, userTeamIds.join(".")]);
 
+  // Build active CF filters (non-empty values only)
+  const activeCfFilters = React.useMemo(() =>
+    Object.entries(cfFilters)
+      .filter(([, v]) => v.trim() !== "")
+      .map(([field_id, value]) => ({ field_id, value: value.trim() })),
+    [cfFilters],
+  );
+
+  // Fetch matching task IDs from the backend when CF filters are set
+  const { data: cfMatchData } = useQuery<{ taskIds: string[] }>({
+    queryKey: ["/api/custom-fields/task-ids-filter", activeCfFilters],
+    queryFn: () => {
+      if (activeCfFilters.length === 0) return Promise.resolve({ taskIds: [] });
+      return apiClient.post("/custom-fields/task-ids-filter", { filters: activeCfFilters });
+    },
+    enabled: activeCfFilters.length > 0,
+  });
+
+  const cfMatchSet = React.useMemo(() => {
+    if (activeCfFilters.length === 0) return null;
+    return new Set(cfMatchData?.taskIds ?? []);
+  }, [activeCfFilters, cfMatchData]);
+
   const {
     data: taskData,
     isLoading
@@ -127,10 +125,8 @@ export default function TaskReport() {
     queryKey: ["task-report", fromDate, toDate, reportUserIds.join(","), roles.join(",")],
     queryFn: async () => {
       if (!user?.id || !fromDate || !toDate) return [];
-      // All roles now use the same fetch method with API client
       const tasks = await fetchTaskReportView(fromDate, toDate, 1000);
       
-      // Enrich tasks with full user data from users array
       const enrichedTasks = tasks.map(task => {
         const userInfo = users.find(u => u.id === task.assigned_to);
         return {
@@ -158,21 +154,20 @@ export default function TaskReport() {
     if (!taskData) return [];
     const userMap: Record<string, EmployeeReport> = {};
     
-    // Filter task data based on admin filters
     let filteredTaskData = taskData;
+
+    // Custom field filter — restrict to tasks matching CF criteria
+    if (cfMatchSet !== null) {
+      filteredTaskData = filteredTaskData.filter(task => cfMatchSet.has(task.id));
+    }
     
     if (isAdmin) {
-      // Department filter
       if (departmentFilter !== "all") {
-        console.log("Filtering by department:", departmentFilter);
-        filteredTaskData = filteredTaskData.filter(task => {
-          console.log("Task assigned_user department:", task.assigned_user?.department);
-          return task.assigned_user?.department === departmentFilter;
-        });
-        console.log("Filtered tasks after department filter:", filteredTaskData.length);
+        filteredTaskData = filteredTaskData.filter(task =>
+          task.assigned_user?.department === departmentFilter
+        );
       }
       
-      // Alphabet filter
       if (alphabetFilter !== "all") {
         filteredTaskData = filteredTaskData.filter(task => {
           const firstName = task.assigned_user?.user_name?.charAt(0).toUpperCase();
@@ -180,7 +175,6 @@ export default function TaskReport() {
         });
       }
       
-      // Selected employees filter
       if (selectedEmployees.length > 0) {
         const selectedIds = selectedEmployees.map(emp => emp.id);
         filteredTaskData = filteredTaskData.filter(task => 
@@ -192,7 +186,6 @@ export default function TaskReport() {
     filteredTaskData.forEach((task) => {
       const assignedId = task.assigned_to || "unassigned";
       
-      // Get user info from users array if not present in task.assigned_user
       let userInfo = task.assigned_user;
       if (!userInfo && task.assigned_to) {
         const userFromList = users.find(u => u.id === task.assigned_to);
@@ -232,7 +225,7 @@ export default function TaskReport() {
           : "-"
       };
     });
-  }, [taskData, statusNames, isAdmin, departmentFilter, alphabetFilter, selectedEmployees]);
+  }, [taskData, statusNames, isAdmin, departmentFilter, alphabetFilter, selectedEmployees, cfMatchSet]);
 
   return (
     <div className="max-w-5xl mx-0 p-4">
@@ -250,6 +243,8 @@ export default function TaskReport() {
             setSelectedEmployees={setSelectedEmployees}
             allUsers={users}
             isAdmin={isAdmin}
+            cfFilters={cfFilters}
+            setCfFilters={setCfFilters}
           />
         </div>
         <TaskReportExportButton
