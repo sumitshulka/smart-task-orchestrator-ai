@@ -278,9 +278,15 @@ function OptionsEditor({
   );
 }
 
-// ─── Validation Section ───────────────────────────────────────────────────────
-function ValidationSection({ form, setForm }: { form: FormState; setForm: (p: Partial<FormState>) => void }) {
-  const NumInput = ({ label, field, placeholder }: { label: string; field: keyof FormState; placeholder?: string }) => (
+// ─── NumInput & ToggleRow — defined at module level so React never remounts them ─
+function NumInput({ label, field, placeholder, form, setForm }: {
+  label: string;
+  field: keyof FormState;
+  placeholder?: string;
+  form: FormState;
+  setForm: (p: Partial<FormState>) => void;
+}) {
+  return (
     <div className="space-y-1">
       <Label className="text-xs text-gray-600">{label}</Label>
       <Input
@@ -292,8 +298,16 @@ function ValidationSection({ form, setForm }: { form: FormState; setForm: (p: Pa
       />
     </div>
   );
+}
 
-  const ToggleRow = ({ label, desc, field }: { label: string; desc: string; field: "past_only" | "future_only" }) => (
+function ToggleRow({ label, desc, field, form, setForm }: {
+  label: string;
+  desc: string;
+  field: "past_only" | "future_only";
+  form: FormState;
+  setForm: (p: Partial<FormState>) => void;
+}) {
+  return (
     <div className="flex items-center justify-between py-1">
       <div>
         <p className="text-sm text-gray-800">{label}</p>
@@ -302,14 +316,17 @@ function ValidationSection({ form, setForm }: { form: FormState; setForm: (p: Pa
       <Switch checked={form[field]} onCheckedChange={v => setForm({ [field]: v })} />
     </div>
   );
+}
 
+// ─── Validation Section ───────────────────────────────────────────────────────
+function ValidationSection({ form, setForm }: { form: FormState; setForm: (p: Partial<FormState>) => void }) {
   const t = form.ui_type;
 
   if (t === "text") return (
     <div className="space-y-3">
       <div className="grid grid-cols-2 gap-3">
-        <NumInput label="Min Length" field="min_length" placeholder="e.g. 3" />
-        <NumInput label="Max Length" field="max_length" placeholder="e.g. 255" />
+        <NumInput label="Min Length" field="min_length" placeholder="e.g. 3" form={form} setForm={setForm} />
+        <NumInput label="Max Length" field="max_length" placeholder="e.g. 255" form={form} setForm={setForm} />
       </div>
       <div className="space-y-1">
         <Label className="text-xs text-gray-600">Regex Pattern</Label>
@@ -326,27 +343,27 @@ function ValidationSection({ form, setForm }: { form: FormState; setForm: (p: Pa
 
   if (t === "textarea") return (
     <div className="grid grid-cols-2 gap-3">
-      <NumInput label="Min Length" field="min_length" placeholder="e.g. 10" />
-      <NumInput label="Max Length" field="max_length" placeholder="e.g. 2000" />
+      <NumInput label="Min Length" field="min_length" placeholder="e.g. 10" form={form} setForm={setForm} />
+      <NumInput label="Max Length" field="max_length" placeholder="e.g. 2000" form={form} setForm={setForm} />
     </div>
   );
 
   if (t === "number" || t === "decimal") return (
     <div className="space-y-3">
       <div className="grid grid-cols-2 gap-3">
-        <NumInput label="Min Value" field="min_value" placeholder="e.g. 0" />
-        <NumInput label="Max Value" field="max_value" placeholder="e.g. 100" />
+        <NumInput label="Min Value" field="min_value" placeholder="e.g. 0" form={form} setForm={setForm} />
+        <NumInput label="Max Value" field="max_value" placeholder="e.g. 100" form={form} setForm={setForm} />
       </div>
       {t === "decimal" && (
-        <NumInput label="Decimal Places" field="decimal_places" placeholder="e.g. 2" />
+        <NumInput label="Decimal Places" field="decimal_places" placeholder="e.g. 2" form={form} setForm={setForm} />
       )}
     </div>
   );
 
   if (t === "date") return (
     <div className="space-y-3">
-      <ToggleRow label="Past Only" desc="Only allow dates in the past" field="past_only" />
-      <ToggleRow label="Future Only" desc="Only allow dates in the future" field="future_only" />
+      <ToggleRow label="Past Only" desc="Only allow dates in the past" field="past_only" form={form} setForm={setForm} />
+      <ToggleRow label="Future Only" desc="Only allow dates in the future" field="future_only" form={form} setForm={setForm} />
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1">
           <Label className="text-xs text-gray-600">Min Date</Label>
@@ -362,15 +379,15 @@ function ValidationSection({ form, setForm }: { form: FormState; setForm: (p: Pa
 
   if (t === "datetime") return (
     <div className="space-y-2">
-      <ToggleRow label="Past Only" desc="Only allow past date/times" field="past_only" />
-      <ToggleRow label="Future Only" desc="Only allow future date/times" field="future_only" />
+      <ToggleRow label="Past Only" desc="Only allow past date/times" field="past_only" form={form} setForm={setForm} />
+      <ToggleRow label="Future Only" desc="Only allow future date/times" field="future_only" form={form} setForm={setForm} />
     </div>
   );
 
   if (t === "multiselect") return (
     <div className="grid grid-cols-2 gap-3">
-      <NumInput label="Min Selections" field="min_selections" placeholder="e.g. 1" />
-      <NumInput label="Max Selections" field="max_selections" placeholder="e.g. 5" />
+      <NumInput label="Min Selections" field="min_selections" placeholder="e.g. 1" form={form} setForm={setForm} />
+      <NumInput label="Max Selections" field="max_selections" placeholder="e.g. 5" form={form} setForm={setForm} />
     </div>
   );
 
