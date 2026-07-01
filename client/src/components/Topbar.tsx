@@ -1,25 +1,33 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
-import { LogOut, Settings, Menu } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+import { LogOut, Settings, Menu, HelpCircle, ChevronDown, User } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRole } from "@/contexts/RoleProvider";
 import { useRolePermissions } from "@/hooks/useRolePermissions";
 import HelpButton from "@/components/help/HelpButton";
-import { Button } from "@/components/ui/button";
-
-const USER_PLACEHOLDER = {
-  name: "Jane Doe",
-  email: "janedoe@email.com",
-};
 
 const getInitials = (name: string) => {
-  if (!name) return '?';
+  if (!name) return "?";
   return name
-    .split(' ')
-    .map((part) => part[0]?.toUpperCase())
-    .join('');
+    .split(" ")
+    .map((p) => p[0]?.toUpperCase())
+    .slice(0, 2)
+    .join("");
+};
+
+const ROLE_COLORS: Record<string, string> = {
+  admin:        "bg-indigo-100 text-indigo-700",
+  manager:      "bg-blue-100 text-blue-700",
+  team_manager: "bg-sky-100 text-sky-700",
+  user:         "bg-gray-100 text-gray-600",
 };
 
 interface TopbarProps {
@@ -33,8 +41,13 @@ const Topbar: React.FC<TopbarProps> = ({ sidebarOpen, setSidebarOpen }) => {
   const { userName, highestRole, loading } = useRole();
   const { canViewSettings } = useRolePermissions();
 
-  const displayName = userName || user?.user_name || user?.email || USER_PLACEHOLDER.name;
-  const displayEmail = user?.email || USER_PLACEHOLDER.email;
+  const displayName = userName || user?.user_name || user?.email || "User";
+  const displayEmail = user?.email || "";
+  const initials = getInitials(displayName);
+  const roleBadge = ROLE_COLORS[highestRole ?? ""] ?? ROLE_COLORS.user;
+  const roleLabel = highestRole
+    ? highestRole.replace("_", " ").replace(/\b\w/g, (c) => c.toUpperCase())
+    : "User";
 
   const handleLogout = async () => {
     logout();
@@ -42,65 +55,122 @@ const Topbar: React.FC<TopbarProps> = ({ sidebarOpen, setSidebarOpen }) => {
   };
 
   return (
-    <header className="flex items-center justify-between border-b px-4 sm:px-6 gap-2 sm:gap-4 bg-[#66655833] border-gray-200" style={{ height: '56px', minHeight: '56px', maxHeight: '56px' }}>
-      {/* Left: Hamburger menu for mobile */}
+    <header
+      className="flex items-center justify-between px-4 sm:px-6 gap-4 bg-white border-b border-gray-200 shadow-sm"
+      style={{ height: "56px", minHeight: "56px", maxHeight: "56px" }}
+    >
+      {/* ── Left: mobile hamburger + logo ── */}
       <div className="flex items-center gap-3">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="lg:hidden"
+        <button
+          className="lg:hidden p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 transition-colors"
           onClick={() => setSidebarOpen(!sidebarOpen)}
+          aria-label="Toggle sidebar"
         >
-          <Menu className="h-6 w-6" />
-        </Button>
+          <Menu className="h-5 w-5" />
+        </button>
         {/* Mobile logo */}
         <div className="flex items-center gap-2 lg:hidden">
-          <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-            <span className="text-white font-bold text-sm">#</span>
+          <div className="w-7 h-7 bg-indigo-600 rounded-lg flex items-center justify-center">
+            <span className="text-white font-bold text-xs">#</span>
           </div>
-          <span className="text-lg font-semibold text-gray-800">
-            TaskRep
-          </span>
+          <span className="text-base font-semibold text-gray-800">TaskRep</span>
         </div>
       </div>
-      {/* Right: Welcome/role text, then settings, avatar, menu */}
-      <div className="flex items-center gap-2 sm:gap-4 ml-auto">
-        {/* Welcome text (hidden on mobile) */}
-        {user && !loading && (
-          <span className="text-xs whitespace-nowrap mr-2 font-bold text-[#003c96] hidden md:block">
-            Welcome {displayName}, you are logged in with role as: <span className="font-semibold">{highestRole || "unknown"}</span>
-          </span>
-        )}
-        {/* Help Button */}
+
+      {/* ── Right: actions + user ── */}
+      <div className="flex items-center gap-1 sm:gap-2 ml-auto">
+
+        {/* Help */}
         <HelpButton variant="ghost" size="sm" showText={false} />
-        
+
+        {/* Settings */}
         {canViewSettings && (
           <button
-            aria-label="Settings"
             onClick={() => navigate("/admin/settings")}
-            className="rounded-full p-1.5 hover:bg-accent text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+            aria-label="Settings"
+            className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-800 transition-colors"
           >
-            <Settings className="w-5 h-5 sm:w-6 sm:h-6" />
+            <Settings className="w-4.5 h-4.5 w-[18px] h-[18px]" />
           </button>
         )}
-        <DropdownMenu>
-          <DropdownMenuTrigger className="outline-none rounded-full focus:ring-2 focus:ring-primary/50">
-            <Avatar className="h-8 w-8 sm:h-9 sm:w-9">
-              <AvatarFallback>
-                {getInitials(displayName)}
-              </AvatarFallback>
-            </Avatar>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="min-w-[180px]">
-            <div className="px-2 pt-2 pb-1 text-xs text-muted-foreground">
-              <div>{displayName}</div>
-              <div className="text-muted-foreground">{displayEmail}</div>
-            </div>
-            <DropdownMenuItem onClick={handleLogout} className="gap-2 mt-1 cursor-pointer">
-              <LogOut className="w-4 h-4" /> Log out
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+
+        {/* Divider */}
+        <div className="w-px h-6 bg-gray-200 mx-1 hidden sm:block" />
+
+        {/* Logout — always visible */}
+        <button
+          onClick={handleLogout}
+          className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-red-600 border border-red-200 hover:bg-red-50 transition-colors"
+        >
+          <LogOut className="w-3.5 h-3.5" />
+          Logout
+        </button>
+
+        {/* Divider */}
+        <div className="w-px h-6 bg-gray-200 mx-1 hidden sm:block" />
+
+        {/* Avatar + name dropdown */}
+        {!loading && (
+          <DropdownMenu>
+            <DropdownMenuTrigger className="outline-none">
+              <div className="flex items-center gap-2 pl-1 pr-2 py-1 rounded-xl hover:bg-gray-100 transition-colors cursor-pointer">
+                <Avatar className="h-8 w-8">
+                  <AvatarFallback className="bg-indigo-600 text-white text-xs font-semibold">
+                    {initials}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="hidden md:flex flex-col items-start leading-none">
+                  <span className="text-sm font-medium text-gray-800 max-w-[120px] truncate">{displayName}</span>
+                  <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full mt-0.5 ${roleBadge}`}>
+                    {roleLabel}
+                  </span>
+                </div>
+                <ChevronDown className="w-3.5 h-3.5 text-gray-400 hidden md:block" />
+              </div>
+            </DropdownMenuTrigger>
+
+            <DropdownMenuContent align="end" className="min-w-[220px] p-1">
+              {/* Profile header */}
+              <div className="flex items-center gap-3 px-3 py-2.5">
+                <Avatar className="h-10 w-10">
+                  <AvatarFallback className="bg-indigo-600 text-white font-semibold">
+                    {initials}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-gray-900 truncate">{displayName}</p>
+                  <p className="text-xs text-gray-500 truncate">{displayEmail}</p>
+                  <span className={`inline-block text-[10px] font-semibold px-1.5 py-0.5 rounded-full mt-0.5 ${roleBadge}`}>
+                    {roleLabel}
+                  </span>
+                </div>
+              </div>
+
+              <DropdownMenuSeparator />
+
+              {canViewSettings && (
+                <DropdownMenuItem
+                  onClick={() => navigate("/admin/settings")}
+                  className="gap-2 cursor-pointer text-sm"
+                >
+                  <Settings className="w-4 h-4 text-gray-400" />
+                  Settings
+                </DropdownMenuItem>
+              )}
+
+              <DropdownMenuSeparator />
+
+              {/* Logout inside dropdown too (for mobile / consistency) */}
+              <DropdownMenuItem
+                onClick={handleLogout}
+                className="gap-2 cursor-pointer text-sm text-red-600 focus:text-red-600 focus:bg-red-50"
+              >
+                <LogOut className="w-4 h-4" />
+                Log out
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </div>
     </header>
   );
