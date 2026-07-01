@@ -81,14 +81,16 @@ const Topbar: React.FC<TopbarProps> = ({ sidebarOpen, setSidebarOpen }) => {
       <div className="flex items-center gap-1 sm:gap-2 ml-auto">
 
         {/* Help */}
-        <HelpButton variant="ghost" size="sm" showText={false} />
+        <div className="[&_button]:text-white [&_button]:hover:bg-white/[0.07]">
+          <HelpButton variant="ghost" size="sm" showText={false} />
+        </div>
 
         {/* Settings */}
         {canViewSettings && (
           <button
             onClick={() => navigate("/admin/settings")}
             aria-label="Settings"
-            className="p-2 rounded-lg text-slate-400 hover:bg-white/[0.07] hover:text-white transition-colors"
+            className="p-2 rounded-lg text-white hover:bg-white/[0.07] transition-colors"
           >
             <Settings className="w-4.5 h-4.5 w-[18px] h-[18px]" />
           </button>
@@ -100,7 +102,7 @@ const Topbar: React.FC<TopbarProps> = ({ sidebarOpen, setSidebarOpen }) => {
         {/* Logout — always visible */}
         <button
           onClick={handleLogout}
-          className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-red-400 border border-red-500/30 hover:bg-red-500/10 hover:text-red-300 transition-colors"
+          className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-white border border-white/20 hover:bg-white/[0.07] transition-colors"
         >
           <LogOut className="w-3.5 h-3.5" />
           Logout
