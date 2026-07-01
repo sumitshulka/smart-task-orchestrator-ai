@@ -6,7 +6,7 @@ import { useRolePermissions } from "@/hooks/useRolePermissions";
 const link = ({ isActive }: { isActive: boolean }) =>
   isActive
     ? "flex w-full items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium bg-indigo-600 text-white shadow-md shadow-indigo-900/40 outline-none"
-    : "flex w-full items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-slate-400 hover:bg-white/[0.07] hover:text-white transition-all duration-150 outline-none";
+    : "flex w-full items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-white/[0.07] hover:text-white transition-all duration-150 outline-none";
 
 export default function ReportsMenu({ isUserOnly, collapsed }: { isUserOnly: boolean; collapsed: boolean }) {
   const { canViewSettings } = useRolePermissions();

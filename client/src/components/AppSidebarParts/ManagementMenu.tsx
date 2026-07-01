@@ -5,7 +5,7 @@ import { Users2, Users, ShieldCheck, Archive, SlidersHorizontal } from "lucide-r
 const link = ({ isActive }: { isActive: boolean }) =>
   isActive
     ? "flex w-full items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium bg-indigo-600 text-white shadow-md shadow-indigo-900/40 outline-none"
-    : "flex w-full items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-slate-400 hover:bg-white/[0.07] hover:text-white transition-all duration-150 outline-none";
+    : "flex w-full items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-white/[0.07] hover:text-white transition-all duration-150 outline-none";
 
 export default function ManagementMenu({ isAdmin, isManager, collapsed }: { isAdmin: boolean; isManager: boolean; collapsed: boolean }) {
   if (!(isAdmin || isManager)) return null;
