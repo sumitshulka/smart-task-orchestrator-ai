@@ -20,6 +20,8 @@ import { apiClient } from "@/lib/api";
 import { queryClient } from "@/lib/queryClient";
 import { useUsersAndTeams } from "@/hooks/useUsersAndTeams";
 import { useCurrentUserRoleAndTeams } from "@/hooks/useCurrentUserRoleAndTeams";
+import TaskCustomFields, { TaskCustomFieldsRef } from "@/components/TaskCustomFields";
+import { useRef } from "react";
 
 type Props = {
   task: Task | null;
@@ -36,6 +38,7 @@ const EditTaskSheet: React.FC<Props> = ({
   onOpenChange: controlledOnOpenChange,
   children,
 }) => {
+  const cfRef = useRef<TaskCustomFieldsRef>(null);
   const [internalOpen, setInternalOpen] = useState(false);
   const open = controlledOpen !== undefined ? controlledOpen : internalOpen;
   const onOpenChange = controlledOnOpenChange !== undefined ? controlledOnOpenChange : setInternalOpen;
@@ -174,6 +177,17 @@ const EditTaskSheet: React.FC<Props> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Validate custom fields before saving
+    if (cfRef.current && !cfRef.current.validate()) {
+      toast({
+        title: "Required custom fields missing",
+        description: "Please fill in all required custom fields before saving.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setLoading(true);
     try {
       const updatePayload: any = {
@@ -192,6 +206,19 @@ const EditTaskSheet: React.FC<Props> = ({
       };
 
       await apiClient.updateTask(task!.id, updatePayload);
+
+      // Save custom field values (save all so cleared fields are persisted)
+      if (cfRef.current && task?.id) {
+        try {
+          const cfPayload = cfRef.current.getPayload();
+          if (cfPayload.length > 0) {
+            await apiClient.put(`/custom-fields/values/task/${task.id}`, { values: cfPayload });
+          }
+        } catch (cfErr) {
+          console.error("Failed to save custom field values:", cfErr);
+        }
+      }
+
       toast({ title: "Task updated successfully" });
       await invalidateAll();
       onOpenChange(false);
@@ -451,6 +478,9 @@ const EditTaskSheet: React.FC<Props> = ({
               </div>
             </div>
           )}
+
+          {/* ── Custom Fields ── */}
+          <TaskCustomFields ref={cfRef} open={open} taskId={task?.id} />
 
           {/* ── Footer ── */}
           <SheetFooter className="pt-6 border-t border-gray-200">

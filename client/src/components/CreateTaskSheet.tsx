@@ -21,6 +21,8 @@ import { fetchAssignableTaskGroups, assignTaskToGroup, TaskGroup } from "@/integ
 import { useDependencyConstraintValidation } from "@/hooks/useDependencyConstraintValidation";
 import { apiClient } from "@/lib/api";
 import { queryClient } from "@/lib/queryClient";
+import TaskCustomFields, { TaskCustomFieldsRef } from "@/components/TaskCustomFields";
+import { useRef } from "react";
 
 // Simulated quick user record
 type User = { id: string; email: string; user_name: string | null; manager: string | null };
@@ -91,6 +93,7 @@ const CreateTaskSheet: React.FC<Props> = ({
   onTaskCreated, children, defaultAssignedTo,
   defaultProjectId, defaultMilestoneId, defaultFeatureId,
 }) => {
+  const cfRef = useRef<TaskCustomFieldsRef>(null);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(initialForm);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -234,6 +237,18 @@ const CreateTaskSheet: React.FC<Props> = ({
     return list;
   }
 
+  // Save custom field values after task creation
+  const saveCustomFieldValues = async (taskId: string) => {
+    if (!cfRef.current) return;
+    const payload = cfRef.current.getPayload();
+    const nonEmpty = payload.filter(v =>
+      v.value_text != null || v.value_number != null || v.value_date != null ||
+      v.value_boolean != null || v.value_json != null
+    );
+    if (nonEmpty.length === 0) return;
+    await apiClient.put(`/custom-fields/values/task/${taskId}`, { values: nonEmpty });
+  };
+
   // Handle form changes (typed fix)
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
@@ -296,6 +311,17 @@ const CreateTaskSheet: React.FC<Props> = ({
       });
       return;
     }
+
+    // Validate custom fields BEFORE creating the task
+    if (cfRef.current && !cfRef.current.validate()) {
+      toast({
+        title: "Required custom fields missing",
+        description: "Please fill in all required custom fields before creating the task.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setCreating(true);
     try {
       const myUserId = user?.id;
@@ -361,6 +387,13 @@ const CreateTaskSheet: React.FC<Props> = ({
         await assignTaskToGroup({ group_id: selectedTaskGroup, task_id: newTask.id });
       }
 
+      // Save custom field values (non-blocking — errors don't fail the task creation)
+      try {
+        await saveCustomFieldValues(newTask.id);
+      } catch (cfErr) {
+        console.error("Failed to save custom field values:", cfErr);
+      }
+
       toast({ title: "Task Created", description: form.title });
       
       // Invalidate all task-related queries to refresh the UI
@@ -401,6 +434,7 @@ const CreateTaskSheet: React.FC<Props> = ({
     setForm(initialForm);
     setSelectedDependencyTask(null);
     setSearchQuery("");
+    cfRef.current?.reset();
     // Restore defaults if provided by caller, otherwise clear
     setSelectedProjectId(defaultProjectId ?? "");
     setSelectedMilestoneId(defaultMilestoneId ?? "");
@@ -969,6 +1003,9 @@ const CreateTaskSheet: React.FC<Props> = ({
               </div>
             </div>
           </div>
+          {/* CUSTOM FIELDS */}
+          <TaskCustomFields ref={cfRef} open={open} />
+
           <SheetFooter className="mt-10 pt-6 border-t border-gray-200 flex-col sm:flex-row gap-4">
             <div className="flex gap-4 w-full">
               <Button 
