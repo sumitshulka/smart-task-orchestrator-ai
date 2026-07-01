@@ -1,7 +1,7 @@
 
 import React from "react";
 import { useLocation, NavLink } from "react-router-dom";
-import { Users2, Users, ShieldCheck, Archive } from "lucide-react";
+import { Users2, Users, ShieldCheck, Archive, SlidersHorizontal } from "lucide-react";
 
 export default function ManagementMenu({ isAdmin, isManager, collapsed }: { isAdmin: boolean, isManager: boolean, collapsed: boolean }) {
   const location = useLocation();
@@ -66,6 +66,21 @@ export default function ManagementMenu({ isAdmin, isManager, collapsed }: { isAd
               >
                 <ShieldCheck className="w-4 h-4 shrink-0" />
                 {!collapsed && <span className="truncate">Roles & Privileges</span>}
+              </NavLink>
+            </li>
+          )}
+          {isAdmin && (
+            <li className="group/menu-item relative">
+              <NavLink
+                to="/admin/custom-fields"
+                end
+                className={({ isActive }) =>
+                  "flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm outline-none transition-[width,height,padding] hover:bg-gray-100 focus-visible:ring-2 " +
+                  (isActive ? "bg-gray-100 font-medium" : "")
+                }
+              >
+                <SlidersHorizontal className="w-4 h-4 shrink-0" />
+                {!collapsed && <span className="truncate">Custom Fields</span>}
               </NavLink>
             </li>
           )}

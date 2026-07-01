@@ -331,6 +331,7 @@ export interface IStorage {
 
   // ── Custom Fields Engine ─────────────────────────────────────────────────
   // Groups
+  getAllCustomFieldGroups(): Promise<CustomFieldGroup[]>;
   getCustomFieldGroups(module: string): Promise<CustomFieldGroup[]>;
   getCustomFieldGroup(id: string): Promise<CustomFieldGroup | undefined>;
   createCustomFieldGroup(group: InsertCustomFieldGroup): Promise<CustomFieldGroup>;
@@ -339,6 +340,7 @@ export interface IStorage {
   reorderCustomFieldGroups(orders: { id: string; display_order: number }[]): Promise<void>;
 
   // Definitions
+  getAllCustomFieldDefinitions(): Promise<CustomFieldDefinition[]>;
   getCustomFieldDefinitions(module: string): Promise<CustomFieldDefinition[]>;
   getCustomFieldDefinition(id: string): Promise<CustomFieldDefinition | undefined>;
   getCustomFieldDefinitionByKey(module: string, fieldKey: string): Promise<CustomFieldDefinition | undefined>;
@@ -1825,6 +1827,16 @@ export class DatabaseStorage implements IStorage {
   // ── Custom Fields Engine ──────────────────────────────────────────────────
 
   // Groups
+  async getAllCustomFieldDefinitions(): Promise<CustomFieldDefinition[]> {
+    return db.select().from(customFieldDefinitions)
+      .orderBy(asc(customFieldDefinitions.module), asc(customFieldDefinitions.display_order));
+  }
+
+  async getAllCustomFieldGroups(): Promise<CustomFieldGroup[]> {
+    return db.select().from(customFieldGroups)
+      .orderBy(asc(customFieldGroups.module), asc(customFieldGroups.display_order));
+  }
+
   async getCustomFieldGroups(module: string): Promise<CustomFieldGroup[]> {
     return db.select().from(customFieldGroups)
       .where(eq(customFieldGroups.module, module))

@@ -3218,13 +3218,15 @@ Rules:
 
   // ── Groups ────────────────────────────────────────────────────────────────
 
-  // GET /api/custom-fields/groups?module=task
+  // GET /api/custom-fields/groups?module=task  (omit module to get all)
   app.get("/api/custom-fields/groups", requireAnyAuthenticated, async (req: any, res) => {
     try {
       const { module } = req.query;
-      if (!module || !CF_MODULES.includes(module as string))
-        return res.status(400).json({ error: `module query param required. One of: ${CF_MODULES.join(", ")}` });
-      const groups = await storage.getCustomFieldGroups(module as string);
+      if (module && !CF_MODULES.includes(module as string))
+        return res.status(400).json({ error: `module must be one of: ${CF_MODULES.join(", ")}` });
+      const groups = module
+        ? await storage.getCustomFieldGroups(module as string)
+        : await storage.getAllCustomFieldGroups();
       res.json(groups);
     } catch (err: any) { res.status(500).json({ error: "Failed to fetch field groups" }); }
   });
@@ -3269,13 +3271,15 @@ Rules:
 
   // ── Definitions ────────────────────────────────────────────────────────────
 
-  // GET /api/custom-fields/definitions?module=task
+  // GET /api/custom-fields/definitions?module=task  (omit module to get all)
   app.get("/api/custom-fields/definitions", requireAnyAuthenticated, async (req: any, res) => {
     try {
       const { module } = req.query;
-      if (!module || !CF_MODULES.includes(module as string))
-        return res.status(400).json({ error: `module query param required. One of: ${CF_MODULES.join(", ")}` });
-      const defs = await storage.getCustomFieldDefinitions(module as string);
+      if (module && !CF_MODULES.includes(module as string))
+        return res.status(400).json({ error: `module must be one of: ${CF_MODULES.join(", ")}` });
+      const defs = module
+        ? await storage.getCustomFieldDefinitions(module as string)
+        : await storage.getAllCustomFieldDefinitions();
       res.json(defs);
     } catch (err: any) { res.status(500).json({ error: "Failed to fetch field definitions" }); }
   });

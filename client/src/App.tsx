@@ -38,6 +38,7 @@ import PortalLogin from "@/pages/PortalLogin";
 import PortalDashboard from "@/pages/PortalDashboard";
 import PortalProjectView from "@/pages/PortalProjectView";
 import DefectsPage from "@/pages/Defects";
+import CustomFieldsPage from "@/pages/CustomFields";
 import DefectBoardPage from "@/pages/DefectBoard";
 import MyDefectsPage from "@/pages/MyDefects";
 
@@ -171,6 +172,14 @@ const App = () => (
               element={
                 <AdminLayout>
                   <Benchmarking />
+                </AdminLayout>
+              }
+            />
+            <Route
+              path="/admin/custom-fields"
+              element={
+                <AdminLayout>
+                  <CustomFieldsPage />
                 </AdminLayout>
               }
             />
