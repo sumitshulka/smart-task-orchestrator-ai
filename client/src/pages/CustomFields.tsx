@@ -28,7 +28,7 @@ import {
 import { toast } from "@/hooks/use-toast";
 import {
   SlidersHorizontal, Plus, Pencil, Search, X, Trash2,
-  Power, PowerOff, Info, ChevronUp, ChevronDown,
+  Power, PowerOff, Info, ChevronUp, ChevronDown, Layers, FolderPlus,
 } from "lucide-react";
 import { useCurrentUserRoleAndTeams } from "@/hooks/useCurrentUserRoleAndTeams";
 
@@ -400,6 +400,13 @@ export default function CustomFieldsPage() {
   const [keyManual, setKeyManual]     = useState(false);
   const [archiveTarget, setArchiveTarget] = useState<CustomField | null>(null);
 
+  // ── Field Group management state ───────────────────────────────────────────
+  const [groupsOpen,       setGroupsOpen]       = useState(false);
+  const [groupDialogOpen,  setGroupDialogOpen]  = useState(false);
+  const [editGroup,        setEditGroup]        = useState<FieldGroup | null>(null);
+  const [groupForm,        setGroupForm]        = useState({ name: "", module: "task" });
+  const [deleteGroupTarget, setDeleteGroupTarget] = useState<FieldGroup | null>(null);
+
   // helper: partial update of form
   const setForm = (patch: Partial<FormState>) => setFormRaw(prev => ({ ...prev, ...patch }));
 
@@ -414,7 +421,13 @@ export default function CustomFieldsPage() {
     queryFn: () => apiClient.get("/custom-fields/definitions"),
   });
 
-  // Groups for the currently-selected module (used in the form)
+  // All groups (for the management panel)
+  const { data: allGroups = [] } = useQuery<FieldGroup[]>({
+    queryKey: ["/api/custom-fields/groups"],
+    queryFn: () => apiClient.get("/custom-fields/groups"),
+  });
+
+  // Groups for the currently-selected module (used in the field form)
   const { data: groups = [] } = useQuery<FieldGroup[]>({
     queryKey: ["/api/custom-fields/groups", form.module],
     queryFn:  () => apiClient.get(`/custom-fields/groups?module=${form.module}`),
@@ -438,6 +451,77 @@ export default function CustomFieldsPage() {
 
   // ── Mutations ─────────────────────────────────────────────────────────────
   const invalidate = () => qc.invalidateQueries({ queryKey: ["/api/custom-fields/definitions"] });
+  const invalidateGroups = () => {
+    qc.invalidateQueries({ queryKey: ["/api/custom-fields/groups"] });
+  };
+
+  const createGroupMutation = useMutation({
+    mutationFn: (payload: { name: string; module: string }) =>
+      apiClient.post("/custom-fields/groups", payload),
+    onSuccess: () => {
+      invalidateGroups();
+      toast({ title: "Field group created" });
+      setGroupDialogOpen(false);
+      setGroupForm({ name: "", module: "task" });
+      setEditGroup(null);
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const updateGroupMutation = useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: { name: string } }) =>
+      apiClient.put(`/custom-fields/groups/${id}`, payload),
+    onSuccess: () => {
+      invalidateGroups();
+      toast({ title: "Field group updated" });
+      setGroupDialogOpen(false);
+      setEditGroup(null);
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const deleteGroupMutation = useMutation({
+    mutationFn: (id: string) => apiClient.delete(`/custom-fields/groups/${id}`),
+    onSuccess: () => {
+      invalidateGroups();
+      invalidate(); // fields may have lost their group
+      toast({ title: "Field group deleted" });
+      setDeleteGroupTarget(null);
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  function openCreateGroup() {
+    setEditGroup(null);
+    setGroupForm({ name: "", module: "task" });
+    setGroupDialogOpen(true);
+  }
+
+  function openEditGroup(g: FieldGroup) {
+    setEditGroup(g);
+    setGroupForm({ name: g.name, module: g.module });
+    setGroupDialogOpen(true);
+  }
+
+  function handleGroupSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!groupForm.name.trim()) return toast({ title: "Group name is required", variant: "destructive" });
+    if (editGroup) {
+      updateGroupMutation.mutate({ id: editGroup.id, payload: { name: groupForm.name } });
+    } else {
+      createGroupMutation.mutate(groupForm);
+    }
+  }
+
+  // Groups by module for display
+  const groupsByModule = useMemo(() => {
+    const map: Record<string, FieldGroup[]> = {};
+    for (const g of allGroups) {
+      if (!map[g.module]) map[g.module] = [];
+      map[g.module].push(g);
+    }
+    return map;
+  }, [allGroups]);
 
   const createMutation = useMutation({
     mutationFn: (payload: any) => apiClient.post("/custom-fields/definitions", payload),
@@ -538,6 +622,94 @@ export default function CustomFieldsPage() {
             <Button onClick={openCreate} className="gap-2">
               <Plus className="w-4 h-4" /> New Field
             </Button>
+          )}
+        </div>
+
+        {/* ── Field Groups Panel ─────────────────────────────────────────── */}
+        <div className="border rounded-lg bg-white overflow-hidden">
+          <button
+            className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors"
+            onClick={() => setGroupsOpen(v => !v)}
+          >
+            <div className="flex items-center gap-2">
+              <Layers className="w-4 h-4 text-indigo-500" />
+              <span className="text-sm font-medium text-gray-800">Field Groups</span>
+              <Badge variant="outline" className="text-xs px-1.5 py-0">{allGroups.length}</Badge>
+            </div>
+            <div className="flex items-center gap-2">
+              {isAdmin && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 gap-1 text-xs text-indigo-600 hover:bg-indigo-50"
+                  onClick={e => { e.stopPropagation(); openCreateGroup(); }}
+                >
+                  <FolderPlus className="w-3.5 h-3.5" /> New Group
+                </Button>
+              )}
+              {groupsOpen ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+            </div>
+          </button>
+
+          {groupsOpen && (
+            <div className="border-t px-4 py-3">
+              {allGroups.length === 0 ? (
+                <div className="flex flex-col items-center py-6 text-gray-400 gap-2">
+                  <Layers className="w-7 h-7 opacity-30" />
+                  <p className="text-sm">No field groups yet.</p>
+                  {isAdmin && (
+                    <Button variant="outline" size="sm" onClick={openCreateGroup} className="mt-1 gap-1">
+                      <FolderPlus className="w-3.5 h-3.5" /> Create first group
+                    </Button>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {MODULES.map(mod => {
+                    const modGroups = groupsByModule[mod.value] ?? [];
+                    if (modGroups.length === 0) return null;
+                    return (
+                      <div key={mod.value}>
+                        <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 mb-1.5">{mod.label}</p>
+                        <div className="flex flex-wrap gap-2">
+                          {modGroups.map(g => {
+                            const fieldCount = allFields.filter(f => f.field_group_id === g.id).length;
+                            return (
+                              <div
+                                key={g.id}
+                                className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-md px-2.5 py-1.5 group"
+                              >
+                                <Layers className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                                <span className="text-sm font-medium text-gray-700">{g.name}</span>
+                                <span className="text-xs text-gray-400">({fieldCount})</span>
+                                {isAdmin && (
+                                  <div className="flex items-center gap-0.5 ml-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button
+                                      className="p-0.5 rounded hover:bg-indigo-100 text-gray-400 hover:text-indigo-600"
+                                      onClick={() => openEditGroup(g)}
+                                      title="Rename group"
+                                    >
+                                      <Pencil className="w-3 h-3" />
+                                    </button>
+                                    <button
+                                      className="p-0.5 rounded hover:bg-red-100 text-gray-400 hover:text-red-600"
+                                      onClick={() => setDeleteGroupTarget(g)}
+                                      title="Delete group"
+                                    >
+                                      <Trash2 className="w-3 h-3" />
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           )}
         </div>
 
@@ -921,6 +1093,75 @@ export default function CustomFieldsPage() {
             </form>
           </DialogContent>
         </Dialog>
+
+        {/* ── Field Group Create / Edit Dialog ──────────────────────────────── */}
+        <Dialog open={groupDialogOpen} onOpenChange={v => { if (!v) { setGroupDialogOpen(false); setEditGroup(null); } }}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>{editGroup ? "Rename Group" : "New Field Group"}</DialogTitle>
+            </DialogHeader>
+            <form onSubmit={handleGroupSubmit} className="space-y-4">
+              <div className="space-y-1.5">
+                <Label>Group Name <span className="text-red-500">*</span></Label>
+                <Input
+                  placeholder="e.g. Customer Info"
+                  value={groupForm.name}
+                  onChange={e => setGroupForm(f => ({ ...f, name: e.target.value }))}
+                  autoFocus
+                />
+              </div>
+              {!editGroup && (
+                <div className="space-y-1.5">
+                  <Label>Module <span className="text-red-500">*</span></Label>
+                  <Select
+                    value={groupForm.module}
+                    onValueChange={v => setGroupForm(f => ({ ...f, module: v }))}
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {MODULES.map(m => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-gray-400">Module cannot be changed after creation.</p>
+                </div>
+              )}
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => { setGroupDialogOpen(false); setEditGroup(null); }}>
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={createGroupMutation.isPending || updateGroupMutation.isPending}
+                >
+                  {createGroupMutation.isPending || updateGroupMutation.isPending
+                    ? "Saving…"
+                    : editGroup ? "Save Changes" : "Create Group"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        {/* ── Field Group Delete Confirmation ───────────────────────────────── */}
+        <AlertDialog open={!!deleteGroupTarget} onOpenChange={v => { if (!v) setDeleteGroupTarget(null); }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete "{deleteGroupTarget?.name}"?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will permanently delete the group. Any fields currently in this group will become ungrouped — their values and settings will not be affected.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-red-600 hover:bg-red-700"
+                onClick={() => deleteGroupTarget && deleteGroupMutation.mutate(deleteGroupTarget.id)}
+              >
+                Delete Group
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         {/* Archive Confirmation */}
         <AlertDialog open={!!archiveTarget} onOpenChange={v => { if (!v) setArchiveTarget(null); }}>
