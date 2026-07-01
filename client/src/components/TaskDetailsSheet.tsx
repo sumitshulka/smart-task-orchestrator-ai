@@ -54,6 +54,8 @@ const TaskDetailsSheet: React.FC<Props> = ({
   const [assignTo, setAssignTo] = useState(task?.assigned_to || "");
   const [status, setStatus] = useState(task?.status || "");
   const [loading, setLoading] = useState(false);
+  const [cfFields, setCfFields] = useState<any[]>([]);
+  const [cfValues, setCfValues] = useState<Record<string, any>>({});
   const { users } = useUsersAndTeams();
   const { statuses, loading: statusesLoading } = useTaskStatuses();
   const { activity, reload: reloadActivity, loading: activityLoading } = useTaskActivity(task?.id || null);
@@ -65,6 +67,26 @@ const TaskDetailsSheet: React.FC<Props> = ({
       reloadActivity();
     }
   }, [open, task?.id, reloadActivity]);
+
+  // Fetch custom field definitions + values for this task
+  useEffect(() => {
+    if (!open || !task?.id) { setCfFields([]); setCfValues({}); return; }
+    apiClient.get("/custom-fields/definitions?module=task")
+      .then((defs: any[]) => {
+        const active = (Array.isArray(defs) ? defs : []).filter((f: any) => f.is_active !== false);
+        setCfFields(active);
+      })
+      .catch(() => setCfFields([]));
+    apiClient.get(`/custom-fields/values/task/${task.id}`)
+      .then((vals: any[]) => {
+        // Store the full value row keyed by field_definition_id;
+        // typed extraction happens in render using cfFields[].field_type
+        const map: Record<string, any> = {};
+        (Array.isArray(vals) ? vals : []).forEach((v: any) => { map[v.field_definition_id] = v; });
+        setCfValues(map);
+      })
+      .catch(() => setCfValues({}));
+  }, [open, task?.id]);
 
   // new: reload usersById for activity log
   const usersById = useMemo(() => {
@@ -597,6 +619,60 @@ const TaskDetailsSheet: React.FC<Props> = ({
                   )}
                 </div>
               </div>
+
+              {/* SECTION CF: CUSTOM FIELDS (read-only) */}
+              {cfFields.length > 0 && (
+                <div className="space-y-4">
+                  <div className="bg-indigo-50 p-4 rounded-lg">
+                    <h3 className="text-base font-medium text-gray-800 mb-3 flex items-center">
+                      <span className="bg-indigo-100 text-indigo-800 rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold mr-2">CF</span>
+                      Custom Fields
+                    </h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {cfFields.map((f: any) => {
+                        const row = cfValues[f.id]; // full value row or undefined
+                        // Extract the typed raw value from the stored row using this field's type
+                        let raw: any = undefined;
+                        if (row) {
+                          if (f.field_type === "boolean") raw = row.value_boolean;
+                          else if (f.field_type === "number" || f.field_type === "decimal") raw = row.value_number;
+                          else if (f.field_type === "date" || f.field_type === "datetime") raw = row.value_date;
+                          else if (f.field_type === "multiselect") raw = row.value_json;
+                          else raw = row.value_text;
+                        }
+                        const isEmpty = raw === undefined || raw === null || raw === "" || (Array.isArray(raw) && raw.length === 0);
+                        let display = "—";
+                        if (!isEmpty) {
+                          if (f.field_type === "boolean") display = raw ? "Yes" : "No";
+                          else if (f.field_type === "multiselect" && Array.isArray(raw)) {
+                            const opts = Array.isArray(f.options) ? f.options : [];
+                            display = raw.map((v: string) => opts.find((o: any) => o.value === v)?.label ?? v).join(", ") || "—";
+                          } else if (f.field_type === "select") {
+                            const opts = Array.isArray(f.options) ? f.options : [];
+                            display = opts.find((o: any) => o.value === String(raw))?.label ?? String(raw);
+                          } else {
+                            display = String(raw);
+                          }
+                        }
+                        const isMissing = f.is_required && isEmpty;
+                        return (
+                          <div key={f.id}>
+                            <label className="block text-sm font-semibold text-gray-700 mb-1">
+                              {f.label}
+                              {f.is_required && <span className="text-red-500 ml-1">*</span>}
+                            </label>
+                            <div className={`bg-white p-2 border rounded text-sm ${isMissing ? "border-red-300 bg-red-50" : ""}`}>
+                              {isMissing
+                                ? <span className="text-red-500 italic">Required — not filled</span>
+                                : display}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* SECTION 4: COMMENTS */}
               <div className="space-y-4">

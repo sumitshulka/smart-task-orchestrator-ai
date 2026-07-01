@@ -204,6 +204,7 @@ const AiTaskCreationSheet: React.FC<Props> = ({ open, onOpenChange, onTaskCreate
         status: statusObj?.name ?? "Open",
         type: mergedTask.type ?? "team",
         team_id: assignedUser?.team_id ?? null,
+        is_ai_created: true,
       });
 
       qc.invalidateQueries({ queryKey: ["/api/tasks"] });

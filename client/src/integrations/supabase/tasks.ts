@@ -33,6 +33,10 @@ export type Task = {
   project_id?: string | null;
   milestone_id?: string | null;
   feature_id?: string | null;
+  // AI creation flag
+  is_ai_created?: boolean;
+  task_number?: number | null;
+  start_date?: string | null;
 };
 
 // -------- CRUD Functions --------

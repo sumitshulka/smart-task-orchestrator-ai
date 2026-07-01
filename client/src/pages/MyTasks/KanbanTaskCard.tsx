@@ -5,7 +5,7 @@ import { Task } from "@/integrations/supabase/tasks";
 import { formatOrgDate } from "@/lib/dateUtils";
 import { useUserName } from "@/hooks/useUserName";
 import { useDefectTaskIds } from "@/hooks/useDefectTaskIds";
-import { Bug } from "lucide-react";
+import { Bug, Sparkles, AlertTriangle } from "lucide-react";
 
 // Utility to convert hex to RGB for lighter colors
 const hexToRgb = (hex: string) => {
@@ -169,6 +169,18 @@ function KanbanTaskCard({ task, onClick, CARD_TYPE, statusColor }: {
           <div className="mb-2">
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-700 border border-orange-200">
               <Bug size={10} /> Defect Fix
+            </span>
+          </div>
+        )}
+
+        {/* AI Created badges */}
+        {task.is_ai_created && (
+          <div className="flex flex-wrap gap-1 mb-2">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700 border border-purple-200" title="Created by AI">
+              <Sparkles size={10} /> AI Created
+            </span>
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700 border border-amber-200" title="Required fields may be missing — please review">
+              <AlertTriangle size={10} /> Needs Review
             </span>
           </div>
         )}

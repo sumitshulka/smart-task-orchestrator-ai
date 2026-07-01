@@ -3,7 +3,7 @@ import React from "react";
 import { Button } from "@/components/ui/button";
 import EditTaskSheet from "@/components/EditTaskSheet";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
-import { Edit, Trash2, Check, Link2, List, Clock } from "lucide-react";
+import { Edit, Trash2, Check, Link2, List, Clock, Sparkles, AlertTriangle, Bug } from "lucide-react";
 import { Task, deleteTask, updateTask } from "@/integrations/supabase/tasks";
 import { toast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
@@ -11,7 +11,6 @@ import { formatOrgDate } from "@/lib/dateUtils";
 import { useUserNames } from "@/hooks/useUserName";
 import { useStatusTransitionValidation } from "@/hooks/useStatusTransitionValidation";
 import { useDefectTaskIds } from "@/hooks/useDefectTaskIds";
-import { Bug } from "lucide-react";
 import TaskTimer from "./TaskTimer";
 
 // Utility to convert hex to RGB for lighter colors
@@ -215,6 +214,16 @@ export default function TaskCard({ task, onTaskUpdated, canDelete, statusColor, 
             {isDependent && (
               <Badge className="bg-blue-100 text-blue-700 flex items-center gap-1 text-xs" variant="secondary" title="Dependent task">
                 <Link2 size={12} /> <span className="hidden sm:inline">Dependent</span>
+              </Badge>
+            )}
+            {task.is_ai_created && (
+              <Badge className="bg-purple-100 text-purple-700 flex items-center gap-1 text-xs border border-purple-200" variant="secondary" title="Created by AI">
+                <Sparkles size={12} /> <span className="hidden sm:inline">AI Created</span>
+              </Badge>
+            )}
+            {task.is_ai_created && (
+              <Badge className="bg-amber-100 text-amber-700 flex items-center gap-1 text-xs border border-amber-200" variant="secondary" title="Required fields may be missing — please review and update this task">
+                <AlertTriangle size={12} /> <span className="hidden sm:inline">Needs Review</span>
               </Badge>
             )}
           </div>
