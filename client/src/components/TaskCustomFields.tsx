@@ -1,5 +1,6 @@
 /**
  * TaskCustomFields — dynamic renderer for task-module custom field definitions.
+ * Fields are rendered inside their assigned Field Group containers.
  *
  * Usage:
  *   const cfRef = useRef<TaskCustomFieldsRef>(null);
@@ -13,7 +14,7 @@ import React, { useState, useEffect, forwardRef, useImperativeHandle } from "rea
 import { apiClient } from "@/lib/api";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { SlidersHorizontal } from "lucide-react";
+import { Layers, SlidersHorizontal } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface FieldOption { value: string; label: string; color?: string; is_active?: boolean; }
@@ -30,6 +31,14 @@ interface CustomField {
   display_order: number;
   options: FieldOption[] | null;
   validation_rules: Record<string, any> | null;
+  field_group_id: string | null;
+}
+
+interface FieldGroup {
+  id: string;
+  name: string;
+  description: string | null;
+  display_order: number;
 }
 
 export interface ApiFieldValue {
@@ -117,7 +126,6 @@ function FieldInput({
         {field.is_required && <span className="text-red-500 ml-1">*</span>}
       </label>
 
-      {/* ── Text ── */}
       {uiType === "text" && (
         <Input
           type="text"
@@ -128,7 +136,6 @@ function FieldInput({
         />
       )}
 
-      {/* ── Long Text ── */}
       {uiType === "textarea" && (
         <Textarea
           value={value ?? ""}
@@ -138,7 +145,6 @@ function FieldInput({
         />
       )}
 
-      {/* ── Number / Decimal ── */}
       {(uiType === "number" || uiType === "decimal") && (
         <Input
           type="number"
@@ -150,7 +156,6 @@ function FieldInput({
         />
       )}
 
-      {/* ── Date ── */}
       {uiType === "date" && (
         <Input
           type="date"
@@ -160,7 +165,6 @@ function FieldInput({
         />
       )}
 
-      {/* ── DateTime ── */}
       {uiType === "datetime" && (
         <Input
           type="datetime-local"
@@ -170,7 +174,6 @@ function FieldInput({
         />
       )}
 
-      {/* ── Dropdown ── */}
       {uiType === "select" && (
         <select
           value={value ?? ""}
@@ -185,7 +188,6 @@ function FieldInput({
         </select>
       )}
 
-      {/* ── Multi Select ── */}
       {uiType === "multiselect" && (
         <div className="space-y-2 mt-1">
           {options.map(opt => {
@@ -213,7 +215,6 @@ function FieldInput({
         </div>
       )}
 
-      {/* ── Checkbox ── */}
       {uiType === "checkbox" && (
         <div className="flex items-center gap-3 h-12">
           <input
@@ -229,7 +230,6 @@ function FieldInput({
         </div>
       )}
 
-      {/* ── Yes / No ── */}
       {uiType === "yesno" && (
         <div className="flex items-center gap-3 h-12">
           <button
@@ -261,7 +261,6 @@ function FieldInput({
         </div>
       )}
 
-      {/* ── User Picker ── */}
       {uiType === "user_reference" && (
         <select
           value={value ?? ""}
@@ -276,12 +275,10 @@ function FieldInput({
         </select>
       )}
 
-      {/* ── Help Text ── */}
       {field.description && !error && (
         <p className="text-xs text-gray-500 mt-1">{field.description}</p>
       )}
 
-      {/* ── Error ── */}
       {error && (
         <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
           <span>⚠</span> {error}
@@ -291,27 +288,78 @@ function FieldInput({
   );
 }
 
+// ─── FieldGroupSection — renders one group's fields in a bordered container ───
+function FieldGroupSection({
+  group, fields, values, errors, users, onChangeValue,
+}: {
+  group: FieldGroup | null;
+  fields: CustomField[];
+  values: Record<string, any>;
+  errors: Record<string, string>;
+  users: { id: string; user_name: string | null; email: string }[];
+  onChangeValue: (fieldId: string, v: any) => void;
+}) {
+  if (fields.length === 0) return null;
+
+  return (
+    <div className="border border-indigo-100 rounded-lg overflow-hidden">
+      {/* Group header — only shown for named groups */}
+      {group && (
+        <div className="flex items-center gap-2 bg-indigo-50 px-3 py-2 border-b border-indigo-100">
+          <Layers className="w-3.5 h-3.5 text-indigo-400 flex-shrink-0" />
+          <span className="text-xs font-semibold text-indigo-700 uppercase tracking-wider">
+            {group.name}
+          </span>
+          {group.description && (
+            <span className="text-xs text-indigo-400 font-normal normal-case tracking-normal truncate">
+              — {group.description}
+            </span>
+          )}
+        </div>
+      )}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 p-3 sm:p-4 bg-white">
+        {fields.map(field => (
+          <FieldInput
+            key={field.id}
+            field={field}
+            uiType={getUiType(field)}
+            value={values[field.id]}
+            error={errors[field.id]}
+            users={users}
+            onChange={v => onChangeValue(field.id, v)}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 const TaskCustomFields = forwardRef<
   TaskCustomFieldsRef,
   { taskId?: string; open: boolean }
 >(({ taskId, open }, ref) => {
-  const [fields, setFields]   = useState<CustomField[]>([]);
-  const [values, setValues]   = useState<Record<string, any>>({});
-  const [errors, setErrors]   = useState<Record<string, string>>({});
+  const [fields,  setFields]  = useState<CustomField[]>([]);
+  const [groups,  setGroups]  = useState<FieldGroup[]>([]);
+  const [values,  setValues]  = useState<Record<string, any>>({});
+  const [errors,  setErrors]  = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [users,   setUsers]   = useState<{ id: string; user_name: string | null; email: string }[]>([]);
 
-  // Load active field definitions for task module
+  // Load field definitions and groups together when sheet opens
   useEffect(() => {
     if (!open) return;
     setLoading(true);
-    apiClient.get("/custom-fields/definitions?module=task")
-      .then((defs: CustomField[]) => {
+    Promise.all([
+      apiClient.get("/custom-fields/definitions?module=task"),
+      apiClient.get("/custom-fields/groups?module=task"),
+    ])
+      .then(([defs, grps]: [CustomField[], FieldGroup[]]) => {
         const active = defs
           .filter(d => d.is_active)
           .sort((a, b) => a.display_order - b.display_order);
         setFields(active);
+        setGroups(Array.isArray(grps) ? grps : []);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -369,7 +417,6 @@ const TaskCustomFields = forwardRef<
     if (errors[fieldId]) setErrors(prev => { const e = { ...prev }; delete e[fieldId]; return e; });
   };
 
-  // Nothing to show
   if (!open) return null;
   if (loading) return (
     <div className="bg-indigo-50 p-4 rounded-lg border border-indigo-100">
@@ -378,27 +425,76 @@ const TaskCustomFields = forwardRef<
   );
   if (fields.length === 0) return null;
 
+  // ── Build grouped sections ─────────────────────────────────────────────────
+  // Named groups first (in their defined order), then ungrouped fields
+  const sections: { group: FieldGroup | null; fields: CustomField[] }[] = [];
+
+  for (const g of groups) {
+    const gFields = fields.filter(f => f.field_group_id === g.id);
+    if (gFields.length > 0) sections.push({ group: g, fields: gFields });
+  }
+
+  const ungrouped = fields.filter(f => !f.field_group_id);
+
+  // If no groups exist at all, render all fields in one unstyled section
+  const hasAnyGroups = groups.length > 0 && sections.length > 0;
+
   return (
-    <div className="bg-indigo-50 p-3 sm:p-4 rounded-lg border border-indigo-100">
-      <h3 className="text-sm sm:text-base font-medium text-gray-800 mb-4 flex items-center gap-2">
+    <div className="space-y-3">
+      {/* Section header — only shown once above everything */}
+      <h3 className="text-sm font-medium text-gray-800 flex items-center gap-2">
         <span className="bg-indigo-100 text-indigo-700 rounded-full w-6 h-6 flex items-center justify-center flex-shrink-0">
           <SlidersHorizontal className="w-3.5 h-3.5" />
         </span>
         Custom Fields
       </h3>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-        {fields.map(field => (
-          <FieldInput
-            key={field.id}
-            field={field}
-            uiType={getUiType(field)}
-            value={values[field.id]}
-            error={errors[field.id]}
-            users={users}
-            onChange={v => setValue(field.id, v)}
-          />
-        ))}
-      </div>
+
+      {hasAnyGroups ? (
+        <>
+          {/* Named group containers */}
+          {sections.map(({ group, fields: gf }) => (
+            <FieldGroupSection
+              key={group!.id}
+              group={group}
+              fields={gf}
+              values={values}
+              errors={errors}
+              users={users}
+              onChangeValue={setValue}
+            />
+          ))}
+
+          {/* Ungrouped fields — no header, plain white container */}
+          {ungrouped.length > 0 && (
+            <FieldGroupSection
+              key="ungrouped"
+              group={null}
+              fields={ungrouped}
+              values={values}
+              errors={errors}
+              users={users}
+              onChangeValue={setValue}
+            />
+          )}
+        </>
+      ) : (
+        /* No groups at all — original flat grid inside a single container */
+        <div className="border border-indigo-100 rounded-lg bg-white p-3 sm:p-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+            {fields.map(field => (
+              <FieldInput
+                key={field.id}
+                field={field}
+                uiType={getUiType(field)}
+                value={values[field.id]}
+                error={errors[field.id]}
+                users={users}
+                onChange={v => setValue(field.id, v)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 });
