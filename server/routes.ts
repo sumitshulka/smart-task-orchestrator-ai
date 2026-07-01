@@ -3343,14 +3343,25 @@ Rules:
     } catch (err: any) { res.status(500).json({ error: "Failed to update field definition" }); }
   });
 
+  // GET /api/custom-fields/definitions/:id/usage — count of stored values
+  app.get("/api/custom-fields/definitions/:id/usage", requireAnyAuthenticated, async (req: any, res) => {
+    try {
+      const current = await storage.getCustomFieldDefinition(req.params.id);
+      if (!current) return res.status(404).json({ error: "Field definition not found" });
+      const count = await storage.getCustomFieldUsageCount(req.params.id);
+      res.json({ count });
+    } catch (err: any) { res.status(500).json({ error: "Failed to fetch usage count" }); }
+  });
+
   // DELETE /api/custom-fields/definitions/:id
   app.delete("/api/custom-fields/definitions/:id", requireAnyAuthenticated, async (req: any, res) => {
     try {
       const current = await storage.getCustomFieldDefinition(req.params.id);
       if (!current) return res.status(404).json({ error: "Field definition not found" });
       if (current.is_system) return res.status(400).json({ error: "System fields cannot be deleted" });
+      const valuesDeleted = await storage.getCustomFieldUsageCount(req.params.id);
       await storage.deleteCustomFieldDefinition(req.params.id);
-      res.json({ ok: true });
+      res.json({ ok: true, valuesDeleted });
     } catch (err: any) { res.status(500).json({ error: "Failed to delete field definition" }); }
   });
 

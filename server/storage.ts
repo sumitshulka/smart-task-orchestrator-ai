@@ -346,6 +346,7 @@ export interface IStorage {
   getCustomFieldDefinitionByKey(module: string, fieldKey: string): Promise<CustomFieldDefinition | undefined>;
   createCustomFieldDefinition(def: InsertCustomFieldDefinition): Promise<CustomFieldDefinition>;
   updateCustomFieldDefinition(id: string, updates: Partial<CustomFieldDefinition>): Promise<CustomFieldDefinition>;
+  getCustomFieldUsageCount(id: string): Promise<number>;
   deleteCustomFieldDefinition(id: string): Promise<void>;
   reorderCustomFieldDefinitions(orders: { id: string; display_order: number }[]): Promise<void>;
 
@@ -1918,8 +1919,16 @@ export class DatabaseStorage implements IStorage {
     return rows[0];
   }
 
+  async getCustomFieldUsageCount(id: string): Promise<number> {
+    const result = await db
+      .select({ cnt: sql<number>`count(*)::int` })
+      .from(customFieldValues)
+      .where(eq(customFieldValues.field_definition_id, id));
+    return result[0]?.cnt ?? 0;
+  }
+
   async deleteCustomFieldDefinition(id: string): Promise<void> {
-    // Cascades to custom_field_values via FK
+    // Values cascade-deleted via FK on custom_field_values.field_definition_id
     await db.delete(customFieldDefinitions).where(eq(customFieldDefinitions.id, id));
   }
 

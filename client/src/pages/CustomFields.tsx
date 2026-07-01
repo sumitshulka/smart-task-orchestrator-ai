@@ -416,6 +416,8 @@ export default function CustomFieldsPage() {
   const [form, setFormRaw]            = useState<FormState>(emptyForm());
   const [keyManual, setKeyManual]     = useState(false);
   const [archiveTarget, setArchiveTarget] = useState<CustomField | null>(null);
+  const [deleteTarget,  setDeleteTarget]  = useState<CustomField | null>(null);
+  const [deleteUsage,   setDeleteUsage]   = useState<{ count: number; loading: boolean }>({ count: 0, loading: false });
 
   // ── Field Group management state ───────────────────────────────────────────
   const [groupsOpen,       setGroupsOpen]       = useState(false);
@@ -579,6 +581,29 @@ export default function CustomFieldsPage() {
     },
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => apiClient.delete(`/custom-fields/definitions/${id}`),
+    onSuccess: (data: any) => {
+      invalidate();
+      toast({
+        title: "Field deleted",
+        description: data.valuesDeleted > 0
+          ? `Removed ${data.valuesDeleted} stored value${data.valuesDeleted !== 1 ? "s" : ""}.`
+          : "No stored values were affected.",
+      });
+      setDeleteTarget(null);
+    },
+    onError: (e: any) => toast({ title: "Delete failed", description: e.message, variant: "destructive" }),
+  });
+
+  function openDeleteDialog(f: CustomField) {
+    setDeleteTarget(f);
+    setDeleteUsage({ count: 0, loading: true });
+    apiClient.get(`/custom-fields/definitions/${f.id}/usage`)
+      .then((res: any) => setDeleteUsage({ count: res.count ?? 0, loading: false }))
+      .catch(() => setDeleteUsage({ count: 0, loading: false }));
+  }
 
   // ── Dialog handlers ───────────────────────────────────────────────────────
   function openCreate() {
@@ -766,6 +791,18 @@ export default function CustomFieldsPage() {
                           </Button>
                         </TooltipTrigger>
                         <TooltipContent>{f.is_active ? "Archive" : "Activate"}</TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost" size="icon"
+                            className="h-8 w-8 text-gray-400 hover:text-red-600"
+                            onClick={() => openDeleteDialog(f)}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Delete</TooltipContent>
                       </Tooltip>
                     </>
                   )}
@@ -1243,6 +1280,66 @@ export default function CustomFieldsPage() {
                 onClick={() => archiveTarget && toggleActiveMutation.mutate({ id: archiveTarget.id, is_active: false })}
               >
                 Archive Field
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Delete Confirmation */}
+        <AlertDialog open={!!deleteTarget} onOpenChange={v => { if (!v) setDeleteTarget(null); }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2 text-red-700">
+                <Trash2 className="w-5 h-5" />
+                Permanently delete "{deleteTarget?.label}"?
+              </AlertDialogTitle>
+              <AlertDialogDescription asChild>
+                <div className="space-y-3 text-sm text-gray-600">
+                  <p>
+                    This will <strong className="text-gray-800">permanently remove</strong> the field definition
+                    and <strong className="text-gray-800">all stored values</strong> across every record that used it.
+                    This action cannot be undone.
+                  </p>
+
+                  {/* Usage count */}
+                  <div className={`rounded-lg border px-4 py-3 text-sm font-medium flex items-center gap-2
+                    ${deleteUsage.loading
+                      ? "border-gray-200 bg-gray-50 text-gray-400"
+                      : deleteUsage.count > 0
+                        ? "border-red-200 bg-red-50 text-red-700"
+                        : "border-green-200 bg-green-50 text-green-700"}`}>
+                    {deleteUsage.loading ? (
+                      <>
+                        <span className="animate-pulse">●</span>
+                        Checking stored values…
+                      </>
+                    ) : deleteUsage.count > 0 ? (
+                      <>
+                        <span>⚠</span>
+                        {deleteUsage.count} stored value{deleteUsage.count !== 1 ? "s" : ""} will be permanently deleted.
+                      </>
+                    ) : (
+                      <>
+                        <span>✓</span>
+                        No stored values — safe to delete.
+                      </>
+                    )}
+                  </div>
+
+                  <p className="text-xs text-gray-400">
+                    Consider <strong>Archiving</strong> instead if you only want to hide the field without losing existing data.
+                  </p>
+                </div>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
+                disabled={deleteUsage.loading || deleteMutation.isPending}
+                onClick={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
+              >
+                {deleteMutation.isPending ? "Deleting…" : "Delete Permanently"}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
