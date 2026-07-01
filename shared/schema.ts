@@ -335,6 +335,7 @@ export const tasks = pgTable("tasks", {
   timer_session_data: text("timer_session_data"), // JSON data for timer sessions
   // AI creation tracking
   is_ai_created: boolean("is_ai_created").default(false),
+  needs_cf_review: boolean("needs_cf_review").default(false),
   created_at: timestamp("created_at").defaultNow(),
   updated_at: timestamp("updated_at").defaultNow(),
 });

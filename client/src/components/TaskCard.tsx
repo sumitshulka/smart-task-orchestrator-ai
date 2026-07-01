@@ -221,8 +221,8 @@ export default function TaskCard({ task, onTaskUpdated, canDelete, statusColor, 
                 <Sparkles size={12} /> <span className="hidden sm:inline">AI Created</span>
               </Badge>
             )}
-            {task.is_ai_created && (
-              <Badge className="bg-amber-100 text-amber-700 flex items-center gap-1 text-xs border border-amber-200" variant="secondary" title="Required fields may be missing — please review and update this task">
+            {task.needs_cf_review && (
+              <Badge className="bg-amber-100 text-amber-700 flex items-center gap-1 text-xs border border-amber-200" variant="secondary" title="Required custom fields are missing — please edit this task to fill them in">
                 <AlertTriangle size={12} /> <span className="hidden sm:inline">Needs Review</span>
               </Badge>
             )}

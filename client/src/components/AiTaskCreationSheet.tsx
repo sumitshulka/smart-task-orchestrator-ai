@@ -193,6 +193,13 @@ const AiTaskCreationSheet: React.FC<Props> = ({ open, onOpenChange, onTaskCreate
 
       const assignedUser = users.find((u: any) => u.id === mergedTask.assigned_to);
 
+      // Check if any required CF fields exist — if so, flag the task for review
+      let hasRequiredCfFields = false;
+      try {
+        const cfDefs: any[] = await apiClient.get("/custom-fields/definitions?module=task");
+        hasRequiredCfFields = Array.isArray(cfDefs) && cfDefs.some((f: any) => f.is_required && f.is_active !== false);
+      } catch { /* ignore — if check fails, default to false */ }
+
       await apiClient.post("/tasks", {
         title: mergedTask.title,
         description: mergedTask.description ?? null,
@@ -205,6 +212,7 @@ const AiTaskCreationSheet: React.FC<Props> = ({ open, onOpenChange, onTaskCreate
         type: mergedTask.type ?? "team",
         team_id: assignedUser?.team_id ?? null,
         is_ai_created: true,
+        needs_cf_review: hasRequiredCfFields,
       });
 
       qc.invalidateQueries({ queryKey: ["/api/tasks"] });

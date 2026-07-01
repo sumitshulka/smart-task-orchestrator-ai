@@ -203,6 +203,8 @@ const EditTaskSheet: React.FC<Props> = ({
         project_id:   linkProjectId   || null,
         milestone_id: linkMilestoneId || null,
         feature_id:   linkFeatureId   || null,
+        // CF validation passed (line above), so all required fields will be filled — clear review flag
+        ...(task?.needs_cf_review ? { needs_cf_review: false } : {}),
       };
 
       await apiClient.updateTask(task!.id, updatePayload);

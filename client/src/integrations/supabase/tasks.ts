@@ -35,6 +35,7 @@ export type Task = {
   feature_id?: string | null;
   // AI creation flag
   is_ai_created?: boolean;
+  needs_cf_review?: boolean;
   task_number?: number | null;
   start_date?: string | null;
 };

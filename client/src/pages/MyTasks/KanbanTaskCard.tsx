@@ -179,9 +179,11 @@ function KanbanTaskCard({ task, onClick, CARD_TYPE, statusColor }: {
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700 border border-purple-200" title="Created by AI">
               <Sparkles size={10} /> AI Created
             </span>
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700 border border-amber-200" title="Required fields may be missing — please review">
-              <AlertTriangle size={10} /> Needs Review
-            </span>
+            {task.needs_cf_review && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700 border border-amber-200" title="Required custom fields are missing — please edit this task to fill them in">
+                <AlertTriangle size={10} /> Needs Review
+              </span>
+            )}
           </div>
         )}
 
