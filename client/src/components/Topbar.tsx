@@ -81,7 +81,7 @@ const Topbar: React.FC<TopbarProps> = ({ sidebarOpen, setSidebarOpen }) => {
       <div className="flex items-center gap-1 sm:gap-2 ml-auto">
 
         {/* Help */}
-        <div className="[&_button]:text-white [&_button:hover]:text-white">
+        <div className="[&_button]:text-white [&_button:hover]:text-gray-900">
           <HelpButton variant="ghost" size="sm" showText={false} />
         </div>
 
