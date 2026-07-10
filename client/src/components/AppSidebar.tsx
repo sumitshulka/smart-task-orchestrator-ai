@@ -56,7 +56,7 @@ export default function AppSidebar() {
         style={{ background: "#0f172a" }}
       >
         <DashboardMenu isUserOnly={isUserOnly} collapsed={false} />
-        <TaskManagementMenu collapsed={false} />
+        <TaskManagementMenu isAdmin={isAdmin} isManager={isManager} collapsed={false} />
         {projectManagementEnabled && <ProjectManagementMenu collapsed={false} />}
         {defectManagementEnabled && <DefectManagementMenu collapsed={false} />}
         <ManagementMenu isAdmin={isAdmin} isManager={isManager} collapsed={false} />
