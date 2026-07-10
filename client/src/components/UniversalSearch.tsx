@@ -169,6 +169,138 @@ const KEYWORD_COMMANDS: Record<string, KwCmd[]> = {
   ],
 };
 
+// ── Natural language intent patterns ──────────────────────────────────────────
+type NlpIntent = {
+  patterns: RegExp[];
+  label: string;
+  description: string;
+  url?: string;
+  filterQuery?: string;
+  icon: React.ElementType;
+  iconColor: string;
+  iconBg: string;
+};
+
+const NLP_INTENTS: NlpIntent[] = [
+  {
+    patterns: [/overdue/i, /past.?due/i, /late.?task/i, /missed.?deadline/i, /expired/i],
+    label: "Overdue Tasks",
+    description: "View all tasks that are past their due date",
+    url: "/admin/reports",
+    icon: AlertTriangle,
+    iconColor: "text-red-600",
+    iconBg: "bg-red-50 dark:bg-red-900/30",
+  },
+  {
+    patterns: [/my.?tasks?/i, /assigned.?to.?me/i, /my.?work/i, /show.?my/i, /tasks.?for.?me/i, /what.?(do|should).?i/i],
+    label: "My Tasks",
+    description: "View tasks assigned to you",
+    url: "/admin/my-tasks",
+    icon: CheckSquare,
+    iconColor: "text-indigo-600",
+    iconBg: "bg-indigo-50 dark:bg-indigo-900/30",
+  },
+  {
+    patterns: [/high.?priority/i, /critical.?task/i, /urgent.?task/i, /priority.?(1|one|critical|high)/i],
+    label: "High Priority Tasks",
+    description: "Search for high priority tasks",
+    filterQuery: "task:critical",
+    icon: AlertTriangle,
+    iconColor: "text-orange-600",
+    iconBg: "bg-orange-50 dark:bg-orange-900/30",
+  },
+  {
+    patterns: [/open.?projects?|active.?projects?|show.?projects?|all.?projects?|list.?projects?/i],
+    label: "Active Projects",
+    description: "View all projects",
+    url: "/projects",
+    icon: Briefcase,
+    iconColor: "text-violet-600",
+    iconBg: "bg-violet-50 dark:bg-violet-900/30",
+  },
+  {
+    patterns: [/bugs?|defects?|issues?|show.?bugs?|open.?defects?/i],
+    label: "Defects & Bugs",
+    description: "View all defects and bugs",
+    url: "/defects",
+    icon: Bug,
+    iconColor: "text-orange-600",
+    iconBg: "bg-orange-50 dark:bg-orange-900/30",
+  },
+  {
+    patterns: [/workspace|my.?workspace|open.?workspace|dashboard/i],
+    label: "My Workspace",
+    description: "Open your personal workspace",
+    url: "/my-workspace",
+    icon: Hash,
+    iconColor: "text-indigo-500",
+    iconBg: "bg-indigo-50 dark:bg-indigo-900/30",
+  },
+  {
+    patterns: [/reports?|analytics|show.?report|performance.?report/i],
+    label: "Reports",
+    description: "View analytics and reports",
+    url: "/admin/reports",
+    icon: FolderOpen,
+    iconColor: "text-emerald-600",
+    iconBg: "bg-emerald-50 dark:bg-emerald-900/30",
+  },
+  {
+    patterns: [/discussions?|decisions?|conversations?|show.?discussion/i],
+    label: "Discussions",
+    description: "View workspace discussions",
+    url: "/decisions",
+    icon: MessageSquare,
+    iconColor: "text-sky-600",
+    iconBg: "bg-sky-50 dark:bg-sky-900/30",
+  },
+  {
+    patterns: [/settings?|configuration|preferences?|admin.?panel/i],
+    label: "Settings",
+    description: "Open application settings",
+    url: "/admin/settings",
+    icon: Settings,
+    iconColor: "text-slate-600",
+    iconBg: "bg-slate-100 dark:bg-slate-800",
+  },
+  {
+    patterns: [/users?|team.?members?|manage.?users?|people/i],
+    label: "Users",
+    description: "View and manage team members",
+    url: "/admin/users",
+    icon: Users,
+    iconColor: "text-emerald-600",
+    iconBg: "bg-emerald-50 dark:bg-emerald-900/30",
+  },
+  {
+    patterns: [/teams?|show.?teams?|manage.?teams?/i],
+    label: "Teams",
+    description: "View and manage teams",
+    url: "/admin/teams",
+    icon: Shield,
+    iconColor: "text-sky-600",
+    iconBg: "bg-sky-50 dark:bg-sky-900/30",
+  },
+  {
+    patterns: [/all.?tasks?|every.?task|task.?list|show.?tasks?/i],
+    label: "All Tasks",
+    description: "View all tasks in the system",
+    url: "/admin/tasks",
+    icon: CheckSquare,
+    iconColor: "text-indigo-600",
+    iconBg: "bg-indigo-50 dark:bg-indigo-900/30",
+  },
+];
+
+type AiNlpResult = {
+  type: "navigate" | "search" | "unknown" | "unavailable";
+  label?: string;
+  url?: string;
+  query?: string;
+  description?: string;
+  message?: string;
+};
+
 // ── Constants ─────────────────────────────────────────────────────────────────
 const HISTORY_KEY = "taskrep_search_history";
 const MAX_HISTORY = 8;
@@ -377,6 +509,9 @@ export default function UniversalSearch({ open, onClose }: UniversalSearchProps)
   const [showFilterHints, setShowFilterHints] = useState(false);
   const [didYouKnowTip, setDidYouKnowTip] = useState(DID_YOU_KNOW_TIPS[0]);
   const [placeholderIdx, setPlaceholderIdx] = useState(0);
+  const [nlpIntents, setNlpIntents] = useState<NlpIntent[]>([]);
+  const [aiNlpResult, setAiNlpResult] = useState<AiNlpResult | null>(null);
+  const [aiNlpLoading, setAiNlpLoading] = useState(false);
 
   // Refresh history on open, and pick fresh random tip
   useEffect(() => {
@@ -385,6 +520,7 @@ export default function UniversalSearch({ open, onClose }: UniversalSearchProps)
       setHistory(getHistory());
       setDidYouKnowTip(DID_YOU_KNOW_TIPS[Math.floor(Math.random() * DID_YOU_KNOW_TIPS.length)]);
       setPlaceholderIdx(Math.floor(Math.random() * PLACEHOLDER_SUGGESTIONS.length));
+      setNlpIntents([]); setAiNlpResult(null); setAiNlpLoading(false);
       setTimeout(() => inputRef.current?.focus(), 50);
     }
   }, [open]);
@@ -401,6 +537,33 @@ export default function UniversalSearch({ open, onClose }: UniversalSearchProps)
     const t = setTimeout(() => setDebouncedQ(query), 280);
     return () => clearTimeout(t);
   }, [query]);
+
+  // NLP intent detection: run when debounced query changes
+  useEffect(() => {
+    const q = debouncedQ.trim();
+    if (!q || q.length < 3 || q.includes(":")) {
+      setNlpIntents([]); setAiNlpResult(null); setAiNlpLoading(false);
+      return;
+    }
+    // 1. Fast path: pattern matching
+    const matched = NLP_INTENTS.filter(intent => intent.patterns.some(p => p.test(q)));
+    setNlpIntents(matched);
+    setAiNlpResult(null);
+
+    // 2. AI path: only if no pattern match and query looks like a sentence (has a space)
+    if (matched.length === 0 && q.includes(" ")) {
+      setAiNlpLoading(true);
+      apiRequest("/api/ai/nlp-command", {
+        method: "POST",
+        body: JSON.stringify({ query: q }),
+        headers: { "Content-Type": "application/json" },
+      })
+        .then((r: AiNlpResult) => { setAiNlpResult(r); setAiNlpLoading(false); })
+        .catch(() => { setAiNlpResult(null); setAiNlpLoading(false); });
+    } else {
+      setAiNlpLoading(false);
+    }
+  }, [debouncedQ]);
 
   // Fetch search results
   const { data: results, isFetching } = useQuery<SearchResults>({
@@ -709,6 +872,77 @@ export default function UniversalSearch({ open, onClose }: UniversalSearchProps)
                     AI command execution will be available in a future release.
                   </p>
                 </div>
+              </div>
+            )}
+
+            {/* ── NLP Smart Actions (pattern match or AI) ──────────────────────── */}
+            {debouncedQ && !isCommandMode && (nlpIntents.length > 0 || aiNlpLoading || (aiNlpResult && aiNlpResult.type !== "unavailable" && aiNlpResult.type !== "unknown")) && (
+              <div>
+                <SectionLabel>
+                  <span className="flex items-center gap-1.5">
+                    <Sparkles className="w-3 h-3 text-purple-400" />
+                    Smart Actions
+                    {aiNlpLoading && <Loader2 className="w-3 h-3 text-purple-400 animate-spin ml-1" />}
+                  </span>
+                </SectionLabel>
+
+                {/* Pattern-matched intents */}
+                {nlpIntents.map(intent => {
+                  const IIcon = intent.icon;
+                  return (
+                    <button key={intent.label}
+                      onMouseDown={() => {
+                        if (intent.filterQuery) { setQuery(intent.filterQuery); inputRef.current?.focus(); }
+                        else if (intent.url) { navigate(intent.url); onClose(); }
+                      }}
+                      className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-indigo-50/60 dark:hover:bg-indigo-900/20 text-left transition-colors group">
+                      <div className={`w-8 h-8 rounded-lg ${intent.iconBg} flex items-center justify-center`}>
+                        <IIcon className={`w-4 h-4 ${intent.iconColor}`} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-slate-700 dark:text-slate-200">{intent.label}</p>
+                        <p className="text-[11px] text-slate-400 truncate">{intent.description}</p>
+                      </div>
+                      <ArrowRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-indigo-400 transition-colors" />
+                    </button>
+                  );
+                })}
+
+                {/* AI result */}
+                {aiNlpResult && aiNlpResult.type === "navigate" && (
+                  <button
+                    onMouseDown={() => { navigate(aiNlpResult.url!); onClose(); }}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-purple-50/60 dark:hover:bg-purple-900/20 text-left transition-colors group">
+                    <div className="w-8 h-8 rounded-lg bg-purple-50 dark:bg-purple-900/30 flex items-center justify-center">
+                      <Sparkles className="w-4 h-4 text-purple-600" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-sm font-medium text-slate-700 dark:text-slate-200">{aiNlpResult.label}</p>
+                        <span className="text-[9px] font-bold uppercase tracking-wide text-purple-500 bg-purple-50 dark:bg-purple-900/40 px-1 py-0.5 rounded">AI</span>
+                      </div>
+                      <p className="text-[11px] text-slate-400 truncate">{aiNlpResult.description}</p>
+                    </div>
+                    <ArrowRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-purple-400 transition-colors" />
+                  </button>
+                )}
+                {aiNlpResult && aiNlpResult.type === "search" && (
+                  <button
+                    onMouseDown={() => { setQuery(aiNlpResult.query!); inputRef.current?.focus(); setAiNlpResult(null); }}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-purple-50/60 dark:hover:bg-purple-900/20 text-left transition-colors group">
+                    <div className="w-8 h-8 rounded-lg bg-purple-50 dark:bg-purple-900/30 flex items-center justify-center">
+                      <Sparkles className="w-4 h-4 text-purple-600" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-sm font-medium text-slate-700 dark:text-slate-200">{aiNlpResult.label}</p>
+                        <span className="text-[9px] font-bold uppercase tracking-wide text-purple-500 bg-purple-50 dark:bg-purple-900/40 px-1 py-0.5 rounded">AI</span>
+                      </div>
+                      <p className="text-[11px] text-slate-400 truncate">{aiNlpResult.description}</p>
+                    </div>
+                    <Search className="w-3.5 h-3.5 text-slate-300 group-hover:text-purple-400 transition-colors" />
+                  </button>
+                )}
               </div>
             )}
 

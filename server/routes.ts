@@ -2610,6 +2610,70 @@ Rules:
     }
   });
 
+  // POST /api/ai/nlp-command  — Command Center natural language intent resolver
+  app.post("/api/ai/nlp-command", requireAnyAuthenticated, async (req: any, res: any) => {
+    try {
+      const { query } = req.body as { query: string };
+      if (!query?.trim()) return res.status(400).json({ error: "query required" });
+
+      const settings = await storage.getAiSettings();
+      if (!settings?.is_enabled || !settings.api_key) {
+        return res.status(200).json({ type: "unavailable" });
+      }
+
+      const decryptedKey = decryptApiKey(settings.api_key);
+
+      const systemPrompt = `You are a navigation and command assistant for TazQ, a task management system.
+Parse the user's natural language query and return a JSON action that maps it to a TazQ route or search.
+
+TazQ routes:
+- /admin/tasks            = All tasks
+- /admin/my-tasks         = My assigned tasks
+- /admin/reports          = Reports (overdue, performance, etc.)
+- /projects               = Projects list
+- /defects                = Defects / Bugs list
+- /decisions              = Workspace Discussions
+- /my-workspace           = My Workspace / dashboard
+- /admin/users            = Users management
+- /admin/teams            = Teams management
+- /admin/settings         = Settings
+
+Respond ONLY with valid JSON (no markdown, no explanation):
+
+For navigation:
+{"type":"navigate","label":"<short label>","url":"<route>","description":"<one line>"}
+
+For searches (put the refined search term in query):
+{"type":"search","label":"<short label>","query":"<search term>","description":"<one line>"}
+
+For filter-prefix searches:
+{"type":"search","label":"<short label>","query":"task:<term>","description":"<one line>"}
+
+For queries you cannot map:
+{"type":"unknown","message":"<brief friendly message>"}
+
+Examples:
+User: "show me overdue tasks" → {"type":"navigate","label":"Overdue Tasks","url":"/admin/reports","description":"View all tasks past their due date"}
+User: "my work this week" → {"type":"navigate","label":"My Tasks","url":"/admin/my-tasks","description":"View your assigned tasks"}
+User: "critical bugs" → {"type":"search","label":"Critical Defects","query":"defect:critical","description":"Search for critical defects"}
+User: "login project" → {"type":"search","label":"Search Projects","query":"project:login","description":"Find projects matching login"}`;
+
+      const raw = await callAiProvider(
+        { provider: settings.provider || "openai", apiKey: decryptedKey, model: settings.model || "gpt-4o-mini", baseUrl: settings.base_url ?? null },
+        [{ role: "system", content: systemPrompt }, { role: "user", content: query }]
+      );
+
+      // Extract JSON from response
+      const jsonMatch = raw.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) return res.json({ type: "unknown", message: "Could not parse AI response" });
+      const parsed = JSON.parse(jsonMatch[0]);
+      return res.json(parsed);
+    } catch (err: any) {
+      console.error("POST /api/ai/nlp-command error:", err);
+      return res.status(500).json({ type: "unknown", message: "AI request failed" });
+    }
+  });
+
   // POST /api/my-workspace/ai-brief  (any authenticated user)
   // Generates a personalised AI daily brief based on the user's real workload data.
   app.post("/api/my-workspace/ai-brief", requireAnyAuthenticated, async (req: any, res: any) => {
