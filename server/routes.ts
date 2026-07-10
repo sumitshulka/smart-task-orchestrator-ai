@@ -3462,6 +3462,17 @@ Rules:
 
   // ── Workspace API ─────────────────────────────────────────────────────────────
 
+  // GET /api/workspace/:entityType/:entityId/mentionable — scoped @mention members
+  app.get("/api/workspace/:entityType/:entityId/mentionable", requireAnyAuthenticated, async (req: any, res) => {
+    try {
+      const { entityType, entityId } = req.params;
+      const result = await storage.getWorkspaceMentionableMembers(entityType, entityId);
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ error: "Failed to fetch mentionable members" });
+    }
+  });
+
   // GET /api/workspace/decisions/all — central decisions dashboard (admin + manager)
   app.get("/api/workspace/decisions/all", requireAnyAuthenticated, async (req: any, res) => {
     try {

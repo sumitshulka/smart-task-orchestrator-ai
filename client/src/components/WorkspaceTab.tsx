@@ -49,6 +49,13 @@ type FeedItem =
 
 type Filter = "all" | "messages" | "decisions" | "files";
 
+interface Mentionable {
+  id: string;
+  display_name: string;
+  email: string;
+  type: "user" | "client";
+}
+
 const QUICK_EMOJIS = ["👍", "✅", "❤️", "😊", "🔥", "👀"];
 
 function getInitials(name: string) {
@@ -70,6 +77,7 @@ interface Props {
 const WorkspaceTab: React.FC<Props> = ({ entityType, entityId }) => {
   const { user } = useAuth();
   const feedBottomRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [filter, setFilter] = useState<Filter>("all");
   const [compose, setCompose] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -78,6 +86,8 @@ const WorkspaceTab: React.FC<Props> = ({ entityType, entityId }) => {
   const [decisionModal, setDecisionModal] = useState(false);
   const [decisionForm, setDecisionForm] = useState({ title: "", description: "", status: "pending" });
   const [titleError, setTitleError] = useState("");
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null);
+  const [mentionAnchorIdx, setMentionAnchorIdx] = useState(0);
 
   const queryKey = [`/api/workspace/${entityType}/${entityId}`];
 
@@ -85,6 +95,23 @@ const WorkspaceTab: React.FC<Props> = ({ entityType, entityId }) => {
     queryKey,
     queryFn: () => apiRequest(`/api/workspace/${entityType}/${entityId}`),
   });
+
+  const { data: mentionableData } = useQuery<{ users: Mentionable[]; clients: Mentionable[] }>({
+    queryKey: [`/api/workspace/${entityType}/${entityId}/mentionable`],
+    queryFn: () => apiRequest(`/api/workspace/${entityType}/${entityId}/mentionable`),
+  });
+
+  const allMentionables: Mentionable[] = [
+    ...(mentionableData?.users ?? []).map(u => ({ ...u, type: "user" as const })),
+    ...(mentionableData?.clients ?? []).map(c => ({ ...c, type: "client" as const })),
+  ];
+
+  const filteredMentionables = mentionQuery !== null
+    ? allMentionables.filter(m =>
+        m.display_name.toLowerCase().includes(mentionQuery) ||
+        m.email.toLowerCase().includes(mentionQuery)
+      )
+    : [];
 
   // scroll to bottom when new messages arrive
   useEffect(() => {
@@ -161,6 +188,62 @@ const WorkspaceTab: React.FC<Props> = ({ entityType, entityId }) => {
     return true;
   });
 
+  // ── @mention helpers ──────────────────────────────────────────────────────
+  const parseMentions = (text: string, isMine: boolean): React.ReactNode => {
+    const regex = /@\[([^\]|]+)\|([^\]|]+)\|([^\]]+)\]/g;
+    const parts: React.ReactNode[] = [];
+    let last = 0;
+    let m;
+    while ((m = regex.exec(text)) !== null) {
+      if (m.index > last) parts.push(<span key={`t-${last}`}>{text.slice(last, m.index)}</span>);
+      const [, name, , type] = m;
+      parts.push(
+        <span key={`mn-${m.index}`}
+          className={`inline-flex items-center px-1.5 py-0 rounded font-semibold text-xs leading-5
+            ${type === "client"
+              ? (isMine ? "bg-purple-300/30 text-purple-100" : "bg-purple-100 text-purple-700")
+              : (isMine ? "bg-white/25 text-white" : "bg-indigo-100 text-indigo-700")}`}>
+          @{name}
+        </span>
+      );
+      last = m.index + m[0].length;
+    }
+    if (last < text.length) parts.push(<span key={`t-end`}>{text.slice(last)}</span>);
+    return parts.length > 0 ? <>{parts}</> : <>{text}</>;
+  };
+
+  const handleComposeChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const val = e.target.value;
+    setCompose(val);
+    const pos = e.target.selectionStart ?? val.length;
+    const before = val.slice(0, pos);
+    const match = before.match(/@(\w*)$/);
+    if (match) {
+      setMentionQuery(match[1].toLowerCase());
+      setMentionAnchorIdx(pos - match[0].length);
+    } else {
+      setMentionQuery(null);
+    }
+  };
+
+  const insertMention = (m: Mentionable) => {
+    const token = `@[${m.display_name}|${m.id}|${m.type}]`;
+    const cursorPos = textareaRef.current?.selectionStart ?? compose.length;
+    const before = compose.slice(0, mentionAnchorIdx);
+    const after = compose.slice(cursorPos);
+    const newVal = `${before}${token} ${after}`;
+    setCompose(newVal);
+    setMentionQuery(null);
+    setTimeout(() => {
+      const ta = textareaRef.current;
+      if (ta) {
+        ta.focus();
+        const np = (before + token + " ").length;
+        ta.setSelectionRange(np, np);
+      }
+    }, 0);
+  };
+
   // ── Render helpers ────────────────────────────────────────────────────────
   const renderReactions = (msg: WsMessage) => {
     const grouped: Record<string, number> = {};
@@ -235,7 +318,7 @@ const WorkspaceTab: React.FC<Props> = ({ entityType, entityId }) => {
           ) : (
             <div className={`px-3 py-2 rounded-2xl text-sm leading-relaxed
               ${isDeleted ? "bg-gray-100 text-gray-400 italic" : isMine ? "bg-indigo-600 text-white" : "bg-gray-100 text-gray-800"}`}>
-              {isDeleted ? "This message was deleted" : msg.content}
+              {isDeleted ? "This message was deleted" : parseMentions(msg.content, isMine)}
             </div>
           )}
 
@@ -359,17 +442,53 @@ const WorkspaceTab: React.FC<Props> = ({ entityType, entityId }) => {
 
       {/* ── Compose bar ── */}
       <div className="pt-3 border-t border-gray-100">
-        <div className="flex gap-2 items-end">
+        <div className="relative flex gap-2 items-end">
+          {/* @mention dropdown */}
+          {mentionQuery !== null && filteredMentionables.length > 0 && (
+            <div className="absolute bottom-full mb-2 left-0 right-10 bg-white border border-gray-200 rounded-xl shadow-xl z-50 max-h-52 overflow-y-auto">
+              <div className="px-3 py-1.5 border-b border-gray-100 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
+                Mention a member
+              </div>
+              {filteredMentionables.map(m => (
+                <button
+                  key={m.id}
+                  type="button"
+                  className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-gray-50 text-left transition-colors"
+                  onMouseDown={e => { e.preventDefault(); insertMention(m); }}
+                >
+                  <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0
+                    ${m.type === "client" ? "bg-purple-100 text-purple-700" : "bg-indigo-100 text-indigo-700"}`}>
+                    {m.display_name[0]?.toUpperCase() ?? "?"}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium text-gray-900 truncate">{m.display_name}</div>
+                    <div className="text-xs text-gray-400 truncate">
+                      {m.type === "client" ? "👤 Client contact" : m.email}
+                    </div>
+                  </div>
+                  {m.type === "client" && (
+                    <span className="text-[10px] bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded font-medium">Client</span>
+                  )}
+                </button>
+              ))}
+              {filteredMentionables.length === 0 && mentionQuery.length > 0 && (
+                <div className="px-3 py-3 text-sm text-gray-400 text-center">No members found</div>
+              )}
+            </div>
+          )}
+
           <Textarea
+            ref={textareaRef}
             value={compose}
-            onChange={e => setCompose(e.target.value)}
+            onChange={handleComposeChange}
             onKeyDown={e => {
+              if (e.key === "Escape") { setMentionQuery(null); return; }
               if (e.key === "Enter" && !e.shiftKey && compose.trim()) {
                 e.preventDefault();
                 postMsg.mutate(compose.trim());
               }
             }}
-            placeholder="Type a message… (Enter to send, Shift+Enter for new line)"
+            placeholder="Type a message… Use @ to mention a member"
             className="resize-none text-sm min-h-[60px] flex-1"
           />
           <Button
@@ -381,6 +500,7 @@ const WorkspaceTab: React.FC<Props> = ({ entityType, entityId }) => {
             <Send className="w-4 h-4" />
           </Button>
         </div>
+        <p className="text-[10px] text-gray-400 mt-1.5 ml-1">Type @ to mention a team member or client contact</p>
       </div>
 
       {/* ── Add Decision Modal ── */}

@@ -383,6 +383,12 @@ export interface IStorage {
 
   // Workspace — central decisions feed
   getAllDecisions(userId: string, roleNames: string[]): Promise<any[]>;
+
+  // Workspace — scoped mentionable members for @mention
+  getWorkspaceMentionableMembers(entityType: string, entityId: string): Promise<{
+    users: { id: string; display_name: string; email: string }[];
+    clients: { id: string; display_name: string; email: string }[];
+  }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -2239,6 +2245,81 @@ export class DatabaseStorage implements IStorage {
 
   async deleteWorkspaceAttachment(id: string): Promise<void> {
     await db.delete(workspaceAttachments).where(eq(workspaceAttachments.id, id));
+  }
+
+  async getWorkspaceMentionableMembers(entityType: string, entityId: string): Promise<{
+    users: { id: string; display_name: string; email: string }[];
+    clients: { id: string; display_name: string; email: string }[];
+  }> {
+    if (entityType === 'task') {
+      const [task] = await db
+        .select({ assigned_to: tasks.assigned_to, created_by: tasks.created_by, team_id: tasks.team_id })
+        .from(tasks).where(eq(tasks.id, entityId)).limit(1);
+      if (!task) return { users: [], clients: [] };
+
+      const userIdSet = new Set<string>();
+      if (task.assigned_to) userIdSet.add(task.assigned_to);
+      if (task.created_by) userIdSet.add(task.created_by);
+
+      if (task.team_id) {
+        const members = await db
+          .select({ user_id: teamMemberships.user_id })
+          .from(teamMemberships)
+          .where(eq(teamMemberships.team_id, task.team_id));
+        members.forEach((m: any) => userIdSet.add(m.user_id));
+      }
+
+      const memberList = userIdSet.size > 0
+        ? await db.select({ id: users.id, user_name: users.user_name, email: users.email })
+            .from(users).where(inArray(users.id, [...userIdSet]))
+        : [];
+
+      return {
+        users: memberList.map((u: any) => ({
+          id: u.id,
+          display_name: u.user_name ?? u.email,
+          email: u.email,
+        })),
+        clients: [],
+      };
+    }
+
+    if (entityType === 'project') {
+      const internalRows = await db
+        .select({ id: users.id, user_name: users.user_name, email: users.email })
+        .from(projectMembers)
+        .innerJoin(users, eq(projectMembers.user_id, users.id))
+        .where(and(
+          eq(projectMembers.project_id, entityId),
+          eq(projectMembers.member_user_type, 'internal'),
+          eq(projectMembers.is_active, true),
+        ));
+
+      const clientRows = await db
+        .select({ id: clientContacts.id, name: clientContacts.name, email: clientContacts.email })
+        .from(projectMembers)
+        .innerJoin(clientContacts, eq(projectMembers.contact_id, clientContacts.id))
+        .where(and(
+          eq(projectMembers.project_id, entityId),
+          eq(projectMembers.member_user_type, 'client_contact'),
+          eq(projectMembers.is_active, true),
+        ));
+
+      return {
+        users: internalRows.map((u: any) => ({
+          id: u.id,
+          display_name: u.user_name ?? u.email,
+          email: u.email,
+        })),
+        clients: clientRows.map((c: any) => ({
+          id: c.id,
+          display_name: c.name,
+          email: c.email,
+        })),
+      };
+    }
+
+    return { users: [], clients: [] };
   }
 
   async getAllDecisions(userId: string, roleNames: string[]): Promise<any[]> {
