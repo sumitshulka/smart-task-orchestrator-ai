@@ -2609,6 +2609,105 @@ Rules:
     }
   });
 
+  // POST /api/my-workspace/ai-brief  (any authenticated user)
+  // Generates a personalised AI daily brief based on the user's real workload data.
+  app.post("/api/my-workspace/ai-brief", requireAnyAuthenticated, async (req: any, res: any) => {
+    try {
+      const userId = req.headers["x-user-id"] as string;
+      if (!userId) return res.status(401).json({ error: "Not authenticated" });
+
+      const aiSettings = await storage.getAiSettings();
+      if (!aiSettings || !aiSettings.is_enabled || !aiSettings.api_key) {
+        return res.status(403).json({ error: "AI is not enabled or not configured", ai_unavailable: true });
+      }
+
+      // Gather real user data
+      const allTasks  = await storage.getTasksByUser(userId);
+      const allDefects = await storage.getAllDefects();
+      const myDefects = allDefects.filter((d: any) => d.assigned_to === userId);
+      const allProjects = await storage.getProjects();
+
+      const now   = new Date();
+      const today = now.toISOString().split("T")[0];
+
+      const isComplete = (t: any) =>
+        t.status === "completed" || t.status === "done" || t.status?.toLowerCase().includes("complet");
+
+      const activeTasks   = allTasks.filter((t: any) => !isComplete(t));
+      const overdueTasks  = activeTasks.filter((t: any) => t.due_date && new Date(t.due_date) < now && new Date(t.due_date).toDateString() !== now.toDateString());
+      const todayTasks    = activeTasks.filter((t: any) => t.due_date && new Date(t.due_date).toDateString() === now.toDateString());
+      const openDefects   = myDefects.filter((d: any) => !["resolved", "closed", "verified"].includes(d.status));
+      const criticalDefects = openDefects.filter((d: any) => d.severity === "critical" || d.priority === 1);
+
+      const dataContext = `
+User Workload Summary (as of ${today}):
+- Active tasks assigned: ${activeTasks.length}
+- Tasks due TODAY: ${todayTasks.length} — titles: ${todayTasks.map((t: any) => `"${t.title}"`).join(", ") || "none"}
+- Overdue tasks: ${overdueTasks.length} — titles: ${overdueTasks.slice(0, 3).map((t: any) => `"${t.title}" (due ${new Date(t.due_date).toLocaleDateString()})`).join(", ") || "none"}
+- Open defects assigned: ${openDefects.length} — ${openDefects.slice(0, 3).map((d: any) => `DEF-${String(d.defect_number).padStart(5,"0")} "${d.title}" [${d.severity}]`).join(", ") || "none"}
+- Critical/High defects: ${criticalDefects.length}
+- Projects involved: ${allProjects.length}
+`.trim();
+
+      const systemPrompt = `You are a smart personal work assistant inside a task management system called TaskRep.
+Your job: generate a concise, actionable daily brief for the user based on REAL data provided.
+
+Rules:
+- Be warm but professional. Address the user as "you" (not by name).
+- Max 3 priority action items. Each should be specific and reference real task/defect names from the data.
+- Provide a brief "Focus insight" — one sentence about what the user should prioritise today and why.
+- Provide a "Risk alert" only if there are overdue tasks OR critical defects. If none, omit this field.
+- Use plain text only. No markdown headers. Use bullet points with "•" for lists.
+- Keep the entire response under 200 words.
+
+Output EXACTLY this JSON (no text outside it):
+<AI_BRIEF>
+{
+  "focus_insight": "One sentence about today's priority focus.",
+  "priority_actions": [
+    "Specific action 1",
+    "Specific action 2",
+    "Specific action 3"
+  ],
+  "risk_alert": "Optional — one sentence about overdue/critical items. Omit key if no risk.",
+  "workload_status": "balanced|heavy|light"
+}
+</AI_BRIEF>`;
+
+      const decryptedKey = decryptApiKey(aiSettings.api_key);
+      const reply = await callAiProvider(
+        {
+          provider: aiSettings.provider,
+          apiKey:   decryptedKey,
+          model:    aiSettings.model || "gpt-4o",
+          baseUrl:  aiSettings.base_url,
+        },
+        [
+          { role: "system", content: systemPrompt },
+          { role: "user",   content: dataContext },
+        ]
+      );
+
+      const jsonMatch = reply.match(/<AI_BRIEF>([\s\S]*?)<\/AI_BRIEF>/);
+      if (!jsonMatch) {
+        console.error("AI brief: no AI_BRIEF block. Reply:", reply.slice(0, 300));
+        return res.status(500).json({ error: "AI did not return expected format" });
+      }
+
+      const parsed = JSON.parse(jsonMatch[1].trim());
+      return res.json({
+        focus_insight:    parsed.focus_insight    ?? "",
+        priority_actions: parsed.priority_actions ?? [],
+        risk_alert:       parsed.risk_alert       ?? null,
+        workload_status:  parsed.workload_status  ?? "balanced",
+        generated_at: new Date().toISOString(),
+      });
+    } catch (err: any) {
+      console.error("POST /api/my-workspace/ai-brief error:", err);
+      return res.status(500).json({ error: err.message || "AI request failed" });
+    }
+  });
+
   // ─── Defect Management Routes ────────────────────────────────────────────────
 
   // GET /api/defect-task-ids — all task IDs that are linked to a defect
