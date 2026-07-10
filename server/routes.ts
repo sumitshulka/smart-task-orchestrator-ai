@@ -3460,6 +3460,127 @@ Rules:
     } catch (err: any) { res.status(500).json({ error: "Failed to delete field values" }); }
   });
 
+  // ── Workspace API ─────────────────────────────────────────────────────────────
+
+  // GET /api/workspace/:entityType/:entityId  — full timeline
+  app.get("/api/workspace/:entityType/:entityId", requireAnyAuthenticated, async (req: any, res) => {
+    try {
+      const { entityType, entityId } = req.params;
+      const data = await storage.getWorkspaceTimeline(entityType, entityId);
+      res.json(data);
+    } catch (err) { res.status(500).json({ error: "Failed to fetch workspace" }); }
+  });
+
+  // POST /api/workspace/:entityType/:entityId/messages
+  app.post("/api/workspace/:entityType/:entityId/messages", requireAnyAuthenticated, async (req: any, res) => {
+    try {
+      const { entityType, entityId } = req.params;
+      const { content } = req.body;
+      if (!content?.trim()) return res.status(400).json({ error: "Content is required" });
+      const msg = await storage.createWorkspaceMessage({
+        entity_type: entityType,
+        entity_id: entityId,
+        author_id: req.user.id,
+        content: content.trim(),
+      });
+      res.status(201).json(msg);
+    } catch (err) { res.status(500).json({ error: "Failed to post message" }); }
+  });
+
+  // PATCH /api/workspace/messages/:id
+  app.patch("/api/workspace/messages/:id", requireAnyAuthenticated, async (req: any, res) => {
+    try {
+      const { content } = req.body;
+      if (!content?.trim()) return res.status(400).json({ error: "Content is required" });
+      const msg = await storage.updateWorkspaceMessage(req.params.id, content.trim());
+      if (!msg) return res.status(404).json({ error: "Message not found" });
+      res.json(msg);
+    } catch (err) { res.status(500).json({ error: "Failed to update message" }); }
+  });
+
+  // DELETE /api/workspace/messages/:id
+  app.delete("/api/workspace/messages/:id", requireAnyAuthenticated, async (req: any, res) => {
+    try {
+      await storage.deleteWorkspaceMessage(req.params.id);
+      res.json({ ok: true });
+    } catch (err) { res.status(500).json({ error: "Failed to delete message" }); }
+  });
+
+  // POST /api/workspace/messages/:id/reactions
+  app.post("/api/workspace/messages/:id/reactions", requireAnyAuthenticated, async (req: any, res) => {
+    try {
+      const { emoji } = req.body;
+      if (!emoji) return res.status(400).json({ error: "Emoji is required" });
+      const result = await storage.toggleWorkspaceReaction(req.params.id, req.user.id, emoji);
+      res.json(result);
+    } catch (err) { res.status(500).json({ error: "Failed to toggle reaction" }); }
+  });
+
+  // POST /api/workspace/:entityType/:entityId/decisions
+  app.post("/api/workspace/:entityType/:entityId/decisions", requireAnyAuthenticated, async (req: any, res) => {
+    try {
+      const { entityType, entityId } = req.params;
+      const { title, description, status, approved_by } = req.body;
+      if (!title?.trim()) return res.status(400).json({ error: "Title is required" });
+      const decision = await storage.createWorkspaceDecision({
+        entity_type: entityType,
+        entity_id: entityId,
+        title: title.trim(),
+        description: description ?? null,
+        status: status ?? "pending",
+        approved_by: approved_by ?? null,
+        created_by: req.user.id,
+      });
+      res.status(201).json(decision);
+    } catch (err) { res.status(500).json({ error: "Failed to create decision" }); }
+  });
+
+  // PATCH /api/workspace/decisions/:id
+  app.patch("/api/workspace/decisions/:id", requireAnyAuthenticated, async (req: any, res) => {
+    try {
+      const { title, description, status, approved_by } = req.body;
+      const decision = await storage.updateWorkspaceDecision(req.params.id, { title, description, status, approved_by });
+      if (!decision) return res.status(404).json({ error: "Decision not found" });
+      res.json(decision);
+    } catch (err) { res.status(500).json({ error: "Failed to update decision" }); }
+  });
+
+  // DELETE /api/workspace/decisions/:id
+  app.delete("/api/workspace/decisions/:id", requireAnyAuthenticated, async (req: any, res) => {
+    try {
+      await storage.deleteWorkspaceDecision(req.params.id);
+      res.json({ ok: true });
+    } catch (err) { res.status(500).json({ error: "Failed to delete decision" }); }
+  });
+
+  // POST /api/workspace/:entityType/:entityId/attachments
+  app.post("/api/workspace/:entityType/:entityId/attachments", requireAnyAuthenticated, async (req: any, res) => {
+    try {
+      const { entityType, entityId } = req.params;
+      const { file_name, file_type, file_size, file_url, message_id } = req.body;
+      if (!file_name || !file_type || !file_url) return res.status(400).json({ error: "file_name, file_type and file_url are required" });
+      const att = await storage.createWorkspaceAttachment({
+        entity_type: entityType,
+        entity_id: entityId,
+        message_id: message_id ?? null,
+        uploaded_by: req.user.id,
+        file_name,
+        file_type,
+        file_size: file_size ?? null,
+        file_url,
+      });
+      res.status(201).json(att);
+    } catch (err) { res.status(500).json({ error: "Failed to save attachment" }); }
+  });
+
+  // DELETE /api/workspace/attachments/:id
+  app.delete("/api/workspace/attachments/:id", requireAnyAuthenticated, async (req: any, res) => {
+    try {
+      await storage.deleteWorkspaceAttachment(req.params.id);
+      res.json({ ok: true });
+    } catch (err) { res.status(500).json({ error: "Failed to delete attachment" }); }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

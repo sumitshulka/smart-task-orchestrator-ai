@@ -1,4 +1,5 @@
 import { useState } from "react";
+import WorkspaceTab from "@/components/WorkspaceTab";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
@@ -22,7 +23,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   ArrowLeft, CheckCircle2, Users, Milestone, Layers, Plus, Pencil, Trash2,
   Calendar, Clock, DollarSign, History, UserCircle, Tag, Grip, ChevronDown, ChevronUp,
-  Search, ListTodo, ExternalLink, Flag, Bug, Building2,
+  Search, ListTodo, ExternalLink, Flag, Bug, Building2, MessageSquare,
 } from "lucide-react";
 import { format } from "date-fns";
 import type {
@@ -742,7 +743,7 @@ export default function ProjectDetail() {
 
       {/* Tabs */}
       <Tabs defaultValue="overview">
-        <TabsList className="grid w-full grid-cols-6">
+        <TabsList className="grid w-full grid-cols-7">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="members">
             <Users className="h-3.5 w-3.5 mr-1" />Members ({members.length})
@@ -764,6 +765,9 @@ export default function ProjectDetail() {
                 {projectDefects.length}
               </span>
             )}
+          </TabsTrigger>
+          <TabsTrigger value="workspace" className="gap-1">
+            <MessageSquare className="h-3.5 w-3.5" />Workspace
           </TabsTrigger>
         </TabsList>
 
@@ -1501,6 +1505,13 @@ export default function ProjectDetail() {
               </table>
             </div>
           )}
+        </TabsContent>
+
+        {/* ===== WORKSPACE TAB ===== */}
+        <TabsContent value="workspace" className="mt-4">
+          <div className="bg-white rounded-xl border border-gray-200 p-4">
+            <WorkspaceTab entityType="project" entityId={project.id} />
+          </div>
         </TabsContent>
       </Tabs>
 

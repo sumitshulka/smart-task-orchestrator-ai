@@ -107,6 +107,18 @@ import {
   customFieldGroups,
   customFieldDefinitions,
   customFieldValues,
+  workspaceMessages,
+  workspaceReactions,
+  workspaceDecisions,
+  workspaceAttachments,
+  WorkspaceMessage,
+  InsertWorkspaceMessage,
+  WorkspaceReaction,
+  InsertWorkspaceReaction,
+  WorkspaceDecision,
+  InsertWorkspaceDecision,
+  WorkspaceAttachment,
+  InsertWorkspaceAttachment,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -2125,6 +2137,105 @@ export class DatabaseStorage implements IStorage {
     }));
 
     return { groups: groupsWithFields, standalone };
+  }
+  // ── Workspace ────────────────────────────────────────────────────────────────
+
+  async getWorkspaceTimeline(entityType: string, entityId: string): Promise<{
+    messages: (WorkspaceMessage & { author: { id: string; user_name: string; email: string } | null; reactions: WorkspaceReaction[] })[];
+    decisions: WorkspaceDecision[];
+    attachments: WorkspaceAttachment[];
+  }> {
+    const [msgs, decisions, attachments] = await Promise.all([
+      db.select().from(workspaceMessages)
+        .where(and(eq(workspaceMessages.entity_type, entityType), eq(workspaceMessages.entity_id, entityId)))
+        .orderBy(asc(workspaceMessages.created_at)),
+      db.select().from(workspaceDecisions)
+        .where(and(eq(workspaceDecisions.entity_type, entityType), eq(workspaceDecisions.entity_id, entityId)))
+        .orderBy(asc(workspaceDecisions.created_at)),
+      db.select().from(workspaceAttachments)
+        .where(and(eq(workspaceAttachments.entity_type, entityType), eq(workspaceAttachments.entity_id, entityId)))
+        .orderBy(asc(workspaceAttachments.created_at)),
+    ]);
+
+    const authorIds = [...new Set(msgs.map(m => m.author_id))];
+    const authorRows = authorIds.length
+      ? await db.select({ id: users.id, user_name: users.user_name, email: users.email }).from(users).where(inArray(users.id, authorIds))
+      : [];
+    const authorMap = Object.fromEntries(authorRows.map(u => [u.id, u]));
+
+    const msgIds = msgs.map(m => m.id);
+    const reactions = msgIds.length
+      ? await db.select().from(workspaceReactions).where(inArray(workspaceReactions.message_id, msgIds))
+      : [];
+    const reactionsByMsg: Record<string, WorkspaceReaction[]> = {};
+    for (const r of reactions) {
+      if (!reactionsByMsg[r.message_id]) reactionsByMsg[r.message_id] = [];
+      reactionsByMsg[r.message_id].push(r);
+    }
+
+    const messagesWithMeta = msgs.map(m => ({
+      ...m,
+      author: authorMap[m.author_id] ?? null,
+      reactions: reactionsByMsg[m.id] ?? [],
+    }));
+
+    return { messages: messagesWithMeta, decisions, attachments };
+  }
+
+  async createWorkspaceMessage(data: InsertWorkspaceMessage): Promise<WorkspaceMessage> {
+    const [row] = await db.insert(workspaceMessages).values(data).returning();
+    return row;
+  }
+
+  async updateWorkspaceMessage(id: string, content: string): Promise<WorkspaceMessage | null> {
+    const [row] = await db.update(workspaceMessages)
+      .set({ content, is_edited: true, updated_at: new Date() })
+      .where(eq(workspaceMessages.id, id))
+      .returning();
+    return row ?? null;
+  }
+
+  async deleteWorkspaceMessage(id: string): Promise<void> {
+    await db.update(workspaceMessages)
+      .set({ is_deleted: true, content: "[message deleted]", updated_at: new Date() })
+      .where(eq(workspaceMessages.id, id));
+  }
+
+  async toggleWorkspaceReaction(messageId: string, userId: string, emoji: string): Promise<{ added: boolean }> {
+    const existing = await db.select().from(workspaceReactions)
+      .where(and(eq(workspaceReactions.message_id, messageId), eq(workspaceReactions.user_id, userId), eq(workspaceReactions.emoji, emoji)));
+    if (existing.length) {
+      await db.delete(workspaceReactions).where(eq(workspaceReactions.id, existing[0].id));
+      return { added: false };
+    }
+    await db.insert(workspaceReactions).values({ message_id: messageId, user_id: userId, emoji });
+    return { added: true };
+  }
+
+  async createWorkspaceDecision(data: InsertWorkspaceDecision): Promise<WorkspaceDecision> {
+    const [row] = await db.insert(workspaceDecisions).values(data).returning();
+    return row;
+  }
+
+  async updateWorkspaceDecision(id: string, data: Partial<Pick<WorkspaceDecision, 'title' | 'description' | 'status' | 'approved_by'>>): Promise<WorkspaceDecision | null> {
+    const [row] = await db.update(workspaceDecisions)
+      .set({ ...data, updated_at: new Date() })
+      .where(eq(workspaceDecisions.id, id))
+      .returning();
+    return row ?? null;
+  }
+
+  async deleteWorkspaceDecision(id: string): Promise<void> {
+    await db.delete(workspaceDecisions).where(eq(workspaceDecisions.id, id));
+  }
+
+  async createWorkspaceAttachment(data: InsertWorkspaceAttachment): Promise<WorkspaceAttachment> {
+    const [row] = await db.insert(workspaceAttachments).values(data).returning();
+    return row;
+  }
+
+  async deleteWorkspaceAttachment(id: string): Promise<void> {
+    await db.delete(workspaceAttachments).where(eq(workspaceAttachments.id, id));
   }
 }
 
