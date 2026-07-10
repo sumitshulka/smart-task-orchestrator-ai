@@ -501,31 +501,37 @@ export default function UniversalSearch({ open, onClose }: UniversalSearchProps)
           className="w-full max-w-2xl pointer-events-auto bg-white dark:bg-slate-800 rounded-2xl shadow-2xl ring-2 ring-indigo-200/60 dark:ring-indigo-500/30 overflow-hidden animate-in slide-in-from-top-4 duration-200"
           style={{ maxHeight: "88vh" }}
         >
-          {/* Search input */}
-          <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-100 dark:border-slate-800">
-            {isFetching
-              ? <Loader2 className="w-5 h-5 text-indigo-500 animate-spin flex-shrink-0" />
-              : <Search className="w-5 h-5 text-slate-400 flex-shrink-0" />
-            }
-            <input
-              ref={inputRef}
-              value={query}
-              onChange={e => setQuery(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder={PLACEHOLDER_SUGGESTIONS[placeholderIdx]}
-              className="flex-1 bg-transparent text-base text-slate-800 dark:text-slate-100 placeholder-slate-400 outline-none"
-              autoComplete="off"
-              spellCheck={false}
-            />
-            {query && (
-              <button onClick={() => { setQuery(""); setDebouncedQ(""); inputRef.current?.focus(); }}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
-                <X className="w-4 h-4" />
-              </button>
-            )}
-            <kbd className="hidden sm:flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-medium text-slate-400 bg-slate-100 dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700">
-              ESC
-            </kbd>
+          {/* Search input header */}
+          <div className="bg-gradient-to-r from-indigo-50 to-slate-50 dark:from-indigo-950/40 dark:to-slate-800 border-b border-indigo-100 dark:border-indigo-900/50 px-4 pt-4 pb-3">
+            <div className="flex items-center gap-1.5 mb-2.5">
+              <Zap className="w-3.5 h-3.5 text-indigo-500" />
+              <span className="text-[11px] font-bold tracking-widest uppercase text-indigo-500 dark:text-indigo-400">TazQ Command Center</span>
+            </div>
+            <div className="flex items-center gap-3">
+              {isFetching
+                ? <Loader2 className="w-5 h-5 text-indigo-500 animate-spin flex-shrink-0" />
+                : <Search className="w-5 h-5 text-indigo-400 flex-shrink-0" />
+              }
+              <input
+                ref={inputRef}
+                value={query}
+                onChange={e => setQuery(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder={PLACEHOLDER_SUGGESTIONS[placeholderIdx]}
+                className="flex-1 bg-transparent text-base font-medium text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 outline-none"
+                autoComplete="off"
+                spellCheck={false}
+              />
+              {query && (
+                <button onClick={() => { setQuery(""); setDebouncedQ(""); inputRef.current?.focus(); }}
+                  className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-white/60 dark:hover:bg-slate-700 transition-colors">
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+              <kbd className="hidden sm:flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-medium text-indigo-400 bg-indigo-50 dark:bg-indigo-900/40 rounded border border-indigo-200 dark:border-indigo-700">
+                ESC
+              </kbd>
+            </div>
           </div>
 
           {/* Filter prefix hints */}
@@ -563,12 +569,6 @@ export default function UniversalSearch({ open, onClose }: UniversalSearchProps)
             {/* ── Welcome screen (no query typed) ─────────────────────────────── */}
             {!debouncedQ && (
               <div>
-                {/* Header */}
-                <div className="px-4 pt-4 pb-2">
-                  <p className="text-sm font-bold text-indigo-600 dark:text-indigo-400 tracking-tight">Tazq Command Center</p>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-300 mt-0.5">Search, Navigate, Create, Execute or Ask AI</p>
-                </div>
-
                 {/* Command card grid */}
                 <div className="grid grid-cols-3 gap-2 px-3 pb-3">
                   {COMMAND_GROUPS.map(group => {

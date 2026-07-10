@@ -84,12 +84,12 @@ const Topbar: React.FC<TopbarProps> = ({ sidebarOpen, setSidebarOpen, onSearchOp
         {/* Universal Search trigger */}
         <button
           onClick={onSearchOpen}
-          className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-slate-400 hover:text-white bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.08] transition-all"
+          className="flex items-center gap-2 px-4 py-2 rounded-xl text-slate-200 hover:text-white bg-white/[0.09] hover:bg-white/[0.15] border border-white/[0.15] hover:border-indigo-400/50 transition-all shadow-sm"
           aria-label="Search (Ctrl+K)"
         >
-          <Search className="w-3.5 h-3.5" />
-          <span className="hidden md:block text-xs text-slate-400">Search…</span>
-          <kbd className="hidden md:flex items-center gap-0.5 ml-1 px-1 py-0.5 text-[9px] font-medium text-slate-500 bg-white/[0.06] rounded border border-white/[0.08]">
+          <Search className="w-4 h-4 text-indigo-300" />
+          <span className="hidden md:block text-sm font-medium text-slate-200">TazQ Command Center</span>
+          <kbd className="hidden md:flex items-center gap-0.5 ml-2 px-1.5 py-0.5 text-[10px] font-semibold text-slate-300 bg-white/[0.1] rounded-md border border-white/[0.15]">
             <Command className="w-2.5 h-2.5" />K
           </kbd>
         </button>
