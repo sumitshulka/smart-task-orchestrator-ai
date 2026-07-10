@@ -91,34 +91,34 @@ const WorkspaceTab: React.FC<Props> = ({ entityType, entityId }) => {
   // ── Mutations ─────────────────────────────────────────────────────────────
   const postMsg = useMutation({
     mutationFn: (content: string) =>
-      apiRequest("POST", `/api/workspace/${entityType}/${entityId}/messages`, { content }),
+      apiRequest(`/api/workspace/${entityType}/${entityId}/messages`, { method: "POST", body: JSON.stringify({ content }) }),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey }); setCompose(""); },
     onError: () => toast({ title: "Failed to send message", variant: "destructive" }),
   });
 
   const editMsg = useMutation({
     mutationFn: ({ id, content }: { id: string; content: string }) =>
-      apiRequest("PATCH", `/api/workspace/messages/${id}`, { content }),
+      apiRequest(`/api/workspace/messages/${id}`, { method: "PATCH", body: JSON.stringify({ content }) }),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey }); setEditingId(null); },
     onError: () => toast({ title: "Failed to edit message", variant: "destructive" }),
   });
 
   const deleteMsg = useMutation({
-    mutationFn: (id: string) => apiRequest("DELETE", `/api/workspace/messages/${id}`),
+    mutationFn: (id: string) => apiRequest(`/api/workspace/messages/${id}`, { method: "DELETE" }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey }),
     onError: () => toast({ title: "Failed to delete message", variant: "destructive" }),
   });
 
   const react = useMutation({
     mutationFn: ({ id, emoji }: { id: string; emoji: string }) =>
-      apiRequest("POST", `/api/workspace/messages/${id}/reactions`, { emoji }),
+      apiRequest(`/api/workspace/messages/${id}/reactions`, { method: "POST", body: JSON.stringify({ emoji }) }),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey }); setShowEmojiFor(null); },
     onError: () => toast({ title: "Failed to add reaction", variant: "destructive" }),
   });
 
   const postDecision = useMutation({
     mutationFn: (body: typeof decisionForm) =>
-      apiRequest("POST", `/api/workspace/${entityType}/${entityId}/decisions`, body),
+      apiRequest(`/api/workspace/${entityType}/${entityId}/decisions`, { method: "POST", body: JSON.stringify(body) }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey });
       setDecisionModal(false);
@@ -130,14 +130,14 @@ const WorkspaceTab: React.FC<Props> = ({ entityType, entityId }) => {
   });
 
   const deleteDecision = useMutation({
-    mutationFn: (id: string) => apiRequest("DELETE", `/api/workspace/decisions/${id}`),
+    mutationFn: (id: string) => apiRequest(`/api/workspace/decisions/${id}`, { method: "DELETE" }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey }),
     onError: () => toast({ title: "Failed to delete decision", variant: "destructive" }),
   });
 
   const updateDecisionStatus = useMutation({
     mutationFn: ({ id, status }: { id: string; status: string }) =>
-      apiRequest("PATCH", `/api/workspace/decisions/${id}`, { status }),
+      apiRequest(`/api/workspace/decisions/${id}`, { method: "PATCH", body: JSON.stringify({ status }) }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey }),
   });
 
