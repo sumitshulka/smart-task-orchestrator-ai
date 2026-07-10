@@ -20,7 +20,7 @@ import TaskActivityTimeline from "./TaskActivityTimeline";
 import { createTaskActivity } from "@/integrations/supabase/taskActivity";
 import { EditTaskStatusSelect } from "./EditTaskStatusSelect";
 import { apiClient } from "@/lib/api";
-import WorkspaceTab from "./WorkspaceTab";
+import WorkspaceDialog from "./WorkspaceDialog";
 
 
 // Dummy role check! Replace with real logic if user roles are exposed
@@ -350,11 +350,16 @@ const TaskDetailsSheet: React.FC<Props> = ({
                   View and manage all task information, status, and activity.
                 </SheetDescription>
               </div>
-              {onEdit && (
-                <Button onClick={() => onEdit(task!)} variant="outline" className="sm:ml-4 w-full sm:w-auto">
-                  Edit Task
-                </Button>
-              )}
+              <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                {task && (
+                  <WorkspaceDialog entityType="task" entityId={task.id} />
+                )}
+                {onEdit && (
+                  <Button onClick={() => onEdit(task!)} variant="outline" className="w-full sm:w-auto">
+                    Edit Task
+                  </Button>
+                )}
+              </div>
             </div>
           </SheetHeader>
 
@@ -715,20 +720,6 @@ const TaskDetailsSheet: React.FC<Props> = ({
                 </div>
               </div>
             </>
-          )}
-
-          {/* SECTION 6: WORKSPACE */}
-          {task && (
-            <div className="space-y-4">
-              <div className="bg-indigo-50 border border-indigo-100 p-4 rounded-lg">
-                <h3 className="text-base font-medium text-gray-800 mb-4 flex items-center">
-                  <span className="bg-indigo-100 text-indigo-800 rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold mr-2">6</span>
-                  Workspace
-                  <span className="ml-2 text-xs text-indigo-500 font-normal">— messages, decisions &amp; files</span>
-                </h3>
-                <WorkspaceTab entityType="task" entityId={task.id} />
-              </div>
-            </div>
           )}
 
           <SheetFooter className="pt-6 border-t border-gray-200">

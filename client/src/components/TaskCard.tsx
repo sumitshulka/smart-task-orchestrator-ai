@@ -3,7 +3,8 @@ import React from "react";
 import { Button } from "@/components/ui/button";
 import EditTaskSheet from "@/components/EditTaskSheet";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
-import { Edit, Trash2, Check, Link2, List, Clock, Sparkles, AlertTriangle, Bug } from "lucide-react";
+import { Edit, Trash2, Check, Link2, List, Clock, Sparkles, AlertTriangle, Bug, MessageSquare } from "lucide-react";
+import WorkspaceDialog from "./WorkspaceDialog";
 import { Task, deleteTask, updateTask } from "@/integrations/supabase/tasks";
 import { toast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
@@ -158,6 +159,20 @@ export default function TaskCard({ task, onTaskUpdated, canDelete, statusColor, 
         >
           <Check size={16} className="sm:w-5 sm:h-5" />
         </Button>
+        {/* Workspace icon */}
+        <WorkspaceDialog
+          entityType="task"
+          entityId={task.id}
+          trigger={(open) => (
+            <Button size="icon" variant="ghost"
+              className="text-gray-400 hover:text-indigo-600 h-8 w-8 sm:h-10 sm:w-10"
+              title="Open Workspace"
+              onClick={(e) => { e.stopPropagation(); open(); }}
+            >
+              <MessageSquare size={16} className="sm:w-5 sm:h-5" />
+            </Button>
+          )}
+        />
       </div>
 
       {/* Card header and summary */}
