@@ -380,6 +380,9 @@ export interface IStorage {
     groups: (CustomFieldGroup & { fields: CustomFieldDefinition[] })[];
     standalone: CustomFieldDefinition[];
   }>;
+
+  // Workspace — central decisions feed
+  getAllDecisions(userId: string, roleNames: string[]): Promise<any[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -2236,6 +2239,75 @@ export class DatabaseStorage implements IStorage {
 
   async deleteWorkspaceAttachment(id: string): Promise<void> {
     await db.delete(workspaceAttachments).where(eq(workspaceAttachments.id, id));
+  }
+
+  async getAllDecisions(userId: string, roleNames: string[]): Promise<any[]> {
+    const isAdmin = roleNames.includes('admin');
+
+    let rows: any[];
+    if (isAdmin) {
+      rows = await db
+        .select({
+          decision: workspaceDecisions,
+          creator_name: users.user_name,
+          creator_email: users.email,
+        })
+        .from(workspaceDecisions)
+        .leftJoin(users, eq(workspaceDecisions.created_by, users.id))
+        .orderBy(desc(workspaceDecisions.created_at));
+    } else {
+      const reportees = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(eq(users.manager, userId));
+      const reporteeIds = reportees.map((r: any) => r.id);
+      const allIds = [userId, ...reporteeIds];
+
+      rows = await db
+        .select({
+          decision: workspaceDecisions,
+          creator_name: users.user_name,
+          creator_email: users.email,
+        })
+        .from(workspaceDecisions)
+        .leftJoin(users, eq(workspaceDecisions.created_by, users.id))
+        .where(inArray(workspaceDecisions.created_by, allIds))
+        .orderBy(desc(workspaceDecisions.created_at));
+    }
+
+    const taskIds = [...new Set(rows.filter((r: any) => r.decision.entity_type === 'task').map((r: any) => r.decision.entity_id))];
+    const projectIds = [...new Set(rows.filter((r: any) => r.decision.entity_type === 'project').map((r: any) => r.decision.entity_id))];
+
+    const [taskRows, projectRows] = await Promise.all([
+      taskIds.length > 0
+        ? db.select({ id: tasks.id, title: tasks.title, task_number: tasks.task_number }).from(tasks).where(inArray(tasks.id, taskIds))
+        : [],
+      projectIds.length > 0
+        ? db.select({ id: projects.id, name: projects.name }).from(projects).where(inArray(projects.id, projectIds))
+        : [],
+    ]);
+
+    const taskMap: Record<string, any> = Object.fromEntries((taskRows as any[]).map((t: any) => [t.id, t]));
+    const projectMap: Record<string, any> = Object.fromEntries((projectRows as any[]).map((p: any) => [p.id, p]));
+
+    return rows.map((r: any) => {
+      const d = r.decision;
+      let entity_title: string | null = null;
+      let entity_number: number | null = null;
+      if (d.entity_type === 'task' && taskMap[d.entity_id]) {
+        entity_title = taskMap[d.entity_id].title;
+        entity_number = taskMap[d.entity_id].task_number;
+      } else if (d.entity_type === 'project' && projectMap[d.entity_id]) {
+        entity_title = projectMap[d.entity_id].name;
+      }
+      return {
+        ...d,
+        creator_name: r.creator_name,
+        creator_email: r.creator_email,
+        entity_title,
+        entity_number,
+      };
+    });
   }
 }
 

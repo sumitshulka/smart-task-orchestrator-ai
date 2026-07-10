@@ -42,6 +42,7 @@ import DefectsPage from "@/pages/Defects";
 import CustomFieldsPage from "@/pages/CustomFields";
 import DefectBoardPage from "@/pages/DefectBoard";
 import MyDefectsPage from "@/pages/MyDefects";
+import DecisionsPage from "@/pages/Decisions";
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -307,6 +308,15 @@ const App = () => (
             <Route path="/portal/login" element={<PortalLogin />} />
             <Route path="/portal/dashboard" element={<PortalDashboard />} />
             <Route path="/portal/projects/:id" element={<PortalProjectView />} />
+            {/* Decisions dashboard */}
+            <Route
+              path="/decisions"
+              element={
+                <AdminLayout>
+                  <DecisionsPage />
+                </AdminLayout>
+              }
+            />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

@@ -3462,6 +3462,37 @@ Rules:
 
   // ── Workspace API ─────────────────────────────────────────────────────────────
 
+  // GET /api/workspace/decisions/all — central decisions dashboard (admin + manager)
+  app.get("/api/workspace/decisions/all", requireAnyAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.headers['x-user-id'] as string;
+      const roleNames: string[] = req.userRoles ?? [];
+      const decisions = await storage.getAllDecisions(userId, roleNames);
+      res.json(decisions);
+    } catch (err: any) {
+      res.status(500).json({ error: "Failed to fetch decisions" });
+    }
+  });
+
+  // PATCH /api/workspace/decisions/:id/status — approve or reject a decision (central dashboard)
+  app.patch("/api/workspace/decisions/:id/status", requireAnyAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const { status } = req.body;
+      if (!["pending", "approved", "rejected"].includes(status))
+        return res.status(400).json({ error: "Invalid status" });
+      const approverId = req.headers['x-user-id'] as string;
+      const updated = await storage.updateWorkspaceDecision(id, {
+        status,
+        approved_by: status === "approved" ? approverId : null,
+      });
+      if (!updated) return res.status(404).json({ error: "Decision not found" });
+      res.json(updated);
+    } catch (err: any) {
+      res.status(500).json({ error: "Failed to update decision" });
+    }
+  });
+
   // GET /api/workspace/:entityType/:entityId  — full timeline
   app.get("/api/workspace/:entityType/:entityId", requireAnyAuthenticated, async (req: any, res) => {
     try {
