@@ -8,7 +8,7 @@ import {
   Search, X, CheckSquare, Briefcase, Bug, Users, UserCheck,
   MessageSquare, ArrowRight, Play, CheckCircle2, Clock,
   History, Star, Hash, ChevronRight, Zap, Loader2,
-  AlertTriangle, Shield, FolderOpen, Command,
+  AlertTriangle, Shield, FolderOpen, Command, Lightbulb,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -42,6 +42,22 @@ type ResultItem = {
   href: string; icon: React.ElementType; iconColor: string; iconBg: string;
   actions: { label: string; icon: React.ElementType; href?: string; action?: string }[];
 };
+
+// ── "Did you know?" rotating tips ─────────────────────────────────────────────
+const DID_YOU_KNOW_TIPS = [
+  { text: 'Type "Create Task" to instantly open the task creation form.', highlight: "Create Task" },
+  { text: 'Type "Report Defect" to log a new bug or issue immediately.', highlight: "Report Defect" },
+  { text: 'Use task: prefix to search only within tasks — e.g. task:login.', highlight: "task:" },
+  { text: 'Use project: prefix to jump straight to a project by name.', highlight: "project:" },
+  { text: 'Press Tab to reveal filter shortcuts for faster scoped searches.', highlight: "Tab" },
+  { text: 'Press Ctrl+K from anywhere in the app to open the Command Center.', highlight: "Ctrl+K" },
+  { text: 'Use defect: prefix to find bugs and issues across the system.', highlight: "defect:" },
+  { text: 'Type a colleague\'s name to see their profile and assigned tasks.', highlight: null },
+  { text: 'Arrow keys navigate results — no mouse needed.', highlight: null },
+  { text: 'Soon: Ask AI questions like "Why is Project Alpha delayed?"', highlight: "Coming soon" },
+  { text: 'Your recent searches are remembered — scroll down to see them.', highlight: null },
+  { text: 'Use user: prefix to find teammates by name or email.', highlight: "user:" },
+];
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const HISTORY_KEY = "taskrep_search_history";
@@ -249,12 +265,14 @@ export default function UniversalSearch({ open, onClose }: UniversalSearchProps)
   const [activeIdx, setActiveIdx] = useState(0);
   const [history, setHistory] = useState<string[]>([]);
   const [showFilterHints, setShowFilterHints] = useState(false);
+  const [didYouKnowTip, setDidYouKnowTip] = useState(DID_YOU_KNOW_TIPS[0]);
 
-  // Refresh history on open
+  // Refresh history on open, and pick a fresh random tip each time
   useEffect(() => {
     if (open) {
       setQuery(""); setDebouncedQ(""); setActiveIdx(0); setShowFilterHints(false);
       setHistory(getHistory());
+      setDidYouKnowTip(DID_YOU_KNOW_TIPS[Math.floor(Math.random() * DID_YOU_KNOW_TIPS.length)]);
       setTimeout(() => inputRef.current?.focus(), 50);
     }
   }, [open]);
@@ -478,6 +496,32 @@ export default function UniversalSearch({ open, onClose }: UniversalSearchProps)
                     <ChevronRight className="w-3.5 h-3.5 text-slate-300 ml-auto" />
                   </button>
                 ))}
+
+                {/* Did you know? — rotates on every open */}
+                <div className="mx-3 my-3 px-3 py-2.5 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-800/40 flex items-start gap-2.5">
+                  <Lightbulb className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-amber-500 dark:text-amber-400 mb-0.5">Did you know?</p>
+                    <p className="text-xs text-amber-800 dark:text-amber-200 leading-relaxed">
+                      {didYouKnowTip.highlight ? (
+                        (() => {
+                          const { text, highlight } = didYouKnowTip;
+                          const idx = text.indexOf(highlight);
+                          if (idx === -1) return text;
+                          return (
+                            <>
+                              {text.slice(0, idx)}
+                              <kbd className="mx-0.5 px-1 py-0.5 text-[10px] font-mono font-semibold bg-amber-100 dark:bg-amber-800 text-amber-700 dark:text-amber-200 rounded border border-amber-200 dark:border-amber-700">
+                                {highlight}
+                              </kbd>
+                              {text.slice(idx + highlight.length)}
+                            </>
+                          );
+                        })()
+                      ) : didYouKnowTip.text}
+                    </p>
+                  </div>
+                </div>
               </div>
             )}
 

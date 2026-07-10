@@ -1,0 +1,266 @@
+Enhance the existing Search Console and transform it into a modern enterprise Command Center without changing its identity.
+
+The Search Console should no longer function as a simple search box. It should become the central place from where users can search, navigate, create records, execute quick actions and eventually interact with AI.
+
+Keep the existing search functionality but significantly enhance the user experience.
+
+=========================================
+When Search Console Opens
+=========================================
+
+Do not show an empty search box.
+
+Display a welcome screen containing:
+
+Title:
+Search Console
+
+Subtitle:
+Search, Navigate, Create, Execute or Ask AI
+
+Below this, display six interactive command cards.
+
+Create
+- Create Task
+- Create Project
+- Report Defect
+- Start Discussion
+
+Open
+- My Workspace
+- Projects
+- Tasks
+- Defects
+- Reports
+
+Find
+- Search Tasks
+- Search Projects
+- Search Discussions
+- Search Files
+- Search Users
+
+Quick Actions
+- Complete Task
+- Assign Task
+- Resolve Defect
+- Open Workspace
+
+AI Assistant (Coming Soon)
+- Daily Brief
+- Summarize Workspace
+- Find My Blockers
+- Ask AI
+
+Recent
+- Recently opened Projects
+- Tasks
+- Reports
+- Discussions
+
+=========================================
+Search Experience
+=========================================
+
+The search box should intelligently respond based on what the user types.
+
+Example:
+
+Library
+
+Return matching
+
+Projects
+Tasks
+Defects
+Workspace Discussions
+Files
+
+Example:
+
+Create
+
+Suggest
+
+Create Task
+Create Project
+Report Defect
+Start Discussion
+
+Example:
+
+Open
+
+Suggest
+
+Open Project
+Open Workspace
+Open Reports
+Open Settings
+
+Example:
+
+Rahul
+
+Return
+
+User
+Assigned Tasks
+Projects
+Discussions
+
+=========================================
+Search Scope
+=========================================
+
+Search across
+
+Tasks
+
+Projects
+
+Milestones
+
+Defects
+
+Workspace Discussions
+
+Files
+
+Users
+
+Teams
+
+Reports
+
+Settings
+
+Future modules should automatically plug into Search Console through a provider architecture.
+
+=========================================
+Quick Actions
+=========================================
+
+Every result should expose context-aware actions.
+
+Task
+
+Open
+
+Mark Complete
+
+Assign
+
+Comment
+
+Open Workspace
+
+Project
+
+Open
+
+Open Workspace
+
+View Reports
+
+Defect
+
+Open
+
+Resolve
+
+Assign
+
+Workspace
+
+Open
+
+Reply
+
+Bookmark
+
+=========================================
+Discovery
+=========================================
+
+Users should never wonder what they can type.
+
+Display rotating suggestions inside the search box.
+
+Examples
+
+Create Task
+
+Open Student Portal
+
+Show My Workspace
+
+Report Login Defect
+
+Find Payment Discussion
+
+Open Reports
+
+Assign Login API to Rahul
+
+Display a "Popular Commands" section beneath the search box.
+
+=========================================
+Keyboard Experience
+=========================================
+
+Ctrl + K opens Search Console.
+
+Arrow Keys navigate.
+
+Enter executes.
+
+Esc closes.
+
+Tab switches sections.
+
+Everything should be usable without touching the mouse.
+
+=========================================
+Recent & Frequently Used
+=========================================
+
+Display
+
+Recently Opened
+
+Pinned Items
+
+Frequently Used Commands
+
+This list should automatically adapt based on user activity.
+
+=========================================
+Future AI Readiness
+=========================================
+
+Design the architecture so the Search Console can later support AI-powered natural language commands.
+
+Examples:
+
+Create API task for Rahul due Friday
+
+Show my overdue work
+
+Summarize Student Portal workspace
+
+Why is Project Apollo delayed?
+
+Initially, these commands should display:
+
+"AI Command Execution will be available in a future release."
+
+=========================================
+Design Philosophy
+=========================================
+
+The Search Console should become the fastest way to interact with Tazq.
+
+Users should be able to find anything, open anything, create anything and perform common actions without navigating through menus.
+
+The interface should feel modern, minimal, keyboard-first and inspired by products such as Linear, Raycast and Notion, while remaining consistent with Tazq's existing design language.
