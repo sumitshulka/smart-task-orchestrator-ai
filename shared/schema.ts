@@ -1201,6 +1201,76 @@ export const insertCustomFieldValueSchema = createInsertSchema(customFieldValues
   id: true, created_at: true, updated_at: true,
 });
 
+// ── Workspace ─────────────────────────────────────────────────────────────────
+
+export const workspaceMessages = pgTable("workspace_messages", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  entity_type: text("entity_type").notNull(), // 'task' | 'project' | 'milestone' | 'defect'
+  entity_id: uuid("entity_id").notNull(),
+  author_id: uuid("author_id").notNull().references(() => users.id),
+  content: text("content").notNull(),
+  is_edited: boolean("is_edited").default(false),
+  is_deleted: boolean("is_deleted").default(false),
+  created_at: timestamp("created_at").defaultNow(),
+  updated_at: timestamp("updated_at").defaultNow(),
+});
+
+export const workspaceReactions = pgTable("workspace_reactions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  message_id: uuid("message_id").notNull().references(() => workspaceMessages.id, { onDelete: "cascade" }),
+  user_id: uuid("user_id").notNull().references(() => users.id),
+  emoji: text("emoji").notNull(),
+  created_at: timestamp("created_at").defaultNow(),
+});
+
+export const workspaceDecisions = pgTable("workspace_decisions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  entity_type: text("entity_type").notNull(),
+  entity_id: uuid("entity_id").notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  approved_by: uuid("approved_by").references(() => users.id),
+  status: text("status").notNull().default("pending"), // 'pending' | 'approved' | 'rejected'
+  created_by: uuid("created_by").notNull().references(() => users.id),
+  created_at: timestamp("created_at").defaultNow(),
+  updated_at: timestamp("updated_at").defaultNow(),
+});
+
+export const workspaceAttachments = pgTable("workspace_attachments", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  entity_type: text("entity_type").notNull(),
+  entity_id: uuid("entity_id").notNull(),
+  message_id: uuid("message_id").references(() => workspaceMessages.id, { onDelete: "set null" }),
+  uploaded_by: uuid("uploaded_by").notNull().references(() => users.id),
+  file_name: text("file_name").notNull(),
+  file_type: text("file_type").notNull(),
+  file_size: integer("file_size"),
+  file_url: text("file_url").notNull(),
+  created_at: timestamp("created_at").defaultNow(),
+});
+
+export const insertWorkspaceMessageSchema = createInsertSchema(workspaceMessages).omit({
+  id: true, is_edited: true, is_deleted: true, created_at: true, updated_at: true,
+});
+export const insertWorkspaceReactionSchema = createInsertSchema(workspaceReactions).omit({
+  id: true, created_at: true,
+});
+export const insertWorkspaceDecisionSchema = createInsertSchema(workspaceDecisions).omit({
+  id: true, created_at: true, updated_at: true,
+});
+export const insertWorkspaceAttachmentSchema = createInsertSchema(workspaceAttachments).omit({
+  id: true, created_at: true,
+});
+
+export type WorkspaceMessage        = typeof workspaceMessages.$inferSelect;
+export type InsertWorkspaceMessage  = z.infer<typeof insertWorkspaceMessageSchema>;
+export type WorkspaceReaction       = typeof workspaceReactions.$inferSelect;
+export type InsertWorkspaceReaction = z.infer<typeof insertWorkspaceReactionSchema>;
+export type WorkspaceDecision       = typeof workspaceDecisions.$inferSelect;
+export type InsertWorkspaceDecision = z.infer<typeof insertWorkspaceDecisionSchema>;
+export type WorkspaceAttachment     = typeof workspaceAttachments.$inferSelect;
+export type InsertWorkspaceAttachment = z.infer<typeof insertWorkspaceAttachmentSchema>;
+
 // ── TypeScript types ─────────────────────────────────────────────────────────
 export type CustomFieldGroup      = typeof customFieldGroups.$inferSelect;
 export type InsertCustomFieldGroup = z.infer<typeof insertCustomFieldGroupSchema>;
