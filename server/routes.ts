@@ -2625,7 +2625,7 @@ Rules:
       const allTasks  = await storage.getTasksByUser(userId);
       const allDefects = await storage.getAllDefects();
       const myDefects = allDefects.filter((d: any) => d.assigned_to === userId);
-      const allProjects = await storage.getProjects();
+      const allProjects = await storage.getAllProjects();
 
       const now   = new Date();
       const today = now.toISOString().split("T")[0];

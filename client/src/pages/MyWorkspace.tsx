@@ -15,46 +15,14 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Sparkles, RefreshCw, ExternalLink, Play, Pause, CheckCircle2,
   MessageSquare, ChevronRight, Plus, FolderOpen, Bug, CalendarDays,
-  Zap, Clock, TrendingUp, AlertTriangle, CheckSquare, BellDot,
-  Target, BarChart2, ArrowRight, MoreHorizontal, Star,
+  Zap, Clock, AlertTriangle, CheckSquare, BellDot,
+  Target, BarChart2, ArrowRight, MoreHorizontal,
   Activity, Briefcase, ListTodo, Shield, Brain, Loader2,
-  AlertCircle, CheckCheck, TrendingDown,
+  AlertCircle, CheckCheck, TrendingDown, TrendingUp,
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-const PRIORITY_MAP: Record<number, { label: string; color: string }> = {
-  1: { label: "Critical", color: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" },
-  2: { label: "High",     color: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400" },
-  3: { label: "Medium",   color: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400" },
-  4: { label: "Low",      color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" },
-  5: { label: "Minimal",  color: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400" },
-};
-
-const SEV_COLOR: Record<string, string> = {
-  critical: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
-  high:     "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
-  medium:   "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400",
-  low:      "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
-};
-
-function statusDot(status: string) {
-  const map: Record<string, string> = {
-    pending:     "bg-gray-400",
-    in_progress: "bg-indigo-500",
-    review:      "bg-yellow-500",
-    completed:   "bg-green-500",
-    done:        "bg-green-500",
-    blocked:     "bg-red-500",
-  };
-  return map[status] ?? "bg-gray-400";
-}
-
-function statusLabel(status: string) {
-  return (status ?? "").replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
-}
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface Task {
@@ -81,17 +49,179 @@ interface AiBrief {
   workload_status: "balanced" | "heavy" | "light";
   generated_at: string;
 }
-
-// ── Calendar item type ────────────────────────────────────────────────────────
 interface CalItem {
-  type: "task_due" | "task_overdue" | "project_deadline" | "project_milestone";
-  title: string;
-  subtitle: string;
-  date: Date;
-  color: string;
-  borderColor: string;
-  bgColor: string;
-  link: string;
+  type: string; title: string; subtitle: string; date: Date;
+  color: string; borderColor: string; bgColor: string; link: string;
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+const PRIORITY_MAP: Record<number, { label: string; color: string }> = {
+  1: { label: "Critical", color: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" },
+  2: { label: "High",     color: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400" },
+  3: { label: "Medium",   color: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400" },
+  4: { label: "Low",      color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" },
+  5: { label: "Minimal",  color: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400" },
+};
+
+const SEV_COLOR: Record<string, string> = {
+  critical: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
+  high:     "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
+  medium:   "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400",
+  low:      "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
+};
+
+function statusDot(status: string) {
+  const map: Record<string, string> = {
+    pending: "bg-gray-400", in_progress: "bg-indigo-500",
+    review: "bg-yellow-500", completed: "bg-green-500", done: "bg-green-500", blocked: "bg-red-500",
+  };
+  return map[status] ?? "bg-gray-400";
+}
+
+function statusLabel(s: string) {
+  return (s ?? "").replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+}
+
+// ── Card components (defined OUTSIDE main component to avoid hook rule violation) ──
+
+interface TaskCardProps {
+  task: Task;
+  isCompleted: (t: Task) => boolean;
+  onNavigate: (path: string) => void;
+  onMarkInProgress: (id: string) => void;
+  onMarkComplete: (id: string) => void;
+  onStartTimer: (id: string) => void;
+  onPauseTimer: (id: string) => void;
+}
+
+function TaskCard({ task, isCompleted, onNavigate, onMarkInProgress, onMarkComplete, onStartTimer, onPauseTimer }: TaskCardProps) {
+  const pInfo = PRIORITY_MAP[task.priority ?? 3] ?? PRIORITY_MAP[3];
+  const isRunning = task.timer_state === "running";
+  const done = isCompleted(task);
+  return (
+    <div className="flex items-start gap-3 p-3 rounded-xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 hover:border-indigo-200 dark:hover:border-indigo-800 transition-all group">
+      <div className={`mt-1.5 w-2 h-2 rounded-full flex-shrink-0 ${statusDot(task.status)}`} />
+      <div className="flex-1 min-w-0">
+        <div className="flex items-start justify-between gap-2">
+          <p className="text-sm font-medium text-gray-900 dark:text-gray-100 leading-snug truncate">
+            #{task.task_number} {task.title}
+          </p>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="opacity-0 group-hover:opacity-100 p-0.5 text-gray-400 hover:text-gray-600 flex-shrink-0 transition-opacity">
+                <MoreHorizontal className="w-4 h-4" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem onClick={() => onNavigate(`/admin/tasks?open=${task.id}`)}>
+                <ExternalLink className="w-4 h-4 mr-2" /> Open Task
+              </DropdownMenuItem>
+              {!done && (
+                <>
+                  <DropdownMenuItem onClick={() => onMarkInProgress(task.id)}>
+                    <Play className="w-4 h-4 mr-2" /> Mark In Progress
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => onMarkComplete(task.id)}>
+                    <CheckCircle2 className="w-4 h-4 mr-2" /> Mark Complete
+                  </DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+        <div className="flex flex-wrap gap-1.5 mt-1.5">
+          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${pInfo.color}`}>{pInfo.label}</span>
+          <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400">
+            {statusLabel(task.status)}
+          </span>
+          {task.due_date && (
+            <span className={`text-[10px] flex items-center gap-0.5 ${isPast(new Date(task.due_date)) && !done ? "text-red-500" : "text-gray-400"}`}>
+              <CalendarDays className="w-2.5 h-2.5" />
+              {isToday(new Date(task.due_date)) ? "Due today" : format(new Date(task.due_date), "MMM d")}
+            </span>
+          )}
+        </div>
+      </div>
+      {!done && (
+        <button
+          onClick={() => isRunning ? onPauseTimer(task.id) : onStartTimer(task.id)}
+          className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors flex-shrink-0 mt-0.5 ${isRunning ? "bg-indigo-100 text-indigo-600 hover:bg-indigo-200" : "bg-gray-100 text-gray-500 hover:bg-indigo-100 hover:text-indigo-600"}`}
+          title={isRunning ? "Pause timer" : "Start timer"}
+        >
+          {isRunning ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
+        </button>
+      )}
+      {done && <CheckCircle2 className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />}
+    </div>
+  );
+}
+
+interface ProjectCardProps {
+  project: Project;
+  pendingTaskCount: number;
+  today: Date;
+}
+
+function ProjectCard({ project, pendingTaskCount, today }: ProjectCardProps) {
+  const statusColors: Record<string, string> = {
+    active:    "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
+    planning:  "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
+    on_hold:   "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400",
+    completed: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",
+    cancelled: "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400",
+  };
+  const daysLeft = project.projected_end_date
+    ? differenceInDays(new Date(project.projected_end_date), today) : null;
+
+  return (
+    <Link to={`/projects/${project.id}`}
+      className="block p-4 rounded-xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 hover:border-indigo-200 dark:hover:border-indigo-700 hover:shadow-sm transition-all group">
+      <div className="flex items-start justify-between gap-2 mb-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="w-8 h-8 rounded-lg flex-shrink-0 flex items-center justify-center text-white text-sm font-bold"
+            style={{ backgroundColor: project.color ?? "#6366f1" }}>
+            {project.name[0]?.toUpperCase()}
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate group-hover:text-indigo-600 transition-colors">{project.name}</p>
+            <p className="text-[10px] text-gray-400">{(project.project_type ?? "project").replace(/_/g, " ")}</p>
+          </div>
+        </div>
+        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0 ${statusColors[project.status] ?? "bg-gray-100 text-gray-600"}`}>
+          {statusLabel(project.status)}
+        </span>
+      </div>
+      <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+        <span className="flex items-center gap-1"><ListTodo className="w-3 h-3" /> {pendingTaskCount} pending</span>
+        {daysLeft !== null && (
+          <span className={`flex items-center gap-1 ${project.status === "active" && daysLeft < 0 ? "text-red-500" : ""}`}>
+            <CalendarDays className="w-3 h-3" />
+            {daysLeft === 0 ? "Due today" : daysLeft < 0 ? `${Math.abs(daysLeft)}d overdue` : `${daysLeft}d left`}
+          </span>
+        )}
+      </div>
+    </Link>
+  );
+}
+
+function DefectCard({ defect }: { defect: Defect }) {
+  return (
+    <Link to={`/defects?open=${defect.id}`}
+      className="flex items-start gap-3 p-3 rounded-xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 hover:border-orange-200 dark:hover:border-orange-800 transition-all group">
+      <div className="w-8 h-8 rounded-lg bg-orange-50 dark:bg-orange-900/20 flex items-center justify-center flex-shrink-0">
+        <Bug className="w-4 h-4 text-orange-500" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-[10px] font-semibold text-gray-400 mb-0.5">DEF-{String(defect.defect_number).padStart(5, "0")}</p>
+        <p className="text-sm font-medium text-gray-900 dark:text-gray-100 leading-snug truncate">{defect.title}</p>
+        <div className="flex flex-wrap gap-1.5 mt-1.5">
+          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${SEV_COLOR[defect.severity] ?? "bg-gray-100 text-gray-600"}`}>{defect.severity}</span>
+          <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400">{statusLabel(defect.status)}</span>
+        </div>
+      </div>
+      <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-orange-400 mt-1 flex-shrink-0 transition-colors" />
+    </Link>
+  );
 }
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
@@ -142,16 +272,13 @@ export default function MyWorkspace() {
   const generateBrief = useMutation({
     mutationFn: () =>
       apiRequest("/api/my-workspace/ai-brief", { method: "POST", body: "{}" }),
-    onSuccess: (data: AiBrief) => {
-      setAiBrief(data);
-      setBriefError(null);
-    },
+    onSuccess: (data: AiBrief) => { setAiBrief(data); setBriefError(null); },
     onError: (err: any) => {
-      setBriefError(err?.message ?? "AI brief failed. Please check your AI settings.");
+      setBriefError(err?.message ?? "AI brief failed. Check AI settings in Admin > Settings.");
     },
   });
 
-  // ── Derived data ────────────────────────────────────────────────────────────
+  // ── Task status helpers ──────────────────────────────────────────────────────
   const completedStatuses = taskStatuses
     .filter((s: any) => s.name?.toLowerCase().includes("complet") || s.is_completed)
     .map((s: any) => s.name);
@@ -160,118 +287,6 @@ export default function MyWorkspace() {
       ? completedStatuses.includes(t.status)
       : t.status === "completed" || t.status === "done";
 
-  const myTasks     = tasks.filter(t => t.assigned_to === uid);
-  const activeTasks = myTasks.filter(t => !isCompleted(t));
-  const todayTasks  = activeTasks.filter(t => t.due_date && isToday(new Date(t.due_date)));
-  const overdueTasks = activeTasks.filter(
-    t => t.due_date && isPast(new Date(t.due_date)) && !isToday(new Date(t.due_date))
-  );
-  const upcomingTasks = activeTasks.filter(
-    t => !t.due_date || isFuture(new Date(t.due_date))
-  );
-  const completedToday = myTasks.filter(
-    t => isCompleted(t) && t.actual_completion_date && isToday(new Date(t.actual_completion_date))
-  );
-
-  const myProjectIds = new Set(members.filter(m => m.user_id === uid).map(m => m.project_id));
-  const myProjects   = allProjects.filter(p => myProjectIds.has(p.id) || p.created_by === uid).slice(0, 6);
-  const myDefects    = defects.filter(d => d.assigned_to === uid);
-  const openDefects  = myDefects.filter(d => !["resolved", "closed", "verified"].includes(d.status));
-
-  const recentActivity = [...decisions]
-    .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-    .slice(0, 8);
-
-  // Grouped notifications
-  const notifGroups = Object.values(
-    recentActivity.reduce((acc: any, d: any) => {
-      const key = `${d.entity_type}-${d.entity_id}`;
-      if (!acc[key]) acc[key] = { key, entity_type: d.entity_type, entity_id: d.entity_id, items: [] };
-      acc[key].items.push(d);
-      return acc;
-    }, {})
-  ) as { key: string; entity_type: string; entity_id: string; items: any[] }[];
-
-  // ── Calendar: rich, contextual schedule items ─────────────────────────────
-  const calendarItems: CalItem[] = [];
-
-  // Tasks due today
-  todayTasks.forEach(t => {
-    calendarItems.push({
-      type: "task_due",
-      title: t.title,
-      subtitle: `Task #${t.task_number} · Due today`,
-      date: new Date(t.due_date!),
-      color: "text-indigo-700 dark:text-indigo-300",
-      borderColor: "border-indigo-400",
-      bgColor: "bg-indigo-50 dark:bg-indigo-900/20",
-      link: `/admin/tasks?open=${t.id}`,
-    });
-  });
-
-  // Overdue tasks (show max 3)
-  overdueTasks.slice(0, 3).forEach(t => {
-    const daysOverdue = differenceInDays(today, new Date(t.due_date!));
-    calendarItems.push({
-      type: "task_overdue",
-      title: t.title,
-      subtitle: `Task #${t.task_number} · ${daysOverdue}d overdue`,
-      date: new Date(t.due_date!),
-      color: "text-red-700 dark:text-red-400",
-      borderColor: "border-red-400",
-      bgColor: "bg-red-50 dark:bg-red-900/20",
-      link: `/admin/tasks?open=${t.id}`,
-    });
-  });
-
-  // Tasks due this week (upcoming)
-  upcomingTasks
-    .filter(t => t.due_date && isThisWeek(new Date(t.due_date)))
-    .slice(0, 3)
-    .forEach(t => {
-      calendarItems.push({
-        type: "task_due",
-        title: t.title,
-        subtitle: `Task #${t.task_number} · Due ${format(new Date(t.due_date!), "EEE, MMM d")}`,
-        date: new Date(t.due_date!),
-        color: "text-amber-700 dark:text-amber-300",
-        borderColor: "border-amber-400",
-        bgColor: "bg-amber-50 dark:bg-amber-900/20",
-        link: `/admin/tasks?open=${t.id}`,
-      });
-    });
-
-  // Project deadlines this week/month
-  myProjects
-    .filter(p => p.projected_end_date && p.status === "active")
-    .forEach(p => {
-      const deadline = new Date(p.projected_end_date!);
-      const daysLeft = differenceInDays(deadline, today);
-      if (daysLeft >= -7 && daysLeft <= 30) {
-        calendarItems.push({
-          type: daysLeft < 0 ? "project_milestone" : "project_deadline",
-          title: p.name,
-          subtitle: daysLeft < 0
-            ? `Project · Deadline passed ${Math.abs(daysLeft)}d ago`
-            : daysLeft === 0
-            ? "Project · Deadline today"
-            : `Project · ${daysLeft}d until deadline`,
-          date: deadline,
-          color: daysLeft <= 3 ? "text-red-700 dark:text-red-400" : "text-purple-700 dark:text-purple-300",
-          borderColor: daysLeft <= 3 ? "border-red-400" : "border-purple-400",
-          bgColor: daysLeft <= 3 ? "bg-red-50 dark:bg-red-900/20" : "bg-purple-50 dark:bg-purple-900/20",
-          link: `/projects/${p.id}`,
-        });
-      }
-    });
-
-  // Sort by date
-  calendarItems.sort((a, b) => a.date.getTime() - b.date.getTime());
-
-  // ── Perf numbers ─────────────────────────────────────────────────────────
-  const hoursLogged = Math.round((myTasks.reduce((s, t) => s + (t.time_spent_minutes ?? 0), 0)) / 60 * 10) / 10;
-
-  // ── Quick-action helpers ─────────────────────────────────────────────────
   function inProgressStatus() {
     return (taskStatuses.find((s: any) =>
       s.name?.toLowerCase().includes("progress") || s.name?.toLowerCase() === "in progress"
@@ -283,15 +298,7 @@ export default function MyWorkspace() {
     ) as any)?.name ?? "completed";
   }
 
-  // ── Tab task lists ───────────────────────────────────────────────────────
-  const tabLists: Record<string, Task[]> = {
-    today:     todayTasks,
-    upcoming:  upcomingTasks.slice(0, 10),
-    overdue:   overdueTasks,
-    completed: completedToday,
-  };
-
-  // ── Mutations ────────────────────────────────────────────────────────────
+  // ── Mutations ────────────────────────────────────────────────────────────────
   const updateTaskStatus = useMutation({
     mutationFn: ({ id, status }: { id: string; status: string }) =>
       apiRequest(`/api/tasks/${id}`, { method: "PATCH", body: JSON.stringify({ status }) }),
@@ -309,144 +316,97 @@ export default function MyWorkspace() {
     onError: () => toast({ title: "Failed to pause timer", variant: "destructive" }),
   });
 
-  // ── Task Card ────────────────────────────────────────────────────────────
-  const TaskCard = ({ task }: { task: Task }) => {
-    const pInfo = PRIORITY_MAP[task.priority ?? 3] ?? PRIORITY_MAP[3];
-    const isRunning = task.timer_state === "running";
-    return (
-      <div className="flex items-start gap-3 p-3 rounded-xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 hover:border-indigo-200 dark:hover:border-indigo-800 transition-all group">
-        <div className={`mt-1.5 w-2 h-2 rounded-full flex-shrink-0 ${statusDot(task.status)}`} />
-        <div className="flex-1 min-w-0">
-          <div className="flex items-start justify-between gap-2">
-            <p className="text-sm font-medium text-gray-900 dark:text-gray-100 leading-snug truncate">
-              #{task.task_number} {task.title}
-            </p>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button className="opacity-0 group-hover:opacity-100 p-0.5 text-gray-400 hover:text-gray-600 flex-shrink-0 transition-opacity">
-                  <MoreHorizontal className="w-4 h-4" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuItem onClick={() => navigate(`/admin/tasks?open=${task.id}`)}>
-                  <ExternalLink className="w-4 h-4 mr-2" /> Open Task
-                </DropdownMenuItem>
-                {!isCompleted(task) && (
-                  <>
-                    <DropdownMenuItem onClick={() => updateTaskStatus.mutate({ id: task.id, status: inProgressStatus() })}>
-                      <Play className="w-4 h-4 mr-2" /> Mark In Progress
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => updateTaskStatus.mutate({ id: task.id, status: completeStatus() })}>
-                      <CheckCircle2 className="w-4 h-4 mr-2" /> Mark Complete
-                    </DropdownMenuItem>
-                  </>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-          <div className="flex flex-wrap gap-1.5 mt-1.5">
-            <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${pInfo.color}`}>{pInfo.label}</span>
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400">
-              {statusLabel(task.status)}
-            </span>
-            {task.due_date && (
-              <span className={`text-[10px] flex items-center gap-0.5 ${isPast(new Date(task.due_date)) && !isCompleted(task) ? "text-red-500" : "text-gray-400"}`}>
-                <CalendarDays className="w-2.5 h-2.5" />
-                {isToday(new Date(task.due_date)) ? "Due today" : format(new Date(task.due_date), "MMM d")}
-              </span>
-            )}
-          </div>
-        </div>
-        <button
-          onClick={() => isRunning ? pauseTimer.mutate(task.id) : startTimer.mutate(task.id)}
-          className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors flex-shrink-0 mt-0.5 ${isRunning ? "bg-indigo-100 text-indigo-600 hover:bg-indigo-200" : "bg-gray-100 text-gray-500 hover:bg-indigo-100 hover:text-indigo-600"}`}
-          title={isRunning ? "Pause timer" : "Start timer"}
-        >
-          {isRunning ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
-        </button>
-      </div>
-    );
+  // ── Derived data ─────────────────────────────────────────────────────────────
+  const myTasks      = tasks.filter(t => t.assigned_to === uid);
+  const activeTasks  = myTasks.filter(t => !isCompleted(t));
+  const todayTasks   = activeTasks.filter(t => t.due_date && isToday(new Date(t.due_date)));
+  const overdueTasks = activeTasks.filter(t => t.due_date && isPast(new Date(t.due_date)) && !isToday(new Date(t.due_date)));
+  const upcomingTasks = activeTasks.filter(t => !t.due_date || isFuture(new Date(t.due_date)));
+  const completedToday = myTasks.filter(t => isCompleted(t) && t.actual_completion_date && isToday(new Date(t.actual_completion_date)));
+
+  const myProjectIds = new Set(members.filter(m => m.user_id === uid).map(m => m.project_id));
+  const myProjects   = allProjects.filter(p => myProjectIds.has(p.id) || p.created_by === uid).slice(0, 6);
+  const myDefects    = defects.filter(d => d.assigned_to === uid);
+  const openDefects  = myDefects.filter(d => !["resolved", "closed", "verified"].includes(d.status));
+
+  const recentActivity = [...decisions]
+    .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    .slice(0, 8);
+
+  const notifGroups = Object.values(
+    recentActivity.reduce((acc: any, d: any) => {
+      const key = `${d.entity_type}-${d.entity_id}`;
+      if (!acc[key]) acc[key] = { key, entity_type: d.entity_type, entity_id: d.entity_id, items: [] };
+      acc[key].items.push(d);
+      return acc;
+    }, {})
+  ) as { key: string; entity_type: string; entity_id: string; items: any[] }[];
+
+  const hoursLogged = Math.round((myTasks.reduce((s, t) => s + (t.time_spent_minutes ?? 0), 0)) / 60 * 10) / 10;
+
+  // ── Calendar items ────────────────────────────────────────────────────────────
+  const calendarItems: CalItem[] = [];
+  todayTasks.forEach(t => calendarItems.push({
+    type: "task_due", title: t.title,
+    subtitle: `Task #${t.task_number} · Due today`,
+    date: new Date(t.due_date!),
+    color: "text-indigo-700 dark:text-indigo-300", borderColor: "border-indigo-400",
+    bgColor: "bg-indigo-50 dark:bg-indigo-900/20", link: `/admin/tasks?open=${t.id}`,
+  }));
+  overdueTasks.slice(0, 3).forEach(t => {
+    const d = differenceInDays(today, new Date(t.due_date!));
+    calendarItems.push({
+      type: "task_overdue", title: t.title,
+      subtitle: `Task #${t.task_number} · ${d}d overdue`,
+      date: new Date(t.due_date!),
+      color: "text-red-700 dark:text-red-400", borderColor: "border-red-400",
+      bgColor: "bg-red-50 dark:bg-red-900/20", link: `/admin/tasks?open=${t.id}`,
+    });
+  });
+  upcomingTasks.filter(t => t.due_date && isThisWeek(new Date(t.due_date))).slice(0, 3).forEach(t => calendarItems.push({
+    type: "task_upcoming", title: t.title,
+    subtitle: `Task #${t.task_number} · Due ${format(new Date(t.due_date!), "EEE, MMM d")}`,
+    date: new Date(t.due_date!),
+    color: "text-amber-700 dark:text-amber-300", borderColor: "border-amber-400",
+    bgColor: "bg-amber-50 dark:bg-amber-900/20", link: `/admin/tasks?open=${t.id}`,
+  }));
+  myProjects.filter(p => p.projected_end_date && p.status === "active").forEach(p => {
+    const deadline = new Date(p.projected_end_date!);
+    const daysLeft = differenceInDays(deadline, today);
+    if (daysLeft >= -7 && daysLeft <= 30) calendarItems.push({
+      type: "project_deadline", title: p.name,
+      subtitle: daysLeft < 0 ? `Project · Deadline passed ${Math.abs(daysLeft)}d ago`
+               : daysLeft === 0 ? "Project · Deadline today"
+               : `Project · ${daysLeft}d until deadline`,
+      date: deadline,
+      color: daysLeft <= 3 ? "text-red-700 dark:text-red-400" : "text-purple-700 dark:text-purple-300",
+      borderColor: daysLeft <= 3 ? "border-red-400" : "border-purple-400",
+      bgColor: daysLeft <= 3 ? "bg-red-50 dark:bg-red-900/20" : "bg-purple-50 dark:bg-purple-900/20",
+      link: `/projects/${p.id}`,
+    });
+  });
+  calendarItems.sort((a, b) => a.date.getTime() - b.date.getTime());
+
+  // ── Tab lists ─────────────────────────────────────────────────────────────────
+  const tabLists: Record<string, Task[]> = {
+    today: todayTasks, upcoming: upcomingTasks.slice(0, 10),
+    overdue: overdueTasks, completed: completedToday,
   };
 
-  // ── Project Card ─────────────────────────────────────────────────────────
-  const ProjectCard = ({ project }: { project: Project }) => {
-    const pendingCount = myTasks.filter(t => t.project_id === project.id && !isCompleted(t)).length;
-    const statusColors: Record<string, string> = {
-      active:    "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
-      planning:  "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
-      on_hold:   "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400",
-      completed: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",
-      cancelled: "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400",
-    };
-    return (
-      <Link to={`/projects/${project.id}`}
-        className="block p-4 rounded-xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 hover:border-indigo-200 dark:hover:border-indigo-700 hover:shadow-sm transition-all group">
-        <div className="flex items-start justify-between gap-2 mb-2">
-          <div className="flex items-center gap-2 min-w-0">
-            <div className="w-8 h-8 rounded-lg flex-shrink-0 flex items-center justify-center text-white text-sm font-bold"
-              style={{ backgroundColor: project.color ?? "#6366f1" }}>
-              {project.name[0]?.toUpperCase()}
-            </div>
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate group-hover:text-indigo-600 transition-colors">{project.name}</p>
-              <p className="text-[10px] text-gray-400">{(project.project_type ?? "project").replace(/_/g, " ")}</p>
-            </div>
-          </div>
-          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0 ${statusColors[project.status] ?? "bg-gray-100 text-gray-600"}`}>
-            {statusLabel(project.status)}
-          </span>
-        </div>
-        <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
-          <span className="flex items-center gap-1"><ListTodo className="w-3 h-3" /> {pendingCount} pending</span>
-          {project.projected_end_date && (
-            <span className={`flex items-center gap-1 ${isPast(new Date(project.projected_end_date)) && project.status === "active" ? "text-red-500" : ""}`}>
-              <CalendarDays className="w-3 h-3" />
-              {differenceInDays(new Date(project.projected_end_date), today) === 0
-                ? "Due today"
-                : differenceInDays(new Date(project.projected_end_date), today) < 0
-                ? `${Math.abs(differenceInDays(new Date(project.projected_end_date), today))}d overdue`
-                : `${differenceInDays(new Date(project.projected_end_date), today)}d left`}
-            </span>
-          )}
-        </div>
-      </Link>
-    );
-  };
-
-  // ── Defect Card ──────────────────────────────────────────────────────────
-  const DefectCard = ({ defect }: { defect: Defect }) => (
-    <Link to={`/defects?open=${defect.id}`}
-      className="flex items-start gap-3 p-3 rounded-xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 hover:border-orange-200 dark:hover:border-orange-800 transition-all group">
-      <div className="w-8 h-8 rounded-lg bg-orange-50 dark:bg-orange-900/20 flex items-center justify-center flex-shrink-0">
-        <Bug className="w-4 h-4 text-orange-500" />
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-[10px] font-semibold text-gray-400 mb-0.5">DEF-{String(defect.defect_number).padStart(5, "0")}</p>
-        <p className="text-sm font-medium text-gray-900 dark:text-gray-100 leading-snug truncate">{defect.title}</p>
-        <div className="flex flex-wrap gap-1.5 mt-1.5">
-          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${SEV_COLOR[defect.severity] ?? "bg-gray-100 text-gray-600"}`}>{defect.severity}</span>
-          <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400">{statusLabel(defect.status)}</span>
-        </div>
-      </div>
-      <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-orange-400 mt-1 flex-shrink-0 transition-colors" />
-    </Link>
-  );
-
-  // ── Workload badge ────────────────────────────────────────────────────────
-  const workloadBadge = aiBrief ? {
+  // ── Workload badge ────────────────────────────────────────────────────────────
+  const workloadBadge = aiBrief ? ({
     heavy:    { label: "Heavy workload", color: "bg-red-400/20 text-red-200",    icon: TrendingUp },
     balanced: { label: "Balanced",       color: "bg-green-400/20 text-green-200", icon: CheckCheck },
     light:    { label: "Light workload", color: "bg-blue-400/20 text-blue-200",   icon: TrendingDown },
-  }[aiBrief.workload_status] : null;
+  } as const)[aiBrief.workload_status] : null;
 
-  // ── Render ───────────────────────────────────────────────────────────────
+  // ── Render ────────────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
 
         {/* ── AI Daily Brief ──────────────────────────────────────────────── */}
         <div className="rounded-2xl overflow-hidden shadow-sm">
-          {/* Header gradient */}
           <div className="bg-gradient-to-br from-indigo-600 via-indigo-700 to-purple-700 p-6 text-white">
             <div className="flex items-start justify-between gap-4 flex-wrap">
               <div>
@@ -473,13 +433,13 @@ export default function MyWorkspace() {
             {/* Stat chips */}
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mt-5">
               {[
-                { label: "Active Tasks",   value: activeTasks.length,  icon: CheckSquare, highlight: false },
-                { label: "Due Today",      value: todayTasks.length,   icon: CalendarDays, highlight: todayTasks.length > 0 },
-                { label: "Overdue",        value: overdueTasks.length, icon: AlertTriangle, highlight: overdueTasks.length > 0 },
-                { label: "Open Defects",   value: openDefects.length,  icon: Bug, highlight: openDefects.length > 0 },
-                { label: "My Projects",    value: myProjects.length,   icon: Briefcase, highlight: false },
-                { label: "Hours Logged",   value: `${hoursLogged}h`,   icon: Clock, highlight: false },
-              ].map(({ label, value, icon: Icon, highlight }) => (
+                { label: "Active Tasks",  value: activeTasks.length,  Icon: CheckSquare,  highlight: false },
+                { label: "Due Today",     value: todayTasks.length,   Icon: CalendarDays, highlight: todayTasks.length > 0 },
+                { label: "Overdue",       value: overdueTasks.length, Icon: AlertTriangle,highlight: overdueTasks.length > 0 },
+                { label: "Open Defects",  value: openDefects.length,  Icon: Bug,          highlight: openDefects.length > 0 },
+                { label: "My Projects",   value: myProjects.length,   Icon: Briefcase,    highlight: false },
+                { label: "Hours Logged",  value: `${hoursLogged}h`,   Icon: Clock,        highlight: false },
+              ].map(({ label, value, Icon, highlight }) => (
                 <div key={label} className={`${highlight ? "bg-yellow-400/20" : "bg-white/10"} rounded-xl p-3 backdrop-blur-sm`}>
                   <Icon className="w-4 h-4 text-indigo-200 mb-1.5" />
                   <p className="text-2xl font-bold text-white leading-none">{value}</p>
@@ -532,16 +492,13 @@ export default function MyWorkspace() {
                   <p className="text-sm font-medium text-red-700 dark:text-red-400">AI brief unavailable</p>
                   <p className="text-xs text-gray-400 mt-0.5">{briefError}</p>
                 </div>
-                <Button size="sm" variant="outline" onClick={() => { setBriefError(null); generateBrief.mutate(); }}>
-                  Retry
-                </Button>
+                <Button size="sm" variant="outline" onClick={() => { setBriefError(null); generateBrief.mutate(); }}>Retry</Button>
               </div>
             )}
 
             {/* AI response */}
             {aiBrief && !generateBrief.isPending && (
               <div className="space-y-3">
-                {/* Focus insight */}
                 <div className="flex items-start gap-2.5">
                   <Target className="w-4 h-4 text-indigo-500 mt-0.5 shrink-0" />
                   <div>
@@ -549,8 +506,6 @@ export default function MyWorkspace() {
                     <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">{aiBrief.focus_insight}</p>
                   </div>
                 </div>
-
-                {/* Risk alert */}
                 {aiBrief.risk_alert && (
                   <div className="flex items-start gap-2.5 bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-900/40 rounded-lg px-3 py-2">
                     <AlertTriangle className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />
@@ -560,28 +515,21 @@ export default function MyWorkspace() {
                     </div>
                   </div>
                 )}
-
-                {/* Priority actions */}
                 {aiBrief.priority_actions.length > 0 && (
                   <div>
                     <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-2">Today's Priority Actions</p>
                     <div className="space-y-1.5">
                       {aiBrief.priority_actions.map((action, i) => (
                         <div key={i} className="flex items-start gap-2">
-                          <span className="w-4 h-4 rounded-full bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">
-                            {i + 1}
-                          </span>
+                          <span className="w-4 h-4 rounded-full bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">{i + 1}</span>
                           <p className="text-sm text-gray-700 dark:text-gray-300">{action}</p>
                         </div>
                       ))}
                     </div>
                   </div>
                 )}
-
                 <div className="flex items-center justify-between pt-1 border-t border-gray-100 dark:border-gray-800">
-                  <p className="text-[10px] text-gray-400">
-                    Generated {formatDistanceToNow(new Date(aiBrief.generated_at), { addSuffix: true })}
-                  </p>
+                  <p className="text-[10px] text-gray-400">Generated {formatDistanceToNow(new Date(aiBrief.generated_at), { addSuffix: true })}</p>
                   <Button size="sm" variant="ghost" className="h-6 text-xs text-gray-400 hover:text-indigo-600"
                     onClick={() => { setAiBrief(null); generateBrief.mutate(); }}>
                     <RefreshCw className="w-3 h-3 mr-1" /> Regenerate
@@ -590,7 +538,7 @@ export default function MyWorkspace() {
               </div>
             )}
 
-            {/* Quick nav buttons */}
+            {/* Quick nav */}
             <div className="flex gap-2 mt-4 pt-3 border-t border-gray-100 dark:border-gray-800">
               <Button size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-white"
                 onClick={() => document.getElementById("my-work-section")?.scrollIntoView({ behavior: "smooth" })}>
@@ -606,7 +554,7 @@ export default function MyWorkspace() {
         {/* ── Main 2-column grid ─────────────────────────────────────────── */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-          {/* My Work — 2/3 width */}
+          {/* My Work — 2/3 */}
           <div className="lg:col-span-2" id="my-work-section">
             <Card className="border border-gray-100 dark:border-gray-800 shadow-sm">
               <CardHeader className="pb-0 pt-4 px-4">
@@ -624,16 +572,12 @@ export default function MyWorkspace() {
                   <TabsList className="w-full grid grid-cols-4 h-8 text-xs mb-3">
                     <TabsTrigger value="today" className="text-xs">
                       Today
-                      {todayTasks.length > 0 && (
-                        <span className="ml-1 bg-indigo-100 text-indigo-600 dark:bg-indigo-900/40 dark:text-indigo-400 text-[10px] px-1 rounded-full">{todayTasks.length}</span>
-                      )}
+                      {todayTasks.length > 0 && <span className="ml-1 bg-indigo-100 text-indigo-600 dark:bg-indigo-900/40 dark:text-indigo-400 text-[10px] px-1 rounded-full">{todayTasks.length}</span>}
                     </TabsTrigger>
                     <TabsTrigger value="upcoming" className="text-xs">Upcoming</TabsTrigger>
                     <TabsTrigger value="overdue" className="text-xs">
                       Overdue
-                      {overdueTasks.length > 0 && (
-                        <span className="ml-1 bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-400 text-[10px] px-1 rounded-full">{overdueTasks.length}</span>
-                      )}
+                      {overdueTasks.length > 0 && <span className="ml-1 bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-400 text-[10px] px-1 rounded-full">{overdueTasks.length}</span>}
                     </TabsTrigger>
                     <TabsTrigger value="completed" className="text-xs">Done</TabsTrigger>
                   </TabsList>
@@ -641,9 +585,7 @@ export default function MyWorkspace() {
                   {(["today", "upcoming", "overdue", "completed"] as const).map(tab => (
                     <TabsContent key={tab} value={tab} className="mt-0">
                       {tasksLoading ? (
-                        <div className="space-y-2">
-                          {[1, 2, 3].map(i => <div key={i} className="h-16 rounded-xl bg-gray-100 dark:bg-gray-800 animate-pulse" />)}
-                        </div>
+                        <div className="space-y-2">{[1,2,3].map(i => <div key={i} className="h-16 rounded-xl bg-gray-100 dark:bg-gray-800 animate-pulse" />)}</div>
                       ) : tabLists[tab].length === 0 ? (
                         <div className="py-10 text-center">
                           <CheckCircle2 className="w-8 h-8 text-gray-200 dark:text-gray-700 mx-auto mb-2" />
@@ -656,7 +598,18 @@ export default function MyWorkspace() {
                         </div>
                       ) : (
                         <div className="space-y-2 max-h-72 overflow-y-auto pr-0.5">
-                          {tabLists[tab].map(task => <TaskCard key={task.id} task={task} />)}
+                          {tabLists[tab].map(task => (
+                            <TaskCard
+                              key={task.id}
+                              task={task}
+                              isCompleted={isCompleted}
+                              onNavigate={navigate}
+                              onMarkInProgress={id => updateTaskStatus.mutate({ id, status: inProgressStatus() })}
+                              onMarkComplete={id => updateTaskStatus.mutate({ id, status: completeStatus() })}
+                              onStartTimer={id => startTimer.mutate(id)}
+                              onPauseTimer={id => pauseTimer.mutate(id)}
+                            />
+                          ))}
                         </div>
                       )}
                     </TabsContent>
@@ -668,7 +621,6 @@ export default function MyWorkspace() {
 
           {/* Right column: Performance + Schedule */}
           <div className="space-y-6">
-            {/* Performance Snapshot */}
             <Card className="border border-gray-100 dark:border-gray-800 shadow-sm">
               <CardHeader className="pb-2 pt-4 px-4">
                 <CardTitle className="text-base font-semibold flex items-center gap-2">
@@ -678,11 +630,11 @@ export default function MyWorkspace() {
               <CardContent className="px-4 pb-4">
                 <div className="grid grid-cols-2 gap-2">
                   {[
-                    { label: "Completed Today", value: completedToday.length, icon: CheckCircle2, color: "text-green-600",  bg: "bg-green-50 dark:bg-green-900/20" },
-                    { label: "Hours Logged",    value: `${hoursLogged}h`,     icon: Clock,        color: "text-indigo-600", bg: "bg-indigo-50 dark:bg-indigo-900/20" },
-                    { label: "Open Defects",    value: openDefects.length,    icon: Bug,          color: "text-orange-600", bg: "bg-orange-50 dark:bg-orange-900/20" },
-                    { label: "Active Projects", value: myProjects.filter(p => p.status === "active").length, icon: Briefcase, color: "text-purple-600", bg: "bg-purple-50 dark:bg-purple-900/20" },
-                  ].map(({ label, value, icon: Icon, color, bg }) => (
+                    { label: "Completed Today", value: completedToday.length, Icon: CheckCircle2, color: "text-green-600",  bg: "bg-green-50 dark:bg-green-900/20" },
+                    { label: "Hours Logged",    value: `${hoursLogged}h`,     Icon: Clock,        color: "text-indigo-600", bg: "bg-indigo-50 dark:bg-indigo-900/20" },
+                    { label: "Open Defects",    value: openDefects.length,    Icon: Bug,          color: "text-orange-600", bg: "bg-orange-50 dark:bg-orange-900/20" },
+                    { label: "Active Projects", value: myProjects.filter(p => p.status === "active").length, Icon: Briefcase, color: "text-purple-600", bg: "bg-purple-50 dark:bg-purple-900/20" },
+                  ].map(({ label, value, Icon, color, bg }) => (
                     <div key={label} className={`${bg} rounded-xl p-3`}>
                       <Icon className={`w-4 h-4 ${color} mb-1`} />
                       <p className="text-xl font-bold text-gray-900 dark:text-gray-100">{value}</p>
@@ -693,7 +645,7 @@ export default function MyWorkspace() {
               </CardContent>
             </Card>
 
-            {/* Schedule — rich, contextual items */}
+            {/* Schedule */}
             <Card className="border border-gray-100 dark:border-gray-800 shadow-sm">
               <CardHeader className="pb-2 pt-4 px-4">
                 <CardTitle className="text-base font-semibold flex items-center gap-2">
@@ -705,30 +657,23 @@ export default function MyWorkspace() {
                   <div className="py-6 text-center">
                     <CalendarDays className="w-8 h-8 text-gray-200 dark:text-gray-700 mx-auto mb-2" />
                     <p className="text-sm font-medium text-gray-400">Nothing coming up</p>
-                    <p className="text-xs text-gray-400 mt-0.5">No tasks due today or this week, and no project deadlines nearby.</p>
+                    <p className="text-xs text-gray-400 mt-0.5">No tasks due today, nothing overdue, and no project deadlines nearby.</p>
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    {/* Group header if today has items */}
                     {calendarItems.some(c => isToday(c.date)) && (
-                      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">
-                        Today · {format(today, "MMMM d")}
-                      </p>
+                      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Today · {format(today, "MMMM d")}</p>
                     )}
                     {calendarItems.map((item, i) => {
-                      // Insert "This week" header before the first non-today item
                       const prevIsToday = i > 0 && isToday(calendarItems[i - 1].date);
-                      const thisIsNotToday = !isToday(item.date);
-                      const showWeekHeader = prevIsToday && thisIsNotToday;
+                      const showUpcomingHeader = prevIsToday && !isToday(item.date);
                       return (
                         <React.Fragment key={i}>
-                          {showWeekHeader && (
-                            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mt-3 mb-1">
-                              Upcoming
-                            </p>
+                          {showUpcomingHeader && (
+                            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mt-3 mb-1">Upcoming</p>
                           )}
                           <Link to={item.link}
-                            className={`flex items-start gap-2.5 p-2.5 rounded-lg border-l-2 ${item.borderColor} ${item.bgColor} hover:opacity-80 transition-opacity block`}>
+                            className={`flex items-start gap-2.5 p-2.5 rounded-lg border-l-2 ${item.borderColor} ${item.bgColor} hover:opacity-80 transition-opacity`}>
                             <div className="flex-1 min-w-0">
                               <p className={`text-xs font-semibold leading-snug truncate ${item.color}`}>{item.title}</p>
                               <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5">{item.subtitle}</p>
@@ -745,7 +690,7 @@ export default function MyWorkspace() {
           </div>
         </div>
 
-        {/* ── My Projects ──────────────────────────────────────────────────── */}
+        {/* ── My Projects ───────────────────────────────────────────────────── */}
         {myProjects.length > 0 && (
           <div>
             <div className="flex items-center justify-between mb-3">
@@ -757,23 +702,26 @@ export default function MyWorkspace() {
               </Link>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
-              {myProjects.map(p => <ProjectCard key={p.id} project={p} />)}
+              {myProjects.map(p => (
+                <ProjectCard
+                  key={p.id}
+                  project={p}
+                  pendingTaskCount={myTasks.filter(t => t.project_id === p.id && !isCompleted(t)).length}
+                  today={today}
+                />
+              ))}
             </div>
           </div>
         )}
 
-        {/* ── Defects + Activity ────────────────────────────────────────────── */}
+        {/* ── Defects + Activity ─────────────────────────────────────────── */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
-          {/* My Defects */}
           <Card className="border border-gray-100 dark:border-gray-800 shadow-sm">
             <CardHeader className="pb-0 pt-4 px-4">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base font-semibold flex items-center gap-2">
                   <Bug className="w-4 h-4 text-orange-500" /> My Defects
-                  {openDefects.length > 0 && (
-                    <Badge className="bg-orange-100 text-orange-700 text-[10px] px-1.5">{openDefects.length}</Badge>
-                  )}
+                  {openDefects.length > 0 && <Badge className="bg-orange-100 text-orange-700 text-[10px] px-1.5">{openDefects.length}</Badge>}
                 </CardTitle>
                 <Link to="/defects/my" className="text-xs text-indigo-500 hover:text-indigo-700 flex items-center gap-1">
                   See all <ArrowRight className="w-3 h-3" />
@@ -794,7 +742,6 @@ export default function MyWorkspace() {
             </CardContent>
           </Card>
 
-          {/* Workspace Activity */}
           <Card className="border border-gray-100 dark:border-gray-800 shadow-sm">
             <CardHeader className="pb-0 pt-4 px-4">
               <div className="flex items-center justify-between">
@@ -841,7 +788,7 @@ export default function MyWorkspace() {
           </Card>
         </div>
 
-        {/* ── Notifications (grouped) ──────────────────────────────────────── */}
+        {/* ── Notifications (grouped) ─────────────────────────────────────── */}
         {notifGroups.length > 0 && (
           <Card className="border border-gray-100 dark:border-gray-800 shadow-sm">
             <CardHeader className="pb-0 pt-4 px-4">
@@ -887,7 +834,7 @@ export default function MyWorkspace() {
         )}
       </div>
 
-      {/* ── Quick Create FAB ──────────────────────────────────────────────── */}
+      {/* ── Quick Create FAB ─────────────────────────────────────────────── */}
       <div className="fixed bottom-6 right-6 z-50">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
