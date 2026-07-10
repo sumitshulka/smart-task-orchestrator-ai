@@ -548,6 +548,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/tasks/overdue", requireAnyAuthenticated, async (req, res) => {
+    try {
+      const userId = req.headers['x-user-id'] as string;
+      const { scope } = await getUserVisibilityScope(userId);
+      const limit = parseInt(req.query.limit as string) || 5;
+
+      let tasks;
+      if (scope === "organization") {
+        tasks = await storage.getAllTasks();
+      } else if (scope === "team") {
+        const allUsers = await storage.getAllUsers();
+        const visibleUserIds = allUsers
+          .filter(u => u.manager === userId || u.id === userId)
+          .map(u => u.id);
+        const allTasks = await storage.getAllTasks();
+        tasks = allTasks.filter((t: any) => visibleUserIds.includes(t.assigned_to));
+      } else {
+        tasks = await storage.getTasksByUser(userId);
+      }
+
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const completedLike = ["completed", "closed", "done", "resolved", "cancelled"];
+
+      const overdue = tasks
+        .filter((t: any) => {
+          if (!t.due_date) return false;
+          const due = new Date(t.due_date);
+          if (due >= today) return false;
+          const statusName = (t.status_name || t.status || "").toLowerCase();
+          return !completedLike.some(s => statusName.includes(s));
+        })
+        .sort((a: any, b: any) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime());
+
+      const total = overdue.length;
+      res.json({ tasks: overdue.slice(0, limit), total });
+    } catch (error) {
+      console.error("Error fetching overdue tasks:", error);
+      res.status(500).json({ error: "Failed to fetch overdue tasks" });
+    }
+  });
+
   app.get("/api/tasks/:id", async (req, res) => {
     try {
       const task = await storage.getTask(req.params.id);
@@ -2653,7 +2695,7 @@ For queries you cannot map:
 {"type":"unknown","message":"<brief friendly message>"}
 
 Examples:
-User: "show me overdue tasks" → {"type":"navigate","label":"Overdue Tasks","url":"/admin/reports","description":"View all tasks past their due date"}
+User: "show me overdue tasks" → {"type":"navigate","label":"Overdue Tasks","url":"/admin/reports/overdue","description":"View all tasks past their due date"}
 User: "my work this week" → {"type":"navigate","label":"My Tasks","url":"/admin/my-tasks","description":"View your assigned tasks"}
 User: "critical bugs" → {"type":"search","label":"Critical Defects","query":"defect:critical","description":"Search for critical defects"}
 User: "login project" → {"type":"search","label":"Search Projects","query":"project:login","description":"Find projects matching login"}`;

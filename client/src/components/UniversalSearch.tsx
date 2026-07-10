@@ -179,6 +179,7 @@ type NlpIntent = {
   icon: React.ElementType;
   iconColor: string;
   iconBg: string;
+  previewType?: "overdue";
 };
 
 const NLP_INTENTS: NlpIntent[] = [
@@ -186,10 +187,11 @@ const NLP_INTENTS: NlpIntent[] = [
     patterns: [/overdue/i, /past.?due/i, /late.?task/i, /missed.?deadline/i, /expired/i],
     label: "Overdue Tasks",
     description: "View all tasks that are past their due date",
-    url: "/admin/reports",
+    url: "/admin/reports/overdue",
     icon: AlertTriangle,
     iconColor: "text-red-600",
     iconBg: "bg-red-50 dark:bg-red-900/30",
+    previewType: "overdue",
   },
   {
     patterns: [/my.?tasks?/i, /assigned.?to.?me/i, /my.?work/i, /show.?my/i, /tasks.?for.?me/i, /what.?(do|should).?i/i],
@@ -512,6 +514,8 @@ export default function UniversalSearch({ open, onClose }: UniversalSearchProps)
   const [nlpIntents, setNlpIntents] = useState<NlpIntent[]>([]);
   const [aiNlpResult, setAiNlpResult] = useState<AiNlpResult | null>(null);
   const [aiNlpLoading, setAiNlpLoading] = useState(false);
+  const [overduePreview, setOverduePreview] = useState<{ tasks: any[]; total: number } | null>(null);
+  const [overduePreviewLoading, setOverduePreviewLoading] = useState(false);
 
   // Refresh history on open, and pick fresh random tip
   useEffect(() => {
@@ -521,6 +525,7 @@ export default function UniversalSearch({ open, onClose }: UniversalSearchProps)
       setDidYouKnowTip(DID_YOU_KNOW_TIPS[Math.floor(Math.random() * DID_YOU_KNOW_TIPS.length)]);
       setPlaceholderIdx(Math.floor(Math.random() * PLACEHOLDER_SUGGESTIONS.length));
       setNlpIntents([]); setAiNlpResult(null); setAiNlpLoading(false);
+      setOverduePreview(null); setOverduePreviewLoading(false);
       setTimeout(() => inputRef.current?.focus(), 50);
     }
   }, [open]);
@@ -543,6 +548,7 @@ export default function UniversalSearch({ open, onClose }: UniversalSearchProps)
     const q = debouncedQ.trim();
     if (!q || q.length < 3 || q.includes(":")) {
       setNlpIntents([]); setAiNlpResult(null); setAiNlpLoading(false);
+      setOverduePreview(null); setOverduePreviewLoading(false);
       return;
     }
     // 1. Fast path: pattern matching
@@ -550,7 +556,20 @@ export default function UniversalSearch({ open, onClose }: UniversalSearchProps)
     setNlpIntents(matched);
     setAiNlpResult(null);
 
-    // 2. AI path: only if no pattern match and query looks like a sentence (has a space)
+    // 2. Fetch overdue preview if overdue intent matched
+    const hasOverdueIntent = matched.some(m => m.previewType === "overdue");
+    if (hasOverdueIntent) {
+      setOverduePreviewLoading(true);
+      setOverduePreview(null);
+      apiRequest("/api/tasks/overdue?limit=5")
+        .then((r: any) => { setOverduePreview(r); setOverduePreviewLoading(false); })
+        .catch(() => { setOverduePreview(null); setOverduePreviewLoading(false); });
+    } else {
+      setOverduePreview(null);
+      setOverduePreviewLoading(false);
+    }
+
+    // 3. AI path: only if no pattern match and query looks like a sentence (has a space)
     if (matched.length === 0 && q.includes(" ")) {
       setAiNlpLoading(true);
       apiRequest("/api/ai/nlp-command", {
@@ -889,22 +908,73 @@ export default function UniversalSearch({ open, onClose }: UniversalSearchProps)
                 {/* Pattern-matched intents */}
                 {nlpIntents.map(intent => {
                   const IIcon = intent.icon;
+                  const isOverdue = intent.previewType === "overdue";
+
                   return (
-                    <button key={intent.label}
-                      onMouseDown={() => {
-                        if (intent.filterQuery) { setQuery(intent.filterQuery); inputRef.current?.focus(); }
-                        else if (intent.url) { navigate(intent.url); onClose(); }
-                      }}
-                      className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-indigo-50/60 dark:hover:bg-indigo-900/20 text-left transition-colors group">
-                      <div className={`w-8 h-8 rounded-lg ${intent.iconBg} flex items-center justify-center`}>
-                        <IIcon className={`w-4 h-4 ${intent.iconColor}`} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-slate-700 dark:text-slate-200">{intent.label}</p>
-                        <p className="text-[11px] text-slate-400 truncate">{intent.description}</p>
-                      </div>
-                      <ArrowRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-indigo-400 transition-colors" />
-                    </button>
+                    <div key={intent.label}>
+                      {/* Intent header row */}
+                      <button
+                        onMouseDown={() => {
+                          if (intent.filterQuery) { setQuery(intent.filterQuery); inputRef.current?.focus(); }
+                          else if (intent.url) { navigate(intent.url); onClose(); }
+                        }}
+                        className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-indigo-50/60 dark:hover:bg-indigo-900/20 text-left transition-colors group">
+                        <div className={`w-8 h-8 rounded-lg ${intent.iconBg} flex items-center justify-center`}>
+                          <IIcon className={`w-4 h-4 ${intent.iconColor}`} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-slate-700 dark:text-slate-200">{intent.label}</p>
+                          <p className="text-[11px] text-slate-400 truncate">{intent.description}</p>
+                        </div>
+                        {overduePreviewLoading && isOverdue
+                          ? <Loader2 className="w-3.5 h-3.5 text-red-400 animate-spin" />
+                          : <ArrowRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-indigo-400 transition-colors" />}
+                      </button>
+
+                      {/* Inline overdue task preview */}
+                      {isOverdue && overduePreview && overduePreview.tasks.length > 0 && (
+                        <div className="mx-3 mb-2 rounded-xl border border-red-100 dark:border-red-900/40 overflow-hidden">
+                          {overduePreview.tasks.map((t: any, idx: number) => {
+                            const daysLate = Math.floor((Date.now() - new Date(t.due_date).getTime()) / 86400000);
+                            return (
+                              <button
+                                key={t.id}
+                                onMouseDown={() => { navigate(`/admin/tasks`); onClose(); }}
+                                className={`w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors ${idx > 0 ? "border-t border-red-100/70 dark:border-red-900/30" : ""}`}>
+                                <div className="w-6 h-6 rounded-md bg-red-50 dark:bg-red-900/30 flex items-center justify-center flex-shrink-0">
+                                  <AlertTriangle className="w-3 h-3 text-red-500" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-[12px] font-medium text-slate-700 dark:text-slate-200 truncate">
+                                    {t.task_number ? `#${t.task_number} ` : ""}{t.title}
+                                  </p>
+                                  <p className="text-[10px] text-red-400 font-medium">
+                                    {daysLate === 1 ? "1 day late" : `${daysLate} days late`}
+                                    {t.assigned_to_name ? ` · ${t.assigned_to_name}` : ""}
+                                  </p>
+                                </div>
+                                <ChevronRight className="w-3 h-3 text-slate-300 flex-shrink-0" />
+                              </button>
+                            );
+                          })}
+                          {/* View all footer */}
+                          <button
+                            onMouseDown={() => { navigate("/admin/reports/overdue"); onClose(); }}
+                            className="w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-red-50/80 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors border-t border-red-100 dark:border-red-900/40 text-[11px] font-semibold text-red-600 dark:text-red-400">
+                            View all {overduePreview.total} overdue task{overduePreview.total !== 1 ? "s" : ""}
+                            <ArrowRight className="w-3 h-3" />
+                          </button>
+                        </div>
+                      )}
+
+                      {/* No overdue tasks */}
+                      {isOverdue && overduePreview && overduePreview.tasks.length === 0 && (
+                        <div className="mx-3 mb-2 px-3 py-2.5 rounded-xl bg-green-50 dark:bg-green-900/20 border border-green-100 dark:border-green-800/40 flex items-center gap-2">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />
+                          <p className="text-[11px] text-green-700 dark:text-green-300">No overdue tasks — you're all caught up!</p>
+                        </div>
+                      )}
+                    </div>
                   );
                 })}
 
