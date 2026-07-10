@@ -1,6 +1,6 @@
 import React from "react";
 import { NavLink } from "react-router-dom";
-import { Home } from "lucide-react";
+import { LayoutDashboard, Home } from "lucide-react";
 
 const link = ({ isActive }: { isActive: boolean }) =>
   isActive
@@ -12,6 +12,12 @@ export default function DashboardMenu({ isUserOnly, collapsed }: { isUserOnly: b
     <div className="space-y-0.5">
       <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-600 px-3 pb-1 pt-2">Main</p>
       <ul className="space-y-0.5">
+        <li>
+          <NavLink to="/my-workspace" end className={link}>
+            <LayoutDashboard className="w-4 h-4 shrink-0" />
+            {!collapsed && <span className="truncate">My Workspace</span>}
+          </NavLink>
+        </li>
         <li>
           <NavLink to="/admin/dashboard" end className={link}>
             <Home className="w-4 h-4 shrink-0" />

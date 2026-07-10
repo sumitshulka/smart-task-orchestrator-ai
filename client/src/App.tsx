@@ -43,6 +43,7 @@ import CustomFieldsPage from "@/pages/CustomFields";
 import DefectBoardPage from "@/pages/DefectBoard";
 import MyDefectsPage from "@/pages/MyDefects";
 import DecisionsPage from "@/pages/Decisions";
+import MyWorkspace from "@/pages/MyWorkspace";
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -308,6 +309,15 @@ const App = () => (
             <Route path="/portal/login" element={<PortalLogin />} />
             <Route path="/portal/dashboard" element={<PortalDashboard />} />
             <Route path="/portal/projects/:id" element={<PortalProjectView />} />
+            {/* My Workspace — primary landing for all users */}
+            <Route
+              path="/my-workspace"
+              element={
+                <AdminLayout>
+                  <MyWorkspace />
+                </AdminLayout>
+              }
+            />
             {/* Decisions dashboard */}
             <Route
               path="/decisions"

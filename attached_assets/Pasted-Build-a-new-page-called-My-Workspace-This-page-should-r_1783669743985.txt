@@ -1,0 +1,241 @@
+Build a new page called "My Workspace". This page should replace the traditional dashboard and become the user's personal work area after login.
+
+Design Philosophy:
+
+This is NOT a reporting dashboard.
+This is the user's operational workspace.
+
+The page should help the user start work immediately without navigating into Projects, Tasks or Defects.
+
+Use a clean modern enterprise UI with cards, soft shadows, rounded corners, and generous spacing. The page should feel like Linear, Notion or ClickUp rather than Jira.
+
+--------------------------------------------------------
+SECTION 1 : AI Daily Brief
+--------------------------------------------------------
+
+Display a large AI briefing card at the top.
+
+Example:
+
+Good Morning Rahul 👋
+
+Today you have:
+
+• 7 active tasks
+• 2 tasks due today
+• 1 overdue task
+• 3 unread workspace mentions
+• 2 defects assigned
+• 1 project needs your attention
+
+Today's Suggestions
+
+• Complete API Integration before 2 PM
+• Review Defect #1045
+• Respond to Rahul's mention in Student Portal
+
+Provide buttons:
+
+View My Work
+Start Focus Mode
+Refresh AI Summary
+
+This AI summary should be generated from user assignments and notifications. Initially use rule-based logic. Future AI integration will replace this.
+
+--------------------------------------------------------
+SECTION 2 : My Work
+--------------------------------------------------------
+
+Show a Kanban style card list.
+
+Tabs:
+
+Today's Tasks
+Upcoming
+Overdue
+Completed Today
+
+Each task card should display:
+
+Task Name
+Project
+Priority
+Due Date
+Progress
+Quick Actions
+
+Quick Actions:
+
+Start
+Pause
+Mark Complete
+Open Workspace
+Add Comment
+
+These actions should work directly from this page.
+
+--------------------------------------------------------
+SECTION 3 : My Projects
+--------------------------------------------------------
+
+Show projects where the logged in user participates.
+
+Display:
+
+Project Name
+
+Current Milestone
+
+Overall Progress
+
+Project Health
+
+My Pending Tasks
+
+Open Project
+
+--------------------------------------------------------
+SECTION 4 : My Defects
+--------------------------------------------------------
+
+Display assigned defects.
+
+Each card shows:
+
+Defect ID
+
+Title
+
+Severity
+
+Priority
+
+Status
+
+Quick Actions:
+
+Assign
+Start Fix
+Resolve
+Open Workspace
+
+--------------------------------------------------------
+SECTION 5 : Workspace Activity
+--------------------------------------------------------
+
+Display latest activity from all workspaces where user participates.
+
+Examples:
+
+Rahul mentioned you
+
+Project Apollo updated
+
+UI Design discussion
+
+Decision approved
+
+Clicking opens the related Workspace.
+
+--------------------------------------------------------
+SECTION 6 : My Calendar
+--------------------------------------------------------
+
+Display today's schedule.
+
+Include:
+
+Task Due Dates
+
+Project Milestones
+
+Meetings (future)
+
+Deadlines
+
+--------------------------------------------------------
+SECTION 7 : Notifications
+--------------------------------------------------------
+
+Instead of a notification list, group notifications.
+
+Example:
+
+Project Apollo
+
+5 new updates
+
+Task API Integration
+
+2 comments
+
+Defect #103
+
+Resolved
+
+Clicking expands the grouped notifications.
+
+--------------------------------------------------------
+SECTION 8 : Quick Create
+--------------------------------------------------------
+
+Floating Action Button
+
++
+
+Opens menu:
+
+Create Task
+
+Create Project
+
+Report Defect
+
+Start Discussion
+
+--------------------------------------------------------
+SECTION 9 : Performance Snapshot
+--------------------------------------------------------
+
+Small cards.
+
+Tasks Completed Today
+
+Hours Logged
+
+Pending Reviews
+
+Open Defects
+
+Projects Active
+
+--------------------------------------------------------
+General Requirements
+
+Do not use charts unless absolutely necessary.
+
+Avoid clutter.
+
+Everything should support one-click actions.
+
+The page should feel like a personal productivity workspace rather than a management dashboard.
+
+The design must be responsive.
+
+Use reusable components.
+
+Prepare the architecture for future AI integration.
+
+Future AI features include:
+
+Daily Brief
+
+Task Prioritization
+
+Workload Prediction
+
+Smart Recommendations
+
+Natural Language Commands
+
+Build using the application's existing theme and component library.
