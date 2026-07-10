@@ -1,12 +1,13 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useSearchParams } from "react-router-dom";
 import { fetchTasks, Task } from "@/integrations/supabase/tasks";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Filter, Search, Plus, Sparkles, X } from "lucide-react";
+import { Filter, Search, Plus, Sparkles, X, AlertTriangle } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import useSupabaseSession from "@/hooks/useSupabaseSession";
 import CreateTaskSheet from "@/components/CreateTaskSheet";
@@ -68,6 +69,8 @@ const TasksPage: React.FC = () => {
   const { users, teams } = useUsersAndTeams();
   const { roles, loading: rolesLoading } = useCurrentUserRoleAndTeams();
   const { statuses, loading: statusesLoading } = useTaskStatuses();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const overdueOnly = searchParams.get("filter") === "overdue";
 
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
@@ -162,23 +165,29 @@ const TasksPage: React.FC = () => {
     setDateRange,
   }), [priorityFilter, statusFilter, userFilter, teamFilter, dateRange]);
 
+  // Wide date range used when overdueOnly mode is active (fetch 3 years back to catch all overdue tasks)
+  const overdueDateRange = useMemo(() => ({
+    from: new Date(Date.now() - 3 * 365 * 24 * 60 * 60 * 1000),
+    to: new Date(Date.now() - 24 * 60 * 60 * 1000), // yesterday
+  }), []);
+
+  const effectiveDateRange = overdueOnly ? overdueDateRange : dateRange;
+
   // Use React Query for tasks with stable key
   const { data: tasksResult, isLoading: loading, refetch: handleSearch } = useQuery({
-    queryKey: ["/api/tasks", "paginated", page, pageSize, priorityFilter, statusFilter, userFilter, teamFilter, dateRange, user?.id],
+    queryKey: ["/api/tasks", "paginated", page, pageSize, priorityFilter, statusFilter, userFilter, teamFilter, effectiveDateRange, user?.id, overdueOnly],
     queryFn: async () => {
       if (!user) return { tasks: [], total: 0, showTooManyWarning: false };
       
       const fetchInput: FetchTasksInput = {
-        // Map filter values to expected field names
         assignedTo: userFilter !== "all" ? userFilter : undefined,
         teamId: teamFilter !== "all" ? teamFilter : undefined,
         status: statusFilter !== "all" ? statusFilter : undefined,
         priority: priorityFilter !== "all" ? parseInt(priorityFilter) : undefined,
-        fromDate: dateRange.from ? dateRange.from.toISOString().split('T')[0] : undefined,
-        toDate: dateRange.to ? dateRange.to.toISOString().split('T')[0] : undefined,
+        fromDate: effectiveDateRange.from ? effectiveDateRange.from.toISOString().split('T')[0] : undefined,
+        toDate: effectiveDateRange.to ? effectiveDateRange.to.toISOString().split('T')[0] : undefined,
         offset: (page - 1) * pageSize,
-        limit: pageSize,
-        // Always surface overdue tasks regardless of the creation-date window
+        limit: overdueOnly ? 1000 : pageSize,
         includeOverdue: true,
       };
       
@@ -190,8 +199,8 @@ const TasksPage: React.FC = () => {
       };
     },
     enabled: !!user && !rolesLoading,
-    staleTime: 30 * 1000, // 30 seconds
-    gcTime: 2 * 60 * 1000, // 2 minutes
+    staleTime: 30 * 1000,
+    gcTime: 2 * 60 * 1000,
   });
 
   const rawTasks = tasksResult?.tasks || [];
@@ -199,10 +208,23 @@ const TasksPage: React.FC = () => {
   const showTooManyWarning = tasksResult?.showTooManyWarning || false;
 
   // If CF filters are active, filter current page tasks by matched IDs
+  // When overdueOnly: additionally keep only tasks past due and not completed
   const tasks = useMemo(() => {
-    if (!cfMatchIds) return rawTasks;
-    return rawTasks.filter(t => cfMatchIds.has(t.id));
-  }, [rawTasks, cfMatchIds]);
+    let result = cfMatchIds ? rawTasks.filter(t => cfMatchIds.has(t.id)) : rawTasks;
+    if (overdueOnly) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const completedLike = ["completed", "closed", "done", "resolved", "cancelled"];
+      result = result.filter(t => {
+        if (!t.due_date) return false;
+        const due = new Date(t.due_date);
+        if (due >= today) return false;
+        const s = (t.status_name || (t as any).status || "").toLowerCase();
+        return !completedLike.some(c => s.includes(c));
+      });
+    }
+    return result;
+  }, [rawTasks, cfMatchIds, overdueOnly]);
 
   // Restrict delete to status 'pending' or 'new'
   function canDelete(status: string) {
@@ -232,8 +254,22 @@ const TasksPage: React.FC = () => {
 
   return (
     <div className="w-full p-4 mx-0">
+      {/* Overdue filter banner */}
+      {overdueOnly && (
+        <div className="flex items-center gap-2 mb-4 px-4 py-2.5 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40">
+          <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0" />
+          <span className="text-sm font-medium text-red-700 dark:text-red-300">
+            Showing only overdue tasks ({tasks.length} found)
+          </span>
+          <button
+            onClick={() => setSearchParams({})}
+            className="ml-auto flex items-center gap-1 text-xs text-red-500 hover:text-red-700 font-medium">
+            <X className="w-3.5 h-3.5" /> Clear filter
+          </button>
+        </div>
+      )}
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">All Tasks</h1>
+        <h1 className="text-2xl font-bold">{overdueOnly ? "Overdue Tasks" : "All Tasks"}</h1>
         <div className="flex gap-2">
           <Button 
             variant="outline" 
