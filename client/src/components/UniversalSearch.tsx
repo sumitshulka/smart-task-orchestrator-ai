@@ -9,6 +9,7 @@ import {
   MessageSquare, ArrowRight, Play, CheckCircle2, Clock,
   History, Star, Hash, ChevronRight, Zap, Loader2,
   AlertTriangle, Shield, FolderOpen, Command, Lightbulb,
+  Plus, Settings, Sparkles,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -58,6 +59,115 @@ const DID_YOU_KNOW_TIPS = [
   { text: 'Your recent searches are remembered — scroll down to see them.', highlight: null },
   { text: 'Use user: prefix to find teammates by name or email.', highlight: "user:" },
 ];
+
+// ── Rotating placeholder suggestions ──────────────────────────────────────────
+const PLACEHOLDER_SUGGESTIONS = [
+  "Create Task",
+  "Open Student Portal project",
+  "Find Payment Discussion",
+  "Report Login Defect",
+  "Show My Workspace",
+  "Search task: login issue",
+  "Open Reports",
+  "Assign to Rahul",
+  "Search project: Apollo",
+];
+
+// ── Command palette groups (welcome screen) ────────────────────────────────────
+type CommandGroup = {
+  id: string; label: string; Icon: React.ElementType;
+  accent: string; accentText: string; comingSoon?: boolean;
+  items: { label: string; query?: string; href?: string }[];
+};
+const COMMAND_GROUPS: CommandGroup[] = [
+  {
+    id: "create", label: "Create", Icon: Plus,
+    accent: "bg-indigo-500", accentText: "text-indigo-600 dark:text-indigo-400",
+    items: [
+      { label: "Create Task",      href: "/admin/tasks" },
+      { label: "Create Project",   href: "/projects" },
+      { label: "Report Defect",    href: "/defects" },
+      { label: "Start Discussion", href: "/decisions" },
+    ],
+  },
+  {
+    id: "open", label: "Open", Icon: FolderOpen,
+    accent: "bg-violet-500", accentText: "text-violet-600 dark:text-violet-400",
+    items: [
+      { label: "My Workspace", href: "/my-workspace" },
+      { label: "Projects",     href: "/projects" },
+      { label: "Tasks",        href: "/admin/tasks" },
+      { label: "Defects",      href: "/defects" },
+    ],
+  },
+  {
+    id: "find", label: "Find", Icon: Search,
+    accent: "bg-emerald-500", accentText: "text-emerald-600 dark:text-emerald-400",
+    items: [
+      { label: "Search Tasks",       query: "task:" },
+      { label: "Search Projects",    query: "project:" },
+      { label: "Search Discussions", query: "discussion:" },
+      { label: "Search Users",       query: "user:" },
+    ],
+  },
+  {
+    id: "quickactions", label: "Quick Actions", Icon: Zap,
+    accent: "bg-orange-500", accentText: "text-orange-600 dark:text-orange-400",
+    items: [
+      { label: "My Tasks",     href: "/admin/tasks" },
+      { label: "My Workspace", href: "/my-workspace" },
+      { label: "View Reports", href: "/admin/reports" },
+      { label: "All Defects",  href: "/defects" },
+    ],
+  },
+  {
+    id: "ai", label: "AI Assistant", Icon: Sparkles,
+    accent: "bg-purple-500", accentText: "text-purple-600 dark:text-purple-400",
+    comingSoon: true,
+    items: [
+      { label: "Daily Brief" },
+      { label: "Summarize Workspace" },
+      { label: "Find My Blockers" },
+      { label: "Ask AI" },
+    ],
+  },
+  {
+    id: "recent", label: "Recent", Icon: History,
+    accent: "bg-slate-400", accentText: "text-slate-600 dark:text-slate-400",
+    items: [
+      { label: "Recent Tasks",       href: "/admin/tasks" },
+      { label: "Recent Projects",    href: "/projects" },
+      { label: "Recent Reports",     href: "/admin/reports" },
+      { label: "Recent Discussions", href: "/decisions" },
+    ],
+  },
+];
+
+// ── Smart keyword commands (type "create", "open", "find") ────────────────────
+type KwCmd = { label: string; icon: React.ElementType; href?: string; query?: string; iconColor: string; iconBg: string };
+const KEYWORD_COMMANDS: Record<string, KwCmd[]> = {
+  create: [
+    { label: "Create Task",      icon: CheckSquare,   href: "/admin/tasks",  iconColor: "text-indigo-600", iconBg: "bg-indigo-50 dark:bg-indigo-900/30" },
+    { label: "Create Project",   icon: Briefcase,     href: "/projects",     iconColor: "text-violet-600", iconBg: "bg-violet-50 dark:bg-violet-900/30" },
+    { label: "Report Defect",    icon: Bug,           href: "/defects",      iconColor: "text-orange-600", iconBg: "bg-orange-50 dark:bg-orange-900/30" },
+    { label: "Start Discussion", icon: MessageSquare, href: "/decisions",    iconColor: "text-sky-600",    iconBg: "bg-sky-50 dark:bg-sky-900/30" },
+  ],
+  open: [
+    { label: "My Workspace", icon: Hash,         href: "/my-workspace",   iconColor: "text-indigo-500", iconBg: "bg-indigo-50 dark:bg-indigo-900/30" },
+    { label: "Projects",     icon: Briefcase,    href: "/projects",       iconColor: "text-violet-600", iconBg: "bg-violet-50 dark:bg-violet-900/30" },
+    { label: "Tasks",        icon: CheckSquare,  href: "/admin/tasks",    iconColor: "text-indigo-600", iconBg: "bg-indigo-50 dark:bg-indigo-900/30" },
+    { label: "Defects",      icon: Bug,          href: "/defects",        iconColor: "text-orange-600", iconBg: "bg-orange-50 dark:bg-orange-900/30" },
+    { label: "Reports",      icon: FolderOpen,   href: "/admin/reports",  iconColor: "text-emerald-600", iconBg: "bg-emerald-50 dark:bg-emerald-900/30" },
+    { label: "Settings",     icon: Settings,     href: "/admin/settings", iconColor: "text-slate-600",  iconBg: "bg-slate-100 dark:bg-slate-800" },
+  ],
+  find: [
+    { label: "Search Tasks",       icon: CheckSquare,   query: "task:",       iconColor: "text-indigo-600", iconBg: "bg-indigo-50 dark:bg-indigo-900/30" },
+    { label: "Search Projects",    icon: Briefcase,     query: "project:",    iconColor: "text-violet-600", iconBg: "bg-violet-50 dark:bg-violet-900/30" },
+    { label: "Search Defects",     icon: Bug,           query: "defect:",     iconColor: "text-orange-600", iconBg: "bg-orange-50 dark:bg-orange-900/30" },
+    { label: "Search Users",       icon: UserCheck,     query: "user:",       iconColor: "text-emerald-600", iconBg: "bg-emerald-50 dark:bg-emerald-900/30" },
+    { label: "Search Discussions", icon: MessageSquare, query: "discussion:", iconColor: "text-sky-600",    iconBg: "bg-sky-50 dark:bg-sky-900/30" },
+  ],
+};
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const HISTORY_KEY = "taskrep_search_history";
@@ -266,16 +376,25 @@ export default function UniversalSearch({ open, onClose }: UniversalSearchProps)
   const [history, setHistory] = useState<string[]>([]);
   const [showFilterHints, setShowFilterHints] = useState(false);
   const [didYouKnowTip, setDidYouKnowTip] = useState(DID_YOU_KNOW_TIPS[0]);
+  const [placeholderIdx, setPlaceholderIdx] = useState(0);
 
-  // Refresh history on open, and pick a fresh random tip each time
+  // Refresh history on open, and pick fresh random tip
   useEffect(() => {
     if (open) {
       setQuery(""); setDebouncedQ(""); setActiveIdx(0); setShowFilterHints(false);
       setHistory(getHistory());
       setDidYouKnowTip(DID_YOU_KNOW_TIPS[Math.floor(Math.random() * DID_YOU_KNOW_TIPS.length)]);
+      setPlaceholderIdx(Math.floor(Math.random() * PLACEHOLDER_SUGGESTIONS.length));
       setTimeout(() => inputRef.current?.focus(), 50);
     }
   }, [open]);
+
+  // Rotate placeholder while open and no query
+  useEffect(() => {
+    if (!open || query) return;
+    const id = setInterval(() => setPlaceholderIdx(i => (i + 1) % PLACEHOLDER_SUGGESTIONS.length), 3000);
+    return () => clearInterval(id);
+  }, [open, query]);
 
   // Debounce search query
   useEffect(() => {
@@ -353,6 +472,12 @@ export default function UniversalSearch({ open, onClose }: UniversalSearchProps)
   const hasResults = allItems.length > 0;
   const noResults = debouncedQ.length >= 1 && !isFetching && !hasResults;
 
+  // Smart keyword command detection
+  const lowerQ = debouncedQ.toLowerCase().trim();
+  const commandKeyword = (["create", "open", "find"] as const).find(k => lowerQ === k || lowerQ.startsWith(k + " "));
+  const commandSuggestions: KwCmd[] = commandKeyword ? (KEYWORD_COMMANDS[commandKeyword] ?? []) : [];
+  const isCommandMode = commandSuggestions.length > 0 && !hasResults;
+
   // Grouped sections for display
   const sections: { label: string; items: ResultItem[] }[] = [];
   if (results?.tasks?.length)     sections.push({ label: "Tasks",       items: results.tasks.map(mapTask) });
@@ -387,7 +512,7 @@ export default function UniversalSearch({ open, onClose }: UniversalSearchProps)
               value={query}
               onChange={e => setQuery(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Search tasks, projects, defects, people…"
+              placeholder={PLACEHOLDER_SUGGESTIONS[placeholderIdx]}
               className="flex-1 bg-transparent text-base text-slate-800 dark:text-slate-100 placeholder-slate-400 outline-none"
               autoComplete="off"
               spellCheck={false}
@@ -435,9 +560,59 @@ export default function UniversalSearch({ open, onClose }: UniversalSearchProps)
               </div>
             )}
 
-            {/* Empty state: smart suggestions */}
+            {/* ── Welcome screen (no query typed) ─────────────────────────────── */}
             {!debouncedQ && (
               <div>
+                {/* Header */}
+                <div className="px-4 pt-4 pb-2">
+                  <p className="text-sm font-semibold text-slate-700 dark:text-slate-200 tracking-tight">Command Center</p>
+                  <p className="text-[11px] text-slate-400 mt-0.5">Search, Navigate, Create, Execute or Ask AI</p>
+                </div>
+
+                {/* Command card grid */}
+                <div className="grid grid-cols-3 gap-2 px-3 pb-3">
+                  {COMMAND_GROUPS.map(group => {
+                    const GIcon = group.Icon;
+                    return (
+                      <div key={group.id}
+                        className="bg-slate-50 dark:bg-slate-800/60 rounded-xl p-3 border border-slate-100 dark:border-slate-700/50 hover:border-slate-300 dark:hover:border-slate-600 transition-colors">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-1.5">
+                            <div className={`w-5 h-5 rounded-md ${group.accent} flex items-center justify-center flex-shrink-0`}>
+                              <GIcon className="w-3 h-3 text-white" />
+                            </div>
+                            <span className={`text-[11px] font-bold ${group.accentText}`}>{group.label}</span>
+                          </div>
+                          {group.comingSoon && (
+                            <span className="text-[8px] font-bold uppercase tracking-wide text-purple-500 bg-purple-50 dark:bg-purple-900/30 px-1 py-0.5 rounded-full leading-none">
+                              Soon
+                            </span>
+                          )}
+                        </div>
+                        <div className="space-y-1">
+                          {group.items.map(item => (
+                            <button key={item.label}
+                              disabled={!!group.comingSoon}
+                              onMouseDown={() => {
+                                if (group.comingSoon) return;
+                                if (item.query) { setQuery(item.query); inputRef.current?.focus(); }
+                                else if (item.href) { navigate(item.href); onClose(); }
+                                else { setQuery(group.id + " "); inputRef.current?.focus(); }
+                              }}
+                              className={`w-full text-left text-[11px] py-0.5 transition-colors leading-snug ${
+                                group.comingSoon
+                                  ? "text-slate-300 dark:text-slate-600 cursor-not-allowed"
+                                  : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-100 cursor-pointer"
+                              }`}>
+                              {item.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
                 {/* Recent searches */}
                 {history.length > 0 && (
                   <>
@@ -469,34 +644,6 @@ export default function UniversalSearch({ open, onClose }: UniversalSearchProps)
                   </>
                 )}
 
-                {/* Active projects */}
-                {suggestedProjects.length > 0 && (
-                  <>
-                    <SectionLabel><span className="flex items-center gap-1.5"><Briefcase className="w-3 h-3" /> Active Projects</span></SectionLabel>
-                    {suggestedProjects.map(p => <ResultRow key={p.id} item={mapProject(p)} active={false} onSelect={handleSelect} onAction={handleAction} />)}
-                  </>
-                )}
-
-                {/* Quick nav links */}
-                <SectionLabel><span className="flex items-center gap-1.5"><Zap className="w-3 h-3" /> Quick Navigation</span></SectionLabel>
-                {[
-                  { label: "My Workspace",   href: "/my-workspace",    Icon: Hash,         color: "text-indigo-500", bg: "bg-indigo-50 dark:bg-indigo-900/30" },
-                  { label: "All Tasks",       href: "/admin/tasks",      Icon: CheckSquare,  color: "text-indigo-600", bg: "bg-indigo-50 dark:bg-indigo-900/30" },
-                  { label: "Projects",        href: "/projects",         Icon: Briefcase,    color: "text-violet-600", bg: "bg-violet-50 dark:bg-violet-900/30" },
-                  { label: "Defects",         href: "/defects",          Icon: Bug,          color: "text-orange-600", bg: "bg-orange-50 dark:bg-orange-900/30" },
-                  { label: "Discussions",     href: "/decisions",        Icon: MessageSquare,color: "text-sky-600",    bg: "bg-sky-50 dark:bg-sky-900/30" },
-                  { label: "Reports",         href: "/admin/reports",    Icon: FolderOpen,   color: "text-emerald-600",bg: "bg-emerald-50 dark:bg-emerald-900/30" },
-                ].map(({ label, href, Icon, color, bg }) => (
-                  <button key={href} onMouseDown={() => { navigate(href); onClose(); }}
-                    className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 text-left transition-colors">
-                    <div className={`w-8 h-8 rounded-lg ${bg} flex items-center justify-center`}>
-                      <Icon className={`w-4 h-4 ${color}`} />
-                    </div>
-                    <span className="text-sm font-medium text-slate-700 dark:text-slate-200">{label}</span>
-                    <ChevronRight className="w-3.5 h-3.5 text-slate-300 ml-auto" />
-                  </button>
-                ))}
-
                 {/* Did you know? — rotates on every open */}
                 <div className="mx-3 my-3 px-3 py-2.5 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-800/40 flex items-start gap-2.5">
                   <Lightbulb className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
@@ -521,6 +668,46 @@ export default function UniversalSearch({ open, onClose }: UniversalSearchProps)
                       ) : didYouKnowTip.text}
                     </p>
                   </div>
+                </div>
+              </div>
+            )}
+
+            {/* ── Keyword command mode (user typed "create", "open", "find") ─── */}
+            {isCommandMode && (
+              <div>
+                <SectionLabel>
+                  <span className="flex items-center gap-1.5">
+                    <Zap className="w-3 h-3 text-indigo-400" />
+                    Suggested Commands
+                    <button onMouseDown={() => { setQuery(""); inputRef.current?.focus(); }}
+                      className="ml-auto font-normal normal-case text-[10px] tracking-normal text-slate-400 hover:text-slate-600">
+                      ← Back
+                    </button>
+                  </span>
+                </SectionLabel>
+                {commandSuggestions.map(cmd => {
+                  const CIcon = cmd.icon;
+                  return (
+                    <button key={cmd.label}
+                      onMouseDown={() => {
+                        if (cmd.query) { setQuery(cmd.query); inputRef.current?.focus(); }
+                        else if (cmd.href) { navigate(cmd.href); onClose(); }
+                      }}
+                      className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 text-left transition-colors">
+                      <div className={`w-8 h-8 rounded-lg ${cmd.iconBg} flex items-center justify-center`}>
+                        <CIcon className={`w-4 h-4 ${cmd.iconColor}`} />
+                      </div>
+                      <span className="text-sm font-medium text-slate-700 dark:text-slate-200">{cmd.label}</span>
+                      <ChevronRight className="w-3.5 h-3.5 text-slate-300 ml-auto" />
+                    </button>
+                  );
+                })}
+                {/* AI coming soon notice */}
+                <div className="mx-3 my-2 px-3 py-2 rounded-lg bg-purple-50 dark:bg-purple-900/20 border border-purple-100 dark:border-purple-800/40 flex items-center gap-2">
+                  <Sparkles className="w-3.5 h-3.5 text-purple-500 flex-shrink-0" />
+                  <p className="text-[11px] text-purple-700 dark:text-purple-300">
+                    AI command execution will be available in a future release.
+                  </p>
                 </div>
               </div>
             )}
