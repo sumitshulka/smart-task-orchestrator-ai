@@ -88,6 +88,7 @@ const WorkspaceTab: React.FC<Props> = ({ entityType, entityId }) => {
   const [titleError, setTitleError] = useState("");
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
   const [mentionAnchorIdx, setMentionAnchorIdx] = useState(0);
+  const [pendingMentions, setPendingMentions] = useState<Mentionable[]>([]);
 
   const queryKey = [`/api/workspace/${entityType}/${entityId}`];
 
@@ -122,7 +123,7 @@ const WorkspaceTab: React.FC<Props> = ({ entityType, entityId }) => {
   const postMsg = useMutation({
     mutationFn: (content: string) =>
       apiRequest(`/api/workspace/${entityType}/${entityId}/messages`, { method: "POST", body: JSON.stringify({ content }) }),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey }); setCompose(""); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey }); setCompose(""); setPendingMentions([]); },
     onError: () => toast({ title: "Failed to send message", variant: "destructive" }),
   });
 
@@ -226,22 +227,37 @@ const WorkspaceTab: React.FC<Props> = ({ entityType, entityId }) => {
     }
   };
 
+  // Insert readable "@Name" in textarea; store full mention data for token-building at send time
   const insertMention = (m: Mentionable) => {
-    const token = `@[${m.display_name}|${m.id}|${m.type}]`;
+    const display = `@${m.display_name}`;
     const cursorPos = textareaRef.current?.selectionStart ?? compose.length;
     const before = compose.slice(0, mentionAnchorIdx);
     const after = compose.slice(cursorPos);
-    const newVal = `${before}${token} ${after}`;
+    const newVal = `${before}${display} ${after}`;
     setCompose(newVal);
+    setPendingMentions(prev => [...prev.filter(p => p.id !== m.id), m]);
     setMentionQuery(null);
     setTimeout(() => {
       const ta = textareaRef.current;
       if (ta) {
         ta.focus();
-        const np = (before + token + " ").length;
+        const np = (before + display + " ").length;
         ta.setSelectionRange(np, np);
       }
     }, 0);
+  };
+
+  // Before sending, replace every "@DisplayName" that has a pending mention with the full token
+  const buildMessageContent = (text: string): string => {
+    let result = text;
+    // Sort by longest name first to avoid partial replacements (e.g. "@John" vs "@John Smith")
+    const sorted = [...pendingMentions].sort((a, b) => b.display_name.length - a.display_name.length);
+    for (const m of sorted) {
+      const placeholder = `@${m.display_name}`;
+      const token = `@[${m.display_name}|${m.id}|${m.type}]`;
+      result = result.split(placeholder).join(token);
+    }
+    return result;
   };
 
   // ── Render helpers ────────────────────────────────────────────────────────
@@ -485,7 +501,7 @@ const WorkspaceTab: React.FC<Props> = ({ entityType, entityId }) => {
               if (e.key === "Escape") { setMentionQuery(null); return; }
               if (e.key === "Enter" && !e.shiftKey && compose.trim()) {
                 e.preventDefault();
-                postMsg.mutate(compose.trim());
+                postMsg.mutate(buildMessageContent(compose.trim()));
               }
             }}
             placeholder="Type a message… Use @ to mention a member"
@@ -494,7 +510,7 @@ const WorkspaceTab: React.FC<Props> = ({ entityType, entityId }) => {
           <Button
             size="sm"
             disabled={!compose.trim() || postMsg.isPending}
-            onClick={() => compose.trim() && postMsg.mutate(compose.trim())}
+            onClick={() => compose.trim() && postMsg.mutate(buildMessageContent(compose.trim()))}
             className="h-10 px-4 bg-indigo-600 hover:bg-indigo-700"
           >
             <Send className="w-4 h-4" />
