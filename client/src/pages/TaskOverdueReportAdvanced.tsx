@@ -29,6 +29,9 @@ export default function TaskOverdueReport() {
   const [selectedEmployees, setSelectedEmployees] = React.useState<any[]>([]);
   const [preset, setPreset] = React.useState<string>("This Month");
   const [cfFilters, setCfFilters] = React.useState<Record<string, string>>({});
+  // When showAll is true the date-range filter is ignored and every currently
+  // overdue task is returned (the canonical "All Overdue" view).
+  const [showAll, setShowAll] = React.useState(true);
 
   const { users } = useUsersAndTeams();
   const { roles, loading: rolesLoading } = useCurrentUserRoleAndTeams();
@@ -71,20 +74,30 @@ export default function TaskOverdueReport() {
   }, [activeCfFilters, cfMatchData]);
 
   const { data: tasks, isLoading } = useQuery({
-    queryKey: ["overdue-tasks", format(dateRange.from, "yyyy-MM-dd"), format(dateRange.to, "yyyy-MM-dd")],
+    queryKey: [
+      "overdue-tasks",
+      showAll ? "all" : format(dateRange.from, "yyyy-MM-dd"),
+      showAll ? "all" : format(dateRange.to, "yyyy-MM-dd"),
+    ],
     queryFn: async () => {
-      const { tasks } = await fetchTasksPaginated({
-        fromDate: format(dateRange.from, "yyyy-MM-dd"),
-        toDate: format(dateRange.to, "yyyy-MM-dd"),
+      const fetchInput: import("@/integrations/supabase/tasks").FetchTasksInput = {
         limit: 1000,
-      });
-      
+        // Always include overdue tasks even when a date range is active
+        includeOverdue: true,
+      };
+      // Only apply the creation-date range when the user hasn't requested "Show All"
+      if (!showAll) {
+        fetchInput.fromDate = format(dateRange.from, "yyyy-MM-dd");
+        fetchInput.toDate = format(dateRange.to, "yyyy-MM-dd");
+      }
+      const { tasks } = await fetchTasksPaginated(fetchInput);
+
       // Filter for overdue tasks (due date must be before today, not including today)
       const today = new Date();
-      today.setHours(0, 0, 0, 0); // Set to start of today to exclude today's tasks
-      return tasks.filter(task => 
-        task.due_date && 
-        new Date(task.due_date) < today && 
+      today.setHours(0, 0, 0, 0);
+      return tasks.filter(task =>
+        task.due_date &&
+        new Date(task.due_date) < today &&
         task.status.toLowerCase() !== "completed"
       );
     }
@@ -192,16 +205,27 @@ export default function TaskOverdueReport() {
 
   return (
     <div className="max-w-5xl mx-0 p-4">
-      <h1 className="text-2xl font-semibold mb-4">Task Overdue Report</h1>
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-2xl font-semibold">Task Overdue Report</h1>
+        <Button
+          variant={showAll ? "default" : "outline"}
+          size="sm"
+          onClick={() => setShowAll(v => !v)}
+          className="gap-2"
+        >
+          {showAll ? "Showing All Overdue Tasks" : "Show All Overdue Tasks"}
+        </Button>
+      </div>
       
       {/* Advanced Filters */}
       <div className="bg-white rounded-lg border shadow-sm p-4 mb-6">
         <h3 className="text-lg font-medium mb-4">Filters</h3>
         
-        {/* Date Range */}
+        {/* Date Range — hidden when "Show All" is active */}
+        {!showAll && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
           <div className="md:col-span-3">
-            <label className="block text-sm font-medium mb-2">Date Range</label>
+            <label className="block text-sm font-medium mb-2">Date Range (filter by task creation date)</label>
             <DateRangePresetSelector
               dateRange={dateRange}
               preset={preset}
@@ -209,6 +233,7 @@ export default function TaskOverdueReport() {
             />
           </div>
         </div>
+        )}
 
         {/* Admin-only filters */}
         {isAdmin && (
@@ -316,7 +341,9 @@ export default function TaskOverdueReport() {
       <div className="bg-white rounded-lg border shadow-sm">
         <div className="p-4">
           <p className="text-sm text-gray-600 mb-4">
-            Report for {format(dateRange.from, "MMM dd, yyyy")} - {format(dateRange.to, "MMM dd, yyyy")}
+            {showAll
+              ? "Showing all currently overdue tasks (not filtered by creation date)"
+              : `Tasks created between ${format(dateRange.from, "MMM dd, yyyy")} – ${format(dateRange.to, "MMM dd, yyyy")} that are overdue`}
           </p>
           
           {overdueReport.length === 0 ? (

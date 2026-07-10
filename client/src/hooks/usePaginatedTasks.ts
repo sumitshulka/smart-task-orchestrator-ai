@@ -162,6 +162,12 @@ export function usePaginatedTasks(options: {
     if (userFilter !== "all") input.assignedTo = userFilter;
     if (teamFilter !== "all") input.teamId = teamFilter;
 
+    // For active (non-historical) tasks, always surface overdue tasks regardless
+    // of when they were created vs. the selected date-range window.
+    if (!options.isHistorical) {
+      input.includeOverdue = true;
+    }
+
     try {
       // MANAGERS/TEAM_MANAGERS use the new view!
       if (stableRoles.includes("manager") || stableRoles.includes("team_manager")) {

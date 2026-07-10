@@ -10,6 +10,7 @@ import { useUsersAndTeams } from "@/hooks/useUsersAndTeams";
 import TaskReportAdvancedFilters from "@/components/report/TaskReportAdvancedFilters";
 import TaskReportTable from "@/components/report/TaskReportTable";
 import TaskReportExportButton from "@/components/report/TaskReportExportButton";
+import { Button } from "@/components/ui/button";
 
 function defaultDateRange() {
   const now = new Date();
@@ -19,21 +20,29 @@ function defaultDateRange() {
   };
 }
 
-async function fetchOverdueTasksView(fromDate: Date, toDate: Date, limit = 1000) {
+/**
+ * Fetch overdue tasks.
+ * When fromDate/toDate are null the creation-date filter is skipped and all
+ * currently overdue tasks are returned (the "Show All" mode).
+ */
+async function fetchOverdueTasksView(fromDate: Date | null, toDate: Date | null, limit = 1000) {
   const { format } = await import("date-fns");
   const { fetchTasksPaginated } = await import("@/integrations/supabase/tasks");
   
-  const fromStr = format(fromDate, "yyyy-MM-dd");
-  const toStr = format(toDate, "yyyy-MM-dd");
-  
   try {
-    const { tasks } = await fetchTasksPaginated({
-      fromDate: fromStr,
-      toDate: toStr,
-      limit: limit,
-    });
+    const input: import("@/integrations/supabase/tasks").FetchTasksInput = {
+      limit,
+      // Always surface overdue tasks even when a date range is used
+      includeOverdue: true,
+    };
+    if (fromDate && toDate) {
+      input.fromDate = format(fromDate, "yyyy-MM-dd");
+      input.toDate = format(toDate, "yyyy-MM-dd");
+    }
+
+    const { tasks } = await fetchTasksPaginated(input);
     
-    // Filter for overdue tasks (not completed and past due date)
+    // Keep only tasks that are genuinely overdue (not completed, due date in past)
     const today = new Date();
     const overdueTasks = tasks.filter(task => 
       task.due_date && 
@@ -71,14 +80,16 @@ export default function TaskOverdueReport() {
   const [dateRange, setDateRange] = React.useState<{ from: Date | null; to: Date | null }>(
     defaultDateRange()
   );
+  // When true: ignore the date range and return ALL currently overdue tasks.
+  const [showAll, setShowAll] = React.useState(true);
 
   // Filter states for admin users
   const [departmentFilter, setDepartmentFilter] = React.useState<string>("all");
   const [alphabetFilter, setAlphabetFilter] = React.useState<string>("all");
   const [selectedEmployees, setSelectedEmployees] = React.useState<any[]>([]);
 
-  const fromDate = dateRange.from || new Date();
-  const toDate = dateRange.to || new Date();
+  const fromDate = showAll ? null : (dateRange.from || new Date());
+  const toDate = showAll ? null : (dateRange.to || new Date());
 
   const { user } = useSupabaseSession();
   const { roles, loading: rolesLoading, teams: userTeams, user: userRow } = useCurrentUserRoleAndTeams();
@@ -113,11 +124,12 @@ export default function TaskOverdueReport() {
     data: overdueTaskData,
     isLoading
   } = useQuery({
-    queryKey: ["overdue-task-report", fromDate, toDate, reportUserIds.join(","), roles.join(",")],
+    queryKey: ["overdue-task-report", showAll ? "all" : fromDate, showAll ? "all" : toDate, reportUserIds.join(","), roles.join(",")],
     queryFn: async () => {
-      if (!user?.id || !fromDate || !toDate) return [];
+      if (!user?.id) return [];
       
       // All roles use the same fetch method now
+      // Pass null dates when showAll is true to skip the date range filter
       const overdueTasks = await fetchOverdueTasksView(fromDate, toDate, 1000);
       
       // Enrich tasks with full user data from users array
@@ -233,8 +245,18 @@ export default function TaskOverdueReport() {
 
   return (
     <div className="max-w-5xl mx-0 p-4">
-      <h1 className="text-2xl font-semibold mb-4">Task Overdue Report</h1>
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-2xl font-semibold">Task Overdue Report</h1>
+        <Button
+          variant={showAll ? "default" : "outline"}
+          size="sm"
+          onClick={() => setShowAll(v => !v)}
+        >
+          {showAll ? "Showing All Overdue Tasks" : "Show All Overdue Tasks"}
+        </Button>
+      </div>
       <div className="flex flex-col md:flex-row gap-2 justify-between items-start mb-2">
+        {!showAll && (
         <div className="bg-muted rounded p-4 mb-4 md:mb-0 w-full md:w-auto">
           <TaskReportAdvancedFilters
             dateRange={dateRange}
@@ -249,6 +271,7 @@ export default function TaskOverdueReport() {
             isAdmin={isAdmin}
           />
         </div>
+        )}
         <TaskReportExportButton
           disabled={isLoading || overdueReport.length === 0}
           report={overdueReport}

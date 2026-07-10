@@ -178,6 +178,8 @@ const TasksPage: React.FC = () => {
         toDate: dateRange.to ? dateRange.to.toISOString().split('T')[0] : undefined,
         offset: (page - 1) * pageSize,
         limit: pageSize,
+        // Always surface overdue tasks regardless of the creation-date window
+        includeOverdue: true,
       };
       
       const result = await fetchTasksPaginated(fetchInput);

@@ -307,6 +307,8 @@ export default function MyTasksPage() {
       assignedTo: roles.includes("admin") ? undefined : user.id,
       offset: (page - 1) * pageSize,
       limit: pageSize,
+      // Always surface overdue tasks regardless of the creation-date window
+      includeOverdue: true,
     };
 
     // Apply filters

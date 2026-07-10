@@ -137,7 +137,13 @@ export type FetchTasksInput = {
   priority?: number;
   offset?: number;
   limit?: number;
-  // Add more filters as needed
+  /**
+   * When true, tasks that are overdue (due_date < today, not completed) are
+   * always included regardless of the created_at date range filter.
+   * This prevents overdue tasks from disappearing when they were created
+   * outside the selected date window.
+   */
+  includeOverdue?: boolean;
 };
 
 export type FetchTasksResult = {
@@ -185,25 +191,30 @@ export async function fetchTasksPaginated(input: FetchTasksInput = {}): Promise<
     console.log(`[DEBUG] Tasks after priority filter:`, filteredTasks.length);
   }
   if (input.fromDate || input.toDate) {
-    console.log("[DEBUG][fetchTasksPaginated] Before date filtering:", filteredTasks.length, "tasks");
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
     filteredTasks = filteredTasks.filter(task => {
       const taskDate = new Date(task.created_at);
       const fromDate = input.fromDate ? new Date(input.fromDate) : null;
       const toDate = input.toDate ? new Date(input.toDate) : null;
-      
-      console.log(`[DEBUG][fetchTasksPaginated] Task ${task.id}: created_at=${task.created_at}, taskDate=${taskDate.toISOString()}, fromDate=${fromDate?.toISOString()}, toDate=${toDate?.toISOString()}`);
-      
-      if (fromDate && taskDate < fromDate) {
-        console.log(`[DEBUG][fetchTasksPaginated] Task ${task.id} filtered out: too old`);
-        return false;
+
+      // When includeOverdue is true, bypass the date filter for any task that is
+      // currently overdue (due_date < today) and not in a completed/closed state.
+      // This prevents old-but-still-active overdue tasks from disappearing when
+      // the user's selected date range doesn't cover their creation date.
+      if (input.includeOverdue) {
+        const isDone = ["completed", "done", "verified", "closed", "resolved"].includes(
+          (task.status ?? "").toLowerCase()
+        );
+        const dueDate = task.due_date ? new Date(task.due_date) : null;
+        const isOverdue = dueDate !== null && dueDate < new Date();
+        if (isOverdue && !isDone) return true;
       }
-      if (toDate && taskDate > toDate) {
-        console.log(`[DEBUG][fetchTasksPaginated] Task ${task.id} filtered out: too new`);
-        return false;
-      }
+
+      if (fromDate && taskDate < fromDate) return false;
+      if (toDate && taskDate > toDate) return false;
       return true;
     });
-    console.log("[DEBUG][fetchTasksPaginated] After date filtering:", filteredTasks.length, "tasks");
   }
 
   // Apply pagination
