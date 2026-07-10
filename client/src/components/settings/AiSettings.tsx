@@ -115,6 +115,7 @@ const AiSettings: React.FC = () => {
     mutationFn: (payload: AiSettingsData) => apiClient.put("/ai/settings", payload),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/ai/settings"] });
+      qc.invalidateQueries({ queryKey: ["/api/ai/access"] });
       toast({ title: "AI settings saved" });
     },
     onError: (err: any) => {
