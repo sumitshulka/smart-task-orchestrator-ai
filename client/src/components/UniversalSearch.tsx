@@ -498,8 +498,8 @@ export default function UniversalSearch({ open, onClose }: UniversalSearchProps)
       {/* Modal */}
       <div className="fixed inset-0 z-50 flex items-start justify-center pt-[10vh] px-4 pointer-events-none">
         <div
-          className="w-full max-w-2xl pointer-events-auto bg-white dark:bg-slate-900 rounded-2xl shadow-2xl ring-1 ring-black/10 dark:ring-white/10 overflow-hidden animate-in slide-in-from-top-4 duration-200"
-          style={{ maxHeight: "75vh" }}
+          className="w-full max-w-2xl pointer-events-auto bg-white dark:bg-slate-800 rounded-2xl shadow-2xl ring-2 ring-indigo-200/60 dark:ring-indigo-500/30 overflow-hidden animate-in slide-in-from-top-4 duration-200"
+          style={{ maxHeight: "88vh" }}
         >
           {/* Search input */}
           <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-100 dark:border-slate-800">
@@ -546,7 +546,7 @@ export default function UniversalSearch({ open, onClose }: UniversalSearchProps)
           )}
 
           {/* Body */}
-          <div ref={listRef} className="overflow-y-auto" style={{ maxHeight: "calc(75vh - 120px)" }}>
+          <div ref={listRef} className="overflow-y-auto" style={{ maxHeight: "calc(88vh - 120px)" }}>
 
             {/* Filter chips when query has prefix */}
             {query.includes(":") && (
@@ -565,8 +565,8 @@ export default function UniversalSearch({ open, onClose }: UniversalSearchProps)
               <div>
                 {/* Header */}
                 <div className="px-4 pt-4 pb-2">
-                  <p className="text-sm font-semibold text-slate-700 dark:text-slate-200 tracking-tight">Command Center</p>
-                  <p className="text-[11px] text-slate-400 mt-0.5">Search, Navigate, Create, Execute or Ask AI</p>
+                  <p className="text-sm font-bold text-indigo-600 dark:text-indigo-400 tracking-tight">Tazq Command Center</p>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-300 mt-0.5">Search, Navigate, Create, Execute or Ask AI</p>
                 </div>
 
                 {/* Command card grid */}
