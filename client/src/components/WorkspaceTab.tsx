@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -76,6 +77,7 @@ const WorkspaceTab: React.FC<Props> = ({ entityType, entityId }) => {
   const [showEmojiFor, setShowEmojiFor] = useState<string | null>(null);
   const [decisionModal, setDecisionModal] = useState(false);
   const [decisionForm, setDecisionForm] = useState({ title: "", description: "", status: "pending" });
+  const [titleError, setTitleError] = useState("");
 
   const queryKey = [`/api/workspace/${entityType}/${entityId}`];
 
@@ -91,34 +93,46 @@ const WorkspaceTab: React.FC<Props> = ({ entityType, entityId }) => {
     mutationFn: (content: string) =>
       apiRequest("POST", `/api/workspace/${entityType}/${entityId}/messages`, { content }),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey }); setCompose(""); },
+    onError: () => toast({ title: "Failed to send message", variant: "destructive" }),
   });
 
   const editMsg = useMutation({
     mutationFn: ({ id, content }: { id: string; content: string }) =>
       apiRequest("PATCH", `/api/workspace/messages/${id}`, { content }),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey }); setEditingId(null); },
+    onError: () => toast({ title: "Failed to edit message", variant: "destructive" }),
   });
 
   const deleteMsg = useMutation({
     mutationFn: (id: string) => apiRequest("DELETE", `/api/workspace/messages/${id}`),
     onSuccess: () => queryClient.invalidateQueries({ queryKey }),
+    onError: () => toast({ title: "Failed to delete message", variant: "destructive" }),
   });
 
   const react = useMutation({
     mutationFn: ({ id, emoji }: { id: string; emoji: string }) =>
       apiRequest("POST", `/api/workspace/messages/${id}/reactions`, { emoji }),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey }); setShowEmojiFor(null); },
+    onError: () => toast({ title: "Failed to add reaction", variant: "destructive" }),
   });
 
   const postDecision = useMutation({
     mutationFn: (body: typeof decisionForm) =>
       apiRequest("POST", `/api/workspace/${entityType}/${entityId}/decisions`, body),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey }); setDecisionModal(false); setDecisionForm({ title: "", description: "", status: "pending" }); },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey });
+      setDecisionModal(false);
+      setDecisionForm({ title: "", description: "", status: "pending" });
+      setTitleError("");
+      toast({ title: "Decision recorded" });
+    },
+    onError: (err: any) => toast({ title: "Failed to save decision", description: err?.message ?? "Please try again.", variant: "destructive" }),
   });
 
   const deleteDecision = useMutation({
     mutationFn: (id: string) => apiRequest("DELETE", `/api/workspace/decisions/${id}`),
     onSuccess: () => queryClient.invalidateQueries({ queryKey }),
+    onError: () => toast({ title: "Failed to delete decision", variant: "destructive" }),
   });
 
   const updateDecisionStatus = useMutation({
@@ -380,9 +394,11 @@ const WorkspaceTab: React.FC<Props> = ({ entityType, entityId }) => {
               <label className="text-xs font-semibold text-gray-600 mb-1 block">Title *</label>
               <Input
                 value={decisionForm.title}
-                onChange={e => setDecisionForm(f => ({ ...f, title: e.target.value }))}
+                onChange={e => { setDecisionForm(f => ({ ...f, title: e.target.value })); setTitleError(""); }}
                 placeholder="e.g. Deployment moved to Friday"
+                className={titleError ? "border-red-400 focus-visible:ring-red-300" : ""}
               />
+              {titleError && <p className="text-xs text-red-500 mt-1">{titleError}</p>}
             </div>
             <div>
               <label className="text-xs font-semibold text-gray-600 mb-1 block">Details</label>
@@ -407,13 +423,19 @@ const WorkspaceTab: React.FC<Props> = ({ entityType, entityId }) => {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setDecisionModal(false)}>Cancel</Button>
+            <Button variant="ghost" onClick={() => { setDecisionModal(false); setTitleError(""); }}>Cancel</Button>
             <Button
-              disabled={!decisionForm.title.trim() || postDecision.isPending}
-              onClick={() => postDecision.mutate(decisionForm)}
+              disabled={postDecision.isPending}
+              onClick={() => {
+                if (!decisionForm.title.trim()) {
+                  setTitleError("A title is required to save a decision.");
+                  return;
+                }
+                postDecision.mutate(decisionForm);
+              }}
               className="bg-indigo-600 hover:bg-indigo-700"
             >
-              Save Decision
+              {postDecision.isPending ? "Saving…" : "Save Decision"}
             </Button>
           </DialogFooter>
         </DialogContent>
