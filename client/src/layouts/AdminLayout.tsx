@@ -1,6 +1,7 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import AppSidebar from "@/components/AppSidebar";
 import Topbar from "@/components/Topbar";
+import UniversalSearch from "@/components/UniversalSearch";
 import { useCurrentUserRoleAndTeams } from "@/hooks/useCurrentUserRoleAndTeams";
 import { useLicenseCheck } from "@/hooks/useLicenseCheck";
 import { LicenseAcquisitionScreen } from "@/components/LicenseAcquisitionScreen";
@@ -10,7 +11,20 @@ import { AlertCircle } from "lucide-react";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const { user: currentUser, roles } = useCurrentUserRoleAndTeams();
+
+  // Global Ctrl+K / Cmd+K shortcut
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "k") {
+        e.preventDefault();
+        setSearchOpen(v => !v);
+      }
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, []);
   
   // Check if user is admin
   const isAdmin = roles.includes('admin');
@@ -80,11 +94,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       
       {/* Main content */}
       <div className="flex flex-col flex-1 min-w-0 lg:ml-0">
-        <Topbar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
+        <Topbar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} onSearchOpen={() => setSearchOpen(true)} />
         <main className="flex-1 overflow-auto p-2 sm:p-4 bg-muted/50">
           {children}
         </main>
       </div>
+
+      {/* Universal Search modal */}
+      <UniversalSearch open={searchOpen} onClose={() => setSearchOpen(false)} />
     </div>
   );
 }

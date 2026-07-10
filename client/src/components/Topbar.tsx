@@ -8,7 +8,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { LogOut, Settings, Menu, HelpCircle, ChevronDown, User } from "lucide-react";
+import { LogOut, Settings, Menu, ChevronDown, Search, Command } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRole } from "@/contexts/RoleProvider";
 import { useRolePermissions } from "@/hooks/useRolePermissions";
@@ -33,9 +33,10 @@ const ROLE_COLORS: Record<string, string> = {
 interface TopbarProps {
   sidebarOpen: boolean;
   setSidebarOpen: (open: boolean) => void;
+  onSearchOpen?: () => void;
 }
 
-const Topbar: React.FC<TopbarProps> = ({ sidebarOpen, setSidebarOpen }) => {
+const Topbar: React.FC<TopbarProps> = ({ sidebarOpen, setSidebarOpen, onSearchOpen }) => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const { userName, highestRole, loading } = useRole();
@@ -79,6 +80,19 @@ const Topbar: React.FC<TopbarProps> = ({ sidebarOpen, setSidebarOpen }) => {
 
       {/* ── Right: actions + user ── */}
       <div className="flex items-center gap-1 sm:gap-2 ml-auto">
+
+        {/* Universal Search trigger */}
+        <button
+          onClick={onSearchOpen}
+          className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-slate-400 hover:text-white bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.08] transition-all"
+          aria-label="Search (Ctrl+K)"
+        >
+          <Search className="w-3.5 h-3.5" />
+          <span className="hidden md:block text-xs text-slate-400">Search…</span>
+          <kbd className="hidden md:flex items-center gap-0.5 ml-1 px-1 py-0.5 text-[9px] font-medium text-slate-500 bg-white/[0.06] rounded border border-white/[0.08]">
+            <Command className="w-2.5 h-2.5" />K
+          </kbd>
+        </button>
 
         {/* Help */}
         <div className="[&_button]:text-white [&_button:hover]:text-gray-900">

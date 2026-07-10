@@ -1,0 +1,317 @@
+Build a feature called "Universal Search" for Tazq.
+
+Purpose
+
+Universal Search should become the primary navigation and discovery mechanism across the application.
+
+It is not just a search box.
+
+It should function like Spotlight, Raycast or Linear Command Menu.
+
+Users should be able to find anything, navigate anywhere, and perform quick actions without browsing menus.
+
+-------------------------------------------------------
+Activation
+-------------------------------------------------------
+
+• Keyboard Shortcut: Ctrl + K (Cmd + K on Mac)
+• Search icon in top navigation
+• Opens as a centered modal overlay
+
+-------------------------------------------------------
+Search Scope
+-------------------------------------------------------
+
+Search across:
+
+• Tasks
+• Projects
+• Milestones
+• Defects
+• Discussions
+• Decisions
+• Files
+• Users
+• Teams
+• Clients (future)
+• Reports
+• Custom Fields
+• Settings
+• Workspace Messages
+
+The architecture should allow additional entities to be added easily.
+
+-------------------------------------------------------
+Search Experience
+-------------------------------------------------------
+
+As the user types, display categorized results.
+
+Example:
+
+Tasks
+------------------------
+Student Login API
+Fee Collection Module
+
+Projects
+------------------------
+ERP Modernization
+Library Management
+
+Defects
+------------------------
+DEF-1023 Login Issue
+DEF-1041 Payment Error
+
+Users
+------------------------
+Rahul Sharma
+Ankit Gupta
+
+Files
+------------------------
+Architecture.pdf
+
+Discussions
+------------------------
+API Integration Discussion
+
+-------------------------------------------------------
+Each Result Displays
+-------------------------------------------------------
+
+• Icon
+• Entity Type
+• Title
+• Secondary Information
+• Last Updated
+• Status (if applicable)
+
+Example:
+
+📝 Task
+
+Implement Login API
+
+High Priority
+
+Due Today
+
+-------------------------------------------------------
+Quick Actions
+-------------------------------------------------------
+
+Each result should support contextual actions.
+
+Example:
+
+Task
+
+Open
+
+Mark Complete
+
+Assign
+
+Comment
+
+Start Timer
+
+Project
+
+Open
+
+Open Workspace
+
+View Reports
+
+Defect
+
+Open
+
+Start Fix
+
+Resolve
+
+Discussion
+
+Open Workspace
+
+Reply
+
+Bookmark
+
+-------------------------------------------------------
+Recent Searches
+-------------------------------------------------------
+
+Maintain search history.
+
+Display:
+
+Recent Searches
+
+Pinned Items
+
+Frequently Accessed
+
+-------------------------------------------------------
+Smart Suggestions
+-------------------------------------------------------
+
+When search box is empty show:
+
+Recent Projects
+
+Recent Tasks
+
+Assigned Tasks
+
+Pinned Items
+
+Recent Discussions
+
+-------------------------------------------------------
+Filtering
+-------------------------------------------------------
+
+Allow users to filter.
+
+Example:
+
+task: login
+
+project: library
+
+defect: payment
+
+user: rahul
+
+file: architecture
+
+discussion: api
+
+Also provide clickable filters.
+
+-------------------------------------------------------
+Natural Language Search
+-------------------------------------------------------
+
+Prepare architecture for AI search.
+
+Future examples:
+
+Show my overdue tasks
+
+Projects due this month
+
+Defects assigned to Rahul
+
+Tasks related to Login
+
+Show today's discussions
+
+Find project where API was mentioned
+
+Initially implement keyword search.
+
+Design architecture so AI semantic search can replace it later.
+
+-------------------------------------------------------
+Keyboard Navigation
+-------------------------------------------------------
+
+↑ ↓
+
+Move selection
+
+Enter
+
+Open result
+
+Esc
+
+Close search
+
+Tab
+
+Move between filter groups
+
+-------------------------------------------------------
+Search Ranking
+-------------------------------------------------------
+
+Rank results based on:
+
+Exact match
+
+Recently opened
+
+Assigned to current user
+
+Frequently accessed
+
+Pinned items
+
+Recent activity
+
+-------------------------------------------------------
+UI Design
+-------------------------------------------------------
+
+Modern centered search modal.
+
+Large search input.
+
+Category headings.
+
+Smooth keyboard navigation.
+
+Soft animations.
+
+Rounded corners.
+
+Minimal design.
+
+Dark and light mode support.
+
+-------------------------------------------------------
+Architecture
+-------------------------------------------------------
+
+Create a generic Search Provider architecture.
+
+Each module should implement a SearchProvider.
+
+Example:
+
+TaskSearchProvider
+
+ProjectSearchProvider
+
+DefectSearchProvider
+
+WorkspaceSearchProvider
+
+Universal Search should aggregate results from all providers.
+
+Future modules should only implement SearchProvider to become searchable.
+
+-------------------------------------------------------
+Future AI Capabilities
+-------------------------------------------------------
+
+AI Semantic Search
+
+Voice Search
+
+Search Summaries
+
+Suggested Actions
+
+AI Recommendations
+
+Natural Language Navigation
+
+This feature should become the primary navigation experience of Tazq.

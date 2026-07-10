@@ -2,9 +2,10 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { licenseManager, APP_ID } from "./license-manager";
-import { insertUserSchema, insertTaskSchema, insertTeamSchema, insertTaskGroupSchema, insertRoleSchema, insertOfficeLocationSchema, userRoles, insertDefectSchema, insertClientSchema, insertClientContactSchema, insertClientProjectAccessSchema, insertCustomFieldGroupSchema, insertCustomFieldDefinitionSchema, insertCustomFieldValueSchema } from "@shared/schema";
+import { insertUserSchema, insertTaskSchema, insertTeamSchema, insertTaskGroupSchema, insertRoleSchema, insertOfficeLocationSchema, userRoles, insertDefectSchema, insertClientSchema, insertClientContactSchema, insertClientProjectAccessSchema, insertCustomFieldGroupSchema, insertCustomFieldDefinitionSchema, insertCustomFieldValueSchema, tasks as tasksTable, projects as projectsTable, defects as defectsTable, users as usersTable, teams as teamsTable, workspaceDecisions } from "@shared/schema";
 import { callAiProvider, encryptApiKey, decryptApiKey, DEFAULT_SYSTEM_PROMPT_HEADER } from "./ai-provider";
 import { db } from "./db";
+import { ilike, or, sql } from "drizzle-orm";
 import bcrypt from "bcrypt";
 
 // Role-based access control middleware
@@ -3723,6 +3724,66 @@ Output EXACTLY this JSON (no text outside it):
       await storage.deleteWorkspaceAttachment(req.params.id);
       res.json({ ok: true });
     } catch (err) { res.status(500).json({ error: "Failed to delete attachment" }); }
+  });
+
+  // ── Universal Search ─────────────────────────────────────────────────────────
+  app.get("/api/search", requireAnyAuthenticated, async (req: any, res) => {
+    try {
+      const raw = ((req.query.q as string) ?? "").trim();
+      if (!raw || raw.length < 1) {
+        return res.json({ tasks: [], projects: [], defects: [], users: [], teams: [], decisions: [] });
+      }
+
+      // Support filter prefixes: task:login  project:lib  defect:pay  user:rahul
+      let typeFilter: string | null = null;
+      let q = raw;
+      const prefixMatch = raw.match(/^(task|project|defect|user|team|discussion|decision):(.+)/i);
+      if (prefixMatch) { typeFilter = prefixMatch[1].toLowerCase(); q = prefixMatch[2].trim(); }
+
+      const term = `%${q.toLowerCase()}%`;
+      const want = (t: string) => !typeFilter || typeFilter.startsWith(t.slice(0, 4));
+
+      const [taskR, projR, defR, userR, teamR, decR] = await Promise.all([
+        want("task") ? db.select({
+          id: tasksTable.id, task_number: tasksTable.task_number, title: tasksTable.title,
+          status: tasksTable.status, priority: tasksTable.priority,
+          due_date: tasksTable.due_date, assigned_to: tasksTable.assigned_to,
+        }).from(tasksTable).where(
+          or(ilike(tasksTable.title, term), sql`${tasksTable.task_number}::text ILIKE ${term}`)
+        ).limit(5) : Promise.resolve([]),
+
+        want("proj") ? db.select({
+          id: projectsTable.id, name: projectsTable.name, status: projectsTable.status,
+          project_type: projectsTable.project_type, color: projectsTable.color,
+        }).from(projectsTable).where(ilike(projectsTable.name, term)).limit(5) : Promise.resolve([]),
+
+        want("defe") ? db.select({
+          id: defectsTable.id, defect_number: defectsTable.defect_number, title: defectsTable.title,
+          severity: defectsTable.severity, status: defectsTable.status, priority: defectsTable.priority,
+        }).from(defectsTable).where(
+          or(ilike(defectsTable.title, term), sql`${defectsTable.defect_number}::text ILIKE ${term}`)
+        ).limit(5) : Promise.resolve([]),
+
+        want("user") ? db.select({
+          id: usersTable.id, user_name: usersTable.user_name, email: usersTable.email,
+        }).from(usersTable).where(
+          or(ilike(usersTable.user_name, term), ilike(usersTable.email, term))
+        ).limit(5) : Promise.resolve([]),
+
+        want("team") ? db.select({ id: teamsTable.id, name: teamsTable.name })
+          .from(teamsTable).where(ilike(teamsTable.name, term)).limit(3) : Promise.resolve([]),
+
+        (want("disc") || want("deci")) ? db.select({
+          id: workspaceDecisions.id, title: workspaceDecisions.title,
+          status: workspaceDecisions.status, created_at: workspaceDecisions.created_at,
+        }).from(workspaceDecisions).where(ilike(workspaceDecisions.title, term)).limit(5) : Promise.resolve([]),
+      ]);
+
+      res.json({ tasks: taskR, projects: projR, defects: defR, users: userR, teams: teamR, decisions: decR });
+    } catch (err: any) {
+      console.error("Search error:", err);
+      res.status(500).json({ error: "Search failed" });
+    }
   });
 
   const httpServer = createServer(app);
