@@ -81,7 +81,10 @@ const WorkspaceTab: React.FC<Props> = ({ entityType, entityId }) => {
 
   const queryKey = [`/api/workspace/${entityType}/${entityId}`];
 
-  const { data, isLoading } = useQuery<WorkspaceData>({ queryKey });
+  const { data, isLoading } = useQuery<WorkspaceData>({
+    queryKey,
+    queryFn: () => apiRequest(`/api/workspace/${entityType}/${entityId}`),
+  });
 
   // scroll to bottom when new messages arrive
   useEffect(() => {
