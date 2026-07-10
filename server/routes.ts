@@ -3476,11 +3476,12 @@ Rules:
     try {
       const { entityType, entityId } = req.params;
       const { content } = req.body;
+      const userId = req.headers['x-user-id'] as string;
       if (!content?.trim()) return res.status(400).json({ error: "Content is required" });
       const msg = await storage.createWorkspaceMessage({
         entity_type: entityType,
         entity_id: entityId,
-        author_id: req.user.id,
+        author_id: userId,
         content: content.trim(),
       });
       res.status(201).json(msg);
@@ -3511,7 +3512,7 @@ Rules:
     try {
       const { emoji } = req.body;
       if (!emoji) return res.status(400).json({ error: "Emoji is required" });
-      const result = await storage.toggleWorkspaceReaction(req.params.id, req.user.id, emoji);
+      const result = await storage.toggleWorkspaceReaction(req.params.id, req.headers['x-user-id'] as string, emoji);
       res.json(result);
     } catch (err) { res.status(500).json({ error: "Failed to toggle reaction" }); }
   });
@@ -3529,10 +3530,12 @@ Rules:
         description: description ?? null,
         status: status ?? "pending",
         approved_by: approved_by ?? null,
-        created_by: req.user.id,
+        created_by: req.headers['x-user-id'] as string,
       });
       res.status(201).json(decision);
-    } catch (err) { res.status(500).json({ error: "Failed to create decision" }); }
+    } catch (err: any) {
+      res.status(500).json({ error: "Failed to create decision" });
+    }
   });
 
   // PATCH /api/workspace/decisions/:id
@@ -3563,7 +3566,7 @@ Rules:
         entity_type: entityType,
         entity_id: entityId,
         message_id: message_id ?? null,
-        uploaded_by: req.user.id,
+        uploaded_by: req.headers['x-user-id'] as string,
         file_name,
         file_type,
         file_size: file_size ?? null,
