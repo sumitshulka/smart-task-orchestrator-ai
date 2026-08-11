@@ -298,13 +298,13 @@ function NodeRow({
         </span>
       )}
 
-      {/* Metadata (hidden unless group hovered) */}
-      <div className="hidden group-hover:flex items-center gap-3 shrink-0">
+      {/* Metadata — always visible */}
+      <div className="flex items-center gap-2.5 shrink-0">
         <DateRange start={node.start_date} end={node.end_date} />
         <EffortBadge hours={node.estimated_hours} />
         {owner && (
-          <span className="text-[10px] text-gray-400 flex items-center gap-0.5">
-            <User className="h-2.5 w-2.5" />{owner.user_name ?? owner.email}
+          <span className="text-[10px] text-gray-400 flex items-center gap-0.5 max-w-[80px] truncate" title={owner.user_name ?? owner.email}>
+            <User className="h-2.5 w-2.5 shrink-0" />{owner.user_name ?? owner.email}
           </span>
         )}
       </div>
