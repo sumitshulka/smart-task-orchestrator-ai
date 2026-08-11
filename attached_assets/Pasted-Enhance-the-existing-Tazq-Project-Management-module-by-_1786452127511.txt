@@ -1,0 +1,998 @@
+Enhance the existing Tazq Project Management module by adding a new first-class tab called "Planning".
+
+IMPORTANT:
+Do not redesign or break the existing Tazq project, task, feature, defect, test case, workspace or finance functionality.
+
+Planning must become the place where a Project Manager defines, develops, reviews and continuously updates the project plan.
+
+Planning must support BOTH:
+1. Manual planning
+2. AI-assisted planning
+
+The architecture must be AI-ready and methodology-driven.
+
+============================================================
+1. PURPOSE OF PLANNING
+============================================================
+
+Planning is NOT a dashboard.
+
+Planning is the PM's working area for defining how a project will be delivered.
+
+The PM should be able to:
+
+- Define project phases
+- Define stages
+- Define milestones
+- Define feature groups
+- Define features
+- Define user stories
+- Define dependencies
+- Define planned dates
+- Define estimated effort
+- Define resources
+- Review the complete project plan
+- Modify the plan at any time
+- Ask AI to create or elaborate planning at any selected level
+- Export the resulting project plan as PDF
+
+Planning must support progressive elaboration.
+
+The PM does NOT have to fully plan the project at once.
+
+============================================================
+2. PROJECT STRUCTURE
+============================================================
+
+Planning must support the following logical structure:
+
+Project
+
+Optional Phase
+
+Optional Stage
+
+Milestone
+
+Feature Group (optional)
+
+Feature
+
+User Story
+
+Task
+
+Test Case
+
+Defect
+
+IMPORTANT:
+
+Do NOT make this a rigid mandatory hierarchy.
+
+A project may have:
+
+Project → Features → Tasks
+
+or:
+
+Project → Phase → Milestone → Feature → User Story → Task
+
+or any appropriate combination.
+
+Phase is OPTIONAL.
+
+Stage is OPTIONAL.
+
+Feature Group is OPTIONAL.
+
+User Story is OPTIONAL.
+
+The system must support unassigned items where appropriate.
+
+Do not automatically create "Phase 1", "Stage 1", etc.
+
+============================================================
+3. PLANNING WORKSPACE UI
+============================================================
+
+Create a modern enterprise-grade Planning workspace.
+
+The top section should display:
+
+PROJECT NAME
+
+Planning Status
+
+Planning Methodology
+
+Planning Coverage
+
+Planned Start Date
+
+Planned End Date
+
+Estimated Effort
+
+Estimated Cost (if Finance data is available)
+
+Buttons:
+
++ Add
+
+AI Plan
+
+Planning Settings
+
+Export Plan
+
+============================================================
+4. PLANNING STRUCTURE VIEW
+============================================================
+
+The main area should be a hierarchical planning tree.
+
+Example:
+
+PROJECT
+
+▼ Phase 1 - Discovery
+    ▼ Stage - Requirements
+        Milestone - Requirements Complete
+        Feature Group - Employee Management
+            Feature - Employee Registration
+                User Story - Register Employee
+
+    ▼ Stage - Validation
+        Milestone - Requirements Approved
+
+▼ Phase 2 - Development
+    ▼ Stage - Development
+        Feature Group - Leave Management
+            Feature - Leave Application
+                User Stories
+
+The hierarchy must be expandable/collapsible.
+
+Each item must display:
+
+- Name
+- Type
+- Status
+- Start Date
+- End Date
+- Duration
+- Estimated Effort
+- Progress
+- Planning Status
+- Assigned Owner where applicable
+
+============================================================
+5. PLANNING IS EDITABLE
+============================================================
+
+Every planning item must be editable.
+
+The PM should be able to:
+
+- Add
+- Edit
+- Delete
+- Move
+- Reorder
+- Duplicate
+- Change dates
+- Change dependencies
+- Change owner
+- Change estimated effort
+- Change status
+
+Changes must immediately update the project plan.
+
+Planning is never locked after AI generation.
+
+The PM remains the final authority.
+
+============================================================
+6. DATE MANAGEMENT
+============================================================
+
+Dates are important but NOT mandatory.
+
+Every planning entity should support:
+
+- Planned Start Date
+- Planned End Date
+- Duration
+
+Dates may be empty.
+
+If dates are provided, validate:
+
+Start Date <= End Date
+
+If a child item has dates outside its parent's date range, warn the PM.
+
+Example:
+
+Feature dates should normally fall within the relevant milestone/phase dates.
+
+Do not prevent the PM from overriding this.
+
+Use warnings rather than hard blocking wherever practical.
+
+============================================================
+7. DATE PROPAGATION
+============================================================
+
+Provide intelligent date calculation.
+
+Example:
+
+If a Feature has:
+
+Start: 10 Aug
+End: 15 Aug
+
+and its User Stories have dates,
+
+the Feature dates can be calculated from the earliest and latest child dates.
+
+Allow the PM to choose:
+
+Manual Dates
+or
+Calculated From Children
+
+Do not silently overwrite manually entered dates.
+
+============================================================
+8. DEPENDENCIES
+============================================================
+
+Planning items should support dependencies.
+
+Examples:
+
+Feature B depends on Feature A.
+
+Milestone 2 depends on Milestone 1.
+
+User Story B depends on User Story A.
+
+Support dependency types initially:
+
+- Finish to Start
+- Start to Start
+
+The architecture should allow additional dependency types later.
+
+Display dependency warnings when dates conflict.
+
+============================================================
+9. PLANNING METHODOLOGY
+============================================================
+
+Planning must always know how effort estimation is being performed.
+
+Add:
+
+Planning Methodology
+
+as a project-level planning setting.
+
+Initial options:
+
+- Manual
+- Complexity Based
+- Component Based
+- Function Point Analysis
+- Story Point Based
+- Historical Data Based
+- Custom
+
+Do not fully implement every methodology now.
+
+Implement the methodology framework and Manual methodology first.
+
+The architecture must allow future methodologies to be added independently without changing the Project module.
+
+============================================================
+10. METHODOLOGY PLUGIN ARCHITECTURE
+============================================================
+
+Create a generic Planning Methodology interface/service.
+
+Conceptually:
+
+PlanningMethodology
+
+- getMetadata()
+- getInputSchema()
+- validateInput()
+- calculateEffort()
+- calculateDuration()
+- calculateCost()
+- explainCalculation()
+
+Each methodology must be independently implementable.
+
+Example future services:
+
+ManualMethodology
+ComplexityMethodology
+ComponentMethodology
+FunctionPointMethodology
+StoryPointMethodology
+
+The Project Planning module must not contain methodology-specific calculation logic.
+
+============================================================
+11. CALCULATION TRANSPARENCY
+============================================================
+
+Every calculated effort value must be explainable.
+
+The PM should be able to click:
+
+"How was this calculated?"
+
+Example:
+
+Planning Methodology:
+Component Based
+
+UI:
+Medium = 16 hours
+
+Business Logic:
+Complex = 32 hours
+
+Backend:
+Medium = 20 hours
+
+Testing:
+12 hours
+
+Total:
+80 hours
+
+Do not present AI-generated estimates as unexplained numbers.
+
+============================================================
+12. MANUAL PLANNING
+============================================================
+
+Manual planning must work without AI.
+
+The PM can create:
+
+Phase
+Stage
+Milestone
+Feature Group
+Feature
+User Story
+
+and manually enter:
+
+- Dates
+- Effort
+- Complexity
+- Owner
+- Dependencies
+- Description
+- Acceptance Criteria
+
+The plan must be usable even if AI is disabled.
+
+============================================================
+13. AI PLANNING
+============================================================
+
+Add an "AI Plan" action.
+
+AI planning must be available at multiple levels.
+
+The PM can select:
+
+Plan Project
+Plan Phase
+Plan Stage
+Plan Milestone
+Plan Feature Group
+Plan Feature
+Plan User Story
+
+AI must only work on the selected scope.
+
+Do NOT automatically generate the entire project unless the PM explicitly requests it.
+
+============================================================
+14. AI INPUT
+============================================================
+
+AI planning should support:
+
+Plain English input
+
+Attached documents
+
+Existing project information
+
+Existing planning structure
+
+Workspace discussions
+
+Existing Features
+
+Existing User Stories
+
+Existing Tasks
+
+The user should be able to provide a short instruction such as:
+
+"Plan this milestone."
+
+or:
+
+"Break this feature into user stories."
+
+The system should automatically provide the relevant context to the AI.
+
+============================================================
+15. AI GENERATION RULE
+============================================================
+
+AI must NOT directly create production records.
+
+AI first produces a proposal.
+
+Example:
+
+AI Planning Proposal
+
+3 Features
+11 User Stories
+24 Acceptance Criteria
+18 Suggested Tasks
+
+Show the proposal to the PM.
+
+Actions:
+
+Accept All
+Accept Selected
+Edit
+Reject
+
+Only approved items become actual Tazq records.
+
+============================================================
+16. AI MUST RESPECT EXISTING PLANNING
+============================================================
+
+If a Feature already has User Stories, AI must not recreate them blindly.
+
+AI should inspect existing records and propose only missing or improved items.
+
+Example:
+
+Existing:
+
+Feature:
+Leave Application
+
+Existing Stories:
+US-001
+US-002
+
+AI should say:
+
+"I found 2 existing User Stories and identified 3 additional Stories."
+
+The PM decides what to add.
+
+Avoid duplicate records.
+
+============================================================
+17. AI AND METHODOLOGY SEPARATION
+============================================================
+
+IMPORTANT ARCHITECTURAL RULE:
+
+AI understands and decomposes requirements.
+
+The Planning Methodology calculates effort.
+
+AI must NOT independently invent final effort calculations when a methodology is selected.
+
+Example:
+
+Project methodology:
+Component Based
+
+AI determines:
+
+UI = Medium
+Backend = Complex
+Business = Medium
+
+The Component Methodology calculates:
+
+UI = 16h
+Backend = 40h
+Business = 24h
+
+Total = 80h
+
+This separation must be maintained.
+
+============================================================
+18. PLANNING COVERAGE
+============================================================
+
+Introduce a metric called:
+
+Planning Coverage
+
+This represents how much of the project has been elaborated.
+
+It is NOT project completion.
+
+Example:
+
+Project:
+
+5 Milestones
+
+2 Fully Planned
+1 Partially Planned
+2 High-Level Only
+
+Display:
+
+Planning Coverage: 62%
+
+Clearly label this separately from:
+
+Execution Progress
+
+Never represent Planning Coverage as project completion.
+
+============================================================
+19. PLANNING STATUS
+============================================================
+
+Each planning level should have a planning status.
+
+Examples:
+
+High Level
+Partially Planned
+Detailed
+Reviewed
+
+Example:
+
+Phase 1
+Detailed
+
+Phase 2
+Partially Planned
+
+Phase 3
+High Level
+
+This allows progressive planning.
+
+============================================================
+20. PLANNING SUMMARY
+============================================================
+
+At the top of Planning display:
+
+Planning Methodology
+Planning Coverage
+Phases
+Milestones
+Features
+User Stories
+Tasks
+Estimated Effort
+Planned Duration
+
+Do not use excessive charts.
+
+Planning is primarily a working interface.
+
+============================================================
+21. GANTT / TIMELINE VIEW
+============================================================
+
+Provide a Timeline/Gantt view within Planning.
+
+Allow the PM to switch between:
+
+Tree View
+Timeline View
+
+Timeline should display:
+
+Phase
+Stage
+Milestone
+Feature
+User Story
+
+Tasks may optionally be displayed.
+
+Show:
+
+Start Date
+End Date
+Duration
+Dependencies
+Progress
+
+The Gantt should update when planning dates change.
+
+============================================================
+22. PLANNING LEVEL ACTIONS
+============================================================
+
+Every planning item should have a context menu.
+
+Example:
+
+Phase
+
++ Add Stage
++ Add Milestone
+AI Plan Phase
+Edit
+Delete
+
+Milestone
+
++ Add Feature
+AI Plan Milestone
+Edit
+Delete
+
+Feature
+
++ Add User Story
+AI Generate Stories
+Edit
+Delete
+
+User Story
+
++ Add Task
+Generate Acceptance Criteria
+Generate Test Cases
+Edit
+Delete
+
+Do not show irrelevant actions at inappropriate levels.
+
+============================================================
+23. PROJECT PLAN EXPORT
+============================================================
+
+Add:
+
+Export Plan
+
+Generate a professionally formatted PDF.
+
+The PDF should contain:
+
+Project Name
+
+Project Description
+
+Project Manager
+
+Planning Methodology
+
+Planning Date
+
+Planned Start Date
+
+Planned End Date
+
+Planning Coverage
+
+Executive Planning Summary
+
+Project Phases
+
+Stages
+
+Milestones
+
+Feature Groups
+
+Features
+
+User Stories
+
+Acceptance Criteria where available
+
+Tasks where available
+
+Estimated Effort
+
+Dependencies
+
+Project Timeline
+
+Risks / Planning Notes where available
+
+The PDF should clearly indicate the level of planning completeness.
+
+Example:
+
+"Testing Phase: High-Level Planning Only"
+
+Do not imply that unplanned areas are fully defined.
+
+============================================================
+24. PDF STRUCTURE
+============================================================
+
+The generated PDF should be suitable for:
+
+- Client sharing
+- Internal approval
+- Project kickoff
+- Project governance
+- Management review
+
+Use professional enterprise formatting.
+
+Include:
+
+Cover Page
+
+Executive Summary
+
+Planning Methodology
+
+Project Structure
+
+Detailed Plan
+
+Timeline
+
+Effort Summary
+
+Planning Coverage
+
+Dependencies
+
+Notes
+
+The PDF should not expose internal database IDs.
+
+============================================================
+25. PLANNING VERSIONING
+============================================================
+
+Planning will change over time.
+
+Prepare the architecture for planning versions.
+
+Store at minimum:
+
+Planning Version
+Created Date
+Created By
+Planning Methodology
+Methodology Version
+
+Do not implement a complex version comparison UI initially.
+
+But do not design the database in a way that prevents future version history.
+
+============================================================
+26. METHODOLOGY VERSIONING
+============================================================
+
+A project must retain the methodology version used for its planning.
+
+Example:
+
+Component Based v1.0
+
+If the methodology later changes to v2.0, existing projects must not silently recalculate.
+
+Store the methodology configuration snapshot used by the project.
+
+============================================================
+27. PROJECT FINANCE COMPATIBILITY
+============================================================
+
+Planning must be designed so that future Project Finance can consume:
+
+- Estimated effort
+- Planned duration
+- Resource requirements
+- Planned cost
+- Phase-level effort
+- Feature-level effort
+- User Story effort
+- Task effort
+
+Do not build Finance in this task.
+
+Only ensure the Planning data model can support it.
+
+============================================================
+28. EXISTING TAZQ ENTITIES
+============================================================
+
+Planning must integrate with existing:
+
+Projects
+Feature Groups
+Features
+User Stories
+Tasks
+Milestones
+Defects
+Test Cases
+Workspace
+
+Do not create duplicate versions of these entities unless technically necessary.
+
+Planning should organize and reference existing project entities.
+
+============================================================
+29. RESPONSIVE DESIGN
+============================================================
+
+The Planning interface must work on:
+
+Desktop
+Laptop
+Tablet
+
+Do not create a permanently wide interface that breaks on smaller screens.
+
+On smaller screens:
+
+- Collapse hierarchy appropriately
+- Allow horizontal scrolling for timeline
+- Use responsive detail panels
+- Keep critical actions accessible
+
+Do not replace the existing global Tazq sidebar.
+
+Planning should exist inside the existing Project workspace.
+
+============================================================
+30. DESIGN
+============================================================
+
+Create an enterprise-grade modern interface.
+
+Avoid:
+
+- Dense spreadsheet appearance
+- Excessive charts
+- Excessive colors
+- Giant dashboard cards
+- Unnecessary decoration
+
+The Planning workspace should feel like a professional project planning tool.
+
+Use:
+
+- Clear hierarchy
+- Expand/collapse tree
+- Inline editing
+- Context menus
+- Status indicators
+- Progress indicators
+- Timeline visualization
+- Clean typography
+- Consistent Tazq design language
+
+============================================================
+31. IMPORTANT PRODUCT PRINCIPLES
+============================================================
+
+1. Planning is optional in depth but always available.
+
+2. Phase is optional.
+
+3. Stage is optional.
+
+4. Feature Group is optional.
+
+5. Dates are optional.
+
+6. Manual planning must work completely without AI.
+
+7. AI assists; PM approves.
+
+8. AI must not duplicate existing planning.
+
+9. Planning methodology determines how effort is calculated.
+
+10. AI feeds inputs into the methodology; AI does not replace the methodology.
+
+11. Every calculated estimate must be explainable.
+
+12. Planning Coverage must never be confused with Execution Progress.
+
+13. Planning can be performed progressively at any level.
+
+14. Planning methodology must be pluggable so new methodologies can be added independently.
+
+15. Planning must eventually produce a professional project plan PDF.
+
+============================================================
+32. IMPLEMENTATION ORDER
+============================================================
+
+Build in this order:
+
+STEP 1
+Create Planning tab and Planning workspace UI.
+
+STEP 2
+Implement project planning tree.
+
+STEP 3
+Implement manual creation/editing of:
+
+Phases
+Stages
+Milestones
+Feature Groups
+Features
+User Stories
+
+STEP 4
+Implement dates, duration and dependencies.
+
+STEP 5
+Implement Planning Methodology framework and Manual methodology.
+
+STEP 6
+Implement Planning Coverage and Planning Status.
+
+STEP 7
+Implement Timeline/Gantt view.
+
+STEP 8
+Implement AI Planning proposal framework.
+
+STEP 9
+Connect AI proposal to existing Tazq entities with PM approval.
+
+STEP 10
+Implement PDF Project Plan export.
+
+STEP 11
+Prepare interfaces for future methodology plugins and Project Finance.
+
+Do not attempt to implement all future methodologies now.
+
+============================================================
+FINAL REQUIREMENT
+============================================================
+
+Before coding, inspect the existing Tazq Project Management database schema, APIs, UI components and existing Feature, Feature Group, Milestone, Task, User Story, Test Case and Defect implementations.
+
+Reuse existing entities and components wherever possible.
+
+Do not create duplicate entities.
+
+Do not break existing functionality.
+
+The Planning module should become the central PM workspace for defining and evolving the project plan, while existing Tasks, Test Cases, Defects, Workspace and Finance remain separate functional areas that consume and contribute to the plan.
