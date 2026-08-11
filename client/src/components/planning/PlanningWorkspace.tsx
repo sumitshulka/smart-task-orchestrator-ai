@@ -403,44 +403,44 @@ function NodeRow({
         >
           {/* Dates */}
           {node.start_date || node.end_date ? (
-            <span className="text-[11px] text-gray-500 tabular-nums flex items-center gap-0.5">
-              <Calendar className="h-2.5 w-2.5 text-gray-400" />
+            <span className="text-[11px] text-gray-700 dark:text-gray-300 tabular-nums flex items-center gap-0.5 font-medium">
+              <Calendar className="h-2.5 w-2.5 text-gray-500 dark:text-gray-400" />
               {fmtDisplay(node.start_date) ?? "?"} → {fmtDisplay(node.end_date) ?? "?"}
               {node.start_date && node.end_date && (
-                <span className="text-gray-300 ml-0.5">
+                <span className="text-gray-500 dark:text-gray-400 ml-0.5">
                   ({differenceInDays(new Date(node.end_date), new Date(node.start_date))}d)
                 </span>
               )}
             </span>
           ) : (
-            <span className="text-[11px] text-gray-300 dark:text-gray-600 italic flex items-center gap-0.5">
+            <span className="text-[11px] text-gray-500 dark:text-gray-400 italic flex items-center gap-0.5">
               <Calendar className="h-2.5 w-2.5" />Set dates
             </span>
           )}
 
           {/* Effort */}
           {node.estimated_hours ? (
-            <span className="text-[11px] text-gray-400 flex items-center gap-0.5 tabular-nums">
-              <Clock className="h-2.5 w-2.5" />{node.estimated_hours}h
+            <span className="text-[11px] text-gray-700 dark:text-gray-300 flex items-center gap-0.5 tabular-nums font-medium">
+              <Clock className="h-2.5 w-2.5 text-gray-500 dark:text-gray-400" />{node.estimated_hours}h
             </span>
           ) : (
-            <span className="text-[11px] text-gray-300 dark:text-gray-600 italic flex items-center gap-0.5">
+            <span className="text-[11px] text-gray-500 dark:text-gray-400 italic flex items-center gap-0.5">
               <Clock className="h-2.5 w-2.5" />Set hrs
             </span>
           )}
 
           {/* Owner */}
           {owner ? (
-            <span className="text-[11px] text-gray-400 flex items-center gap-0.5 max-w-[72px] truncate">
-              <User className="h-2.5 w-2.5 shrink-0" />{owner.user_name ?? owner.email}
+            <span className="text-[11px] text-gray-700 dark:text-gray-300 flex items-center gap-0.5 max-w-[80px] truncate font-medium">
+              <User className="h-2.5 w-2.5 shrink-0 text-gray-500 dark:text-gray-400" />{owner.user_name ?? owner.email}
             </span>
           ) : (
-            <span className="text-[11px] text-gray-300 dark:text-gray-600 italic flex items-center gap-0.5">
+            <span className="text-[11px] text-gray-500 dark:text-gray-400 italic flex items-center gap-0.5">
               <User className="h-2.5 w-2.5" />Owner
             </span>
           )}
 
-          <Pencil className="h-2.5 w-2.5 text-gray-300 group-hover/qe:text-gray-400 transition-colors" />
+          <Pencil className="h-2.5 w-2.5 text-gray-400 group-hover/qe:text-gray-600 dark:group-hover/qe:text-gray-300 transition-colors" />
         </button>
 
         {/* Quick-edit popover */}
@@ -1008,25 +1008,33 @@ function NodeSheet({
   const cfg = NODE_TYPE_CONFIG[type];
   const isEdit = !!node;
 
-  const [form, setForm] = useState(() => ({
+  const buildFormFromNode = (n: any) => ({
     ...EMPTY_FORM,
-    name: node?.name ?? node?.title ?? "",
-    title: node?.title ?? "",
-    description: node?.description ?? "",
-    acceptance_criteria: node?.acceptance_criteria ?? "",
-    start_date: node?.start_date ? format(new Date(node.start_date), "yyyy-MM-dd") : "",
-    end_date: node?.end_date ? format(new Date(node.end_date), "yyyy-MM-dd") : "",
-    estimated_hours: node?.estimated_hours?.toString() ?? "",
-    planning_status: (node?.planning_status ?? "high_level") as PlanningStatus,
-    owner_id: node?.owner_id ?? "",
-    phase_id: node?.phase_id ?? "",
-    stage_id: node?.stage_id ?? "",
-    milestone_id: node?.milestone_id ?? "",
-    feature_group_id: node?.feature_group_id ?? "",
-    feature_id: node?.feature_id ?? "",
-    status: node?.status ?? "draft",
-    date_mode: node?.date_mode ?? "manual",
-  }));
+    name: n?.name ?? n?.title ?? "",
+    title: n?.title ?? "",
+    description: n?.description ?? "",
+    acceptance_criteria: n?.acceptance_criteria ?? "",
+    start_date: n?.start_date ? format(new Date(n.start_date), "yyyy-MM-dd") : "",
+    end_date: n?.end_date ? format(new Date(n.end_date), "yyyy-MM-dd") : "",
+    estimated_hours: n?.estimated_hours?.toString() ?? "",
+    planning_status: (n?.planning_status ?? "high_level") as PlanningStatus,
+    owner_id: n?.owner_id ?? "",
+    phase_id: n?.phase_id ?? "",
+    stage_id: n?.stage_id ?? "",
+    milestone_id: n?.milestone_id ?? "",
+    feature_group_id: n?.feature_group_id ?? "",
+    feature_id: n?.feature_id ?? "",
+    status: n?.status ?? "draft",
+    date_mode: n?.date_mode ?? "manual",
+  });
+
+  const [form, setForm] = useState(() => buildFormFromNode(node));
+
+  // Re-populate whenever the sheet opens for a different node or type
+  useEffect(() => {
+    setForm(buildFormFromNode(node));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [node?.id, type, open]);
 
   const set = (key: string, value: string) => setForm(f => ({ ...f, [key]: value }));
 
