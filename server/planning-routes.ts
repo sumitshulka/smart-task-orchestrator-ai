@@ -319,8 +319,98 @@ export function registerPlanningRoutes(app: Express) {
         ));
       if (existing.length > 0) return res.status(409).json({ error: "This dependency already exists" });
 
-      // Circular dependency check — BFS from target; if we can reach source, adding this dep would create a cycle
-      const allDeps = await db.select().from(planningDependencies).where(eq(planningDependencies.project_id, projectId));
+      // ── Load full hierarchy for validation ────────────────────────────────
+      const [allDeps, phases, stages, milestones, fgs, features, stories] = await Promise.all([
+        db.select().from(planningDependencies).where(eq(planningDependencies.project_id, projectId)),
+        db.select().from(planningPhases).where(eq(planningPhases.project_id, projectId)),
+        db.select().from(planningStages).where(eq(planningStages.project_id, projectId)),
+        db.select().from(projectMilestones).where(eq(projectMilestones.project_id, projectId)),
+        db.select().from(projectFeatureGroups).where(eq(projectFeatureGroups.project_id, projectId)),
+        db.select().from(projectFeatures).where(eq(projectFeatures.project_id, projectId)),
+        db.select().from(userStories).where(eq(userStories.project_id, projectId)),
+      ]);
+
+      // Fast lookup maps
+      const phaseMap  = new Map(phases.map(p => [p.id, p]));
+      const stageMap  = new Map(stages.map(s => [s.id, s]));
+      const msMap     = new Map(milestones.map(m => [m.id, m]));
+      const fgMap     = new Map(fgs.map(f => [f.id, f]));
+      const featMap   = new Map(features.map(f => [f.id, f]));
+      const storyMap  = new Map(stories.map(s => [s.id, s]));
+
+      // All items flat (for date lookups)
+      const itemMap = new Map<string, any>([
+        ...phases.map(p => [p.id, p] as [string, any]),
+        ...stages.map(s => [s.id, s] as [string, any]),
+        ...milestones.map(m => [m.id, m] as [string, any]),
+        ...fgs.map(f => [f.id, f] as [string, any]),
+        ...features.map(f => [f.id, f] as [string, any]),
+        ...stories.map(s => [s.id, s] as [string, any]),
+      ]);
+
+      // ── Phase-rank resolution ─────────────────────────────────────────────
+      // Returns the sort_order of the phase this item ultimately belongs to,
+      // or null if the item is not anchored to any phase.
+      function getPhaseRank(id: string, type: string): number | null {
+        if (type === "phase") {
+          return phaseMap.get(id)?.sort_order ?? null;
+        }
+        if (type === "stage") {
+          const s = stageMap.get(id) as any;
+          if (!s?.phase_id) return null;
+          return phaseMap.get(s.phase_id)?.sort_order ?? null;
+        }
+        if (type === "milestone") {
+          const m = msMap.get(id) as any;
+          if (!m) return null;
+          if (m.phase_id) return phaseMap.get(m.phase_id)?.sort_order ?? null;
+          if (m.stage_id) {
+            const st = stageMap.get(m.stage_id) as any;
+            return st?.phase_id ? phaseMap.get(st.phase_id)?.sort_order ?? null : null;
+          }
+          return null;
+        }
+        if (type === "feature_group") {
+          const fg = fgMap.get(id) as any;
+          if (!fg) return null;
+          if (fg.milestone_id) return getPhaseRank(fg.milestone_id, "milestone");
+          if (fg.stage_id)     return getPhaseRank(fg.stage_id, "stage");
+          if (fg.phase_id)     return phaseMap.get(fg.phase_id)?.sort_order ?? null;
+          return null;
+        }
+        if (type === "feature") {
+          const feat = featMap.get(id) as any;
+          if (!feat) return null;
+          if (feat.feature_group_id) return getPhaseRank(feat.feature_group_id, "feature_group");
+          if (feat.stage_id)         return getPhaseRank(feat.stage_id, "stage");
+          if (feat.phase_id)         return phaseMap.get(feat.phase_id)?.sort_order ?? null;
+          return null;
+        }
+        if (type === "user_story") {
+          const story = storyMap.get(id) as any;
+          if (!story) return null;
+          if (story.feature_id) return getPhaseRank(story.feature_id, "feature");
+          return null;
+        }
+        return null;
+      }
+
+      // ── Phase sequence check ──────────────────────────────────────────────
+      // The predecessor (target) must belong to the same or an earlier phase
+      // than the successor (source). A dep on a later phase is rejected.
+      const sourceRank = getPhaseRank(source_id, source_type ?? "");
+      const targetRank = getPhaseRank(target_id, target_type ?? "");
+
+      if (sourceRank !== null && targetRank !== null && targetRank > sourceRank) {
+        const srcPhase = phases.find(p => p.sort_order === sourceRank);
+        const tgtPhase = phases.find(p => p.sort_order === targetRank);
+        return res.status(422).json({
+          error: `Phase sequence violation: the predecessor belongs to "${tgtPhase?.name ?? "a later phase"}" which comes after "${srcPhase?.name ?? "this item's phase"}". A successor can only depend on items from the same or an earlier phase.`,
+          code: "PHASE_SEQUENCE",
+        });
+      }
+
+      // ── Circular dependency check (BFS) ───────────────────────────────────
       const reachable = new Set<string>();
       const queue = [target_id];
       while (queue.length > 0) {
@@ -333,9 +423,13 @@ export function registerPlanningRoutes(app: Express) {
         }
       }
       if (reachable.has(source_id)) {
-        return res.status(422).json({ error: "This dependency would create a circular chain. Remove an existing dependency in the cycle first." });
+        return res.status(422).json({
+          error: "Circular dependency: this relationship would create a loop. Remove an existing dependency in the chain first.",
+          code: "CIRCULAR",
+        });
       }
 
+      // ── Insert ────────────────────────────────────────────────────────────
       const row = await db.insert(planningDependencies).values({
         project_id: projectId,
         source_type,
@@ -344,7 +438,35 @@ export function registerPlanningRoutes(app: Express) {
         target_id,
         dependency_type: dependency_type ?? "finish_to_start",
       }).returning();
-      res.json(row[0]);
+
+      // ── Date conflict detection (soft warning, not blocking) ──────────────
+      const srcItem = itemMap.get(source_id);
+      const tgtItem = itemMap.get(target_id);
+      let date_conflict: string | null = null;
+      if (srcItem && tgtItem) {
+        const srcStart = srcItem.start_date ? new Date(srcItem.start_date) : null;
+        const srcEnd   = srcItem.end_date   ? new Date(srcItem.end_date)   : null;
+        const tgtStart = tgtItem.start_date ? new Date(tgtItem.start_date) : null;
+        const tgtEnd   = tgtItem.end_date   ? new Date(tgtItem.end_date)   : null;
+        const depKind  = dependency_type ?? "finish_to_start";
+        const fmt = (d: Date) => d.toISOString().slice(0, 10);
+
+        if (depKind === "finish_to_start") {
+          // Source should start on or after target ends
+          if (srcStart && tgtEnd && srcStart < tgtEnd)
+            date_conflict = `Date conflict: this item starts ${fmt(srcStart)} but the predecessor doesn't finish until ${fmt(tgtEnd)}.`;
+        } else if (depKind === "start_to_start") {
+          // Source should start on or after target starts
+          if (srcStart && tgtStart && srcStart < tgtStart)
+            date_conflict = `Date conflict: this item starts ${fmt(srcStart)} before the predecessor starts ${fmt(tgtStart)}.`;
+        } else if (depKind === "finish_to_finish") {
+          // Source should finish on or after target finishes
+          if (srcEnd && tgtEnd && srcEnd < tgtEnd)
+            date_conflict = `Date conflict: this item finishes ${fmt(srcEnd)} before the predecessor finishes ${fmt(tgtEnd)}.`;
+        }
+      }
+
+      res.json({ ...row[0], date_conflict });
     } catch (err: any) { res.status(500).json({ error: "Failed to create dependency" }); }
   });
 

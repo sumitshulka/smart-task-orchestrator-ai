@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "@/components/ui/sheet";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -121,6 +121,81 @@ const DEP_TYPE_LABELS: Record<string, string> = {
   start_to_start:  "Start → Start",
 };
 
+// ── Phase-rank helper (client-side mirror of server logic) ─────────────────
+function buildPhaseRankFn(tree: PlanningTree) {
+  const phaseMap  = new Map(tree.phases.map((p: any) => [p.id, p]));
+  const stageMap  = new Map(tree.stages.map((s: any) => [s.id, s]));
+  const msMap     = new Map(tree.milestones.map((m: any) => [m.id, m]));
+  const fgMap     = new Map(tree.featureGroups.map((fg: any) => [fg.id, fg]));
+  const featMap   = new Map(tree.features.map((f: any) => [f.id, f]));
+  const storyMap  = new Map(tree.stories.map((s: any) => [s.id, s]));
+
+  function rank(id: string, type: string): number | null {
+    if (type === "phase") return (phaseMap.get(id) as any)?.sort_order ?? null;
+    if (type === "stage") {
+      const s = stageMap.get(id) as any;
+      if (!s?.phase_id) return null;
+      return (phaseMap.get(s.phase_id) as any)?.sort_order ?? null;
+    }
+    if (type === "milestone") {
+      const m = msMap.get(id) as any;
+      if (!m) return null;
+      if (m.phase_id) return (phaseMap.get(m.phase_id) as any)?.sort_order ?? null;
+      if (m.stage_id) { const st = stageMap.get(m.stage_id) as any; return st?.phase_id ? (phaseMap.get(st.phase_id) as any)?.sort_order ?? null : null; }
+      return null;
+    }
+    if (type === "feature_group") {
+      const fg = fgMap.get(id) as any;
+      if (!fg) return null;
+      if (fg.milestone_id) return rank(fg.milestone_id, "milestone");
+      if (fg.stage_id)     return rank(fg.stage_id, "stage");
+      if (fg.phase_id)     return (phaseMap.get(fg.phase_id) as any)?.sort_order ?? null;
+      return null;
+    }
+    if (type === "feature") {
+      const f = featMap.get(id) as any;
+      if (!f) return null;
+      if (f.feature_group_id) return rank(f.feature_group_id, "feature_group");
+      if (f.stage_id)         return rank(f.stage_id, "stage");
+      if (f.phase_id)         return (phaseMap.get(f.phase_id) as any)?.sort_order ?? null;
+      return null;
+    }
+    if (type === "user_story") {
+      const s = storyMap.get(id) as any;
+      return s?.feature_id ? rank(s.feature_id, "feature") : null;
+    }
+    return null;
+  }
+
+  // Phase name for display
+  function phaseName(id: string, type: string): string | null {
+    const r = rank(id, type);
+    if (r === null) return null;
+    const ph = (tree.phases as any[]).find((p: any) => p.sort_order === r);
+    return ph?.name ?? null;
+  }
+
+  return { rank, phaseName };
+}
+
+// ── Date conflict check (client-side) ──────────────────────────────────────
+function detectDateConflict(
+  srcItem: any, tgtItem: any, depType: string,
+): string | null {
+  const srcStart = srcItem?.start_date ? new Date(srcItem.start_date) : null;
+  const srcEnd   = srcItem?.end_date   ? new Date(srcItem.end_date)   : null;
+  const tgtStart = tgtItem?.start_date ? new Date(tgtItem.start_date) : null;
+  const tgtEnd   = tgtItem?.end_date   ? new Date(tgtItem.end_date)   : null;
+  const fmt = (d: Date) => d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  if (depType === "finish_to_start" && srcStart && tgtEnd && srcStart < tgtEnd)
+    return `Starts ${fmt(srcStart)} before predecessor finishes ${fmt(tgtEnd)}`;
+  if (depType === "start_to_start" && srcStart && tgtStart && srcStart < tgtStart)
+    return `Starts ${fmt(srcStart)} before predecessor starts ${fmt(tgtStart)}`;
+  if (depType === "finish_to_finish" && srcEnd && tgtEnd && srcEnd < tgtEnd)
+    return `Finishes ${fmt(srcEnd)} before predecessor finishes ${fmt(tgtEnd)}`;
+  return null;
+}
+
 function DependencySection({
   nodeId, nodeType, tree, projectId,
 }: { nodeId: string; nodeType: NodeType; tree: PlanningTree; projectId: string }) {
@@ -128,17 +203,62 @@ function DependencySection({
   const [targetId, setTargetId] = useState("");
   const [depType, setDepType] = useState("finish_to_start");
 
-  // Flat list of all items, excluding this node
-  const allItems = useMemo<{ id: string; label: string; type: NodeType }[]>(() => [
-    ...tree.phases.map((p: any) => ({ id: p.id, label: `Phase: ${p.name}`, type: "phase" as NodeType })),
-    ...tree.stages.map((s: any) => ({ id: s.id, label: `Stage: ${s.name}`, type: "stage" as NodeType })),
-    ...tree.milestones.map((m: any) => ({ id: m.id, label: `Milestone: ${m.name}`, type: "milestone" as NodeType })),
-    ...tree.featureGroups.map((fg: any) => ({ id: fg.id, label: `FG: ${fg.name}`, type: "feature_group" as NodeType })),
-    ...tree.features.map((f: any) => ({ id: f.id, label: `Feature: ${f.name}`, type: "feature" as NodeType })),
-    ...tree.stories.map((s: any) => ({ id: s.id, label: `Story: ${s.title}`, type: "user_story" as NodeType })),
-  ].filter(i => i.id !== nodeId), [tree, nodeId]);
+  // Phase-rank helpers
+  const { rank: phaseRank, phaseName } = useMemo(() => buildPhaseRankFn(tree), [tree]);
 
-  // Outgoing deps = this node is the source (this node depends on the target)
+  // Source node's phase rank (used to filter valid predecessors)
+  const sourceRank = phaseRank(nodeId, nodeType);
+
+  // Flat item map for date lookups
+  const itemById = useMemo(() => {
+    const m = new Map<string, any>();
+    [...tree.phases, ...tree.stages, ...tree.milestones,
+     ...tree.featureGroups, ...tree.features, ...tree.stories]
+      .forEach((i: any) => m.set(i.id, i));
+    return m;
+  }, [tree]);
+
+  // All items annotated with phaseRank, filtered to valid predecessors:
+  //   - not the node itself
+  //   - not already a predecessor
+  //   - not from a later phase (phase rank > source rank)
+  const existingTargetIds = new Set((tree.dependencies ?? [])
+    .filter((d: any) => d.source_id === nodeId).map((d: any) => d.target_id));
+
+  const allItems = useMemo<{
+    id: string; label: string; type: NodeType;
+    rank: number | null; phaseName: string | null; blocked: boolean;
+  }[]>(() => {
+    const raw = [
+      ...tree.phases.map((p: any) => ({ id: p.id, label: p.name, type: "phase" as NodeType })),
+      ...tree.stages.map((s: any) => ({ id: s.id, label: s.name, type: "stage" as NodeType })),
+      ...tree.milestones.map((m: any) => ({ id: m.id, label: m.name, type: "milestone" as NodeType })),
+      ...tree.featureGroups.map((fg: any) => ({ id: fg.id, label: fg.name, type: "feature_group" as NodeType })),
+      ...tree.features.map((f: any) => ({ id: f.id, label: f.name, type: "feature" as NodeType })),
+      ...tree.stories.map((s: any) => ({ id: s.id, label: s.title, type: "user_story" as NodeType })),
+    ].filter(i => i.id !== nodeId && !existingTargetIds.has(i.id));
+
+    return raw.map(i => {
+      const r = phaseRank(i.id, i.type);
+      const blocked = sourceRank !== null && r !== null && r > sourceRank;
+      return { ...i, rank: r, phaseName: phaseName(i.id, i.type), blocked };
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tree, nodeId, sourceRank]);
+
+  // Group valid (non-blocked) items by phase for the dropdown
+  const grouped = useMemo(() => {
+    const valid = allItems.filter(i => !i.blocked);
+    const groups = new Map<string, typeof valid>();
+    for (const item of valid) {
+      const key = item.phaseName ?? "(No phase)";
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(item);
+    }
+    return groups;
+  }, [allItems]);
+
+  // Outgoing deps = this node is the source
   const outgoing = (tree.dependencies ?? []).filter((d: any) => d.source_id === nodeId);
 
   const add = useMutation({
@@ -151,8 +271,16 @@ function DependencySection({
         dependency_type: depType,
       });
     },
-    onSuccess: () => {
-      toast({ title: "Dependency added" });
+    onSuccess: (data: any) => {
+      if (data?.date_conflict) {
+        toast({
+          title: "Dependency added — date conflict detected",
+          description: data.date_conflict,
+          variant: "destructive",
+        });
+      } else {
+        toast({ title: "Dependency added" });
+      }
       setTargetId("");
       queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "planning/tree"] });
     },
@@ -168,7 +296,17 @@ function DependencySection({
     onError: () => toast({ title: "Failed to remove dependency", variant: "destructive" }),
   });
 
-  const labelFor = (id: string) => allItems.find(i => i.id === id)?.label ?? id.slice(0, 8);
+  const labelFor = (id: string) => {
+    const found = allItems.find(i => i.id === id);
+    if (found) return found.label;
+    // item may already be in existingTargetIds — search full tree
+    const all = [...tree.phases, ...tree.stages, ...tree.milestones,
+      ...tree.featureGroups, ...tree.features, ...tree.stories] as any[];
+    const node = all.find((i: any) => i.id === id);
+    return node ? (node.name ?? node.title ?? id.slice(0, 8)) : id.slice(0, 8);
+  };
+
+  const blockedCount = allItems.filter(i => i.blocked).length;
 
   return (
     <div className="space-y-2">
@@ -176,26 +314,59 @@ function DependencySection({
         <Link2 className="h-3 w-3" />Dependencies — this item starts after…
       </Label>
 
-      {outgoing.map((d: any) => (
-        <div key={d.id} className="flex items-center gap-2 text-xs bg-gray-50 dark:bg-gray-800 rounded px-2 py-1.5">
-          <ArrowRight className="h-3 w-3 text-gray-400 shrink-0" />
-          <span className="flex-1 truncate text-gray-700 dark:text-gray-300">{labelFor(d.target_id)}</span>
-          <span className="text-[10px] text-gray-400 shrink-0 whitespace-nowrap">
-            {DEP_TYPE_LABELS[d.dependency_type] ?? d.dependency_type}
-          </span>
-          <button onClick={() => remove.mutate(d.id)} className="text-gray-300 hover:text-red-500 transition-colors shrink-0">
-            <X className="h-3 w-3" />
-          </button>
-        </div>
-      ))}
+      {/* Existing outgoing dependencies */}
+      {outgoing.map((d: any) => {
+        const srcItem = itemById.get(nodeId);
+        const tgtItem = itemById.get(d.target_id);
+        const conflict = detectDateConflict(srcItem, tgtItem, d.dependency_type ?? "finish_to_start");
+        return (
+          <div key={d.id} className={`rounded px-2 py-1.5 text-xs border ${
+            conflict
+              ? "bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800"
+              : "bg-gray-50 dark:bg-gray-800 border-transparent"
+          }`}>
+            <div className="flex items-center gap-2">
+              <ArrowRight className="h-3 w-3 text-gray-400 shrink-0" />
+              <span className="flex-1 truncate text-gray-700 dark:text-gray-300 font-medium">{labelFor(d.target_id)}</span>
+              <span className="text-[10px] text-gray-500 shrink-0 whitespace-nowrap">
+                {DEP_TYPE_LABELS[d.dependency_type] ?? d.dependency_type}
+              </span>
+              <button onClick={() => remove.mutate(d.id)} className="text-gray-400 hover:text-red-500 transition-colors shrink-0">
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+            {conflict && (
+              <p className="mt-1 text-[10px] text-amber-700 dark:text-amber-400 flex items-center gap-1">
+                <AlertTriangle className="h-2.5 w-2.5 shrink-0" />{conflict}
+              </p>
+            )}
+          </div>
+        );
+      })}
 
+      {/* Add new dependency */}
       <div className="flex gap-2">
         <div className="flex-1 min-w-0">
           <Select value={targetId || "none"} onValueChange={v => setTargetId(v === "none" ? "" : v)}>
             <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select predecessor…" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="none">— Select predecessor —</SelectItem>
-              {allItems.map(i => <SelectItem key={i.id} value={i.id}>{i.label}</SelectItem>)}
+              {Array.from(grouped.entries()).map(([groupName, items]) => (
+                <SelectGroup key={groupName}>
+                  <SelectLabel className="text-[10px] text-gray-400 font-semibold px-2 py-0.5">{groupName}</SelectLabel>
+                  {items.map(i => (
+                    <SelectItem key={i.id} value={i.id}>
+                      <span className="text-[10px] text-gray-400 mr-1.5 capitalize">
+                        {i.type.replace("_", " ")}
+                      </span>
+                      {i.label}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              ))}
+              {grouped.size === 0 && (
+                <SelectItem value="__none_valid__" disabled>No valid predecessors available</SelectItem>
+              )}
             </SelectContent>
           </Select>
         </div>
@@ -205,6 +376,7 @@ function DependencySection({
             <SelectContent>
               <SelectItem value="finish_to_start">Finish → Start</SelectItem>
               <SelectItem value="start_to_start">Start → Start</SelectItem>
+              <SelectItem value="finish_to_finish">Finish → Finish</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -214,7 +386,14 @@ function DependencySection({
       </div>
 
       {outgoing.length === 0 && (
-        <p className="text-[11px] text-gray-400">No dependencies yet. Add a predecessor to enforce sequencing.</p>
+        <p className="text-[11px] text-gray-500">No dependencies yet. Add a predecessor to enforce sequencing.</p>
+      )}
+
+      {blockedCount > 0 && (
+        <p className="text-[10px] text-amber-600 dark:text-amber-400 flex items-center gap-1">
+          <AlertTriangle className="h-2.5 w-2.5 shrink-0" />
+          {blockedCount} item{blockedCount !== 1 ? "s" : ""} from later phases hidden — successors cannot depend on items from a later phase.
+        </p>
       )}
     </div>
   );
