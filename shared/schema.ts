@@ -49,6 +49,9 @@ export const projects = pgTable("projects", {
   client_id: uuid("client_id").references(() => clients.id, { onDelete: "set null" }),
   color: text("color").default("#6366f1"), // project card accent color
   custom_fields: text("custom_fields"), // JSON string for template-specific fields
+  // Planning fields
+  planning_methodology: text("planning_methodology").default("manual"), // manual | complexity_based | component_based | function_point | story_point | historical | custom
+  planning_version: integer("planning_version").default(1),
   created_by: uuid("created_by").references(() => users.id),
   created_at: timestamp("created_at").defaultNow(),
   updated_at: timestamp("updated_at").defaultNow(),
@@ -99,6 +102,13 @@ export const projectMilestones = pgTable("project_milestones", {
   end_date: timestamp("end_date"),
   status: text("status").notNull().default("not_started"), // not_started, in_progress, completed, on_hold
   milestone_order: integer("milestone_order").notNull().default(1),
+  // Planning fields (added for Planning module)
+  phase_id: uuid("phase_id"),   // FK resolved after planningPhases is defined
+  stage_id: uuid("stage_id"),   // FK resolved after planningStages is defined
+  planning_status: text("planning_status").default("high_level"), // high_level | partially_planned | detailed | reviewed
+  estimated_hours: integer("estimated_hours"),
+  owner_id: uuid("owner_id").references(() => users.id, { onDelete: "set null" }),
+  date_mode: text("date_mode").default("manual"), // manual | calculated
   created_at: timestamp("created_at").defaultNow(),
   updated_at: timestamp("updated_at").defaultNow(),
 });
@@ -124,6 +134,16 @@ export const projectFeatureGroups = pgTable("project_feature_groups", {
   name: text("name").notNull(),
   description: text("description"),
   tracking_number: text("tracking_number").notNull(), // e.g. FG-001
+  // Planning fields
+  phase_id: uuid("phase_id"),
+  stage_id: uuid("stage_id"),
+  milestone_id: uuid("milestone_id").references(() => projectMilestones.id, { onDelete: "set null" }),
+  planning_status: text("planning_status").default("high_level"),
+  estimated_hours: integer("estimated_hours"),
+  owner_id: uuid("owner_id").references(() => users.id, { onDelete: "set null" }),
+  sort_order: integer("sort_order").default(0),
+  start_date: timestamp("start_date"),
+  end_date: timestamp("end_date"),
   created_at: timestamp("created_at").defaultNow(),
   updated_at: timestamp("updated_at").defaultNow(),
 });
@@ -137,6 +157,17 @@ export const projectFeatures = pgTable("project_features", {
   description: text("description"),
   tracking_number: text("tracking_number").notNull(), // e.g. F-001
   status: text("status").notNull().default("not_started"), // not_started, in_progress, completed
+  // Planning fields
+  phase_id: uuid("phase_id"),
+  stage_id: uuid("stage_id"),
+  planning_status: text("planning_status").default("high_level"),
+  estimated_hours: integer("estimated_hours"),
+  owner_id: uuid("owner_id").references(() => users.id, { onDelete: "set null" }),
+  sort_order: integer("sort_order").default(0),
+  start_date: timestamp("start_date"),
+  end_date: timestamp("end_date"),
+  date_mode: text("date_mode").default("manual"), // manual | calculated
+  acceptance_criteria: text("acceptance_criteria"),
   created_at: timestamp("created_at").defaultNow(),
   updated_at: timestamp("updated_at").defaultNow(),
 });
@@ -1248,6 +1279,136 @@ export const workspaceAttachments = pgTable("workspace_attachments", {
   file_url: text("file_url").notNull(),
   created_at: timestamp("created_at").defaultNow(),
 });
+
+// ── Planning Module Tables ─────────────────────────────────────────────────
+
+// Planning Phases (optional top-level grouping)
+export const planningPhases = pgTable("planning_phases", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  project_id: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  description: text("description"),
+  sort_order: integer("sort_order").notNull().default(0),
+  planning_status: text("planning_status").notNull().default("high_level"), // high_level | partially_planned | detailed | reviewed
+  start_date: timestamp("start_date"),
+  end_date: timestamp("end_date"),
+  estimated_hours: integer("estimated_hours"),
+  owner_id: uuid("owner_id").references(() => users.id, { onDelete: "set null" }),
+  created_at: timestamp("created_at").defaultNow(),
+  updated_at: timestamp("updated_at").defaultNow(),
+});
+
+// Planning Stages (sub-phase grouping, optional)
+export const planningStages = pgTable("planning_stages", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  project_id: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  phase_id: uuid("phase_id").references(() => planningPhases.id, { onDelete: "set null" }),
+  name: text("name").notNull(),
+  description: text("description"),
+  sort_order: integer("sort_order").notNull().default(0),
+  planning_status: text("planning_status").notNull().default("high_level"),
+  start_date: timestamp("start_date"),
+  end_date: timestamp("end_date"),
+  estimated_hours: integer("estimated_hours"),
+  owner_id: uuid("owner_id").references(() => users.id, { onDelete: "set null" }),
+  created_at: timestamp("created_at").defaultNow(),
+  updated_at: timestamp("updated_at").defaultNow(),
+});
+
+// User Stories (optional, linked to features)
+export const userStories = pgTable("user_stories", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  project_id: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  feature_id: uuid("feature_id").references(() => projectFeatures.id, { onDelete: "set null" }),
+  tracking_number: text("tracking_number").notNull(), // e.g. US-001
+  title: text("title").notNull(),
+  description: text("description"),
+  acceptance_criteria: text("acceptance_criteria"),
+  status: text("status").notNull().default("draft"), // draft | ready | in_progress | done
+  planning_status: text("planning_status").notNull().default("high_level"),
+  estimated_hours: integer("estimated_hours"),
+  owner_id: uuid("owner_id").references(() => users.id, { onDelete: "set null" }),
+  start_date: timestamp("start_date"),
+  end_date: timestamp("end_date"),
+  date_mode: text("date_mode").default("manual"), // manual | calculated
+  sort_order: integer("sort_order").default(0),
+  created_at: timestamp("created_at").defaultNow(),
+  updated_at: timestamp("updated_at").defaultNow(),
+});
+
+// Planning Dependencies (cross-entity dependencies)
+export const planningDependencies = pgTable("planning_dependencies", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  project_id: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  source_type: text("source_type").notNull(), // phase | stage | milestone | feature_group | feature | user_story | task
+  source_id: uuid("source_id").notNull(),
+  target_type: text("target_type").notNull(),
+  target_id: uuid("target_id").notNull(),
+  dependency_type: text("dependency_type").notNull().default("finish_to_start"), // finish_to_start | start_to_start
+  created_at: timestamp("created_at").defaultNow(),
+});
+
+// Planning Methodology Configs (per-project methodology + versioning)
+export const planningMethodologyConfigs = pgTable("planning_methodology_configs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  project_id: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  methodology: text("methodology").notNull().default("manual"), // manual | complexity_based | component_based | function_point | story_point | historical | custom
+  methodology_version: text("methodology_version").notNull().default("1.0"),
+  config_snapshot: jsonb("config_snapshot"), // snapshot of methodology config used
+  notes: text("notes"),
+  created_by: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+  created_at: timestamp("created_at").defaultNow(),
+  updated_at: timestamp("updated_at").defaultNow(),
+});
+
+// Planning AI Proposals (staging area — never auto-commits to production)
+export const planningAiProposals = pgTable("planning_ai_proposals", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  project_id: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  scope_type: text("scope_type").notNull(), // project | phase | stage | milestone | feature_group | feature | user_story
+  scope_id: uuid("scope_id"), // nullable — project-level proposals have no scope_id
+  prompt: text("prompt").notNull(),
+  status: text("status").notNull().default("pending_review"), // pending_review | accepted | rejected
+  summary_json: jsonb("summary_json"), // { found: {…}, proposed: {…} }
+  created_by: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+  created_at: timestamp("created_at").defaultNow(),
+  updated_at: timestamp("updated_at").defaultNow(),
+});
+
+// Planning AI Proposal Items (individual items within a proposal)
+export const planningAiProposalItems = pgTable("planning_ai_proposal_items", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  proposal_id: uuid("proposal_id").notNull().references(() => planningAiProposals.id, { onDelete: "cascade" }),
+  item_type: text("item_type").notNull(), // phase | stage | milestone | feature_group | feature | user_story
+  item_data: jsonb("item_data").notNull(), // the proposed record data
+  parent_type: text("parent_type"), // nullable — what this item belongs to
+  parent_id: uuid("parent_id"),     // nullable
+  action: text("action").notNull().default("create"), // create | update | skip
+  is_accepted: boolean("is_accepted").default(false),
+  sort_order: integer("sort_order").default(0),
+  created_at: timestamp("created_at").defaultNow(),
+});
+
+// ── Planning Insert Schemas & Types ────────────────────────────────────────
+
+export const insertPlanningPhaseSchema = createInsertSchema(planningPhases).omit({ id: true, created_at: true, updated_at: true });
+export const insertPlanningStageSchema = createInsertSchema(planningStages).omit({ id: true, created_at: true, updated_at: true });
+export const insertUserStorySchema = createInsertSchema(userStories).omit({ id: true, created_at: true, updated_at: true });
+export const insertPlanningDependencySchema = createInsertSchema(planningDependencies).omit({ id: true, created_at: true });
+export const insertPlanningMethodologyConfigSchema = createInsertSchema(planningMethodologyConfigs).omit({ id: true, created_at: true, updated_at: true });
+export const insertPlanningAiProposalSchema = createInsertSchema(planningAiProposals).omit({ id: true, created_at: true, updated_at: true });
+export const insertPlanningAiProposalItemSchema = createInsertSchema(planningAiProposalItems).omit({ id: true, created_at: true });
+
+export type PlanningPhase              = typeof planningPhases.$inferSelect;
+export type InsertPlanningPhase        = typeof planningPhases.$inferInsert;
+export type PlanningStage              = typeof planningStages.$inferSelect;
+export type InsertPlanningStage        = typeof planningStages.$inferInsert;
+export type UserStory                  = typeof userStories.$inferSelect;
+export type InsertUserStory            = typeof userStories.$inferInsert;
+export type PlanningDependency         = typeof planningDependencies.$inferSelect;
+export type PlanningMethodologyConfig  = typeof planningMethodologyConfigs.$inferSelect;
+export type PlanningAiProposal         = typeof planningAiProposals.$inferSelect;
+export type PlanningAiProposalItem     = typeof planningAiProposalItems.$inferSelect;
 
 export const insertWorkspaceMessageSchema = createInsertSchema(workspaceMessages).omit({
   id: true, is_edited: true, is_deleted: true, created_at: true, updated_at: true,

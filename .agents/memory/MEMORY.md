@@ -1,1 +1,2 @@
 - [Custom Fields Engine](custom-fields-engine.md) — three-table metadata-driven field system reusable across task/project/defect modules; DB live, APIs complete.
+- [Planning Module Architecture](planning-module.md) — 7 new tables, planning columns on milestones/features/fgs, full CRUD API + AI proposal flow, PlanningWorkspace UI; migration script pattern required (not db:push).

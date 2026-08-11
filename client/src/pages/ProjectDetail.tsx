@@ -24,8 +24,9 @@ import {
   Calendar, Clock, DollarSign, History, UserCircle, Tag, Grip, ChevronDown, ChevronUp,
   Search, ListTodo, ExternalLink, Flag, Bug, Building2, MessageSquare,
   LayoutDashboard, Menu, X, ChevronLeft, ChevronRight, TrendingUp,
-  BarChart3, FileText, FolderOpen, ArrowRight, Target,
+  BarChart3, FileText, FolderOpen, ArrowRight, Target, Network,
 } from "lucide-react";
+import PlanningWorkspace from "@/components/planning/PlanningWorkspace";
 import { format, differenceInDays } from "date-fns";
 import type {
   Project, ProjectTemplate, ProjectMember, ProjectMemberHistory,
@@ -677,6 +678,7 @@ export default function ProjectDetail() {
   // ── Sidebar nav items ──────────────────────────────────────────────────────
   const navItems = [
     { id: "overview",    label: "Overview",    icon: LayoutDashboard },
+    { id: "planning",    label: "Planning",    icon: Network },
     { id: "members",     label: "Members",     icon: Users,     count: members.length },
     { id: "milestones",  label: "Milestones",  icon: Milestone, count: milestones.length },
     { id: "features",    label: "Features",    icon: Layers,    count: features.length },
@@ -896,7 +898,12 @@ export default function ProjectDetail() {
           </div>
 
           {/* Section Content */}
-          <div className="flex-1 overflow-auto p-4 lg:p-6">
+          <div className={`flex-1 ${activeSection === "planning" ? "overflow-hidden flex flex-col" : "overflow-auto p-4 lg:p-6"}`}>
+
+            {/* ══════════════════ PLANNING ══════════════════ */}
+            {activeSection === "planning" && (
+              <PlanningWorkspace projectId={id!} users={users as User[]} />
+            )}
 
             {/* ══════════════════ OVERVIEW ══════════════════ */}
             {activeSection === "overview" && (

@@ -2,6 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { licenseManager, APP_ID } from "./license-manager";
+import { registerPlanningRoutes } from "./planning-routes";
 import { insertUserSchema, insertTaskSchema, insertTeamSchema, insertTaskGroupSchema, insertRoleSchema, insertOfficeLocationSchema, userRoles, insertDefectSchema, insertClientSchema, insertClientContactSchema, insertClientProjectAccessSchema, insertCustomFieldGroupSchema, insertCustomFieldDefinitionSchema, insertCustomFieldValueSchema, tasks as tasksTable, projects as projectsTable, defects as defectsTable, users as usersTable, teams as teamsTable, workspaceDecisions } from "@shared/schema";
 import { callAiProvider, encryptApiKey, decryptApiKey, DEFAULT_SYSTEM_PROMPT_HEADER } from "./ai-provider";
 import { db } from "./db";
@@ -3891,6 +3892,9 @@ Output EXACTLY this JSON (no text outside it):
       res.status(500).json({ error: "Search failed" });
     }
   });
+
+  // Planning module routes
+  registerPlanningRoutes(app);
 
   const httpServer = createServer(app);
   return httpServer;
