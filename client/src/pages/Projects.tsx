@@ -15,7 +15,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import {
   Plus, Folder, Calendar, Clock, DollarSign, Search, BarChart3,
-  User, Users, CheckCircle2, Pencil, ChevronRight, AlertTriangle, Timer, Trash2, Building2
+  User, Users, CheckCircle2, Pencil, ChevronRight, AlertTriangle, Timer, Trash2, Building2,
+  Play, AlertOctagon, Wallet
 } from "lucide-react";
 import type { Project, ProjectTemplate } from "@shared/schema";
 import { format, differenceInDays } from "date-fns";
@@ -206,6 +207,85 @@ export default function Projects() {
 
   const hasFilters = search || statusFilter !== "all" || typeFilter !== "all" || confirmedFilter !== "all";
 
+  // ── Summary stats ──────────────────────────────────────────────────────────
+  const totalProjects  = projects.length;
+  const activeCount    = projects.filter(p => p.status === "active").length;
+  const planningCount  = projects.filter(p => p.status === "planning").length;
+  const completedCount = projects.filter(p => p.status === "completed").length;
+  const overdueCount   = projects.filter(p => {
+    if (!p.projected_end_date || p.status === "completed" || p.status === "cancelled") return false;
+    return new Date(p.projected_end_date) < new Date();
+  }).length;
+  const totalBudget = projects.reduce((sum, p) => {
+    return sum + (p.budget_amount ? parseFloat(p.budget_amount) : 0);
+  }, 0);
+
+  const pct = (n: number) => totalProjects > 0 ? `${Math.round((n / totalProjects) * 100)}%` : "0%";
+
+  const summaryCards = [
+    {
+      label: "Total Projects",
+      value: totalProjects,
+      sub: "All projects",
+      icon: Folder,
+      iconBg: "bg-orange-100 dark:bg-orange-900/40",
+      iconColor: "text-orange-500",
+      cardBg: "bg-white dark:bg-gray-900",
+      borderColor: "border-gray-200 dark:border-gray-700",
+    },
+    {
+      label: "Active",
+      value: activeCount,
+      sub: pct(activeCount),
+      icon: Play,
+      iconBg: "bg-green-100 dark:bg-green-900/40",
+      iconColor: "text-green-600",
+      cardBg: "bg-green-50 dark:bg-green-950/30",
+      borderColor: "border-green-200 dark:border-green-800",
+    },
+    {
+      label: "Planning",
+      value: planningCount,
+      sub: pct(planningCount),
+      icon: Calendar,
+      iconBg: "bg-blue-100 dark:bg-blue-900/40",
+      iconColor: "text-blue-600",
+      cardBg: "bg-blue-50 dark:bg-blue-950/30",
+      borderColor: "border-blue-200 dark:border-blue-800",
+    },
+    {
+      label: "Completed",
+      value: completedCount,
+      sub: pct(completedCount),
+      icon: CheckCircle2,
+      iconBg: "bg-teal-100 dark:bg-teal-900/40",
+      iconColor: "text-teal-600",
+      cardBg: "bg-teal-50 dark:bg-teal-950/30",
+      borderColor: "border-teal-200 dark:border-teal-800",
+    },
+    {
+      label: "Overdue",
+      value: overdueCount,
+      sub: pct(overdueCount),
+      icon: AlertOctagon,
+      iconBg: "bg-red-100 dark:bg-red-900/40",
+      iconColor: "text-red-600",
+      cardBg: "bg-red-50 dark:bg-red-950/30",
+      borderColor: "border-red-200 dark:border-red-800",
+    },
+    {
+      label: "Total Budget",
+      value: totalBudget > 0 ? `${totalBudget >= 1_000_000 ? (totalBudget / 1_000_000).toFixed(1) + "M" : totalBudget >= 1_000 ? (totalBudget / 1_000).toFixed(0) + "K" : totalBudget.toLocaleString()}` : "—",
+      sub: "Across all projects",
+      icon: Wallet,
+      iconBg: "bg-purple-100 dark:bg-purple-900/40",
+      iconColor: "text-purple-600",
+      cardBg: "bg-purple-50 dark:bg-purple-950/30",
+      borderColor: "border-purple-200 dark:border-purple-800",
+      large: totalBudget > 0,
+    },
+  ];
+
   return (
     <div className="p-6 space-y-5">
       {/* ── Header ─────────────────────────────────────────────────── */}
@@ -213,7 +293,7 @@ export default function Projects() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Projects</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-            {filtered.length} of {projects.length} project{projects.length !== 1 ? "s" : ""}
+            Manage all projects across the organization.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -224,6 +304,30 @@ export default function Projects() {
             <Plus className="h-4 w-4" /> New Project
           </Button>
         </div>
+      </div>
+
+      {/* ── Summary Cards ──────────────────────────────────────────── */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        {summaryCards.map((card) => {
+          const Icon = card.icon;
+          return (
+            <div
+              key={card.label}
+              className={`rounded-xl border px-4 py-3.5 flex items-center gap-3 ${card.cardBg} ${card.borderColor}`}
+            >
+              <div className={`h-10 w-10 rounded-lg flex items-center justify-center shrink-0 ${card.iconBg}`}>
+                <Icon className={`h-5 w-5 ${card.iconColor}`} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-gray-500 dark:text-gray-400 leading-tight">{card.label}</p>
+                <p className={`font-bold text-gray-900 dark:text-white leading-tight mt-0.5 ${(card as any).large ? "text-lg" : "text-2xl"}`}>
+                  {card.value}
+                </p>
+                <p className="text-xs text-gray-400 dark:text-gray-500 leading-tight">{card.sub}</p>
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       {/* ── Filters ────────────────────────────────────────────────── */}
