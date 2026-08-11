@@ -355,17 +355,77 @@ export function registerPlanningRoutes(app: Express) {
     } catch (err: any) { res.status(500).json({ error: "Failed to delete dependency" }); }
   });
 
+  // ── Unified quick-edit PATCH (inline editing from planning table) ─────────
+  // Accepts: start_date, end_date, estimated_hours, owner_id (all optional/nullable)
+  // Also accepts planning-relationship fields (phase_id, stage_id, …) and planning_status
+  app.patch("/api/projects/:projectId/planning/quick-edit/:entityType/:id", requireAuth, async (req: any, res: any) => {
+    try {
+      const { projectId, entityType, id } = req.params;
+      const body = req.body;
+
+      const dateField = (v: any) => (v === null || v === "" ? null : new Date(v));
+      const merge = (allowed: string[]) => {
+        const u: Record<string, any> = { updated_at: new Date() };
+        for (const f of allowed) {
+          if (!(f in body)) continue;
+          if (f === "start_date" || f === "end_date") u[f] = dateField(body[f]);
+          else u[f] = body[f] === "" ? null : body[f];
+        }
+        return u;
+      };
+
+      const FIELDS = ["start_date", "end_date", "estimated_hours", "owner_id", "planning_status",
+                      "phase_id", "stage_id", "milestone_id", "feature_group_id", "date_mode"];
+
+      let row: any[];
+      switch (entityType) {
+        case "phase":
+          row = await db.update(planningPhases).set(merge(FIELDS))
+            .where(and(eq(planningPhases.id, id), eq(planningPhases.project_id, projectId))).returning();
+          break;
+        case "stage":
+          row = await db.update(planningStages).set(merge(FIELDS))
+            .where(and(eq(planningStages.id, id), eq(planningStages.project_id, projectId))).returning();
+          break;
+        case "milestone":
+          row = await db.update(projectMilestones).set(merge(FIELDS))
+            .where(and(eq(projectMilestones.id, id), eq(projectMilestones.project_id, projectId))).returning();
+          break;
+        case "feature_group":
+          row = await db.update(projectFeatureGroups).set(merge(FIELDS))
+            .where(and(eq(projectFeatureGroups.id, id), eq(projectFeatureGroups.project_id, projectId))).returning();
+          break;
+        case "feature":
+          row = await db.update(projectFeatures).set(merge(FIELDS))
+            .where(and(eq(projectFeatures.id, id), eq(projectFeatures.project_id, projectId))).returning();
+          break;
+        case "user_story":
+          row = await db.update(userStories).set(merge(FIELDS))
+            .where(and(eq(userStories.id, id), eq(userStories.project_id, projectId))).returning();
+          break;
+        default:
+          return res.status(400).json({ error: `Unknown entity type: ${entityType}` });
+      }
+      if (!row.length) return res.status(404).json({ error: "Item not found" });
+      res.json(row[0]);
+    } catch (err: any) {
+      console.error("Quick-edit PATCH error:", err);
+      res.status(500).json({ error: "Failed to save" });
+    }
+  });
+
   // ── Planning enhancements on milestones ───────────────────────────────────
-  // Patch milestone with planning fields
+  // Patch milestone with planning fields (legacy — kept for NodeSheet compatibility)
   app.patch("/api/projects/:projectId/planning/milestones/:id", requireAuth, async (req, res) => {
     try {
       const update: Record<string, any> = { updated_at: new Date() };
-      if (req.body.phase_id !== undefined) update.phase_id = req.body.phase_id;
-      if (req.body.stage_id !== undefined) update.stage_id = req.body.stage_id;
-      if (req.body.planning_status !== undefined) update.planning_status = req.body.planning_status;
-      if (req.body.estimated_hours !== undefined) update.estimated_hours = req.body.estimated_hours;
-      if (req.body.owner_id !== undefined) update.owner_id = req.body.owner_id;
-      if (req.body.date_mode !== undefined) update.date_mode = req.body.date_mode;
+      const fields = ["phase_id", "stage_id", "planning_status", "estimated_hours", "owner_id",
+                      "date_mode", "start_date", "end_date"];
+      for (const f of fields) {
+        if (req.body[f] !== undefined) {
+          update[f] = (f === "start_date" || f === "end_date") && req.body[f] ? new Date(req.body[f]) : req.body[f];
+        }
+      }
       const row = await db.update(projectMilestones).set(update)
         .where(and(eq(projectMilestones.id, req.params.id), eq(projectMilestones.project_id, req.params.projectId)))
         .returning();

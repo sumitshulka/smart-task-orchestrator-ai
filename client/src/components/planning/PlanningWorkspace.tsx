@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { apiClient } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -237,10 +237,16 @@ function CoverageBar({ coverage }: { coverage: CoverageData | undefined }) {
 }
 
 // ── Node Row ───────────────────────────────────────────────────────────────
+const TYPE_TO_ENTITY: Record<NodeType, string> = {
+  phase: "phase", stage: "stage", milestone: "milestone",
+  feature_group: "feature_group", feature: "feature", user_story: "user_story",
+};
+
 function NodeRow({
   node, type, depth, isExpanded, hasChildren,
   onToggle, onEdit, onDelete, onAddChild, users,
   childTypes, depCount, conflictWarning,
+  projectId, parentNode,
 }: {
   node: any; type: NodeType; depth: number; isExpanded: boolean; hasChildren: boolean;
   onToggle: () => void; onEdit: () => void; onDelete: () => void;
@@ -249,11 +255,100 @@ function NodeRow({
   childTypes: NodeType[];
   depCount?: number;
   conflictWarning?: string | null;
+  projectId: string;
+  parentNode?: any;
 }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [qOpen, setQOpen] = useState(false);
+  const [qDraft, setQDraft] = useState({ start_date: "", end_date: "", estimated_hours: "", owner_id: "" });
+  const [qError, setQError] = useState<string | null>(null);
+  const [qSaving, setQSaving] = useState(false);
+
   const cfg = NODE_TYPE_CONFIG[type];
   const Icon = cfg.icon;
   const owner = node.owner_id ? users.find((u: any) => u.id === node.owner_id) : null;
+
+  const fmtDisplay = (d: string | null | undefined) =>
+    d ? format(new Date(d), "dd MMM") : null;
+  const fmtIso = (d: string | null | undefined) =>
+    d ? format(new Date(d), "yyyy-MM-dd") : "";
+
+  const openQuickEdit = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setQDraft({
+      start_date: fmtIso(node.start_date),
+      end_date: fmtIso(node.end_date),
+      estimated_hours: node.estimated_hours?.toString() ?? "",
+      owner_id: node.owner_id ?? "",
+    });
+    setQError(null);
+    setQOpen(true);
+  };
+
+  const saveQuickEdit = async () => {
+    const { start_date, end_date, estimated_hours, owner_id } = qDraft;
+
+    // Validation: end >= start
+    if (start_date && end_date && end_date < start_date) {
+      setQError("End date cannot be before start date.");
+      return;
+    }
+    // Validation: child must not start before parent's start
+    if (parentNode?.start_date && start_date) {
+      const parentStart = fmtIso(parentNode.start_date);
+      if (start_date < parentStart) {
+        setQError(`Start date cannot be before parent's start (${fmtDisplay(parentNode.start_date)}).`);
+        return;
+      }
+    }
+    // Validation: child must not end after parent's end
+    if (parentNode?.end_date && end_date) {
+      const parentEnd = fmtIso(parentNode.end_date);
+      if (end_date > parentEnd) {
+        setQError(`End date cannot be after parent's end (${fmtDisplay(parentNode.end_date)}).`);
+        return;
+      }
+    }
+
+    setQSaving(true);
+    try {
+      const userStr = localStorage.getItem("user");
+      const userId = userStr ? JSON.parse(userStr)?.id ?? "" : "";
+      const resp = await fetch(
+        `/api/projects/${projectId}/planning/quick-edit/${TYPE_TO_ENTITY[type]}/${node.id}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json", "x-user-id": userId },
+          body: JSON.stringify({
+            start_date: start_date || null,
+            end_date: end_date || null,
+            estimated_hours: estimated_hours ? parseInt(estimated_hours) : null,
+            owner_id: owner_id || null,
+          }),
+        }
+      );
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        setQError((err as any).error ?? "Failed to save");
+        return;
+      }
+      qc.invalidateQueries({ queryKey: ["/api/projects", projectId, "planning/tree"] });
+      setQOpen(false);
+      toast({ title: "Saved" });
+    } catch {
+      setQError("Failed to save — please try again.");
+    } finally {
+      setQSaving(false);
+    }
+  };
+
+  const setD = (k: string, v: string) => { setQDraft(d => ({ ...d, [k]: v })); setQError(null); };
+
+  // Date-bound hints for inputs (min/max from parent)
+  const parentStartIso = parentNode?.start_date ? fmtIso(parentNode.start_date) : undefined;
+  const parentEndIso   = parentNode?.end_date   ? fmtIso(parentNode.end_date)   : undefined;
 
   return (
     <div
@@ -298,14 +393,169 @@ function NodeRow({
         </span>
       )}
 
-      {/* Metadata — always visible */}
-      <div className="flex items-center gap-2.5 shrink-0">
-        <DateRange start={node.start_date} end={node.end_date} />
-        <EffortBadge hours={node.estimated_hours} />
-        {owner && (
-          <span className="text-[10px] text-gray-400 flex items-center gap-0.5 max-w-[80px] truncate" title={owner.user_name ?? owner.email}>
-            <User className="h-2.5 w-2.5 shrink-0" />{owner.user_name ?? owner.email}
-          </span>
+      {/* ── Inline quick-edit metadata ──────────────────────────────────── */}
+      <div className="relative shrink-0">
+        {/* Always-visible clickable pills */}
+        <button
+          onClick={openQuickEdit}
+          className="flex items-center gap-2 px-1.5 py-0.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors group/qe"
+          title="Click to set dates, effort & owner"
+        >
+          {/* Dates */}
+          {node.start_date || node.end_date ? (
+            <span className="text-[11px] text-gray-500 tabular-nums flex items-center gap-0.5">
+              <Calendar className="h-2.5 w-2.5 text-gray-400" />
+              {fmtDisplay(node.start_date) ?? "?"} → {fmtDisplay(node.end_date) ?? "?"}
+              {node.start_date && node.end_date && (
+                <span className="text-gray-300 ml-0.5">
+                  ({differenceInDays(new Date(node.end_date), new Date(node.start_date))}d)
+                </span>
+              )}
+            </span>
+          ) : (
+            <span className="text-[11px] text-gray-300 dark:text-gray-600 italic flex items-center gap-0.5">
+              <Calendar className="h-2.5 w-2.5" />Set dates
+            </span>
+          )}
+
+          {/* Effort */}
+          {node.estimated_hours ? (
+            <span className="text-[11px] text-gray-400 flex items-center gap-0.5 tabular-nums">
+              <Clock className="h-2.5 w-2.5" />{node.estimated_hours}h
+            </span>
+          ) : (
+            <span className="text-[11px] text-gray-300 dark:text-gray-600 italic flex items-center gap-0.5">
+              <Clock className="h-2.5 w-2.5" />Set hrs
+            </span>
+          )}
+
+          {/* Owner */}
+          {owner ? (
+            <span className="text-[11px] text-gray-400 flex items-center gap-0.5 max-w-[72px] truncate">
+              <User className="h-2.5 w-2.5 shrink-0" />{owner.user_name ?? owner.email}
+            </span>
+          ) : (
+            <span className="text-[11px] text-gray-300 dark:text-gray-600 italic flex items-center gap-0.5">
+              <User className="h-2.5 w-2.5" />Owner
+            </span>
+          )}
+
+          <Pencil className="h-2.5 w-2.5 text-gray-300 group-hover/qe:text-gray-400 transition-colors" />
+        </button>
+
+        {/* Quick-edit popover */}
+        {qOpen && (
+          <>
+            <div className="fixed inset-0 z-30" onClick={() => setQOpen(false)} />
+            <div
+              className="absolute right-0 top-8 z-40 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl p-3 w-72"
+              onClick={e => e.stopPropagation()}
+            >
+              <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                Quick Edit — {cfg.singularLabel}
+              </p>
+
+              {/* Parent constraint hint */}
+              {parentNode && (parentNode.start_date || parentNode.end_date) && (
+                <p className="text-[10px] text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20 rounded px-2 py-1 mb-2">
+                  Parent window: {fmtDisplay(parentNode.start_date) ?? "?"} → {fmtDisplay(parentNode.end_date) ?? "?"}
+                </p>
+              )}
+
+              <div className="grid grid-cols-2 gap-2">
+                {/* Start date */}
+                <div>
+                  <label className="text-[10px] font-medium text-gray-500 block mb-0.5">Start date</label>
+                  <input
+                    type="date"
+                    className="w-full text-xs border border-gray-200 dark:border-gray-700 rounded px-2 py-1.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                    value={qDraft.start_date}
+                    min={parentStartIso}
+                    max={parentEndIso}
+                    onChange={e => setD("start_date", e.target.value)}
+                  />
+                </div>
+                {/* End date */}
+                <div>
+                  <label className="text-[10px] font-medium text-gray-500 block mb-0.5">End date</label>
+                  <input
+                    type="date"
+                    className="w-full text-xs border border-gray-200 dark:border-gray-700 rounded px-2 py-1.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                    value={qDraft.end_date}
+                    min={qDraft.start_date || parentStartIso}
+                    max={parentEndIso}
+                    onChange={e => setD("end_date", e.target.value)}
+                  />
+                </div>
+              </div>
+
+              {/* Hours */}
+              <div className="mt-2">
+                <label className="text-[10px] font-medium text-gray-500 block mb-0.5">Estimated hours</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  placeholder="—"
+                  className="w-full text-xs border border-gray-200 dark:border-gray-700 rounded px-2 py-1.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                  value={qDraft.estimated_hours}
+                  onChange={e => setD("estimated_hours", e.target.value)}
+                />
+              </div>
+
+              {/* Owner */}
+              <div className="mt-2">
+                <label className="text-[10px] font-medium text-gray-500 block mb-0.5">Owner</label>
+                <select
+                  className="w-full text-xs border border-gray-200 dark:border-gray-700 rounded px-2 py-1.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                  value={qDraft.owner_id}
+                  onChange={e => setD("owner_id", e.target.value)}
+                >
+                  <option value="">— Unassigned —</option>
+                  {users.map((u: any) => (
+                    <option key={u.id} value={u.id}>{u.user_name ?? u.email}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Validation error */}
+              {qError && (
+                <p className="mt-2 text-[11px] text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/20 rounded px-2 py-1">
+                  {qError}
+                </p>
+              )}
+
+              {/* Buttons */}
+              <div className="mt-3 flex gap-2">
+                <button
+                  className="flex-1 h-7 text-xs rounded bg-blue-600 hover:bg-blue-700 text-white font-medium flex items-center justify-center gap-1 disabled:opacity-60"
+                  onClick={saveQuickEdit}
+                  disabled={qSaving}
+                >
+                  {qSaving ? <RefreshCw className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+                  Save
+                </button>
+                <button
+                  className="flex-1 h-7 text-xs rounded border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
+                  onClick={() => setQOpen(false)}
+                  disabled={qSaving}
+                >
+                  Cancel
+                </button>
+                {/* Clear all */}
+                {(node.start_date || node.end_date || node.estimated_hours || node.owner_id) && (
+                  <button
+                    className="h-7 px-2 text-xs rounded border border-red-200 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20"
+                    onClick={() => setQDraft({ start_date: "", end_date: "", estimated_hours: "", owner_id: "" })}
+                    disabled={qSaving}
+                    title="Clear all fields"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </button>
+                )}
+              </div>
+            </div>
+          </>
         )}
       </div>
 
@@ -1174,14 +1424,15 @@ function TreeView({ tree, projectId, users, onEdit, onDelete, onAddChild }: {
   const orphanMilestones = tree.milestones.filter((m: any) => !m.phase_id && !m.stage_id);
   const orphanFGs = tree.featureGroups.filter((fg: any) => !fg.phase_id && !fg.stage_id && !fg.milestone_id);
 
-  const renderStories = (featureId: string, depth: number) =>
+  const renderStories = (featureId: string, depth: number, parentFeature?: any) =>
     storiesForFeature(featureId).map((s: any) => (
       <NodeRow key={s.id} node={s} type="user_story" depth={depth} isExpanded={false} hasChildren={false}
         onToggle={() => {}} onEdit={() => onEdit(s, "user_story")} onDelete={() => onDelete(s, "user_story")}
-        onAddChild={() => {}} users={users} childTypes={[]} {...di(s.id)} />
+        onAddChild={() => {}} users={users} childTypes={[]} projectId={projectId} parentNode={parentFeature}
+        {...di(s.id)} />
     ));
 
-  const renderFeatures = (fgId: string, depth: number) =>
+  const renderFeatures = (fgId: string, depth: number, parentFG?: any) =>
     featuresForFG(fgId).map((f: any) => {
       const children = storiesForFeature(f.id);
       const isExp = expanded.has(f.id);
@@ -1189,13 +1440,14 @@ function TreeView({ tree, projectId, users, onEdit, onDelete, onAddChild }: {
         <div key={f.id}>
           <NodeRow node={f} type="feature" depth={depth} isExpanded={isExp} hasChildren={children.length > 0}
             onToggle={() => toggle(f.id)} onEdit={() => onEdit(f, "feature")} onDelete={() => onDelete(f, "feature")}
-            onAddChild={ct => onAddChild(ct, { feature_id: f.id })} users={users} childTypes={["user_story"]} {...di(f.id)} />
-          {isExp && renderStories(f.id, depth + 1)}
+            onAddChild={ct => onAddChild(ct, { feature_id: f.id })} users={users} childTypes={["user_story"]}
+            projectId={projectId} parentNode={parentFG} {...di(f.id)} />
+          {isExp && renderStories(f.id, depth + 1, f)}
         </div>
       );
     });
 
-  const renderFGs = (parentId: string | null, parentType: string, depth: number) =>
+  const renderFGs = (parentId: string | null, parentType: string, depth: number, parentNode?: any) =>
     fgsForParent(parentId, parentType).map((fg: any) => {
       const children = featuresForFG(fg.id);
       const isExp = expanded.has(fg.id);
@@ -1203,13 +1455,14 @@ function TreeView({ tree, projectId, users, onEdit, onDelete, onAddChild }: {
         <div key={fg.id}>
           <NodeRow node={fg} type="feature_group" depth={depth} isExpanded={isExp} hasChildren={children.length > 0}
             onToggle={() => toggle(fg.id)} onEdit={() => onEdit(fg, "feature_group")} onDelete={() => onDelete(fg, "feature_group")}
-            onAddChild={ct => onAddChild(ct, { feature_group_id: fg.id })} users={users} childTypes={["feature"]} {...di(fg.id)} />
-          {isExp && renderFeatures(fg.id, depth + 1)}
+            onAddChild={ct => onAddChild(ct, { feature_group_id: fg.id })} users={users} childTypes={["feature"]}
+            projectId={projectId} parentNode={parentNode} {...di(fg.id)} />
+          {isExp && renderFeatures(fg.id, depth + 1, fg)}
         </div>
       );
     });
 
-  const renderMilestones = (parentId: string | null, parentType: "phase" | "stage", depth: number) =>
+  const renderMilestones = (parentId: string | null, parentType: "phase" | "stage", depth: number, parentNode?: any) =>
     milestonesForParent(parentId, parentType).map((m: any) => {
       const fgChildren = fgsForParent(m.id, "milestone");
       const isExp = expanded.has(m.id);
@@ -1217,13 +1470,14 @@ function TreeView({ tree, projectId, users, onEdit, onDelete, onAddChild }: {
         <div key={m.id}>
           <NodeRow node={m} type="milestone" depth={depth} isExpanded={isExp} hasChildren={fgChildren.length > 0}
             onToggle={() => toggle(m.id)} onEdit={() => onEdit(m, "milestone")} onDelete={() => onDelete(m, "milestone")}
-            onAddChild={ct => onAddChild(ct, { milestone_id: m.id })} users={users} childTypes={["feature_group", "feature"]} {...di(m.id)} />
-          {isExp && renderFGs(m.id, "milestone", depth + 1)}
+            onAddChild={ct => onAddChild(ct, { milestone_id: m.id })} users={users} childTypes={["feature_group", "feature"]}
+            projectId={projectId} parentNode={parentNode} {...di(m.id)} />
+          {isExp && renderFGs(m.id, "milestone", depth + 1, m)}
         </div>
       );
     });
 
-  const renderStages = (phaseId: string, depth: number) =>
+  const renderStages = (phaseId: string, depth: number, parentPhase?: any) =>
     stagesForPhase(phaseId).map((s: any) => {
       const msChildren = milestonesForParent(s.id, "stage");
       const fgChildren = fgsForParent(s.id, "stage");
@@ -1234,11 +1488,12 @@ function TreeView({ tree, projectId, users, onEdit, onDelete, onAddChild }: {
           <NodeRow node={s} type="stage" depth={depth} isExpanded={isExp} hasChildren={hasChildren}
             onToggle={() => toggle(s.id)} onEdit={() => onEdit(s, "stage")} onDelete={() => onDelete(s, "stage")}
             onAddChild={ct => onAddChild(ct, { stage_id: s.id })} users={users}
-            childTypes={["milestone", "feature_group", "feature"]} {...di(s.id)} />
+            childTypes={["milestone", "feature_group", "feature"]}
+            projectId={projectId} parentNode={parentPhase} {...di(s.id)} />
           {isExp && (
             <>
-              {renderMilestones(s.id, "stage", depth + 1)}
-              {renderFGs(s.id, "stage", depth + 1)}
+              {renderMilestones(s.id, "stage", depth + 1, s)}
+              {renderFGs(s.id, "stage", depth + 1, s)}
             </>
           )}
         </div>
@@ -1259,12 +1514,13 @@ function TreeView({ tree, projectId, users, onEdit, onDelete, onAddChild }: {
             <NodeRow node={p} type="phase" depth={0} isExpanded={isExp} hasChildren={hasChildren}
               onToggle={() => toggle(p.id)} onEdit={() => onEdit(p, "phase")} onDelete={() => onDelete(p, "phase")}
               onAddChild={ct => onAddChild(ct, { phase_id: p.id })} users={users}
-              childTypes={["stage", "milestone", "feature_group", "feature"]} {...di(p.id)} />
+              childTypes={["stage", "milestone", "feature_group", "feature"]}
+              projectId={projectId} parentNode={undefined} {...di(p.id)} />
             {isExp && (
               <>
-                {renderStages(p.id, 1)}
-                {renderMilestones(p.id, "phase", 1)}
-                {renderFGs(p.id, "phase", 1)}
+                {renderStages(p.id, 1, p)}
+                {renderMilestones(p.id, "phase", 1, p)}
+                {renderFGs(p.id, "phase", 1, p)}
               </>
             )}
           </div>
@@ -1282,11 +1538,12 @@ function TreeView({ tree, projectId, users, onEdit, onDelete, onAddChild }: {
             <NodeRow node={s} type="stage" depth={0} isExpanded={isExp} hasChildren={hasChildren}
               onToggle={() => toggle(s.id)} onEdit={() => onEdit(s, "stage")} onDelete={() => onDelete(s, "stage")}
               onAddChild={ct => onAddChild(ct, { stage_id: s.id })} users={users}
-              childTypes={["milestone", "feature_group", "feature"]} {...di(s.id)} />
+              childTypes={["milestone", "feature_group", "feature"]}
+              projectId={projectId} parentNode={undefined} {...di(s.id)} />
             {isExp && (
               <>
-                {renderMilestones(s.id, "stage", 1)}
-                {renderFGs(s.id, "stage", 1)}
+                {renderMilestones(s.id, "stage", 1, s)}
+                {renderFGs(s.id, "stage", 1, s)}
               </>
             )}
           </div>
@@ -1301,8 +1558,9 @@ function TreeView({ tree, projectId, users, onEdit, onDelete, onAddChild }: {
           <div key={m.id}>
             <NodeRow node={m} type="milestone" depth={0} isExpanded={isExp} hasChildren={fgChildren.length > 0}
               onToggle={() => toggle(m.id)} onEdit={() => onEdit(m, "milestone")} onDelete={() => onDelete(m, "milestone")}
-              onAddChild={ct => onAddChild(ct, { milestone_id: m.id })} users={users} childTypes={["feature_group", "feature"]} {...di(m.id)} />
-            {isExp && renderFGs(m.id, "milestone", 1)}
+              onAddChild={ct => onAddChild(ct, { milestone_id: m.id })} users={users} childTypes={["feature_group", "feature"]}
+              projectId={projectId} parentNode={undefined} {...di(m.id)} />
+            {isExp && renderFGs(m.id, "milestone", 1, m)}
           </div>
         );
       })}
@@ -1315,8 +1573,9 @@ function TreeView({ tree, projectId, users, onEdit, onDelete, onAddChild }: {
           <div key={fg.id}>
             <NodeRow node={fg} type="feature_group" depth={0} isExpanded={isExp} hasChildren={children.length > 0}
               onToggle={() => toggle(fg.id)} onEdit={() => onEdit(fg, "feature_group")} onDelete={() => onDelete(fg, "feature_group")}
-              onAddChild={ct => onAddChild(ct, { feature_group_id: fg.id })} users={users} childTypes={["feature"]} {...di(fg.id)} />
-            {isExp && renderFeatures(fg.id, 1)}
+              onAddChild={ct => onAddChild(ct, { feature_group_id: fg.id })} users={users} childTypes={["feature"]}
+              projectId={projectId} parentNode={undefined} {...di(fg.id)} />
+            {isExp && renderFeatures(fg.id, 1, fg)}
           </div>
         );
       })}
@@ -1329,8 +1588,9 @@ function TreeView({ tree, projectId, users, onEdit, onDelete, onAddChild }: {
           <div key={f.id}>
             <NodeRow node={f} type="feature" depth={0} isExpanded={isExp} hasChildren={children.length > 0}
               onToggle={() => toggle(f.id)} onEdit={() => onEdit(f, "feature")} onDelete={() => onDelete(f, "feature")}
-              onAddChild={ct => onAddChild(ct, { feature_id: f.id })} users={users} childTypes={["user_story"]} {...di(f.id)} />
-            {isExp && renderStories(f.id, 1)}
+              onAddChild={ct => onAddChild(ct, { feature_id: f.id })} users={users} childTypes={["user_story"]}
+              projectId={projectId} parentNode={undefined} {...di(f.id)} />
+            {isExp && renderStories(f.id, 1, f)}
           </div>
         );
       })}
