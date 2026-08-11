@@ -492,27 +492,77 @@ function AiPlanningPanel({
 }
 
 // ── AI Proposal Review ─────────────────────────────────────────────────────
+const PROPOSAL_STATUS_OPTIONS: { value: PlanningStatus; label: string }[] = [
+  { value: "high_level", label: "High Level" },
+  { value: "partially_planned", label: "Partially Planned" },
+  { value: "detailed", label: "Detailed" },
+  { value: "reviewed", label: "Reviewed" },
+];
+
 function AiProposalReview({
-  proposal, items, projectId, onClose, onCommitted,
+  proposal, items: initialItems, projectId, onClose, onCommitted,
 }: { proposal: any; items: any[]; projectId: string; onClose: () => void; onCommitted: () => void }) {
   const { toast } = useToast();
-  const [selected, setSelected] = useState<Set<string>>(new Set(items.map(i => i.id)));
+  // Local mutable items so inline edits reflect immediately
+  const [items, setItems] = useState<any[]>(initialItems ?? []);
+  const [selected, setSelected] = useState<Set<string>>(new Set((initialItems ?? []).map((i: any) => i.id)));
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [drafts, setDrafts] = useState<Record<string, any>>({});
+  const [savingId, setSavingId] = useState<string | null>(null);
   const summary = proposal.summary_json as any;
+
+  const toggleExpand = (id: string, data: any) => {
+    if (expandedId === id) { setExpandedId(null); return; }
+    setExpandedId(id);
+    setDrafts(prev => ({
+      ...prev,
+      [id]: {
+        name: data.name ?? data.title ?? "",
+        description: data.description ?? "",
+        estimated_hours: data.estimated_hours?.toString() ?? "",
+        planning_status: data.planning_status ?? "high_level",
+      },
+    }));
+  };
+
+  const saveEdit = async (item: any) => {
+    setSavingId(item.id);
+    try {
+      const draft = drafts[item.id] ?? {};
+      const userStr = localStorage.getItem("user");
+      const userId = userStr ? JSON.parse(userStr)?.id ?? "" : "";
+      const resp = await fetch(
+        `/api/projects/${projectId}/planning/ai-proposals/${proposal.id}/items/${item.id}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json", "x-user-id": userId },
+          body: JSON.stringify(draft),
+        }
+      );
+      if (!resp.ok) throw new Error("failed");
+      const updated = await resp.json();
+      setItems(prev => prev.map(i => (i.id === item.id ? updated : i)));
+      setExpandedId(null);
+      toast({ title: "Item updated" });
+    } catch {
+      toast({ title: "Failed to save changes", variant: "destructive" });
+    } finally {
+      setSavingId(null);
+    }
+  };
 
   const review = useMutation({
     mutationFn: (action: "accept_selected" | "reject") =>
       apiClient.put(`/projects/${projectId}/planning/ai-proposals/${proposal.id}/review`, {
         action, accepted_item_ids: Array.from(selected),
       }),
-    onSuccess: (data: any) => {
+    onSuccess: (data: any, action) => {
       toast({ title: action === "reject" ? "Proposal rejected" : `${data.committed ?? 0} items added to plan` });
       queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "planning/tree"] });
       onCommitted();
     },
     onError: () => toast({ title: "Failed to process proposal", variant: "destructive" }),
   });
-
-  let action: "accept_selected" | "reject" = "accept_selected";
 
   return (
     <div className="space-y-4">
@@ -529,36 +579,147 @@ function AiProposalReview({
         <div className="mt-3 flex gap-3 text-xs text-violet-700 dark:text-violet-300">
           <span><strong>{items.length}</strong> items proposed</span>
           <span><strong>{selected.size}</strong> selected</span>
+          <span className="text-violet-400">Click <Pencil className="h-2.5 w-2.5 inline" /> to edit any item before accepting</span>
         </div>
       </div>
 
-      <div className="space-y-1.5 max-h-80 overflow-y-auto">
+      <div className="space-y-1.5 max-h-[480px] overflow-y-auto pr-0.5">
         {items.map(item => {
           const data = item.item_data as any;
           const Icon = NODE_TYPE_CONFIG[item.item_type as NodeType]?.icon ?? Target;
           const cfg = NODE_TYPE_CONFIG[item.item_type as NodeType];
+          const isExpanded = expandedId === item.id;
+          const draft = drafts[item.id] ?? {};
+
           return (
-            <label key={item.id} className="flex items-start gap-2.5 p-2.5 rounded-lg border border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={selected.has(item.id)}
-                onChange={e => {
-                  const next = new Set(selected);
-                  e.target.checked ? next.add(item.id) : next.delete(item.id);
-                  setSelected(next);
-                }}
-                className="mt-0.5"
-              />
-              <Icon className={`h-3.5 w-3.5 mt-0.5 shrink-0 ${cfg?.color ?? "text-gray-400"}`} />
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-medium text-gray-900 dark:text-gray-100">{data.name ?? data.title}</span>
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-500">{cfg?.singularLabel ?? item.item_type}</span>
+            <div key={item.id}
+              className={`rounded-lg border transition-colors ${isExpanded
+                ? "border-violet-300 dark:border-violet-700 bg-violet-50/50 dark:bg-violet-950/20"
+                : "border-gray-100 dark:border-gray-800"}`}
+            >
+              {/* Item header row */}
+              <div className="flex items-start gap-2.5 p-2.5">
+                <input
+                  type="checkbox"
+                  checked={selected.has(item.id)}
+                  onChange={e => {
+                    const next = new Set(selected);
+                    e.target.checked ? next.add(item.id) : next.delete(item.id);
+                    setSelected(next);
+                  }}
+                  className="mt-0.5 shrink-0"
+                />
+                <Icon className={`h-3.5 w-3.5 mt-0.5 shrink-0 ${cfg?.color ?? "text-gray-400"}`} />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs font-medium text-gray-900 dark:text-gray-100">{data.name ?? data.title}</span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-500">{cfg?.singularLabel ?? item.item_type}</span>
+                    {data.planning_status && data.planning_status !== "high_level" && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400">
+                        {PROPOSAL_STATUS_OPTIONS.find(o => o.value === data.planning_status)?.label}
+                      </span>
+                    )}
+                    {data.estimated_hours && (
+                      <span className="text-[10px] text-gray-400">{data.estimated_hours}h</span>
+                    )}
+                  </div>
+                  {data.description && !isExpanded && (
+                    <p className="text-[11px] text-gray-400 mt-0.5 line-clamp-1">{data.description}</p>
+                  )}
                 </div>
-                {data.description && <p className="text-[11px] text-gray-400 mt-0.5 line-clamp-1">{data.description}</p>}
-                {data.estimated_hours && <span className="text-[10px] text-gray-400">{data.estimated_hours}h estimated</span>}
+                {/* Edit toggle */}
+                <button
+                  onClick={() => toggleExpand(item.id, data)}
+                  className={`shrink-0 p-1 rounded transition-colors ${isExpanded
+                    ? "text-violet-600 bg-violet-100 dark:bg-violet-900/40"
+                    : "text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800"}`}
+                  title={isExpanded ? "Collapse" : "Edit this item"}
+                >
+                  <Pencil className="h-3 w-3" />
+                </button>
               </div>
-            </label>
+
+              {/* Inline edit form */}
+              {isExpanded && (
+                <div className="px-3 pb-3 space-y-2 border-t border-violet-100 dark:border-violet-800 pt-2.5">
+                  {/* Name */}
+                  <div>
+                    <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">
+                      {item.item_type === "user_story" ? "Title" : "Name"}
+                    </label>
+                    <input
+                      className="mt-0.5 w-full text-xs border border-gray-200 dark:border-gray-700 rounded px-2 py-1.5 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-violet-400"
+                      value={draft.name ?? ""}
+                      onChange={e => setDrafts(prev => ({ ...prev, [item.id]: { ...prev[item.id], name: e.target.value } }))}
+                      placeholder="Name"
+                    />
+                  </div>
+
+                  {/* Description */}
+                  <div>
+                    <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Description</label>
+                    <textarea
+                      className="mt-0.5 w-full text-xs border border-gray-200 dark:border-gray-700 rounded px-2 py-1.5 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-violet-400 resize-none"
+                      rows={2}
+                      value={draft.description ?? ""}
+                      onChange={e => setDrafts(prev => ({ ...prev, [item.id]: { ...prev[item.id], description: e.target.value } }))}
+                      placeholder="Optional description"
+                    />
+                  </div>
+
+                  <div className="flex gap-2">
+                    {/* Estimated hours */}
+                    <div className="flex-1">
+                      <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Est. Hours</label>
+                      <input
+                        type="number"
+                        min="0"
+                        className="mt-0.5 w-full text-xs border border-gray-200 dark:border-gray-700 rounded px-2 py-1.5 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-violet-400"
+                        value={draft.estimated_hours ?? ""}
+                        onChange={e => setDrafts(prev => ({ ...prev, [item.id]: { ...prev[item.id], estimated_hours: e.target.value } }))}
+                        placeholder="—"
+                      />
+                    </div>
+
+                    {/* Planning status */}
+                    <div className="flex-1">
+                      <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Planning Status</label>
+                      <select
+                        className="mt-0.5 w-full text-xs border border-gray-200 dark:border-gray-700 rounded px-2 py-1.5 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-violet-400"
+                        value={draft.planning_status ?? "high_level"}
+                        onChange={e => setDrafts(prev => ({ ...prev, [item.id]: { ...prev[item.id], planning_status: e.target.value } }))}
+                      >
+                        {PROPOSAL_STATUS_OPTIONS.map(o => (
+                          <option key={o.value} value={o.value}>{o.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Save / Cancel */}
+                  <div className="flex gap-2 pt-1">
+                    <Button
+                      size="sm"
+                      className="h-7 text-xs bg-violet-600 hover:bg-violet-700 text-white"
+                      onClick={() => saveEdit(item)}
+                      disabled={savingId === item.id}
+                    >
+                      {savingId === item.id ? <RefreshCw className="h-3 w-3 mr-1 animate-spin" /> : <Check className="h-3 w-3 mr-1" />}
+                      Save
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs"
+                      onClick={() => setExpandedId(null)}
+                      disabled={savingId === item.id}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
           );
         })}
       </div>
@@ -568,7 +729,7 @@ function AiProposalReview({
           variant="outline"
           size="sm"
           className="flex-1 text-red-600 border-red-200 hover:bg-red-50"
-          onClick={() => { action = "reject"; review.mutate("reject"); }}
+          onClick={() => review.mutate("reject")}
           disabled={review.isPending}
         >
           <X className="h-3.5 w-3.5 mr-1" />Reject All
@@ -576,7 +737,7 @@ function AiProposalReview({
         <Button
           size="sm"
           className="flex-1 bg-violet-600 hover:bg-violet-700 text-white"
-          onClick={() => { action = "accept_selected"; review.mutate("accept_selected"); }}
+          onClick={() => review.mutate("accept_selected")}
           disabled={review.isPending || selected.size === 0}
         >
           <Check className="h-3.5 w-3.5 mr-1" />Accept {selected.size} Items
@@ -1451,6 +1612,39 @@ export default function PlanningWorkspace({ projectId, users }: { projectId: str
 
   const totalItems = (coverage?.counts ?? {});
   const methodology = t.config?.methodology ?? "manual";
+  const [exporting, setExporting] = useState(false);
+
+  const exportPdf = async () => {
+    setExporting(true);
+    try {
+      const userStr = localStorage.getItem("user");
+      const userId = userStr ? JSON.parse(userStr)?.id ?? "" : "";
+      const resp = await fetch(`/api/projects/${projectId}/planning/export/pdf`, {
+        headers: { "x-user-id": userId },
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        toast({ title: "Export failed", description: (err as any).error ?? "Unknown error", variant: "destructive" });
+        return;
+      }
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const cd = resp.headers.get("content-disposition") ?? "";
+      const fnMatch = cd.match(/filename="([^"]+)"/);
+      a.download = fnMatch ? fnMatch[1] : "project-plan.pdf";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast({ title: "PDF exported" });
+    } catch {
+      toast({ title: "Export failed", description: "Could not generate PDF", variant: "destructive" });
+    } finally {
+      setExporting(false);
+    }
+  };
 
   return (
     <div className="flex flex-col h-full min-h-0">
@@ -1530,6 +1724,11 @@ export default function PlanningWorkspace({ projectId, users }: { projectId: str
           </div>
           <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setAiOpen(true)}>
             <Sparkles className="h-3.5 w-3.5 mr-1 text-violet-500" />AI Plan
+          </Button>
+          <Button size="sm" variant="outline" className="h-8 text-xs" onClick={exportPdf} disabled={exporting} title="Export project plan as PDF">
+            {exporting
+              ? <><RefreshCw className="h-3.5 w-3.5 mr-1 animate-spin" />Exporting…</>
+              : <><FileDown className="h-3.5 w-3.5 mr-1" />Export PDF</>}
           </Button>
           <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setSettingsOpen(true)}>
             <Settings2 className="h-3.5 w-3.5" />

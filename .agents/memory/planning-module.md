@@ -57,8 +57,18 @@ Weighted sum: high_level=0.25, partially_planned=0.6, detailed=0.9, reviewed=1.0
 - **Timeline SVG arrows** — elbow connectors (x1,y1→midX,y1→midX,y2→x2,y2) overlaid on the Gantt grid; amber dashed for conflicts, type-coloured solid for clean deps; ResizeObserver on grid div for responsive pixel math
 - **Server-side guards** — circular dependency BFS check + duplicate check in POST /planning/dependencies; returns 422 on cycle, 409 on duplicate
 
+## PDF export (server-side, pdfkit)
+- `GET /api/projects/:id/planning/export/pdf` in planning-routes.ts — dynamic `import("pdfkit")` inside the route handler
+- Generates Cover, Executive Summary, Coverage Breakdown, Project Structure (nested hierarchy), Effort Summary, Dependencies, Planning Notes sections
+- Server must be restarted for new routes to take effect (tsx has no hot-reload on backend)
+- Client: fetch blob with `localStorage.getItem("user")` for x-user-id header; trigger download via <a> + createObjectURL
+- "Export PDF" button in PlanningWorkspace header with RefreshCw spinner while in-flight
+
+## AI proposal inline editing (Task #3)
+- `PATCH /api/projects/:projectId/planning/ai-proposals/:proposalId/items/:itemId` — merges patch fields into existing item_data JSONB (no updated_at column on planningAiProposalItems)
+- AiProposalReview now: local `items` state initialized from prop (edits reflected immediately); `expandedId` + `drafts` state per item; Pencil toggle opens mini form (name, description, estimated_hours, planning_status select); saves via direct fetch PATCH then setItems to updated row
+
 ## Not yet built (follow-up tasks)
-- PDF export (Step 10 in spec)
 - Methodology implementations beyond Manual (Step 11)
 - Finance integration interfaces
 - `Collapsible` import in PlanningWorkspace is imported but not used (can be removed)

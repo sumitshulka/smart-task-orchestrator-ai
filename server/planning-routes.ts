@@ -568,4 +568,444 @@ Only propose items that do not already exist. Be precise and professional.`;
       res.status(500).json({ error: "Failed to process proposal" });
     }
   });
+
+  // ── Patch individual proposal item (inline editing) ──────────────────────
+  app.patch("/api/projects/:projectId/planning/ai-proposals/:proposalId/items/:itemId", requireAuth, async (req, res) => {
+    try {
+      const { itemId, proposalId, projectId } = req.params;
+      // Verify proposal belongs to project
+      const [proposal] = await db.select().from(planningAiProposals)
+        .where(and(eq(planningAiProposals.id, proposalId), eq(planningAiProposals.project_id, projectId)));
+      if (!proposal) return res.status(404).json({ error: "Proposal not found" });
+
+      const [current] = await db.select().from(planningAiProposalItems).where(eq(planningAiProposalItems.id, itemId));
+      if (!current) return res.status(404).json({ error: "Item not found" });
+
+      // Merge patch fields into existing item_data
+      const existingData = (current.item_data as any) ?? {};
+      const { name, title, description, estimated_hours, planning_status } = req.body;
+      const updated = {
+        ...existingData,
+        ...(name !== undefined && { name }),
+        ...(title !== undefined && { title }),
+        ...(description !== undefined && { description }),
+        ...(estimated_hours !== undefined && { estimated_hours: estimated_hours === "" ? null : Number(estimated_hours) }),
+        ...(planning_status !== undefined && { planning_status }),
+      };
+
+      const [row] = await db.update(planningAiProposalItems)
+        .set({ item_data: updated })
+        .where(eq(planningAiProposalItems.id, itemId))
+        .returning();
+      res.json(row);
+    } catch (err: any) {
+      res.status(500).json({ error: "Failed to update proposal item" });
+    }
+  });
+
+  // ── PDF Export ─────────────────────────────────────────────────────────────
+  app.get("/api/projects/:projectId/planning/export/pdf", requireAuth, async (req: any, res: any) => {
+    try {
+      const { projectId } = req.params;
+      const PDFDocument = (await import("pdfkit")).default;
+
+      // Fetch all data in parallel
+      const [projectRows, phases, stages, milestones, featureGroups, features, stories, deps, configRows] =
+        await Promise.all([
+          db.select().from(projects).where(eq(projects.id, projectId)).limit(1),
+          db.select().from(planningPhases).where(eq(planningPhases.project_id, projectId)).orderBy(asc(planningPhases.sort_order)),
+          db.select().from(planningStages).where(eq(planningStages.project_id, projectId)).orderBy(asc(planningStages.sort_order)),
+          db.select().from(projectMilestones).where(eq(projectMilestones.project_id, projectId)).orderBy(asc(projectMilestones.milestone_order)),
+          db.select().from(projectFeatureGroups).where(eq(projectFeatureGroups.project_id, projectId)),
+          db.select().from(projectFeatures).where(eq(projectFeatures.project_id, projectId)),
+          db.select().from(userStories).where(eq(userStories.project_id, projectId)).orderBy(asc(userStories.sort_order)),
+          db.select().from(planningDependencies).where(eq(planningDependencies.project_id, projectId)),
+          db.select().from(planningMethodologyConfigs).where(eq(planningMethodologyConfigs.project_id, projectId)).limit(1),
+        ]);
+
+      const project = projectRows[0];
+      if (!project) return res.status(404).json({ error: "Project not found" });
+      const config = configRows[0];
+
+      // Coverage calculation
+      const allCoverageItems = [...phases, ...milestones, ...featureGroups, ...features, ...stories];
+      const total = allCoverageItems.length;
+      const weights: Record<string, number> = { high_level: 0.25, partially_planned: 0.60, detailed: 0.90, reviewed: 1.00 };
+      const coveragePct = total === 0 ? 0 : Math.round(
+        allCoverageItems.reduce((sum, i) => sum + (weights[(i as any).planning_status ?? "high_level"] ?? 0), 0) / total * 100
+      );
+      const totalEffort = [...phases, ...stages, ...milestones, ...featureGroups, ...features, ...stories]
+        .reduce((s, i) => s + ((i as any).estimated_hours ?? 0), 0);
+
+      const METHODOLOGY_LABELS: Record<string, string> = {
+        manual: "Manual", complexity_based: "Complexity Based", component_based: "Component Based",
+        function_point: "Function Point Analysis", story_point: "Story Point Based",
+        historical: "Historical Data Based", custom: "Custom",
+      };
+      const STATUS_LABELS: Record<string, string> = {
+        high_level: "High Level", partially_planned: "Partially Planned", detailed: "Detailed", reviewed: "Reviewed",
+      };
+      const DEP_TYPE_LABELS: Record<string, string> = { finish_to_start: "Finish → Start", start_to_start: "Start → Start" };
+
+      const fmtDate = (d: any) => d ? new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—";
+      const fmtHours = (h: any) => h ? `${h}h` : "—";
+
+      // Build item lookup for dependency labels
+      const allItems = new Map<string, string>();
+      phases.forEach(p => allItems.set(p.id, `Phase: ${p.name}`));
+      stages.forEach(s => allItems.set(s.id, `Stage: ${s.name}`));
+      milestones.forEach(m => allItems.set(m.id, `Milestone: ${m.name}`));
+      featureGroups.forEach(fg => allItems.set(fg.id, `FG: ${fg.name}`));
+      features.forEach(f => allItems.set(f.id, `Feature: ${f.name}`));
+      stories.forEach(s => allItems.set(s.id, `Story: ${s.tracking_number} ${s.title}`));
+
+      // ── Build PDF ────────────────────────────────────────────────────────
+      const doc = new PDFDocument({ size: "A4", margin: 50, bufferPages: true });
+      const chunks: Buffer[] = [];
+      doc.on("data", (chunk: Buffer) => chunks.push(chunk));
+
+      const PAGE_W = doc.page.width - 100; // usable width
+
+      // Palette
+      const C = { primary: "#1e3a5f", accent: "#2563eb", muted: "#64748b", light: "#e2e8f0", warn: "#b45309", green: "#15803d" };
+
+      // ── Helper drawing functions ──────────────────────────────────────────
+      const heading1 = (text: string) => {
+        doc.addPage();
+        doc.rect(50, 50, PAGE_W, 32).fill(C.primary);
+        doc.fillColor("white").fontSize(14).font("Helvetica-Bold")
+           .text(text, 60, 60, { width: PAGE_W - 20 });
+        doc.fillColor("black").moveDown(0.5);
+      };
+
+      const heading2 = (text: string, indent = 0) => {
+        doc.moveDown(0.4);
+        doc.fontSize(11).font("Helvetica-Bold").fillColor(C.primary).text(text, 50 + indent);
+        doc.moveDown(0.1);
+        doc.fillColor("black");
+      };
+
+      const row = (label: string, value: string, indent = 0, valueColor = "black") => {
+        const y = doc.y;
+        doc.fontSize(9).font("Helvetica-Bold").fillColor(C.muted).text(label, 50 + indent, y, { width: 120, continued: false });
+        doc.fontSize(9).font("Helvetica").fillColor(valueColor).text(value, 50 + indent + 125, y, { width: PAGE_W - 125 - indent });
+        doc.fillColor("black");
+      };
+
+      const planningTag = (status: string) => {
+        const labels: Record<string, string> = { high_level: "[High Level]", partially_planned: "[Partial]", detailed: "[Detailed]", reviewed: "[Reviewed]" };
+        return labels[status] ?? "[?]";
+      };
+
+      const divider = () => {
+        doc.moveDown(0.3);
+        doc.moveTo(50, doc.y).lineTo(50 + PAGE_W, doc.y).strokeColor(C.light).lineWidth(0.5).stroke();
+        doc.moveDown(0.3).strokeColor("black").lineWidth(1);
+      };
+
+      const safeText = (text: string, opts: any = {}) => {
+        if (doc.y > doc.page.height - 80) doc.addPage();
+        doc.text(text, opts);
+      };
+
+      // ────────────────────────────────────────────────────────────────────
+      // COVER PAGE
+      // ────────────────────────────────────────────────────────────────────
+      doc.rect(0, 0, doc.page.width, 200).fill(C.primary);
+      doc.fillColor("white").fontSize(24).font("Helvetica-Bold")
+         .text("Project Plan", 50, 80, { width: PAGE_W });
+      doc.fontSize(16).font("Helvetica")
+         .text((project as any).name ?? "Untitled Project", 50, 120, { width: PAGE_W });
+      doc.fontSize(9).fillColor("#94a3b8")
+         .text(`Generated ${new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" })}`, 50, 155);
+
+      doc.fillColor("black").moveDown(6);
+
+      // Cover meta box
+      doc.rect(50, 215, PAGE_W, 120).fillAndStroke("#f8fafc", C.light);
+      const mx = 65;
+      doc.fillColor(C.muted).fontSize(8).font("Helvetica-Bold").text("PROJECT STATUS", mx, 228);
+      doc.fillColor("black").fontSize(10).font("Helvetica").text((project as any).status?.replace("_", " ") ?? "—", mx, 242);
+      doc.fillColor(C.muted).fontSize(8).font("Helvetica-Bold").text("PLANNING METHODOLOGY", mx, 262);
+      doc.fillColor("black").fontSize(10).font("Helvetica").text(METHODOLOGY_LABELS[config?.methodology ?? "manual"], mx, 276);
+      doc.fillColor(C.muted).fontSize(8).font("Helvetica-Bold").text("PLANNING COVERAGE", mx + 200, 228);
+      doc.fillColor(coveragePct >= 80 ? C.green : coveragePct >= 50 ? C.warn : C.muted)
+         .fontSize(22).font("Helvetica-Bold").text(`${coveragePct}%`, mx + 200, 240);
+      doc.fillColor(C.muted).fontSize(8).font("Helvetica-Bold").text("TOTAL EFFORT ESTIMATE", mx + 200, 275);
+      doc.fillColor("black").fontSize(10).font("Helvetica").text(fmtHours(totalEffort), mx + 200, 287);
+
+      // ────────────────────────────────────────────────────────────────────
+      // SECTION 1 – EXECUTIVE SUMMARY
+      // ────────────────────────────────────────────────────────────────────
+      heading1("1. Executive Summary");
+
+      doc.fontSize(9).font("Helvetica").fillColor("black")
+         .text(`This document presents the project plan for ${(project as any).name ?? "this project"} as of ${new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" })}. The plan was developed using the ${METHODOLOGY_LABELS[config?.methodology ?? "manual"]} methodology and reflects the current state of planning across all hierarchy levels.`,
+          50, doc.y, { width: PAGE_W });
+      doc.moveDown(0.8);
+
+      // Coverage breakdown table
+      const statusCounts: Record<string, number> = { high_level: 0, partially_planned: 0, detailed: 0, reviewed: 0 };
+      allCoverageItems.forEach(i => { const s = (i as any).planning_status ?? "high_level"; statusCounts[s] = (statusCounts[s] ?? 0) + 1; });
+      const summaryRows = [
+        ["Entity Type", "Count", ""],
+        ["Phases",         String(phases.length),         ""],
+        ["Stages",         String(stages.length),         ""],
+        ["Milestones",     String(milestones.length),     ""],
+        ["Feature Groups", String(featureGroups.length),  ""],
+        ["Features",       String(features.length),       ""],
+        ["User Stories",   String(stories.length),        ""],
+        ["Dependencies",   String(deps.length),           ""],
+      ];
+
+      const colW = [PAGE_W * 0.5, PAGE_W * 0.25, PAGE_W * 0.25];
+      let tableY = doc.y;
+      summaryRows.forEach((r, ri) => {
+        if (tableY > doc.page.height - 80) { doc.addPage(); tableY = 60; }
+        const rowH = 18;
+        if (ri === 0) doc.rect(50, tableY, PAGE_W, rowH).fill(C.primary);
+        else doc.rect(50, tableY, PAGE_W, rowH).fill(ri % 2 === 0 ? "#f8fafc" : "white");
+        const textY = tableY + 5;
+        r.forEach((cell, ci) => {
+          const x = 50 + colW.slice(0, ci).reduce((a, b) => a + b, 0);
+          doc.fillColor(ri === 0 ? "white" : "black")
+             .fontSize(8).font(ri === 0 ? "Helvetica-Bold" : "Helvetica")
+             .text(cell, x + 4, textY, { width: colW[ci] - 8, ellipsis: true });
+        });
+        tableY += rowH;
+      });
+      doc.y = tableY + 8;
+
+      // ────────────────────────────────────────────────────────────────────
+      // SECTION 2 – PLANNING COVERAGE BREAKDOWN
+      // ────────────────────────────────────────────────────────────────────
+      heading1("2. Planning Coverage Breakdown");
+      doc.fontSize(9).font("Helvetica").text(
+        "Planning coverage measures the depth of planning across all items. High Level = 25%, Partially Planned = 60%, Detailed = 90%, Reviewed = 100% weight.",
+        50, doc.y, { width: PAGE_W });
+      doc.moveDown(0.6);
+
+      Object.entries(statusCounts).forEach(([k, count]) => {
+        if (count === 0) return;
+        const pct = total > 0 ? Math.round(count / total * 100) : 0;
+        const barW = Math.round((PAGE_W - 160) * pct / 100);
+        const y = doc.y;
+        doc.fontSize(8).font("Helvetica").fillColor(C.muted).text(STATUS_LABELS[k] ?? k, 50, y, { width: 120 });
+        doc.rect(175, y + 1, barW, 8).fill(k === "reviewed" ? C.green : k === "detailed" ? C.accent : k === "partially_planned" ? C.warn : C.muted);
+        doc.fillColor("black").text(`${count} (${pct}%)`, 180 + barW + 4, y);
+        doc.moveDown(0.5);
+      });
+
+      // ────────────────────────────────────────────────────────────────────
+      // SECTION 3 – PROJECT STRUCTURE
+      // ────────────────────────────────────────────────────────────────────
+      heading1("3. Project Structure");
+
+      const printItem = (label: string, item: any, depth: number) => {
+        if (doc.y > doc.page.height - 70) doc.addPage();
+        const indent = 50 + depth * 16;
+        const status = (item as any).planning_status ?? "high_level";
+        const statusStr = planningTag(status);
+        const effortStr = (item as any).estimated_hours ? ` · ${(item as any).estimated_hours}h` : "";
+        const dateStr = (item as any).start_date || (item as any).end_date
+          ? ` · ${fmtDate((item as any).start_date)} → ${fmtDate((item as any).end_date)}` : "";
+        const name = (item as any).name ?? (item as any).title ?? "—";
+        const lineColor = status === "reviewed" ? C.green : status === "detailed" ? C.accent : status === "partially_planned" ? C.warn : C.muted;
+        doc.rect(indent - 4, doc.y - 1, 3, 12).fill(lineColor);
+        doc.fontSize(depth === 0 ? 10 : 8.5)
+           .font(depth === 0 ? "Helvetica-Bold" : "Helvetica")
+           .fillColor("black")
+           .text(`${label}: ${name}`, indent + 4, doc.y, { width: PAGE_W - (indent - 46), continued: false });
+        doc.fontSize(7.5).fillColor(C.muted)
+           .text(`  ${statusStr}${effortStr}${dateStr}`, indent + 4);
+        if ((item as any).description) {
+          doc.fontSize(7.5).fillColor(C.muted).text((item as any).description.slice(0, 200), indent + 4, doc.y, { width: PAGE_W - (indent - 46) });
+        }
+        doc.fillColor("black").moveDown(0.15);
+      };
+
+      if (phases.length === 0 && stages.length === 0 && milestones.length === 0) {
+        doc.fontSize(9).font("Helvetica").fillColor(C.muted).text("No planning items have been created yet.", 50, doc.y);
+      } else {
+        // Phases → Stages → Milestones → FGs → Features → Stories
+        const ungroupedMilestones = milestones.filter(m => !(m as any).phase_id && !(m as any).stage_id);
+        const ungroupedFGs = featureGroups.filter(fg => !(fg as any).phase_id && !(fg as any).stage_id && !(fg as any).milestone_id);
+
+        for (const phase of phases) {
+          printItem("Phase", phase, 0);
+          for (const stage of stages.filter(s => (s as any).phase_id === phase.id)) {
+            printItem("Stage", stage, 1);
+            for (const ms of milestones.filter(m => (m as any).stage_id === stage.id)) {
+              printItem("Milestone", ms, 2);
+              for (const fg of featureGroups.filter(fg => (fg as any).milestone_id === ms.id)) {
+                printItem("Feature Group", fg, 3);
+                for (const f of features.filter(f => (f as any).feature_group_id === fg.id)) {
+                  printItem("Feature", f, 4);
+                  for (const s of stories.filter(s => (s as any).feature_id === f.id)) printItem("User Story", s, 5);
+                }
+              }
+              for (const fg of featureGroups.filter(fg => (fg as any).stage_id === stage.id && !(fg as any).milestone_id)) {
+                printItem("Feature Group", fg, 2);
+                for (const f of features.filter(f => (f as any).feature_group_id === fg.id)) {
+                  printItem("Feature", f, 3);
+                  for (const s of stories.filter(s => (s as any).feature_id === f.id)) printItem("User Story", s, 4);
+                }
+              }
+            }
+          }
+          for (const ms of milestones.filter(m => (m as any).phase_id === phase.id && !(m as any).stage_id)) {
+            printItem("Milestone", ms, 1);
+            for (const fg of featureGroups.filter(fg => (fg as any).milestone_id === ms.id)) {
+              printItem("Feature Group", fg, 2);
+              for (const f of features.filter(f => (f as any).feature_group_id === fg.id)) {
+                printItem("Feature", f, 3);
+                for (const s of stories.filter(s => (s as any).feature_id === f.id)) printItem("User Story", s, 4);
+              }
+            }
+          }
+        }
+
+        // Stages not in any phase
+        for (const stage of stages.filter(s => !(s as any).phase_id)) {
+          printItem("Stage", stage, 0);
+          for (const ms of milestones.filter(m => (m as any).stage_id === stage.id)) {
+            printItem("Milestone", ms, 1);
+          }
+        }
+
+        // Orphan milestones
+        for (const ms of ungroupedMilestones) {
+          printItem("Milestone", ms, 0);
+          for (const fg of featureGroups.filter(fg => (fg as any).milestone_id === ms.id)) {
+            printItem("Feature Group", fg, 1);
+            for (const f of features.filter(f => (f as any).feature_group_id === fg.id)) {
+              printItem("Feature", f, 2);
+              for (const s of stories.filter(s => (s as any).feature_id === f.id)) printItem("User Story", s, 3);
+            }
+          }
+        }
+
+        // Orphan FGs
+        for (const fg of ungroupedFGs) {
+          printItem("Feature Group", fg, 0);
+          for (const f of features.filter(f => (f as any).feature_group_id === fg.id)) {
+            printItem("Feature", f, 1);
+            for (const s of stories.filter(s => (s as any).feature_id === f.id)) printItem("User Story", s, 2);
+          }
+        }
+
+        // Unattached features (no FG)
+        for (const f of features.filter(f => !(f as any).feature_group_id)) {
+          printItem("Feature", f, 0);
+          for (const s of stories.filter(s => (s as any).feature_id === f.id)) printItem("User Story", s, 1);
+        }
+      }
+
+      // ────────────────────────────────────────────────────────────────────
+      // SECTION 4 – EFFORT SUMMARY
+      // ────────────────────────────────────────────────────────────────────
+      heading1("4. Effort Summary");
+      const effortTable = [
+        ["Entity Type", "Count", "Total Estimated Hours"],
+        ["Phases",         String(phases.length),        String(phases.reduce((s, i) => s + ((i as any).estimated_hours ?? 0), 0))],
+        ["Stages",         String(stages.length),        String(stages.reduce((s, i) => s + ((i as any).estimated_hours ?? 0), 0))],
+        ["Milestones",     String(milestones.length),    String(milestones.reduce((s, i) => s + ((i as any).estimated_hours ?? 0), 0))],
+        ["Feature Groups", String(featureGroups.length), String(featureGroups.reduce((s, i) => s + ((i as any).estimated_hours ?? 0), 0))],
+        ["Features",       String(features.length),      String(features.reduce((s, i) => s + ((i as any).estimated_hours ?? 0), 0))],
+        ["User Stories",   String(stories.length),       String(stories.reduce((s, i) => s + ((i as any).estimated_hours ?? 0), 0))],
+        ["TOTAL",          "—",                          String(totalEffort)],
+      ];
+      let etY = doc.y;
+      const ecW = [PAGE_W * 0.45, PAGE_W * 0.2, PAGE_W * 0.35];
+      effortTable.forEach((r, ri) => {
+        if (etY > doc.page.height - 80) { doc.addPage(); etY = 60; }
+        const rH = 18;
+        const isTotal = ri === effortTable.length - 1;
+        doc.rect(50, etY, PAGE_W, rH).fill(ri === 0 ? C.primary : isTotal ? C.accent : ri % 2 === 0 ? "#f8fafc" : "white");
+        const tY = etY + 5;
+        r.forEach((cell, ci) => {
+          const x = 50 + ecW.slice(0, ci).reduce((a, b) => a + b, 0);
+          doc.fillColor(ri === 0 || isTotal ? "white" : "black")
+             .fontSize(8).font(ri === 0 || isTotal ? "Helvetica-Bold" : "Helvetica")
+             .text(cell, x + 4, tY, { width: ecW[ci] - 8 });
+        });
+        etY += rH;
+      });
+      doc.y = etY + 8;
+
+      // ────────────────────────────────────────────────────────────────────
+      // SECTION 5 – DEPENDENCIES
+      // ────────────────────────────────────────────────────────────────────
+      if (deps.length > 0) {
+        heading1("5. Dependencies");
+        doc.fontSize(9).font("Helvetica").text(
+          `${deps.length} dependency relationship${deps.length === 1 ? "" : "s"} defined across this project plan.`,
+          50, doc.y, { width: PAGE_W });
+        doc.moveDown(0.5);
+
+        const dCols = [PAGE_W * 0.38, PAGE_W * 0.24, PAGE_W * 0.38];
+        const dHeader = ["Dependent Item", "Type", "Predecessor (must complete first)"];
+        let dY = doc.y;
+        const printDRow = (r: string[], ri: number) => {
+          if (dY > doc.page.height - 80) { doc.addPage(); dY = 60; }
+          const rH = 18;
+          doc.rect(50, dY, PAGE_W, rH).fill(ri === 0 ? C.primary : ri % 2 === 0 ? "#f8fafc" : "white");
+          const tY = dY + 5;
+          r.forEach((cell, ci) => {
+            const x = 50 + dCols.slice(0, ci).reduce((a, b) => a + b, 0);
+            doc.fillColor(ri === 0 ? "white" : "black")
+               .fontSize(7.5).font(ri === 0 ? "Helvetica-Bold" : "Helvetica")
+               .text(cell, x + 4, tY, { width: dCols[ci] - 8, ellipsis: true });
+          });
+          dY += rH;
+        };
+
+        printDRow(dHeader, 0);
+        deps.forEach((d, i) => {
+          printDRow([
+            allItems.get(d.source_id) ?? d.source_id.slice(0, 8),
+            DEP_TYPE_LABELS[d.dependency_type ?? "finish_to_start"] ?? d.dependency_type,
+            allItems.get(d.target_id) ?? d.target_id.slice(0, 8),
+          ], i + 1);
+        });
+        doc.y = dY + 8;
+      }
+
+      // ────────────────────────────────────────────────────────────────────
+      // SECTION 6 – PLANNING NOTES
+      // ────────────────────────────────────────────────────────────────────
+      if (config?.notes) {
+        heading1(deps.length > 0 ? "6. Planning Notes" : "5. Planning Notes");
+        doc.fontSize(9).font("Helvetica").fillColor("black")
+           .text(config.notes, 50, doc.y, { width: PAGE_W });
+      }
+
+      // ── Page numbers ─────────────────────────────────────────────────────
+      const totalPages = doc.bufferedPageRange().count;
+      for (let i = 0; i < totalPages; i++) {
+        doc.switchToPage(i);
+        doc.fontSize(7).fillColor(C.muted)
+           .text(`${(project as any).name ?? "Project Plan"}  ·  Page ${i + 1} of ${totalPages}  ·  CONFIDENTIAL`,
+            50, doc.page.height - 35, { width: PAGE_W, align: "center" });
+      }
+
+      doc.end();
+
+      await new Promise<void>((resolve, reject) => {
+        doc.on("end", resolve);
+        doc.on("error", reject);
+      });
+
+      const pdfBuffer = Buffer.concat(chunks);
+      const filename = `project-plan-${((project as any).name ?? "export").replace(/[^a-z0-9]/gi, "-").toLowerCase()}.pdf`;
+
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+      res.setHeader("Content-Length", pdfBuffer.length);
+      res.send(pdfBuffer);
+    } catch (err: any) {
+      console.error("PDF export error:", err);
+      res.status(500).json({ error: "Failed to generate PDF: " + err.message });
+    }
+  });
 }
