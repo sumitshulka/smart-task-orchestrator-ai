@@ -305,13 +305,44 @@ export function registerPlanningRoutes(app: Express) {
   app.post("/api/projects/:projectId/planning/dependencies", requireAuth, async (req, res) => {
     try {
       const { projectId } = req.params;
+      const { source_id, source_type, target_id, target_type, dependency_type } = req.body;
+
+      if (!source_id || !target_id) return res.status(400).json({ error: "source_id and target_id are required" });
+      if (source_id === target_id) return res.status(400).json({ error: "An item cannot depend on itself" });
+
+      // Duplicate check
+      const existing = await db.select().from(planningDependencies)
+        .where(and(
+          eq(planningDependencies.project_id, projectId),
+          eq(planningDependencies.source_id, source_id),
+          eq(planningDependencies.target_id, target_id),
+        ));
+      if (existing.length > 0) return res.status(409).json({ error: "This dependency already exists" });
+
+      // Circular dependency check — BFS from target; if we can reach source, adding this dep would create a cycle
+      const allDeps = await db.select().from(planningDependencies).where(eq(planningDependencies.project_id, projectId));
+      const reachable = new Set<string>();
+      const queue = [target_id];
+      while (queue.length > 0) {
+        const current = queue.shift()!;
+        for (const d of allDeps) {
+          if (d.source_id === current && !reachable.has(d.target_id)) {
+            reachable.add(d.target_id);
+            queue.push(d.target_id);
+          }
+        }
+      }
+      if (reachable.has(source_id)) {
+        return res.status(422).json({ error: "This dependency would create a circular chain. Remove an existing dependency in the cycle first." });
+      }
+
       const row = await db.insert(planningDependencies).values({
         project_id: projectId,
-        source_type: req.body.source_type,
-        source_id: req.body.source_id,
-        target_type: req.body.target_type,
-        target_id: req.body.target_id,
-        dependency_type: req.body.dependency_type ?? "finish_to_start",
+        source_type,
+        source_id,
+        target_type,
+        target_id,
+        dependency_type: dependency_type ?? "finish_to_start",
       }).returning();
       res.json(row[0]);
     } catch (err: any) { res.status(500).json({ error: "Failed to create dependency" }); }

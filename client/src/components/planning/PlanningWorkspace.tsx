@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { apiClient } from "@/integrations/supabase/client";
@@ -17,6 +17,7 @@ import {
   Pencil, Trash2, MoreHorizontal, Calendar, Clock, User, Flag,
   Layers, FolderOpen, BookOpen, CheckSquare, GitBranch, Target,
   BarChart2, AlertTriangle, X, Check, RefreshCw, Network,
+  Link2, ArrowRight,
 } from "lucide-react";
 import { format, differenceInDays } from "date-fns";
 import type { User as UserType } from "@shared/schema";
@@ -114,6 +115,111 @@ function EffortBadge({ hours }: { hours?: number | null }) {
   );
 }
 
+// ── Dependency Section (inside NodeSheet when editing) ─────────────────────
+const DEP_TYPE_LABELS: Record<string, string> = {
+  finish_to_start: "Finish → Start",
+  start_to_start:  "Start → Start",
+};
+
+function DependencySection({
+  nodeId, nodeType, tree, projectId,
+}: { nodeId: string; nodeType: NodeType; tree: PlanningTree; projectId: string }) {
+  const { toast } = useToast();
+  const [targetId, setTargetId] = useState("");
+  const [depType, setDepType] = useState("finish_to_start");
+
+  // Flat list of all items, excluding this node
+  const allItems = useMemo<{ id: string; label: string; type: NodeType }[]>(() => [
+    ...tree.phases.map((p: any) => ({ id: p.id, label: `Phase: ${p.name}`, type: "phase" as NodeType })),
+    ...tree.stages.map((s: any) => ({ id: s.id, label: `Stage: ${s.name}`, type: "stage" as NodeType })),
+    ...tree.milestones.map((m: any) => ({ id: m.id, label: `Milestone: ${m.name}`, type: "milestone" as NodeType })),
+    ...tree.featureGroups.map((fg: any) => ({ id: fg.id, label: `FG: ${fg.name}`, type: "feature_group" as NodeType })),
+    ...tree.features.map((f: any) => ({ id: f.id, label: `Feature: ${f.name}`, type: "feature" as NodeType })),
+    ...tree.stories.map((s: any) => ({ id: s.id, label: `Story: ${s.title}`, type: "user_story" as NodeType })),
+  ].filter(i => i.id !== nodeId), [tree, nodeId]);
+
+  // Outgoing deps = this node is the source (this node depends on the target)
+  const outgoing = (tree.dependencies ?? []).filter((d: any) => d.source_id === nodeId);
+
+  const add = useMutation({
+    mutationFn: () => {
+      const target = allItems.find(i => i.id === targetId);
+      if (!target) throw new Error("Select an item first");
+      return apiClient.post(`/projects/${projectId}/planning/dependencies`, {
+        source_type: nodeType, source_id: nodeId,
+        target_type: target.type, target_id: targetId,
+        dependency_type: depType,
+      });
+    },
+    onSuccess: () => {
+      toast({ title: "Dependency added" });
+      setTargetId("");
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "planning/tree"] });
+    },
+    onError: (e: any) => toast({ title: e.message ?? "Failed to add dependency", variant: "destructive" }),
+  });
+
+  const remove = useMutation({
+    mutationFn: (depId: string) => apiClient.delete(`/projects/${projectId}/planning/dependencies/${depId}`),
+    onSuccess: () => {
+      toast({ title: "Dependency removed" });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "planning/tree"] });
+    },
+    onError: () => toast({ title: "Failed to remove dependency", variant: "destructive" }),
+  });
+
+  const labelFor = (id: string) => allItems.find(i => i.id === id)?.label ?? id.slice(0, 8);
+
+  return (
+    <div className="space-y-2">
+      <Label className="flex items-center gap-1">
+        <Link2 className="h-3 w-3" />Dependencies — this item starts after…
+      </Label>
+
+      {outgoing.map((d: any) => (
+        <div key={d.id} className="flex items-center gap-2 text-xs bg-gray-50 dark:bg-gray-800 rounded px-2 py-1.5">
+          <ArrowRight className="h-3 w-3 text-gray-400 shrink-0" />
+          <span className="flex-1 truncate text-gray-700 dark:text-gray-300">{labelFor(d.target_id)}</span>
+          <span className="text-[10px] text-gray-400 shrink-0 whitespace-nowrap">
+            {DEP_TYPE_LABELS[d.dependency_type] ?? d.dependency_type}
+          </span>
+          <button onClick={() => remove.mutate(d.id)} className="text-gray-300 hover:text-red-500 transition-colors shrink-0">
+            <X className="h-3 w-3" />
+          </button>
+        </div>
+      ))}
+
+      <div className="flex gap-2">
+        <div className="flex-1 min-w-0">
+          <Select value={targetId || "none"} onValueChange={v => setTargetId(v === "none" ? "" : v)}>
+            <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select predecessor…" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">— Select predecessor —</SelectItem>
+              {allItems.map(i => <SelectItem key={i.id} value={i.id}>{i.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="w-36 shrink-0">
+          <Select value={depType} onValueChange={setDepType}>
+            <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="finish_to_start">Finish → Start</SelectItem>
+              <SelectItem value="start_to_start">Start → Start</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <Button size="sm" className="h-8 px-2 shrink-0" onClick={() => add.mutate()} disabled={!targetId || add.isPending}>
+          <Plus className="h-3.5 w-3.5" />
+        </Button>
+      </div>
+
+      {outgoing.length === 0 && (
+        <p className="text-[11px] text-gray-400">No dependencies yet. Add a predecessor to enforce sequencing.</p>
+      )}
+    </div>
+  );
+}
+
 // ── Coverage Bar ───────────────────────────────────────────────────────────
 function CoverageBar({ coverage }: { coverage: CoverageData | undefined }) {
   if (!coverage) return null;
@@ -134,13 +240,15 @@ function CoverageBar({ coverage }: { coverage: CoverageData | undefined }) {
 function NodeRow({
   node, type, depth, isExpanded, hasChildren,
   onToggle, onEdit, onDelete, onAddChild, users,
-  childTypes,
+  childTypes, depCount, conflictWarning,
 }: {
   node: any; type: NodeType; depth: number; isExpanded: boolean; hasChildren: boolean;
   onToggle: () => void; onEdit: () => void; onDelete: () => void;
   onAddChild: (childType: NodeType) => void;
   users: UserType[];
   childTypes: NodeType[];
+  depCount?: number;
+  conflictWarning?: string | null;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const cfg = NODE_TYPE_CONFIG[type];
@@ -149,7 +257,7 @@ function NodeRow({
 
   return (
     <div
-      className="group flex items-center gap-2 py-1.5 px-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors min-w-0"
+      className={`group flex items-center gap-2 py-1.5 px-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors min-w-0 ${conflictWarning ? "ring-1 ring-amber-300 dark:ring-amber-700 bg-amber-50/40 dark:bg-amber-950/10" : ""}`}
       style={{ paddingLeft: `${(depth * 20) + 8}px` }}
     >
       {/* Expand toggle */}
@@ -173,9 +281,26 @@ function NodeRow({
         {node.name ?? node.title}
       </span>
 
+      {/* Conflict warning */}
+      {conflictWarning && (
+        <span
+          title={conflictWarning}
+          className="shrink-0 inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 cursor-help"
+        >
+          <AlertTriangle className="h-2.5 w-2.5" />Conflict
+        </span>
+      )}
+
+      {/* Dep badge */}
+      {(depCount ?? 0) > 0 && !conflictWarning && (
+        <span className="shrink-0 inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400">
+          <Link2 className="h-2.5 w-2.5" />{depCount}
+        </span>
+      )}
+
       {/* Metadata (hidden unless group hovered) */}
       <div className="hidden group-hover:flex items-center gap-3 shrink-0">
-        <DateRange start={node.start_date} end={node.end_date ?? node.end_date} />
+        <DateRange start={node.start_date} end={node.end_date} />
         <EffortBadge hours={node.estimated_hours} />
         {owner && (
           <span className="text-[10px] text-gray-400 flex items-center gap-0.5">
@@ -750,6 +875,18 @@ function NodeSheet({
               </SelectContent>
             </Select>
           </div>
+
+          {/* Dependencies — only shown when editing an existing node */}
+          {isEdit && node?.id && (
+            <div className="border-t border-gray-100 dark:border-gray-800 pt-4">
+              <DependencySection
+                nodeId={node.id}
+                nodeType={type}
+                tree={tree}
+                projectId={projectId}
+              />
+            </div>
+          )}
         </div>
 
         <SheetFooter>
@@ -822,17 +959,57 @@ function TreeView({ tree, projectId, users, onEdit, onDelete, onAddChild }: {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const toggle = (id: string) => setExpanded(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
-  // Compute children at each level
+  const deps = tree.dependencies ?? [];
+
+  // Flat lookup id → item (for date-based conflict checking)
+  const itemById = useMemo(() => {
+    const map = new Map<string, any>();
+    [...tree.phases, ...tree.stages, ...tree.milestones,
+      ...tree.featureGroups, ...tree.features, ...tree.stories
+    ].forEach(item => map.set(item.id, item));
+    return map;
+  }, [tree]);
+
+  // Per-node dep info: count of outgoing deps + first conflict message
+  const depInfo = useMemo(() => {
+    const info = new Map<string, { depCount: number; conflictWarning: string | null }>();
+    for (const d of deps) {
+      const cur = info.get(d.source_id) ?? { depCount: 0, conflictWarning: null };
+      cur.depCount += 1;
+      if (!cur.conflictWarning) {
+        const src  = itemById.get(d.source_id);
+        const tgt  = itemById.get(d.target_id);
+        if (src && tgt) {
+          const ss = src.start_date  ? new Date(src.start_date)  : null;
+          const te = tgt.end_date    ? new Date(tgt.end_date)    : null;
+          const ts = tgt.start_date  ? new Date(tgt.start_date)  : null;
+          const tgtName = tgt.name ?? tgt.title ?? "predecessor";
+          if (d.dependency_type === "finish_to_start" && ss && te && ss < te)
+            cur.conflictWarning = `Starts before "${tgtName}" finishes (Finish→Start conflict)`;
+          else if (d.dependency_type === "start_to_start" && ss && ts && ss < ts)
+            cur.conflictWarning = `Starts before "${tgtName}" starts (Start→Start conflict)`;
+        }
+      }
+      info.set(d.source_id, cur);
+    }
+    return info;
+  }, [deps, itemById]);
+
+  const di = (id: string) => depInfo.get(id) ?? { depCount: 0, conflictWarning: null };
+
+  // Hierarchy helpers
   const stagesForPhase = (phaseId: string) => tree.stages.filter((s: any) => s.phase_id === phaseId);
   const milestonesForParent = (parentId: string | null, parentType: "phase" | "stage") =>
     tree.milestones.filter((m: any) => parentType === "stage" ? m.stage_id === parentId : (m.phase_id === parentId && !m.stage_id));
   const fgsForParent = (parentId: string | null, parentType: string) =>
-    tree.featureGroups.filter((fg: any) => parentType === "milestone" ? fg.milestone_id === parentId : parentType === "stage" ? (fg.stage_id === parentId && !fg.milestone_id) : (fg.phase_id === parentId && !fg.stage_id && !fg.milestone_id));
-  const featuresForFG = (fgId: string) => tree.features.filter((f: any) => f.feature_group_id === fgId);
+    tree.featureGroups.filter((fg: any) =>
+      parentType === "milestone" ? fg.milestone_id === parentId
+      : parentType === "stage"   ? (fg.stage_id === parentId && !fg.milestone_id)
+      : (fg.phase_id === parentId && !fg.stage_id && !fg.milestone_id));
+  const featuresForFG  = (fgId: string) => tree.features.filter((f: any) => f.feature_group_id === fgId);
   const featuresUnassigned = () => tree.features.filter((f: any) => !f.feature_group_id);
   const storiesForFeature = (featureId: string) => tree.stories.filter((s: any) => s.feature_id === featureId);
 
-  // Unattached items (no parent linkages)
   const orphanMilestones = tree.milestones.filter((m: any) => !m.phase_id && !m.stage_id);
   const orphanFGs = tree.featureGroups.filter((fg: any) => !fg.phase_id && !fg.stage_id && !fg.milestone_id);
 
@@ -840,7 +1017,7 @@ function TreeView({ tree, projectId, users, onEdit, onDelete, onAddChild }: {
     storiesForFeature(featureId).map((s: any) => (
       <NodeRow key={s.id} node={s} type="user_story" depth={depth} isExpanded={false} hasChildren={false}
         onToggle={() => {}} onEdit={() => onEdit(s, "user_story")} onDelete={() => onDelete(s, "user_story")}
-        onAddChild={() => {}} users={users} childTypes={[]} />
+        onAddChild={() => {}} users={users} childTypes={[]} {...di(s.id)} />
     ));
 
   const renderFeatures = (fgId: string, depth: number) =>
@@ -851,7 +1028,7 @@ function TreeView({ tree, projectId, users, onEdit, onDelete, onAddChild }: {
         <div key={f.id}>
           <NodeRow node={f} type="feature" depth={depth} isExpanded={isExp} hasChildren={children.length > 0}
             onToggle={() => toggle(f.id)} onEdit={() => onEdit(f, "feature")} onDelete={() => onDelete(f, "feature")}
-            onAddChild={ct => onAddChild(ct, { feature_id: f.id })} users={users} childTypes={["user_story"]} />
+            onAddChild={ct => onAddChild(ct, { feature_id: f.id })} users={users} childTypes={["user_story"]} {...di(f.id)} />
           {isExp && renderStories(f.id, depth + 1)}
         </div>
       );
@@ -865,7 +1042,7 @@ function TreeView({ tree, projectId, users, onEdit, onDelete, onAddChild }: {
         <div key={fg.id}>
           <NodeRow node={fg} type="feature_group" depth={depth} isExpanded={isExp} hasChildren={children.length > 0}
             onToggle={() => toggle(fg.id)} onEdit={() => onEdit(fg, "feature_group")} onDelete={() => onDelete(fg, "feature_group")}
-            onAddChild={ct => onAddChild(ct, { feature_group_id: fg.id })} users={users} childTypes={["feature"]} />
+            onAddChild={ct => onAddChild(ct, { feature_group_id: fg.id })} users={users} childTypes={["feature"]} {...di(fg.id)} />
           {isExp && renderFeatures(fg.id, depth + 1)}
         </div>
       );
@@ -879,7 +1056,7 @@ function TreeView({ tree, projectId, users, onEdit, onDelete, onAddChild }: {
         <div key={m.id}>
           <NodeRow node={m} type="milestone" depth={depth} isExpanded={isExp} hasChildren={fgChildren.length > 0}
             onToggle={() => toggle(m.id)} onEdit={() => onEdit(m, "milestone")} onDelete={() => onDelete(m, "milestone")}
-            onAddChild={ct => onAddChild(ct, { milestone_id: m.id })} users={users} childTypes={["feature_group", "feature"]} />
+            onAddChild={ct => onAddChild(ct, { milestone_id: m.id })} users={users} childTypes={["feature_group", "feature"]} {...di(m.id)} />
           {isExp && renderFGs(m.id, "milestone", depth + 1)}
         </div>
       );
@@ -896,7 +1073,7 @@ function TreeView({ tree, projectId, users, onEdit, onDelete, onAddChild }: {
           <NodeRow node={s} type="stage" depth={depth} isExpanded={isExp} hasChildren={hasChildren}
             onToggle={() => toggle(s.id)} onEdit={() => onEdit(s, "stage")} onDelete={() => onDelete(s, "stage")}
             onAddChild={ct => onAddChild(ct, { stage_id: s.id })} users={users}
-            childTypes={["milestone", "feature_group", "feature"]} />
+            childTypes={["milestone", "feature_group", "feature"]} {...di(s.id)} />
           {isExp && (
             <>
               {renderMilestones(s.id, "stage", depth + 1)}
@@ -921,7 +1098,7 @@ function TreeView({ tree, projectId, users, onEdit, onDelete, onAddChild }: {
             <NodeRow node={p} type="phase" depth={0} isExpanded={isExp} hasChildren={hasChildren}
               onToggle={() => toggle(p.id)} onEdit={() => onEdit(p, "phase")} onDelete={() => onDelete(p, "phase")}
               onAddChild={ct => onAddChild(ct, { phase_id: p.id })} users={users}
-              childTypes={["stage", "milestone", "feature_group", "feature"]} />
+              childTypes={["stage", "milestone", "feature_group", "feature"]} {...di(p.id)} />
             {isExp && (
               <>
                 {renderStages(p.id, 1)}
@@ -933,7 +1110,7 @@ function TreeView({ tree, projectId, users, onEdit, onDelete, onAddChild }: {
         );
       })}
 
-      {/* Orphan Stages (no phase) */}
+      {/* Orphan Stages */}
       {tree.stages.filter((s: any) => !s.phase_id).map((s: any) => {
         const msChildren = milestonesForParent(s.id, "stage");
         const fgChildren = fgsForParent(s.id, "stage");
@@ -944,7 +1121,7 @@ function TreeView({ tree, projectId, users, onEdit, onDelete, onAddChild }: {
             <NodeRow node={s} type="stage" depth={0} isExpanded={isExp} hasChildren={hasChildren}
               onToggle={() => toggle(s.id)} onEdit={() => onEdit(s, "stage")} onDelete={() => onDelete(s, "stage")}
               onAddChild={ct => onAddChild(ct, { stage_id: s.id })} users={users}
-              childTypes={["milestone", "feature_group", "feature"]} />
+              childTypes={["milestone", "feature_group", "feature"]} {...di(s.id)} />
             {isExp && (
               <>
                 {renderMilestones(s.id, "stage", 1)}
@@ -955,7 +1132,7 @@ function TreeView({ tree, projectId, users, onEdit, onDelete, onAddChild }: {
         );
       })}
 
-      {/* Orphan Milestones (no phase, no stage) */}
+      {/* Orphan Milestones */}
       {orphanMilestones.map((m: any) => {
         const fgChildren = fgsForParent(m.id, "milestone");
         const isExp = expanded.has(m.id);
@@ -963,13 +1140,13 @@ function TreeView({ tree, projectId, users, onEdit, onDelete, onAddChild }: {
           <div key={m.id}>
             <NodeRow node={m} type="milestone" depth={0} isExpanded={isExp} hasChildren={fgChildren.length > 0}
               onToggle={() => toggle(m.id)} onEdit={() => onEdit(m, "milestone")} onDelete={() => onDelete(m, "milestone")}
-              onAddChild={ct => onAddChild(ct, { milestone_id: m.id })} users={users} childTypes={["feature_group", "feature"]} />
+              onAddChild={ct => onAddChild(ct, { milestone_id: m.id })} users={users} childTypes={["feature_group", "feature"]} {...di(m.id)} />
             {isExp && renderFGs(m.id, "milestone", 1)}
           </div>
         );
       })}
 
-      {/* Orphan FGs (no phase, stage, or milestone) */}
+      {/* Orphan FGs */}
       {orphanFGs.map((fg: any) => {
         const children = featuresForFG(fg.id);
         const isExp = expanded.has(fg.id);
@@ -977,13 +1154,13 @@ function TreeView({ tree, projectId, users, onEdit, onDelete, onAddChild }: {
           <div key={fg.id}>
             <NodeRow node={fg} type="feature_group" depth={0} isExpanded={isExp} hasChildren={children.length > 0}
               onToggle={() => toggle(fg.id)} onEdit={() => onEdit(fg, "feature_group")} onDelete={() => onDelete(fg, "feature_group")}
-              onAddChild={ct => onAddChild(ct, { feature_group_id: fg.id })} users={users} childTypes={["feature"]} />
+              onAddChild={ct => onAddChild(ct, { feature_group_id: fg.id })} users={users} childTypes={["feature"]} {...di(fg.id)} />
             {isExp && renderFeatures(fg.id, 1)}
           </div>
         );
       })}
 
-      {/* Unattached Features (no FG) */}
+      {/* Unattached Features */}
       {featuresUnassigned().map((f: any) => {
         const children = storiesForFeature(f.id);
         const isExp = expanded.has(f.id);
@@ -991,7 +1168,7 @@ function TreeView({ tree, projectId, users, onEdit, onDelete, onAddChild }: {
           <div key={f.id}>
             <NodeRow node={f} type="feature" depth={0} isExpanded={isExp} hasChildren={children.length > 0}
               onToggle={() => toggle(f.id)} onEdit={() => onEdit(f, "feature")} onDelete={() => onDelete(f, "feature")}
-              onAddChild={ct => onAddChild(ct, { feature_id: f.id })} users={users} childTypes={["user_story"]} />
+              onAddChild={ct => onAddChild(ct, { feature_id: f.id })} users={users} childTypes={["user_story"]} {...di(f.id)} />
             {isExp && renderStories(f.id, 1)}
           </div>
         );
@@ -1011,7 +1188,22 @@ function TreeView({ tree, projectId, users, onEdit, onDelete, onAddChild }: {
 }
 
 // ── Timeline / Gantt View ──────────────────────────────────────────────────
+const ROW_H = 28;        // h-6 (24px bar) + space-y-1 (4px gap)
+const BAR_CY = 12;       // top-1 (4px) + h-4/2 (8px) centre of bar
+
 function TimelineView({ tree }: { tree: PlanningTree }) {
+  const gridRef = useRef<HTMLDivElement>(null);
+  const [gridWidth, setGridWidth] = useState(0);
+
+  useEffect(() => {
+    const el = gridRef.current;
+    if (!el) return;
+    setGridWidth(el.clientWidth);
+    const obs = new ResizeObserver(entries => setGridWidth(entries[0].contentRect.width));
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+
   const allItems = useMemo(() => {
     const items: { id: string; name: string; type: NodeType; start_date?: string | null; end_date?: string | null; planning_status?: string }[] = [
       ...tree.phases.map((p: any) => ({ ...p, type: "phase" as NodeType })),
@@ -1024,6 +1216,12 @@ function TimelineView({ tree }: { tree: PlanningTree }) {
     return items;
   }, [tree]);
 
+  const itemIndexMap = useMemo(() => {
+    const m = new Map<string, number>();
+    allItems.forEach((item, i) => m.set(item.id, i));
+    return m;
+  }, [allItems]);
+
   if (allItems.length === 0) {
     return (
       <div className="text-center py-16 text-gray-400">
@@ -1034,25 +1232,69 @@ function TimelineView({ tree }: { tree: PlanningTree }) {
     );
   }
 
-  // Find timeline bounds
+  // Timeline bounds
   const allDates = allItems.flatMap(i => [i.start_date, i.end_date].filter(Boolean) as string[]);
-  const minDate = new Date(Math.min(...allDates.map(d => new Date(d).getTime())));
-  const maxDate = new Date(Math.max(...allDates.map(d => new Date(d).getTime())));
+  const minDate  = new Date(Math.min(...allDates.map(d => new Date(d).getTime())));
+  const maxDate  = new Date(Math.max(...allDates.map(d => new Date(d).getTime())));
   const totalDays = Math.max(1, differenceInDays(maxDate, minDate));
+
+  const pct = (d: Date) => (differenceInDays(d, minDate) / totalDays) * 100;
 
   const getBarStyle = (item: typeof allItems[number]) => {
     if (!item.start_date && !item.end_date) return null;
     const start = item.start_date ? new Date(item.start_date) : minDate;
-    const end = item.end_date ? new Date(item.end_date) : start;
-    const left = (differenceInDays(start, minDate) / totalDays) * 100;
-    const width = Math.max(1, (differenceInDays(end, start) / totalDays) * 100);
-    return { left: `${left}%`, width: `${width}%` };
+    const end   = item.end_date   ? new Date(item.end_date)   : start;
+    return { left: `${pct(start)}%`, width: `${Math.max(0.5, pct(end) - pct(start))}%` };
   };
 
   const COLORS: Record<NodeType, string> = {
     phase: "bg-violet-400", stage: "bg-blue-400", milestone: "bg-orange-400",
     feature_group: "bg-teal-400", feature: "bg-indigo-400", user_story: "bg-pink-400",
   };
+  const SVG_COLORS: Record<NodeType, string> = {
+    phase: "#a78bfa", stage: "#60a5fa", milestone: "#fb923c",
+    feature_group: "#2dd4bf", feature: "#818cf8", user_story: "#f472b6",
+  };
+
+  // Compute SVG arrows for each dependency whose both ends are in allItems
+  const deps = tree.dependencies ?? [];
+  type Arrow = { x1: number; y1: number; x2: number; y2: number; conflict: boolean; srcType: NodeType };
+  const arrows: Arrow[] = [];
+  if (gridWidth > 0) {
+    for (const d of deps) {
+      const srcIdx = itemIndexMap.get(d.source_id);
+      const tgtIdx = itemIndexMap.get(d.target_id);
+      if (srcIdx === undefined || tgtIdx === undefined) continue;
+      const src = allItems[srcIdx];
+      const tgt = allItems[tgtIdx];
+
+      const srcStart = src.start_date ? new Date(src.start_date) : null;
+      const tgtEnd   = tgt.end_date   ? new Date(tgt.end_date)   : null;
+      const tgtStart = tgt.start_date ? new Date(tgt.start_date) : null;
+
+      // x positions as pixel values within the grid
+      let x1: number, x2: number;
+      if (d.dependency_type === "finish_to_start") {
+        if (!tgtEnd || !srcStart) continue;
+        x1 = (pct(tgtEnd)   / 100) * gridWidth;
+        x2 = (pct(srcStart) / 100) * gridWidth;
+      } else {
+        if (!tgtStart || !srcStart) continue;
+        x1 = (pct(tgtStart) / 100) * gridWidth;
+        x2 = (pct(srcStart) / 100) * gridWidth;
+      }
+      const y1 = tgtIdx * ROW_H + BAR_CY;
+      const y2 = srcIdx * ROW_H + BAR_CY;
+
+      const conflict = d.dependency_type === "finish_to_start"
+        ? !!(srcStart && tgtEnd && srcStart < tgtEnd)
+        : !!(srcStart && tgtStart && srcStart < tgtStart);
+
+      arrows.push({ x1, y1, x2, y2, conflict, srcType: src.type });
+    }
+  }
+
+  const svgH = allItems.length * ROW_H;
 
   return (
     <div className="overflow-x-auto">
@@ -1061,34 +1303,104 @@ function TimelineView({ tree }: { tree: PlanningTree }) {
         <div className="flex items-center text-[10px] text-gray-400 mb-2 gap-2">
           <div className="w-52 shrink-0">Item</div>
           <div className="flex-1 relative h-4">
-            <span className="absolute left-0">{format(minDate, "dd MMM")}</span>
-            <span className="absolute right-0">{format(maxDate, "dd MMM")}</span>
+            <span className="absolute left-0">{format(minDate, "dd MMM yyyy")}</span>
+            <span className="absolute right-0">{format(maxDate, "dd MMM yyyy")}</span>
           </div>
         </div>
-        <div className="space-y-1">
-          {allItems.map(item => {
-            const barStyle = getBarStyle(item);
-            const cfg = NODE_TYPE_CONFIG[item.type];
-            const Icon = cfg.icon;
-            return (
-              <div key={item.id} className="flex items-center gap-2 group">
-                <div className="w-52 shrink-0 flex items-center gap-1.5 min-w-0">
+
+        <div className="flex gap-2">
+          {/* Label column */}
+          <div className="w-52 shrink-0 space-y-1">
+            {allItems.map(item => {
+              const cfg = NODE_TYPE_CONFIG[item.type];
+              const Icon = cfg.icon;
+              return (
+                <div key={item.id} className="h-6 flex items-center gap-1.5 min-w-0">
                   <Icon className={`h-3 w-3 shrink-0 ${cfg.color}`} />
                   <span className="text-xs text-gray-700 dark:text-gray-300 truncate">{item.name}</span>
                 </div>
-                <div className="flex-1 relative h-6 bg-gray-50 dark:bg-gray-800/50 rounded">
-                  {barStyle && (
-                    <div
-                      className={`absolute top-1 h-4 rounded ${COLORS[item.type]} opacity-80 group-hover:opacity-100 transition-opacity`}
-                      style={barStyle}
-                      title={`${item.name}: ${item.start_date ? format(new Date(item.start_date), "dd MMM") : "?"} → ${item.end_date ? format(new Date(item.end_date), "dd MMM") : "?"}`}
+              );
+            })}
+          </div>
+
+          {/* Bar grid with SVG overlay */}
+          <div className="flex-1 relative" ref={gridRef} style={{ height: `${svgH}px` }}>
+            {/* Row backgrounds */}
+            <div className="absolute inset-0 space-y-1">
+              {allItems.map(item => (
+                <div key={item.id} className="h-6 bg-gray-50 dark:bg-gray-800/50 rounded" />
+              ))}
+            </div>
+
+            {/* Bars */}
+            <div className="absolute inset-0 space-y-1">
+              {allItems.map(item => {
+                const barStyle = getBarStyle(item);
+                return (
+                  <div key={item.id} className="h-6 relative">
+                    {barStyle && (
+                      <div
+                        className={`absolute top-1 h-4 rounded ${COLORS[item.type]} opacity-80`}
+                        style={barStyle}
+                        title={`${item.name}: ${item.start_date ? format(new Date(item.start_date), "dd MMM") : "?"} → ${item.end_date ? format(new Date(item.end_date), "dd MMM") : "?"}`}
+                      />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* SVG dependency arrows */}
+            {gridWidth > 0 && arrows.length > 0 && (
+              <svg
+                className="absolute inset-0 pointer-events-none overflow-visible"
+                width={gridWidth}
+                height={svgH}
+              >
+                <defs>
+                  <marker id="arr-ok"  viewBox="0 0 8 8" refX="4" refY="4" markerWidth="5" markerHeight="5" orient="auto">
+                    <path d="M0,1 L6,4 L0,7 Z" fill="#6366f1" />
+                  </marker>
+                  <marker id="arr-bad" viewBox="0 0 8 8" refX="4" refY="4" markerWidth="5" markerHeight="5" orient="auto">
+                    <path d="M0,1 L6,4 L0,7 Z" fill="#f59e0b" />
+                  </marker>
+                </defs>
+                {arrows.map((a, i) => {
+                  const stroke = a.conflict ? "#f59e0b" : SVG_COLORS[a.srcType] ?? "#6366f1";
+                  const marker = a.conflict ? "url(#arr-bad)" : "url(#arr-ok)";
+                  // Elbow connector: x1,y1 → midX,y1 → midX,y2 → x2,y2
+                  const midX = (a.x1 + a.x2) / 2;
+                  const pathD = `M ${a.x1} ${a.y1} L ${midX} ${a.y1} L ${midX} ${a.y2} L ${a.x2} ${a.y2}`;
+                  return (
+                    <path
+                      key={i}
+                      d={pathD}
+                      fill="none"
+                      stroke={stroke}
+                      strokeWidth={a.conflict ? 1.5 : 1}
+                      strokeDasharray={a.conflict ? "4 2" : undefined}
+                      markerEnd={marker}
+                      opacity={0.75}
                     />
-                  )}
-                </div>
-              </div>
-            );
-          })}
+                  );
+                })}
+              </svg>
+            )}
+          </div>
         </div>
+
+        {/* Legend */}
+        {deps.length > 0 && (
+          <div className="flex items-center gap-4 mt-3 pt-2 border-t border-gray-100 dark:border-gray-800 text-[10px] text-gray-400">
+            <span className="flex items-center gap-1">
+              <span className="inline-block w-6 h-px bg-indigo-400" />Dependency
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="inline-block w-6 h-px bg-amber-400" style={{ backgroundImage: "repeating-linear-gradient(90deg,#f59e0b 0,#f59e0b 4px,transparent 4px,transparent 6px)" }} />Conflict
+            </span>
+            <span className="text-gray-300 dark:text-gray-600">Arrows: predecessor → dependent</span>
+          </div>
+        )}
       </div>
     </div>
   );

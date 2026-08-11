@@ -50,6 +50,13 @@ Weighted sum: high_level=0.25, partially_planned=0.6, detailed=0.9, reviewed=1.0
 4. `AiProposalReview` component shows proposal with checkboxes per item
 5. PM accepts/rejects → PUT `/planning/ai-proposals/:id/review` → commits accepted items to production tables
 
+## Dependency features (fully implemented)
+- **DependencySection** component inside NodeSheet (edit mode only) — add/remove deps with predecessor picker + FS/SS type selector
+- **Conflict detection** — per-node in TreeView via `depInfo` useMemo; FS: source.start < target.end; SS: source.start < target.start; amber ring + "Conflict" badge on violating rows
+- **Dep badge** — blue badge with Link2 icon + count when deps exist and no conflict
+- **Timeline SVG arrows** — elbow connectors (x1,y1→midX,y1→midX,y2→x2,y2) overlaid on the Gantt grid; amber dashed for conflicts, type-coloured solid for clean deps; ResizeObserver on grid div for responsive pixel math
+- **Server-side guards** — circular dependency BFS check + duplicate check in POST /planning/dependencies; returns 422 on cycle, 409 on duplicate
+
 ## Not yet built (follow-up tasks)
 - PDF export (Step 10 in spec)
 - Methodology implementations beyond Manual (Step 11)
