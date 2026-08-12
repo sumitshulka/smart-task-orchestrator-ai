@@ -115,12 +115,6 @@ function EffortBadge({ hours }: { hours?: number | null }) {
   );
 }
 
-// ── Dependency Section (inside NodeSheet when editing) ─────────────────────
-const DEP_TYPE_LABELS: Record<string, string> = {
-  finish_to_start: "Finish → Start",
-  start_to_start:  "Start → Start",
-};
-
 // ── Phase-rank helper (client-side mirror of server logic) ─────────────────
 function buildPhaseRankFn(tree: PlanningTree) {
   const phaseMap  = new Map(tree.phases.map((p: any) => [p.id, p]));
@@ -196,210 +190,6 @@ function detectDateConflict(
   return null;
 }
 
-function DependencySection({
-  nodeId, nodeType, tree, projectId,
-}: { nodeId: string; nodeType: NodeType; tree: PlanningTree; projectId: string }) {
-  const { toast } = useToast();
-  const [targetId, setTargetId] = useState("");
-  const [depType, setDepType] = useState("finish_to_start");
-
-  // Phase-rank helpers
-  const { rank: phaseRank, phaseName } = useMemo(() => buildPhaseRankFn(tree), [tree]);
-
-  // Source node's phase rank (used to filter valid predecessors)
-  const sourceRank = phaseRank(nodeId, nodeType);
-
-  // Flat item map for date lookups
-  const itemById = useMemo(() => {
-    const m = new Map<string, any>();
-    [...tree.phases, ...tree.stages, ...tree.milestones,
-     ...tree.featureGroups, ...tree.features, ...tree.stories]
-      .forEach((i: any) => m.set(i.id, i));
-    return m;
-  }, [tree]);
-
-  // All items annotated with phaseRank, filtered to valid predecessors:
-  //   - not the node itself
-  //   - not already a predecessor
-  //   - not from a later phase (phase rank > source rank)
-  const existingTargetIds = new Set((tree.dependencies ?? [])
-    .filter((d: any) => d.source_id === nodeId).map((d: any) => d.target_id));
-
-  const allItems = useMemo<{
-    id: string; label: string; type: NodeType;
-    rank: number | null; phaseName: string | null; blocked: boolean;
-  }[]>(() => {
-    const raw = [
-      ...tree.phases.map((p: any) => ({ id: p.id, label: p.name, type: "phase" as NodeType })),
-      ...tree.stages.map((s: any) => ({ id: s.id, label: s.name, type: "stage" as NodeType })),
-      ...tree.milestones.map((m: any) => ({ id: m.id, label: m.name, type: "milestone" as NodeType })),
-      ...tree.featureGroups.map((fg: any) => ({ id: fg.id, label: fg.name, type: "feature_group" as NodeType })),
-      ...tree.features.map((f: any) => ({ id: f.id, label: f.name, type: "feature" as NodeType })),
-      ...tree.stories.map((s: any) => ({ id: s.id, label: s.title, type: "user_story" as NodeType })),
-    ].filter(i => i.id !== nodeId && !existingTargetIds.has(i.id));
-
-    return raw.map(i => {
-      const r = phaseRank(i.id, i.type);
-      const blocked = sourceRank !== null && r !== null && r > sourceRank;
-      return { ...i, rank: r, phaseName: phaseName(i.id, i.type), blocked };
-    });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tree, nodeId, sourceRank]);
-
-  // Group valid (non-blocked) items by phase for the dropdown
-  const grouped = useMemo(() => {
-    const valid = allItems.filter(i => !i.blocked);
-    const groups = new Map<string, typeof valid>();
-    for (const item of valid) {
-      const key = item.phaseName ?? "(No phase)";
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key)!.push(item);
-    }
-    return groups;
-  }, [allItems]);
-
-  // Outgoing deps = this node is the source
-  const outgoing = (tree.dependencies ?? []).filter((d: any) => d.source_id === nodeId);
-
-  const add = useMutation({
-    mutationFn: () => {
-      const target = allItems.find(i => i.id === targetId);
-      if (!target) throw new Error("Select an item first");
-      return apiClient.post(`/projects/${projectId}/planning/dependencies`, {
-        source_type: nodeType, source_id: nodeId,
-        target_type: target.type, target_id: targetId,
-        dependency_type: depType,
-      });
-    },
-    onSuccess: (data: any) => {
-      if (data?.date_conflict) {
-        toast({
-          title: "Dependency added — date conflict detected",
-          description: data.date_conflict,
-          variant: "destructive",
-        });
-      } else {
-        toast({ title: "Dependency added" });
-      }
-      setTargetId("");
-      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "planning/tree"] });
-    },
-    onError: (e: any) => toast({ title: e.message ?? "Failed to add dependency", variant: "destructive" }),
-  });
-
-  const remove = useMutation({
-    mutationFn: (depId: string) => apiClient.delete(`/projects/${projectId}/planning/dependencies/${depId}`),
-    onSuccess: () => {
-      toast({ title: "Dependency removed" });
-      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "planning/tree"] });
-    },
-    onError: () => toast({ title: "Failed to remove dependency", variant: "destructive" }),
-  });
-
-  const labelFor = (id: string) => {
-    const found = allItems.find(i => i.id === id);
-    if (found) return found.label;
-    // item may already be in existingTargetIds — search full tree
-    const all = [...tree.phases, ...tree.stages, ...tree.milestones,
-      ...tree.featureGroups, ...tree.features, ...tree.stories] as any[];
-    const node = all.find((i: any) => i.id === id);
-    return node ? (node.name ?? node.title ?? id.slice(0, 8)) : id.slice(0, 8);
-  };
-
-  const blockedCount = allItems.filter(i => i.blocked).length;
-
-  return (
-    <div className="space-y-2">
-      <Label className="flex items-center gap-1">
-        <Link2 className="h-3 w-3" />Dependencies — this item starts after…
-      </Label>
-
-      {/* Existing outgoing dependencies */}
-      {outgoing.map((d: any) => {
-        const srcItem = itemById.get(nodeId);
-        const tgtItem = itemById.get(d.target_id);
-        const conflict = detectDateConflict(srcItem, tgtItem, d.dependency_type ?? "finish_to_start");
-        return (
-          <div key={d.id} className={`rounded px-2 py-1.5 text-xs border ${
-            conflict
-              ? "bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800"
-              : "bg-gray-50 dark:bg-gray-800 border-transparent"
-          }`}>
-            <div className="flex items-center gap-2">
-              <ArrowRight className="h-3 w-3 text-gray-400 shrink-0" />
-              <span className="flex-1 truncate text-gray-700 dark:text-gray-300 font-medium">{labelFor(d.target_id)}</span>
-              <span className="text-[10px] text-gray-500 shrink-0 whitespace-nowrap">
-                {DEP_TYPE_LABELS[d.dependency_type] ?? d.dependency_type}
-              </span>
-              <button onClick={() => remove.mutate(d.id)} className="text-gray-400 hover:text-red-500 transition-colors shrink-0">
-                <X className="h-3 w-3" />
-              </button>
-            </div>
-            {conflict && (
-              <p className="mt-1 text-[10px] text-amber-700 dark:text-amber-400 flex items-center gap-1">
-                <AlertTriangle className="h-2.5 w-2.5 shrink-0" />{conflict}
-              </p>
-            )}
-          </div>
-        );
-      })}
-
-      {/* Add new dependency */}
-      <div className="flex gap-2">
-        <div className="flex-1 min-w-0">
-          <Select value={targetId || "none"} onValueChange={v => setTargetId(v === "none" ? "" : v)}>
-            <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select predecessor…" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">— Select predecessor —</SelectItem>
-              {Array.from(grouped.entries()).map(([groupName, items]) => (
-                <SelectGroup key={groupName}>
-                  <SelectLabel className="text-[10px] text-gray-400 font-semibold px-2 py-0.5">{groupName}</SelectLabel>
-                  {items.map(i => (
-                    <SelectItem key={i.id} value={i.id}>
-                      <span className="text-[10px] text-gray-400 mr-1.5 capitalize">
-                        {i.type.replace("_", " ")}
-                      </span>
-                      {i.label}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              ))}
-              {grouped.size === 0 && (
-                <SelectItem value="__none_valid__" disabled>No valid predecessors available</SelectItem>
-              )}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="w-36 shrink-0">
-          <Select value={depType} onValueChange={setDepType}>
-            <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="finish_to_start">Finish → Start</SelectItem>
-              <SelectItem value="start_to_start">Start → Start</SelectItem>
-              <SelectItem value="finish_to_finish">Finish → Finish</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <Button size="sm" className="h-8 px-2 shrink-0" onClick={() => add.mutate()} disabled={!targetId || add.isPending}>
-          <Plus className="h-3.5 w-3.5" />
-        </Button>
-      </div>
-
-      {outgoing.length === 0 && (
-        <p className="text-[11px] text-gray-500">No dependencies yet. Add a predecessor to enforce sequencing.</p>
-      )}
-
-      {blockedCount > 0 && (
-        <p className="text-[10px] text-amber-600 dark:text-amber-400 flex items-center gap-1">
-          <AlertTriangle className="h-2.5 w-2.5 shrink-0" />
-          {blockedCount} item{blockedCount !== 1 ? "s" : ""} from later phases hidden — successors cannot depend on items from a later phase.
-        </p>
-      )}
-    </div>
-  );
-}
-
-// ── Coverage Bar ───────────────────────────────────────────────────────────
 function CoverageBar({ coverage }: { coverage: CoverageData | undefined }) {
   if (!coverage) return null;
   const pct = coverage.coverage_pct;
@@ -415,7 +205,21 @@ function CoverageBar({ coverage }: { coverage: CoverageData | undefined }) {
   );
 }
 
-// ── Node Row ───────────────────────────────────────────────────────────────
+function checkDepConflict(dep: any, sourceNode: any, targetNode: any): string | null {
+  if (!targetNode) return null;
+  if (dep.dependency_type === "finish_to_start") {
+    if (sourceNode.start_date && targetNode.end_date &&
+        new Date(sourceNode.start_date) < new Date(targetNode.end_date)) {
+      return `starts before predecessor ends (${format(new Date(targetNode.end_date), "dd MMM")})`;
+    }
+  } else if (dep.dependency_type === "start_to_start") {
+    if (sourceNode.start_date && targetNode.start_date &&
+        new Date(sourceNode.start_date) < new Date(targetNode.start_date)) {
+      return `starts before predecessor starts (${format(new Date(targetNode.start_date), "dd MMM")})`;
+    }
+  }
+  return null;
+}
 const TYPE_TO_ENTITY: Record<NodeType, string> = {
   phase: "phase", stage: "stage", milestone: "milestone",
   feature_group: "feature_group", feature: "feature", user_story: "user_story",
@@ -424,16 +228,15 @@ const TYPE_TO_ENTITY: Record<NodeType, string> = {
 function NodeRow({
   node, type, depth, isExpanded, hasChildren,
   onToggle, onEdit, onDelete, onAddChild, users,
-  childTypes, depCount, conflictWarning,
-  projectId, parentNode,
+  childTypes, nodeDeps, itemsById, projectId, parentNode,
 }: {
   node: any; type: NodeType; depth: number; isExpanded: boolean; hasChildren: boolean;
   onToggle: () => void; onEdit: () => void; onDelete: () => void;
   onAddChild: (childType: NodeType) => void;
   users: UserType[];
   childTypes: NodeType[];
-  depCount?: number;
-  conflictWarning?: string | null;
+  nodeDeps?: any[];
+  itemsById?: Map<string, any>;
   projectId: string;
   parentNode?: any;
 }) {
@@ -449,6 +252,15 @@ function NodeRow({
   const Icon = cfg.icon;
   const owner = node.owner_id ? users.find((u: any) => u.id === node.owner_id) : null;
 
+  // ── Dep conflict computation ──────────────────────────────────────────────
+  const deps = nodeDeps ?? [];
+  const depConflicts = deps.map(dep => {
+    const target = itemsById?.get(dep.target_id);
+    return { dep, target, conflict: checkDepConflict(dep, node, target) };
+  });
+  const hasDepConflict = depConflicts.some(c => c.conflict);
+
+  // ── Quick-edit helpers ────────────────────────────────────────────────────
   const fmtDisplay = (d: string | null | undefined) =>
     d ? format(new Date(d), "dd MMM") : null;
   const fmtIso = (d: string | null | undefined) =>
@@ -468,29 +280,18 @@ function NodeRow({
 
   const saveQuickEdit = async () => {
     const { start_date, end_date, estimated_hours, owner_id } = qDraft;
-
-    // Validation: end >= start
     if (start_date && end_date && end_date < start_date) {
       setQError("End date cannot be before start date.");
       return;
     }
-    // Validation: child must not start before parent's start
-    if (parentNode?.start_date && start_date) {
-      const parentStart = fmtIso(parentNode.start_date);
-      if (start_date < parentStart) {
-        setQError(`Start date cannot be before parent's start (${fmtDisplay(parentNode.start_date)}).`);
-        return;
-      }
+    if (parentNode?.start_date && start_date && start_date < fmtIso(parentNode.start_date)) {
+      setQError(`Start date cannot be before parent's start (${fmtDisplay(parentNode.start_date)}).`);
+      return;
     }
-    // Validation: child must not end after parent's end
-    if (parentNode?.end_date && end_date) {
-      const parentEnd = fmtIso(parentNode.end_date);
-      if (end_date > parentEnd) {
-        setQError(`End date cannot be after parent's end (${fmtDisplay(parentNode.end_date)}).`);
-        return;
-      }
+    if (parentNode?.end_date && end_date && end_date > fmtIso(parentNode.end_date)) {
+      setQError(`End date cannot be after parent's end (${fmtDisplay(parentNode.end_date)}).`);
+      return;
     }
-
     setQSaving(true);
     try {
       const userStr = localStorage.getItem("user");
@@ -524,261 +325,243 @@ function NodeRow({
   };
 
   const setD = (k: string, v: string) => { setQDraft(d => ({ ...d, [k]: v })); setQError(null); };
-
-  // Date-bound hints for inputs (min/max from parent)
   const parentStartIso = parentNode?.start_date ? fmtIso(parentNode.start_date) : undefined;
   const parentEndIso   = parentNode?.end_date   ? fmtIso(parentNode.end_date)   : undefined;
 
   return (
-    <div
-      className={`group flex items-center gap-2 py-1.5 px-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors min-w-0 ${conflictWarning ? "ring-1 ring-amber-300 dark:ring-amber-700 bg-amber-50/40 dark:bg-amber-950/10" : ""}`}
-      style={{ paddingLeft: `${(depth * 20) + 8}px` }}
-    >
-      {/* Expand toggle */}
-      <button
-        className="shrink-0 w-4 h-4 flex items-center justify-center text-gray-400 hover:text-gray-600"
-        onClick={onToggle}
+    <div className={`rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors ${hasDepConflict ? "ring-1 ring-amber-300 dark:ring-amber-700 bg-amber-50/40 dark:bg-amber-950/10" : ""}`}>
+      <div
+        className="group flex items-center gap-2 py-1.5 px-2 min-w-0"
+        style={{ paddingLeft: `${(depth * 20) + 8}px` }}
       >
-        {hasChildren ? (
-          isExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />
-        ) : <span className="w-3" />}
-      </button>
-
-      {/* Type icon */}
-      <Icon className={`h-3.5 w-3.5 shrink-0 ${cfg.color}`} />
-
-      {/* Name */}
-      <span className="flex-1 text-sm text-gray-900 dark:text-gray-100 truncate font-medium">
-        {node.tracking_number && (
-          <span className="font-mono text-[10px] text-gray-400 mr-1.5">{node.tracking_number}</span>
-        )}
-        {node.name ?? node.title}
-      </span>
-
-      {/* Conflict warning */}
-      {conflictWarning && (
-        <span
-          title={conflictWarning}
-          className="shrink-0 inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 cursor-help"
-        >
-          <AlertTriangle className="h-2.5 w-2.5" />Conflict
-        </span>
-      )}
-
-      {/* Dep badge */}
-      {(depCount ?? 0) > 0 && !conflictWarning && (
-        <span className="shrink-0 inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400">
-          <Link2 className="h-2.5 w-2.5" />{depCount}
-        </span>
-      )}
-
-      {/* ── Inline quick-edit metadata ──────────────────────────────────── */}
-      <div className="relative shrink-0">
-        {/* Always-visible clickable pills */}
+        {/* Expand toggle */}
         <button
-          onClick={openQuickEdit}
-          className="flex items-center gap-2 px-1.5 py-0.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors group/qe"
-          title="Click to set dates, effort & owner"
+          className="shrink-0 w-4 h-4 flex items-center justify-center text-gray-400 hover:text-gray-600"
+          onClick={onToggle}
         >
-          {/* Dates */}
-          {node.start_date || node.end_date ? (
-            <span className="text-[11px] text-gray-700 dark:text-gray-300 tabular-nums flex items-center gap-0.5 font-medium">
-              <Calendar className="h-2.5 w-2.5 text-gray-500 dark:text-gray-400" />
-              {fmtDisplay(node.start_date) ?? "?"} → {fmtDisplay(node.end_date) ?? "?"}
-              {node.start_date && node.end_date && (
-                <span className="text-gray-500 dark:text-gray-400 ml-0.5">
-                  ({differenceInDays(new Date(node.end_date), new Date(node.start_date))}d)
-                </span>
-              )}
-            </span>
-          ) : (
-            <span className="text-[11px] text-gray-500 dark:text-gray-400 italic flex items-center gap-0.5">
-              <Calendar className="h-2.5 w-2.5" />Set dates
-            </span>
-          )}
-
-          {/* Effort */}
-          {node.estimated_hours ? (
-            <span className="text-[11px] text-gray-700 dark:text-gray-300 flex items-center gap-0.5 tabular-nums font-medium">
-              <Clock className="h-2.5 w-2.5 text-gray-500 dark:text-gray-400" />{node.estimated_hours}h
-            </span>
-          ) : (
-            <span className="text-[11px] text-gray-500 dark:text-gray-400 italic flex items-center gap-0.5">
-              <Clock className="h-2.5 w-2.5" />Set hrs
-            </span>
-          )}
-
-          {/* Owner */}
-          {owner ? (
-            <span className="text-[11px] text-gray-700 dark:text-gray-300 flex items-center gap-0.5 max-w-[80px] truncate font-medium">
-              <User className="h-2.5 w-2.5 shrink-0 text-gray-500 dark:text-gray-400" />{owner.user_name ?? owner.email}
-            </span>
-          ) : (
-            <span className="text-[11px] text-gray-500 dark:text-gray-400 italic flex items-center gap-0.5">
-              <User className="h-2.5 w-2.5" />Owner
-            </span>
-          )}
-
-          <Pencil className="h-2.5 w-2.5 text-gray-400 group-hover/qe:text-gray-600 dark:group-hover/qe:text-gray-300 transition-colors" />
+          {hasChildren ? (
+            isExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />
+          ) : <span className="w-3" />}
         </button>
 
-        {/* Quick-edit popover */}
-        {qOpen && (
-          <>
-            <div className="fixed inset-0 z-30" onClick={() => setQOpen(false)} />
-            <div
-              className="absolute right-0 top-8 z-40 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl p-3 w-72"
-              onClick={e => e.stopPropagation()}
-            >
-              <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-2">
-                Quick Edit — {cfg.singularLabel}
-              </p>
+        {/* Type icon */}
+        <Icon className={`h-3.5 w-3.5 shrink-0 ${cfg.color}`} />
 
-              {/* Parent constraint hint */}
-              {parentNode && (parentNode.start_date || parentNode.end_date) && (
-                <p className="text-[10px] text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20 rounded px-2 py-1 mb-2">
-                  Parent window: {fmtDisplay(parentNode.start_date) ?? "?"} → {fmtDisplay(parentNode.end_date) ?? "?"}
-                </p>
-              )}
+        {/* Name */}
+        <span className="flex-1 text-sm text-gray-900 dark:text-gray-100 truncate font-medium">
+          {node.tracking_number && (
+            <span className="font-mono text-[10px] text-gray-400 mr-1.5">{node.tracking_number}</span>
+          )}
+          {node.name ?? node.title}
+        </span>
 
-              <div className="grid grid-cols-2 gap-2">
-                {/* Start date */}
-                <div>
-                  <label className="text-[10px] font-medium text-gray-500 block mb-0.5">Start date</label>
-                  <input
-                    type="date"
-                    className="w-full text-xs border border-gray-200 dark:border-gray-700 rounded px-2 py-1.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-400"
-                    value={qDraft.start_date}
-                    min={parentStartIso}
-                    max={parentEndIso}
-                    onChange={e => setD("start_date", e.target.value)}
-                  />
-                </div>
-                {/* End date */}
-                <div>
-                  <label className="text-[10px] font-medium text-gray-500 block mb-0.5">End date</label>
-                  <input
-                    type="date"
-                    className="w-full text-xs border border-gray-200 dark:border-gray-700 rounded px-2 py-1.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-400"
-                    value={qDraft.end_date}
-                    min={qDraft.start_date || parentStartIso}
-                    max={parentEndIso}
-                    onChange={e => setD("end_date", e.target.value)}
-                  />
-                </div>
-              </div>
+        {/* Dep conflict pill */}
+        {hasDepConflict && (
+          <span
+            aria-label="Date conflict detected"
+            title="Date conflict detected"
+            className="shrink-0 inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 cursor-help"
+          >
+            <AlertTriangle className="h-2.5 w-2.5" />Conflict
+          </span>
+        )}
 
-              {/* Hours */}
-              <div className="mt-2">
-                <label className="text-[10px] font-medium text-gray-500 block mb-0.5">Estimated hours</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="1"
-                  placeholder="—"
-                  className="w-full text-xs border border-gray-200 dark:border-gray-700 rounded px-2 py-1.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-400"
-                  value={qDraft.estimated_hours}
-                  onChange={e => setD("estimated_hours", e.target.value)}
-                />
-              </div>
+        {/* Dep count badge (no conflict) */}
+        {deps.length > 0 && !hasDepConflict && (
+          <span className="shrink-0 inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400">
+            <Link2 className="h-2.5 w-2.5" />{deps.length}
+          </span>
+        )}
 
-              {/* Owner */}
-              <div className="mt-2">
-                <label className="text-[10px] font-medium text-gray-500 block mb-0.5">Owner</label>
-                <select
-                  className="w-full text-xs border border-gray-200 dark:border-gray-700 rounded px-2 py-1.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-400"
-                  value={qDraft.owner_id}
-                  onChange={e => setD("owner_id", e.target.value)}
-                >
-                  <option value="">— Unassigned —</option>
-                  {users.map((u: any) => (
-                    <option key={u.id} value={u.id}>{u.user_name ?? u.email}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Validation error */}
-              {qError && (
-                <p className="mt-2 text-[11px] text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/20 rounded px-2 py-1">
-                  {qError}
-                </p>
-              )}
-
-              {/* Buttons */}
-              <div className="mt-3 flex gap-2">
-                <button
-                  className="flex-1 h-7 text-xs rounded bg-blue-600 hover:bg-blue-700 text-white font-medium flex items-center justify-center gap-1 disabled:opacity-60"
-                  onClick={saveQuickEdit}
-                  disabled={qSaving}
-                >
-                  {qSaving ? <RefreshCw className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
-                  Save
-                </button>
-                <button
-                  className="flex-1 h-7 text-xs rounded border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
-                  onClick={() => setQOpen(false)}
-                  disabled={qSaving}
-                >
-                  Cancel
-                </button>
-                {/* Clear all */}
-                {(node.start_date || node.end_date || node.estimated_hours || node.owner_id) && (
-                  <button
-                    className="h-7 px-2 text-xs rounded border border-red-200 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20"
-                    onClick={() => setQDraft({ start_date: "", end_date: "", estimated_hours: "", owner_id: "" })}
-                    disabled={qSaving}
-                    title="Clear all fields"
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </button>
+        {/* ── Inline quick-edit metadata ─────────────────────────────────── */}
+        <div className="relative shrink-0">
+          <button
+            onClick={openQuickEdit}
+            className="flex items-center gap-2 px-1.5 py-0.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors group/qe"
+            title="Click to set dates, effort & owner"
+          >
+            {node.start_date || node.end_date ? (
+              <span className="text-[11px] text-gray-500 tabular-nums flex items-center gap-0.5">
+                <Calendar className="h-2.5 w-2.5 text-gray-400" />
+                {fmtDisplay(node.start_date) ?? "?"} → {fmtDisplay(node.end_date) ?? "?"}
+                {node.start_date && node.end_date && (
+                  <span className="text-gray-300 ml-0.5">
+                    ({differenceInDays(new Date(node.end_date), new Date(node.start_date))}d)
+                  </span>
                 )}
+              </span>
+            ) : (
+              <span className="text-[11px] text-gray-300 dark:text-gray-600 italic flex items-center gap-0.5">
+                <Calendar className="h-2.5 w-2.5" />Set dates
+              </span>
+            )}
+            {node.estimated_hours ? (
+              <span className="text-[11px] text-gray-400 flex items-center gap-0.5 tabular-nums">
+                <Clock className="h-2.5 w-2.5" />{node.estimated_hours}h
+              </span>
+            ) : (
+              <span className="text-[11px] text-gray-300 dark:text-gray-600 italic flex items-center gap-0.5">
+                <Clock className="h-2.5 w-2.5" />Set hrs
+              </span>
+            )}
+            {owner ? (
+              <span className="text-[11px] text-gray-400 flex items-center gap-0.5 max-w-[72px] truncate">
+                <User className="h-2.5 w-2.5 shrink-0" />{owner.user_name ?? owner.email}
+              </span>
+            ) : (
+              <span className="text-[11px] text-gray-300 dark:text-gray-600 italic flex items-center gap-0.5">
+                <User className="h-2.5 w-2.5" />Owner
+              </span>
+            )}
+            <Pencil className="h-2.5 w-2.5 text-gray-300 group-hover/qe:text-gray-400 transition-colors" />
+          </button>
+
+          {/* Quick-edit popover */}
+          {qOpen && (
+            <>
+              <div className="fixed inset-0 z-30" onClick={() => setQOpen(false)} />
+              <div
+                className="absolute right-0 top-8 z-40 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl p-3 w-72"
+                onClick={e => e.stopPropagation()}
+              >
+                <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                  Quick Edit — {cfg.singularLabel}
+                </p>
+                {parentNode && (parentNode.start_date || parentNode.end_date) && (
+                  <p className="text-[10px] text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20 rounded px-2 py-1 mb-2">
+                    Parent window: {fmtDisplay(parentNode.start_date) ?? "?"} → {fmtDisplay(parentNode.end_date) ?? "?"}
+                  </p>
+                )}
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-[10px] font-medium text-gray-500 block mb-0.5">Start date</label>
+                    <input type="date"
+                      className="w-full text-xs border border-gray-200 dark:border-gray-700 rounded px-2 py-1.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                      value={qDraft.start_date} min={parentStartIso} max={parentEndIso}
+                      onChange={e => setD("start_date", e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-medium text-gray-500 block mb-0.5">End date</label>
+                    <input type="date"
+                      className="w-full text-xs border border-gray-200 dark:border-gray-700 rounded px-2 py-1.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                      value={qDraft.end_date} min={qDraft.start_date || parentStartIso} max={parentEndIso}
+                      onChange={e => setD("end_date", e.target.value)} />
+                  </div>
+                </div>
+                <div className="mt-2">
+                  <label className="text-[10px] font-medium text-gray-500 block mb-0.5">Estimated hours</label>
+                  <input type="number" min="0" step="1" placeholder="—"
+                    className="w-full text-xs border border-gray-200 dark:border-gray-700 rounded px-2 py-1.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                    value={qDraft.estimated_hours} onChange={e => setD("estimated_hours", e.target.value)} />
+                </div>
+                <div className="mt-2">
+                  <label className="text-[10px] font-medium text-gray-500 block mb-0.5">Owner</label>
+                  <select
+                    className="w-full text-xs border border-gray-200 dark:border-gray-700 rounded px-2 py-1.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                    value={qDraft.owner_id} onChange={e => setD("owner_id", e.target.value)}
+                  >
+                    <option value="">— Unassigned —</option>
+                    {users.map((u: any) => (
+                      <option key={u.id} value={u.id}>{u.user_name ?? u.email}</option>
+                    ))}
+                  </select>
+                </div>
+                {qError && (
+                  <p className="mt-2 text-[11px] text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/20 rounded px-2 py-1">{qError}</p>
+                )}
+                <div className="mt-3 flex gap-2">
+                  <button
+                    className="flex-1 h-7 text-xs rounded bg-blue-600 hover:bg-blue-700 text-white font-medium flex items-center justify-center gap-1 disabled:opacity-60"
+                    onClick={saveQuickEdit} disabled={qSaving}
+                  >
+                    {qSaving ? <RefreshCw className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}Save
+                  </button>
+                  <button
+                    className="flex-1 h-7 text-xs rounded border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
+                    onClick={() => setQOpen(false)} disabled={qSaving}
+                  >Cancel</button>
+                  {(node.start_date || node.end_date || node.estimated_hours || node.owner_id) && (
+                    <button
+                      className="h-7 px-2 text-xs rounded border border-red-200 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20"
+                      onClick={() => setQDraft({ start_date: "", end_date: "", estimated_hours: "", owner_id: "" })}
+                      disabled={qSaving} title="Clear all fields"
+                    ><Trash2 className="h-3 w-3" /></button>
+                  )}
+                </div>
               </div>
-            </div>
-          </>
-        )}
-      </div>
+            </>
+          )}
+        </div>
 
-      {/* Planning status badge — always visible */}
-      <PlanningStatusBadge status={node.planning_status ?? "high_level"} />
+        {/* Planning status badge — always visible */}
+        <PlanningStatusBadge status={node.planning_status ?? "high_level"} />
 
-      {/* Context menu */}
-      <div className="relative shrink-0">
-        <button
-          className="opacity-0 group-hover:opacity-100 p-0.5 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all"
-          onClick={() => setMenuOpen(v => !v)}
-        >
-          <MoreHorizontal className="h-3.5 w-3.5" />
-        </button>
-        {menuOpen && (
-          <>
-            <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
-            <div className="absolute right-0 top-6 z-20 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1 min-w-[160px]">
-              {childTypes.map(ct => (
+        {/* Context menu */}
+        <div className="relative shrink-0">
+          <button
+            className="opacity-0 group-hover:opacity-100 p-0.5 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all"
+            onClick={() => setMenuOpen(v => !v)}
+          >
+            <MoreHorizontal className="h-3.5 w-3.5" />
+          </button>
+          {menuOpen && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
+              <div className="absolute right-0 top-6 z-20 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1 min-w-[160px]">
+                {childTypes.map(ct => (
+                  <button
+                    key={ct}
+                    className="w-full text-left px-3 py-1.5 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center gap-2"
+                    onClick={() => { onAddChild(ct); setMenuOpen(false); }}
+                  >
+                    <Plus className="h-3 w-3" />Add {NODE_TYPE_CONFIG[ct].singularLabel}
+                  </button>
+                ))}
+                {childTypes.length > 0 && <div className="border-t border-gray-100 dark:border-gray-800 my-1" />}
                 <button
-                  key={ct}
                   className="w-full text-left px-3 py-1.5 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center gap-2"
-                  onClick={() => { onAddChild(ct); setMenuOpen(false); }}
+                  onClick={() => { onEdit(); setMenuOpen(false); }}
                 >
-                  <Plus className="h-3 w-3" />Add {NODE_TYPE_CONFIG[ct].singularLabel}
+                  <Pencil className="h-3 w-3" />Edit
                 </button>
-              ))}
-              {childTypes.length > 0 && <div className="border-t border-gray-100 dark:border-gray-800 my-1" />}
-              <button
-                className="w-full text-left px-3 py-1.5 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center gap-2"
-                onClick={() => { onEdit(); setMenuOpen(false); }}
-              >
-                <Pencil className="h-3 w-3" />Edit
-              </button>
-              <button
-                className="w-full text-left px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 flex items-center gap-2"
-                onClick={() => { onDelete(); setMenuOpen(false); }}
-              >
-                <Trash2 className="h-3 w-3" />Delete
-              </button>
-            </div>
-          </>
-        )}
+                <button
+                  className="w-full text-left px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 flex items-center gap-2"
+                  onClick={() => { onDelete(); setMenuOpen(false); }}
+                >
+                  <Trash2 className="h-3 w-3" />Delete
+                </button>
+              </div>
+            </>
+          )}
+        </div>
       </div>
+
+      {/* Dependency detail badges */}
+      {depConflicts.length > 0 && (
+        <div
+          className="flex flex-wrap gap-1.5 pb-1"
+          style={{ paddingLeft: `${(depth * 20) + 34}px` }}
+        >
+          {depConflicts.map(({ dep, target, conflict }) => (
+            <span
+              key={dep.id}
+              className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full border font-medium ${
+                conflict
+                  ? "bg-amber-50 dark:bg-amber-950/30 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300"
+                  : "bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400"
+              }`}
+            >
+              <Link2 className="h-2.5 w-2.5 shrink-0" />
+              {dep.dependency_type === "finish_to_start" ? "FS" : "SS"}
+              {" → "}
+              {target ? (target.name ?? target.title) : dep.target_id.slice(0, 8)}
+              {conflict && (
+                <span className="ml-0.5 text-amber-600 dark:text-amber-400">⚠ {conflict}</span>
+              )}
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -1217,6 +1000,43 @@ function NodeSheet({
 
   const set = (key: string, value: string) => setForm(f => ({ ...f, [key]: value }));
 
+  // ── Dependency management state ──────────────────────────────────────────
+  const [depsToAdd, setDepsToAdd] = useState<Array<{ target_id: string; target_type: string; dependency_type: string }>>([]);
+  const [depsToRemove, setDepsToRemove] = useState<string[]>([]);
+  const [newDepTargetId, setNewDepTargetId] = useState("");
+  const [newDepType, setNewDepType] = useState("finish_to_start");
+
+  // All existing deps for this node (when editing)
+  const existingDeps = useMemo(
+    () => isEdit ? (tree.dependencies ?? []).filter((d: any) => d.source_id === node.id) : [],
+    [isEdit, node, tree.dependencies]
+  );
+  const visibleExistingDeps = existingDeps.filter((d: any) => !depsToRemove.includes(d.id));
+
+  // Flat list of all pickable items (excluding self)
+  const allPickableItems = useMemo(() => [
+    ...tree.phases.map((p: any) => ({ id: p.id, type: "phase", name: p.name })),
+    ...tree.stages.map((s: any) => ({ id: s.id, type: "stage", name: s.name })),
+    ...tree.milestones.map((m: any) => ({ id: m.id, type: "milestone", name: m.name })),
+    ...tree.featureGroups.map((fg: any) => ({ id: fg.id, type: "feature_group", name: fg.name })),
+    ...tree.features.map((f: any) => ({ id: f.id, type: "feature", name: f.name })),
+    ...tree.stories.map((s: any) => ({ id: s.id, type: "user_story", name: s.title })),
+  ].filter(i => !isEdit || i.id !== node?.id), [tree, isEdit, node]);
+
+  // IDs already added (pending or existing) to avoid duplicates
+  const alreadyLinkedIds = new Set([
+    ...visibleExistingDeps.map((d: any) => d.target_id),
+    ...depsToAdd.map(d => d.target_id),
+  ]);
+
+  const addPendingDep = () => {
+    if (!newDepTargetId) return;
+    const target = allPickableItems.find(i => i.id === newDepTargetId);
+    if (!target) return;
+    setDepsToAdd(prev => [...prev, { target_id: target.id, target_type: target.type, dependency_type: newDepType }]);
+    setNewDepTargetId("");
+  };
+
   const buildPayload = () => ({
     name: type === "user_story" ? undefined : form.name,
     title: type === "user_story" ? form.name || form.title : undefined,
@@ -1241,56 +1061,91 @@ function NodeSheet({
     if (type === "phase") return `${base}/phases`;
     if (type === "stage") return `${base}/stages`;
     if (type === "user_story") return `${base}/user-stories`;
-    // milestones, feature_groups, features use patch for planning fields or existing endpoints
     if (type === "milestone") return isEdit ? `/projects/${projectId}/planning/milestones/${node.id}` : `/projects/${projectId}/milestones`;
     if (type === "feature_group") return isEdit ? `/projects/${projectId}/planning/feature-groups/${node.id}` : `/projects/${projectId}/feature-groups`;
     if (type === "feature") return isEdit ? `/projects/${projectId}/planning/features/${node.id}` : `/projects/${projectId}/features`;
     return base;
   };
 
+  const typeToEndpointType = () => type as string;
+
+  const applyDeps = async (itemId: string) => {
+    const sourceType = typeToEndpointType();
+    // Removals MUST run before additions: if a PM removes dep A and re-adds it
+    // (e.g. to change FS→SS), posting the add first hits a 409 duplicate check;
+    // then the delete succeeds but the add is already rejected, leaving nothing.
+    const removeResults = await Promise.allSettled(
+      depsToRemove.map(depId =>
+        apiClient.delete(`/projects/${projectId}/planning/dependencies/${depId}`)
+      )
+    );
+    const addResults = await Promise.allSettled(
+      depsToAdd.map(dep =>
+        apiClient.post(`/projects/${projectId}/planning/dependencies`, {
+          source_id: itemId, source_type: sourceType,
+          target_id: dep.target_id, target_type: dep.target_type,
+          dependency_type: dep.dependency_type,
+        })
+      )
+    );
+    const failedAdds = addResults.filter(r => r.status === "rejected").length;
+    const failedRemoves = removeResults.filter(r => r.status === "rejected").length;
+    if (failedAdds + failedRemoves > 0) {
+      toast({
+        title: "Some dependency changes could not be saved",
+        description: `${failedAdds} addition(s) and ${failedRemoves} removal(s) failed. The item was saved; please retry the dependency changes.`,
+        variant: "destructive",
+      });
+    }
+  };
+
   const save = useMutation({
-    mutationFn: () => {
+    mutationFn: async () => {
       const payload = buildPayload();
       const endpoint = getEndpoint();
+      let savedItem: any;
       if (isEdit) {
         if (type === "milestone" || type === "feature_group" || type === "feature") {
-          return apiClient.patch(endpoint, payload);
+          savedItem = await apiClient.patch(endpoint, payload);
+        } else {
+          savedItem = await apiClient.put(endpoint + `/${node.id}`, payload);
         }
-        const editEndpoint = endpoint + `/${node.id}`;
-        return apiClient.put(editEndpoint, payload);
+        await applyDeps(node.id);
+      } else {
+        if (type === "milestone") {
+          savedItem = await apiClient.post(`/projects/${projectId}/milestones`, {
+            name: form.name, description: form.description || null,
+            start_date: form.start_date || null, end_date: form.end_date || null,
+            status: "not_started", planning_status: form.planning_status,
+            estimated_hours: form.estimated_hours ? parseInt(form.estimated_hours) : null,
+            owner_id: form.owner_id || null, phase_id: form.phase_id || null, stage_id: form.stage_id || null,
+          });
+        } else if (type === "feature_group") {
+          savedItem = await apiClient.post(`/projects/${projectId}/feature-groups`, {
+            name: form.name, description: form.description || null,
+            planning_status: form.planning_status, estimated_hours: form.estimated_hours ? parseInt(form.estimated_hours) : null,
+            owner_id: form.owner_id || null, phase_id: form.phase_id || null, stage_id: form.stage_id || null, milestone_id: form.milestone_id || null,
+            start_date: form.start_date || null, end_date: form.end_date || null,
+          });
+        } else if (type === "feature") {
+          savedItem = await apiClient.post(`/projects/${projectId}/features`, {
+            name: form.name, description: form.description || null,
+            feature_group_id: form.feature_group_id || null, status: form.status ?? "not_started",
+            planning_status: form.planning_status, estimated_hours: form.estimated_hours ? parseInt(form.estimated_hours) : null,
+            owner_id: form.owner_id || null, phase_id: form.phase_id || null, stage_id: form.stage_id || null,
+            start_date: form.start_date || null, end_date: form.end_date || null, date_mode: form.date_mode, acceptance_criteria: form.acceptance_criteria || null,
+          });
+        } else {
+          savedItem = await apiClient.post(endpoint, payload);
+        }
+        if (depsToAdd.length > 0 && savedItem?.id) {
+          await applyDeps(savedItem.id);
+        }
       }
-      // For milestone/fg/feature creation, use the original endpoints but include planning fields
-      if (type === "milestone") {
-        return apiClient.post(`/projects/${projectId}/milestones`, {
-          name: form.name, description: form.description || null,
-          start_date: form.start_date || null, end_date: form.end_date || null,
-          status: "not_started", planning_status: form.planning_status,
-          estimated_hours: form.estimated_hours ? parseInt(form.estimated_hours) : null,
-          owner_id: form.owner_id || null, phase_id: form.phase_id || null, stage_id: form.stage_id || null,
-        });
-      }
-      if (type === "feature_group") {
-        return apiClient.post(`/projects/${projectId}/feature-groups`, {
-          name: form.name, description: form.description || null,
-          planning_status: form.planning_status, estimated_hours: form.estimated_hours ? parseInt(form.estimated_hours) : null,
-          owner_id: form.owner_id || null, phase_id: form.phase_id || null, stage_id: form.stage_id || null, milestone_id: form.milestone_id || null,
-          start_date: form.start_date || null, end_date: form.end_date || null,
-        });
-      }
-      if (type === "feature") {
-        return apiClient.post(`/projects/${projectId}/features`, {
-          name: form.name, description: form.description || null,
-          feature_group_id: form.feature_group_id || null, status: form.status ?? "not_started",
-          planning_status: form.planning_status, estimated_hours: form.estimated_hours ? parseInt(form.estimated_hours) : null,
-          owner_id: form.owner_id || null, phase_id: form.phase_id || null, stage_id: form.stage_id || null,
-          start_date: form.start_date || null, end_date: form.end_date || null, date_mode: form.date_mode, acceptance_criteria: form.acceptance_criteria || null,
-        });
-      }
-      return apiClient.post(endpoint, payload);
+      return savedItem;
     },
     onSuccess: () => {
       toast({ title: `${cfg.singularLabel} ${isEdit ? "updated" : "created"}` });
-      // Invalidate both planning tree and individual caches
       queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "planning/tree"] });
       queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "milestones"] });
       queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "feature-groups"] });
@@ -1474,15 +1329,94 @@ function NodeSheet({
             </Select>
           </div>
 
-          {/* Dependencies — only shown when editing an existing node */}
-          {isEdit && node?.id && (
-            <div className="border-t border-gray-100 dark:border-gray-800 pt-4">
-              <DependencySection
-                nodeId={node.id}
-                nodeType={type}
-                tree={tree}
-                projectId={projectId}
-              />
+          {/* Dependencies */}
+          {allPickableItems.length > 0 && (
+            <div className="space-y-2 pt-1">
+              <Label className="flex items-center gap-1"><Link2 className="h-3 w-3" />Dependencies</Label>
+              <p className="text-[11px] text-gray-400">This item depends on the completion/start of another item.</p>
+
+              {/* Existing deps */}
+              {visibleExistingDeps.length > 0 && (
+                <div className="space-y-1">
+                  {visibleExistingDeps.map((dep: any) => {
+                    const target = allPickableItems.find(i => i.id === dep.target_id);
+                    return (
+                      <div key={dep.id} className="flex items-center justify-between gap-2 px-2 py-1 rounded bg-gray-50 dark:bg-gray-800 text-xs">
+                        <span className="flex items-center gap-1.5 min-w-0">
+                          <span className="font-mono text-[10px] px-1 py-0.5 rounded bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 shrink-0">
+                            {dep.dependency_type === "finish_to_start" ? "FS" : "SS"}
+                          </span>
+                          <ArrowRight className="h-3 w-3 text-gray-400 shrink-0" />
+                          <span className="truncate text-gray-700 dark:text-gray-300">{target?.name ?? dep.target_id}</span>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setDepsToRemove(prev => [...prev, dep.id])}
+                          className="text-gray-400 hover:text-red-500 shrink-0"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Pending adds */}
+              {depsToAdd.length > 0 && (
+                <div className="space-y-1">
+                  {depsToAdd.map((dep, idx) => {
+                    const target = allPickableItems.find(i => i.id === dep.target_id);
+                    return (
+                      <div key={idx} className="flex items-center justify-between gap-2 px-2 py-1 rounded bg-violet-50 dark:bg-violet-950/30 border border-violet-200 dark:border-violet-800 text-xs">
+                        <span className="flex items-center gap-1.5 min-w-0">
+                          <span className="font-mono text-[10px] px-1 py-0.5 rounded bg-violet-200 dark:bg-violet-800 text-violet-700 dark:text-violet-300 shrink-0">
+                            {dep.dependency_type === "finish_to_start" ? "FS" : "SS"}
+                          </span>
+                          <ArrowRight className="h-3 w-3 text-violet-400 shrink-0" />
+                          <span className="truncate text-violet-700 dark:text-violet-300">{target?.name ?? dep.target_id}</span>
+                          <span className="text-violet-400 text-[10px] shrink-0">unsaved</span>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setDepsToAdd(prev => prev.filter((_, i) => i !== idx))}
+                          className="text-violet-400 hover:text-red-500 shrink-0"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Add new dep */}
+              <div className="flex gap-2">
+                <Select value={newDepType} onValueChange={setNewDepType}>
+                  <SelectTrigger className="w-24 shrink-0 text-xs h-8"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="finish_to_start">FS (Finish→Start)</SelectItem>
+                    <SelectItem value="start_to_start">SS (Start→Start)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={newDepTargetId || "none"} onValueChange={v => setNewDepTargetId(v === "none" ? "" : v)}>
+                  <SelectTrigger className="flex-1 text-xs h-8"><SelectValue placeholder="Pick an item…" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">— Select item —</SelectItem>
+                    {allPickableItems
+                      .filter(i => !alreadyLinkedIds.has(i.id))
+                      .map(i => (
+                        <SelectItem key={i.id} value={i.id}>
+                          {NODE_TYPE_CONFIG[i.type as NodeType]?.singularLabel ?? i.type}: {i.name}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+                <Button type="button" size="sm" variant="outline" className="shrink-0 h-8 px-2"
+                  onClick={addPendingDep} disabled={!newDepTargetId}>
+                  <Plus className="h-3.5 w-3.5" />
+                </Button>
+              </div>
             </div>
           )}
         </div>
@@ -1557,43 +1491,27 @@ function TreeView({ tree, projectId, users, onEdit, onDelete, onAddChild }: {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const toggle = (id: string) => setExpanded(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
-  const deps = tree.dependencies ?? [];
-
-  // Flat lookup id → item (for date-based conflict checking)
-  const itemById = useMemo(() => {
-    const map = new Map<string, any>();
-    [...tree.phases, ...tree.stages, ...tree.milestones,
-      ...tree.featureGroups, ...tree.features, ...tree.stories
-    ].forEach(item => map.set(item.id, item));
-    return map;
+  // Flat lookup for all items — used by NodeRow for dep conflict detection
+  const itemsById = useMemo(() => {
+    const m = new Map<string, any>();
+    [...tree.phases, ...tree.stages, ...tree.milestones, ...tree.featureGroups, ...tree.features]
+      .forEach(i => m.set(i.id, i));
+    tree.stories.forEach((s: any) => m.set(s.id, { ...s, name: s.title }));
+    return m;
   }, [tree]);
 
-  // Per-node dep info: count of outgoing deps + first conflict message
-  const depInfo = useMemo(() => {
-    const info = new Map<string, { depCount: number; conflictWarning: string | null }>();
-    for (const d of deps) {
-      const cur = info.get(d.source_id) ?? { depCount: 0, conflictWarning: null };
-      cur.depCount += 1;
-      if (!cur.conflictWarning) {
-        const src  = itemById.get(d.source_id);
-        const tgt  = itemById.get(d.target_id);
-        if (src && tgt) {
-          const ss = src.start_date  ? new Date(src.start_date)  : null;
-          const te = tgt.end_date    ? new Date(tgt.end_date)    : null;
-          const ts = tgt.start_date  ? new Date(tgt.start_date)  : null;
-          const tgtName = tgt.name ?? tgt.title ?? "predecessor";
-          if (d.dependency_type === "finish_to_start" && ss && te && ss < te)
-            cur.conflictWarning = `Starts before "${tgtName}" finishes (Finish→Start conflict)`;
-          else if (d.dependency_type === "start_to_start" && ss && ts && ss < ts)
-            cur.conflictWarning = `Starts before "${tgtName}" starts (Start→Start conflict)`;
-        }
-      }
-      info.set(d.source_id, cur);
+  // Index deps by source_id for O(1) lookup per NodeRow
+  const depsBySource = useMemo(() => {
+    const m = new Map<string, any[]>();
+    for (const dep of (tree.dependencies ?? [])) {
+      if (!m.has(dep.source_id)) m.set(dep.source_id, []);
+      m.get(dep.source_id)!.push(dep);
     }
-    return info;
-  }, [deps, itemById]);
+    return m;
+  }, [tree.dependencies]);
 
-  const di = (id: string) => depInfo.get(id) ?? { depCount: 0, conflictWarning: null };
+  // Convenience: spread dep props for a given node id
+  const dp = (id: string) => ({ nodeDeps: depsBySource.get(id), itemsById, projectId });
 
   // Hierarchy helpers
   const stagesForPhase = (phaseId: string) => tree.stages.filter((s: any) => s.phase_id === phaseId);
@@ -1604,7 +1522,7 @@ function TreeView({ tree, projectId, users, onEdit, onDelete, onAddChild }: {
       parentType === "milestone" ? fg.milestone_id === parentId
       : parentType === "stage"   ? (fg.stage_id === parentId && !fg.milestone_id)
       : (fg.phase_id === parentId && !fg.stage_id && !fg.milestone_id));
-  const featuresForFG  = (fgId: string) => tree.features.filter((f: any) => f.feature_group_id === fgId);
+  const featuresForFG = (fgId: string) => tree.features.filter((f: any) => f.feature_group_id === fgId);
   const featuresUnassigned = () => tree.features.filter((f: any) => !f.feature_group_id);
   const storiesForFeature = (featureId: string) => tree.stories.filter((s: any) => s.feature_id === featureId);
 
@@ -1615,8 +1533,7 @@ function TreeView({ tree, projectId, users, onEdit, onDelete, onAddChild }: {
     storiesForFeature(featureId).map((s: any) => (
       <NodeRow key={s.id} node={s} type="user_story" depth={depth} isExpanded={false} hasChildren={false}
         onToggle={() => {}} onEdit={() => onEdit(s, "user_story")} onDelete={() => onDelete(s, "user_story")}
-        onAddChild={() => {}} users={users} childTypes={[]} projectId={projectId} parentNode={parentFeature}
-        {...di(s.id)} />
+        onAddChild={() => {}} users={users} childTypes={[]} parentNode={parentFeature} {...dp(s.id)} />
     ));
 
   const renderFeatures = (fgId: string, depth: number, parentFG?: any) =>
@@ -1628,7 +1545,7 @@ function TreeView({ tree, projectId, users, onEdit, onDelete, onAddChild }: {
           <NodeRow node={f} type="feature" depth={depth} isExpanded={isExp} hasChildren={children.length > 0}
             onToggle={() => toggle(f.id)} onEdit={() => onEdit(f, "feature")} onDelete={() => onDelete(f, "feature")}
             onAddChild={ct => onAddChild(ct, { feature_id: f.id })} users={users} childTypes={["user_story"]}
-            projectId={projectId} parentNode={parentFG} {...di(f.id)} />
+            parentNode={parentFG} {...dp(f.id)} />
           {isExp && renderStories(f.id, depth + 1, f)}
         </div>
       );
@@ -1643,7 +1560,7 @@ function TreeView({ tree, projectId, users, onEdit, onDelete, onAddChild }: {
           <NodeRow node={fg} type="feature_group" depth={depth} isExpanded={isExp} hasChildren={children.length > 0}
             onToggle={() => toggle(fg.id)} onEdit={() => onEdit(fg, "feature_group")} onDelete={() => onDelete(fg, "feature_group")}
             onAddChild={ct => onAddChild(ct, { feature_group_id: fg.id })} users={users} childTypes={["feature"]}
-            projectId={projectId} parentNode={parentNode} {...di(fg.id)} />
+            parentNode={parentNode} {...dp(fg.id)} />
           {isExp && renderFeatures(fg.id, depth + 1, fg)}
         </div>
       );
@@ -1658,7 +1575,7 @@ function TreeView({ tree, projectId, users, onEdit, onDelete, onAddChild }: {
           <NodeRow node={m} type="milestone" depth={depth} isExpanded={isExp} hasChildren={fgChildren.length > 0}
             onToggle={() => toggle(m.id)} onEdit={() => onEdit(m, "milestone")} onDelete={() => onDelete(m, "milestone")}
             onAddChild={ct => onAddChild(ct, { milestone_id: m.id })} users={users} childTypes={["feature_group", "feature"]}
-            projectId={projectId} parentNode={parentNode} {...di(m.id)} />
+            parentNode={parentNode} {...dp(m.id)} />
           {isExp && renderFGs(m.id, "milestone", depth + 1, m)}
         </div>
       );
@@ -1675,8 +1592,7 @@ function TreeView({ tree, projectId, users, onEdit, onDelete, onAddChild }: {
           <NodeRow node={s} type="stage" depth={depth} isExpanded={isExp} hasChildren={hasChildren}
             onToggle={() => toggle(s.id)} onEdit={() => onEdit(s, "stage")} onDelete={() => onDelete(s, "stage")}
             onAddChild={ct => onAddChild(ct, { stage_id: s.id })} users={users}
-            childTypes={["milestone", "feature_group", "feature"]}
-            projectId={projectId} parentNode={parentPhase} {...di(s.id)} />
+            childTypes={["milestone", "feature_group", "feature"]} parentNode={parentPhase} {...dp(s.id)} />
           {isExp && (
             <>
               {renderMilestones(s.id, "stage", depth + 1, s)}
@@ -1701,8 +1617,7 @@ function TreeView({ tree, projectId, users, onEdit, onDelete, onAddChild }: {
             <NodeRow node={p} type="phase" depth={0} isExpanded={isExp} hasChildren={hasChildren}
               onToggle={() => toggle(p.id)} onEdit={() => onEdit(p, "phase")} onDelete={() => onDelete(p, "phase")}
               onAddChild={ct => onAddChild(ct, { phase_id: p.id })} users={users}
-              childTypes={["stage", "milestone", "feature_group", "feature"]}
-              projectId={projectId} parentNode={undefined} {...di(p.id)} />
+              childTypes={["stage", "milestone", "feature_group", "feature"]} parentNode={undefined} {...dp(p.id)} />
             {isExp && (
               <>
                 {renderStages(p.id, 1, p)}
@@ -1714,7 +1629,7 @@ function TreeView({ tree, projectId, users, onEdit, onDelete, onAddChild }: {
         );
       })}
 
-      {/* Orphan Stages */}
+      {/* Orphan Stages (no phase) */}
       {tree.stages.filter((s: any) => !s.phase_id).map((s: any) => {
         const msChildren = milestonesForParent(s.id, "stage");
         const fgChildren = fgsForParent(s.id, "stage");
@@ -1725,8 +1640,7 @@ function TreeView({ tree, projectId, users, onEdit, onDelete, onAddChild }: {
             <NodeRow node={s} type="stage" depth={0} isExpanded={isExp} hasChildren={hasChildren}
               onToggle={() => toggle(s.id)} onEdit={() => onEdit(s, "stage")} onDelete={() => onDelete(s, "stage")}
               onAddChild={ct => onAddChild(ct, { stage_id: s.id })} users={users}
-              childTypes={["milestone", "feature_group", "feature"]}
-              projectId={projectId} parentNode={undefined} {...di(s.id)} />
+              childTypes={["milestone", "feature_group", "feature"]} parentNode={undefined} {...dp(s.id)} />
             {isExp && (
               <>
                 {renderMilestones(s.id, "stage", 1, s)}
@@ -1737,7 +1651,7 @@ function TreeView({ tree, projectId, users, onEdit, onDelete, onAddChild }: {
         );
       })}
 
-      {/* Orphan Milestones */}
+      {/* Orphan Milestones (no phase, no stage) */}
       {orphanMilestones.map((m: any) => {
         const fgChildren = fgsForParent(m.id, "milestone");
         const isExp = expanded.has(m.id);
@@ -1746,13 +1660,13 @@ function TreeView({ tree, projectId, users, onEdit, onDelete, onAddChild }: {
             <NodeRow node={m} type="milestone" depth={0} isExpanded={isExp} hasChildren={fgChildren.length > 0}
               onToggle={() => toggle(m.id)} onEdit={() => onEdit(m, "milestone")} onDelete={() => onDelete(m, "milestone")}
               onAddChild={ct => onAddChild(ct, { milestone_id: m.id })} users={users} childTypes={["feature_group", "feature"]}
-              projectId={projectId} parentNode={undefined} {...di(m.id)} />
+              parentNode={undefined} {...dp(m.id)} />
             {isExp && renderFGs(m.id, "milestone", 1, m)}
           </div>
         );
       })}
 
-      {/* Orphan FGs */}
+      {/* Orphan FGs (no phase, stage, or milestone) */}
       {orphanFGs.map((fg: any) => {
         const children = featuresForFG(fg.id);
         const isExp = expanded.has(fg.id);
@@ -1761,13 +1675,13 @@ function TreeView({ tree, projectId, users, onEdit, onDelete, onAddChild }: {
             <NodeRow node={fg} type="feature_group" depth={0} isExpanded={isExp} hasChildren={children.length > 0}
               onToggle={() => toggle(fg.id)} onEdit={() => onEdit(fg, "feature_group")} onDelete={() => onDelete(fg, "feature_group")}
               onAddChild={ct => onAddChild(ct, { feature_group_id: fg.id })} users={users} childTypes={["feature"]}
-              projectId={projectId} parentNode={undefined} {...di(fg.id)} />
+              parentNode={undefined} {...dp(fg.id)} />
             {isExp && renderFeatures(fg.id, 1, fg)}
           </div>
         );
       })}
 
-      {/* Unattached Features */}
+      {/* Unattached Features (no FG) */}
       {featuresUnassigned().map((f: any) => {
         const children = storiesForFeature(f.id);
         const isExp = expanded.has(f.id);
@@ -1776,7 +1690,7 @@ function TreeView({ tree, projectId, users, onEdit, onDelete, onAddChild }: {
             <NodeRow node={f} type="feature" depth={0} isExpanded={isExp} hasChildren={children.length > 0}
               onToggle={() => toggle(f.id)} onEdit={() => onEdit(f, "feature")} onDelete={() => onDelete(f, "feature")}
               onAddChild={ct => onAddChild(ct, { feature_id: f.id })} users={users} childTypes={["user_story"]}
-              projectId={projectId} parentNode={undefined} {...di(f.id)} />
+              parentNode={undefined} {...dp(f.id)} />
             {isExp && renderStories(f.id, 1, f)}
           </div>
         );
@@ -1795,7 +1709,6 @@ function TreeView({ tree, projectId, users, onEdit, onDelete, onAddChild }: {
   );
 }
 
-// ── Timeline / Gantt View ──────────────────────────────────────────────────
 const ROW_H = 28;        // h-6 (24px bar) + space-y-1 (4px gap)
 const BAR_CY = 12;       // top-1 (4px) + h-4/2 (8px) centre of bar
 
@@ -1948,7 +1861,7 @@ function TimelineView({ tree }: { tree: PlanningTree }) {
                   <div key={item.id} className="h-6 relative">
                     {barStyle && (
                       <div
-                        className={`absolute top-1 h-4 rounded ${COLORS[item.type]} opacity-80`}
+                        className={`absolute top-1 h-4 rounded ${COLORS[item.type]} opacity-80 hover:opacity-100 transition-opacity`}
                         style={barStyle}
                         title={`${item.name}: ${item.start_date ? format(new Date(item.start_date), "dd MMM") : "?"} → ${item.end_date ? format(new Date(item.end_date), "dd MMM") : "?"}`}
                       />
@@ -2232,6 +2145,7 @@ export default function PlanningWorkspace({ projectId, users }: { projectId: str
 
       {/* ── Dialogs & Sheets ─────────────────────────────────────────────── */}
       <NodeSheet
+        key={`${sheetType}:${sheetNode?.id ?? "new"}`}
         open={sheetOpen}
         onClose={() => setSheetOpen(false)}
         type={sheetType}

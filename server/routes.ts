@@ -222,6 +222,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
+      // Bind a server-side session so subsequent requests can be verified
+      // without trusting a caller-supplied header.
+      (req as any).session.userId = user.id;
+      await new Promise<void>((resolve, reject) =>
+        (req as any).session.save((err: any) => (err ? reject(err) : resolve()))
+      );
+
       // Return user info (excluding password)
       const { password_hash, ...userInfo } = user;
       res.json(userInfo);

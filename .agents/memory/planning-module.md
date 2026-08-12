@@ -1,74 +1,33 @@
 ---
 name: Planning Module Architecture
-description: Architecture decisions and patterns for the Tazq Planning module added to the Project Management section.
+description: Durable constraints and decisions for the planning module (phases/stages/milestones/features/stories/deps).
 ---
 
-## What was built
-A full Planning module added as a new sidebar section ("Planning") inside the existing `ProjectDetail.tsx` layout. No existing sections were broken.
+# Planning Module — Durable Decisions
 
-## Database — new tables (applied via `scripts/migrate-planning.ts`)
-- `planning_phases` — optional top-level hierarchy containers
-- `planning_stages` — sub-phase containers (phase_id nullable)
-- `user_stories` — new entity, linked to project_features (feature_id nullable)
-- `planning_dependencies` — cross-entity dependency links (source/target type+id polymorphic)
-- `planning_methodology_configs` — per-project methodology config + version snapshot
-- `planning_ai_proposals` — AI staging records (never auto-commit)
-- `planning_ai_proposal_items` — individual proposal items (is_accepted controls commit)
+## Authorization: Router-level middleware pattern
+All planning routes are mounted on a single Express Router at `/api/projects/:projectId/planning`. `requireAuth` + `requireProjectMember` are applied once as router-level middleware — no individual route can accidentally skip auth.
 
-## Database — columns added to existing tables (additive, no breakage)
-- `projects`: `planning_methodology`, `planning_version`
-- `project_milestones`: `phase_id`, `stage_id`, `planning_status`, `estimated_hours`, `owner_id`, `date_mode`
-- `project_feature_groups`: `phase_id`, `stage_id`, `milestone_id`, `planning_status`, `estimated_hours`, `owner_id`, `sort_order`, `start_date`, `end_date`
-- `project_features`: `phase_id`, `stage_id`, `planning_status`, `estimated_hours`, `owner_id`, `sort_order`, `start_date`, `end_date`, `date_mode`, `acceptance_criteria`
+**Why:** Previous approach of applying middleware per-route was error-prone; several routes were missed in code review, causing repeated rejections.
 
-## Migration pattern
-New tables and column additions are applied via `npx tsx scripts/migrate-planning.ts` + `npx tsx scripts/migrate-planning-fks.ts`. Do NOT use `npm run db:push` for this project — it gets stuck on an interactive prompt about the tasks table unique constraint. Always use the migration scripts or raw SQL via the pool.
+**How to apply:** When adding new planning routes, register them on the `router` object (not `app`); they automatically inherit the auth chain.
 
-**Why:** `drizzle-kit push` is interactive and blocks on the `tasks_task_number_unique` constraint confirmation. The tsx migration scripts bypass this and apply changes directly.
+## Authentication: Session-based identity only
+`getVerifiedUserId(req)` reads `req.session.userId` only — no `x-user-id` header fallback. The session is set by `/api/auth/login` as an httpOnly cookie.
 
-## Server routes
-All planning routes in `server/planning-routes.ts`, registered via `registerPlanningRoutes(app)` at end of `server/routes.ts`. All routes are under `/api/projects/:projectId/planning/`.
+**Why:** The `x-user-id` header is caller-supplied and can be forged. Session identity is server-verified.
 
-## callAiProvider signature
-`callAiProvider(config: { provider, apiKey, model, baseUrl }, messages: ChatMessage[]): Promise<string>` — returns a plain string, NOT an object. Always fetch AI settings from `storage.getAiSettings()` first, decrypt key with `decryptApiKey()`.
+**How to apply:** Any new code that needs the current user ID in a planning route must call `getVerifiedUserId(req)`, not `req.headers["x-user-id"]`.
 
-**Why:** Planning routes initially called it wrong (with a single object + .content access). Fixed to match the actual signature.
+## Dependency POST: source/target ownership validation
+Before inserting a dependency, `itemBelongsToProject(id, type, projectId)` is called for both source and target. An unknown entity type returns `false` (reject). This prevents cross-project IDOR where a member of project A supplies UUIDs from project B.
 
-## Frontend
-- `client/src/components/planning/PlanningWorkspace.tsx` — full self-contained planning UI (~1200 lines)
-- Added `Network` icon import + `PlanningWorkspace` import to `ProjectDetail.tsx`
-- Planning nav item inserted second in sidebar (after Overview)
-- Planning section div uses `overflow-hidden flex flex-col` instead of padding/overflow-auto (to allow PlanningWorkspace to own its own scroll)
+**Why:** The dep table only scopes `project_id` at the dep row level; without item-level validation, any member could create deps referencing foreign items.
 
-## Planning Coverage algorithm
-Weighted sum: high_level=0.25, partially_planned=0.6, detailed=0.9, reviewed=1.0. Applies to all planning entities. Displayed separately from execution progress with explicit "Planning Coverage ≠ Execution Progress" label.
+## Dependency ops: removals before additions
+When `applyDeps` processes a pending queue of dep changes, it runs all DELETEs before all POSTs.
 
-## AI proposal flow
-1. PM triggers AI via `AiPlanningPanel` → POST `/planning/ai-propose`
-2. Server builds system prompt with existing context, calls AI, parses JSON response
-3. Creates `planning_ai_proposals` + `planning_ai_proposal_items` records
-4. `AiProposalReview` component shows proposal with checkboxes per item
-5. PM accepts/rejects → PUT `/planning/ai-proposals/:id/review` → commits accepted items to production tables
+**Why:** If a PM removes FS and adds SS to the same predecessor, a POST-before-DELETE sequence hits a 409 (duplicate) and the subsequent DELETE leaves the DB in a broken state.
 
-## Dependency features (fully implemented)
-- **DependencySection** component inside NodeSheet (edit mode only) — add/remove deps with predecessor picker + FS/SS type selector
-- **Conflict detection** — per-node in TreeView via `depInfo` useMemo; FS: source.start < target.end; SS: source.start < target.start; amber ring + "Conflict" badge on violating rows
-- **Dep badge** — blue badge with Link2 icon + count when deps exist and no conflict
-- **Timeline SVG arrows** — elbow connectors (x1,y1→midX,y1→midX,y2→x2,y2) overlaid on the Gantt grid; amber dashed for conflicts, type-coloured solid for clean deps; ResizeObserver on grid div for responsive pixel math
-- **Server-side guards** — circular dependency BFS check + duplicate check in POST /planning/dependencies; returns 422 on cycle, 409 on duplicate
-
-## PDF export (server-side, pdfkit)
-- `GET /api/projects/:id/planning/export/pdf` in planning-routes.ts — dynamic `import("pdfkit")` inside the route handler
-- Generates Cover, Executive Summary, Coverage Breakdown, Project Structure (nested hierarchy), Effort Summary, Dependencies, Planning Notes sections
-- Server must be restarted for new routes to take effect (tsx has no hot-reload on backend)
-- Client: fetch blob with `localStorage.getItem("user")` for x-user-id header; trigger download via <a> + createObjectURL
-- "Export PDF" button in PlanningWorkspace header with RefreshCw spinner while in-flight
-
-## AI proposal inline editing (Task #3)
-- `PATCH /api/projects/:projectId/planning/ai-proposals/:proposalId/items/:itemId` — merges patch fields into existing item_data JSONB (no updated_at column on planningAiProposalItems)
-- AiProposalReview now: local `items` state initialized from prop (edits reflected immediately); `expandedId` + `drafts` state per item; Pencil toggle opens mini form (name, description, estimated_hours, planning_status select); saves via direct fetch PATCH then setItems to updated row
-
-## Not yet built (follow-up tasks)
-- Methodology implementations beyond Manual (Step 11)
-- Finance integration interfaces
-- `Collapsible` import in PlanningWorkspace is imported but not used (can be removed)
+## DB migration pattern
+Schema changes require a migration script (`db:migrate`) — never `db:push` in production. The planning tables (7 new tables + columns on milestones/features/feature_groups) were introduced this way.

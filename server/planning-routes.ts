@@ -1,27 +1,99 @@
 /**
  * Planning Module API Routes
  * All routes are mounted under /api/projects/:projectId/planning
+ *
+ * Authorization: every route in this module requires:
+ *   1. A valid server-side session (set by /api/auth/login) — requireAuth
+ *   2. Active project membership for the requested project — requireProjectMember
+ * Both checks are applied once via router-level middleware; no route in this
+ * file is reachable without passing both.
  */
 import type { Express } from "express";
+import { Router } from "express";
 import { db } from "./db";
 import { eq, and, asc, sql } from "drizzle-orm";
 import {
   planningPhases, planningStages, userStories, planningDependencies,
   planningMethodologyConfigs, planningAiProposals, planningAiProposalItems,
   projectMilestones, projectFeatureGroups, projectFeatures, projects, users,
+  projectMembers,
 } from "@shared/schema";
 import { callAiProvider, decryptApiKey } from "./ai-provider";
 import { storage } from "./storage";
 
+/**
+ * Extract the verified user ID from the server-side session.
+ * The session is set by /api/auth/login using an httpOnly cookie, so this
+ * identity cannot be forged by a caller-supplied header.
+ * Returns null when no valid session exists.
+ */
+function getVerifiedUserId(req: any): string | null {
+  return req.session?.userId ?? null;
+}
+
+/** Map entity type labels (from the UI) to their Drizzle table objects. */
+const ENTITY_TABLE_MAP: Record<string, { table: any }> = {
+  phase:         { table: planningPhases       },
+  stage:         { table: planningStages        },
+  milestone:     { table: projectMilestones     },
+  feature_group: { table: projectFeatureGroups  },
+  feature:       { table: projectFeatures       },
+  user_story:    { table: userStories           },
+};
+
+/** Returns true only when `itemId` exists in its entity table AND belongs to `projectId`. */
+async function itemBelongsToProject(itemId: string, entityType: string, projectId: string): Promise<boolean> {
+  const mapping = ENTITY_TABLE_MAP[entityType];
+  if (!mapping) return false;
+  const [row] = await db.select({ id: mapping.table.id })
+    .from(mapping.table)
+    .where(and(eq(mapping.table.id, itemId), eq(mapping.table.project_id, projectId)))
+    .limit(1);
+  return !!row;
+}
+
+// ── Auth middleware ───────────────────────────────────────────────────────────
+
 const requireAuth = async (req: any, res: any, next: any) => {
-  if (!req.headers["x-user-id"]) return res.status(401).json({ error: "Authentication required" });
+  if (!getVerifiedUserId(req)) return res.status(401).json({ error: "Authentication required" });
   next();
 };
 
+/**
+ * Verify the authenticated user is an active member of :projectId.
+ * User identity is read from the server-side session (set by /api/auth/login).
+ */
+const requireProjectMember = async (req: any, res: any, next: any) => {
+  const userId = getVerifiedUserId(req);
+  if (!userId) return res.status(401).json({ error: "Authentication required" });
+  const { projectId } = req.params;
+  if (!projectId) return next();
+  try {
+    const [member] = await db.select({ id: projectMembers.id })
+      .from(projectMembers)
+      .where(
+        and(
+          eq(projectMembers.project_id, projectId),
+          eq(projectMembers.user_id, userId),
+          eq(projectMembers.is_active, true),
+        )
+      )
+      .limit(1);
+    if (!member) return res.status(403).json({ error: "You are not a member of this project" });
+    next();
+  } catch {
+    res.status(500).json({ error: "Failed to verify project membership" });
+  }
+};
+
 export function registerPlanningRoutes(app: Express) {
+  // All routes in this router require session auth + project membership.
+  // Typed as `any` so TypeScript doesn't complain about merged params shape.
+  const router: any = Router({ mergeParams: true });
+  router.use(requireAuth, requireProjectMember);
 
   // ── Planning Tree (single call fetches entire hierarchy) ──────────────────
-  app.get("/api/projects/:projectId/planning/tree", requireAuth, async (req, res) => {
+  router.get("/tree", async (req: any, res: any) => {
     try {
       const { projectId } = req.params;
       const [phases, stages, milestones, featureGroups, features, stories, deps, config] =
@@ -43,7 +115,7 @@ export function registerPlanningRoutes(app: Express) {
   });
 
   // ── Planning Coverage ─────────────────────────────────────────────────────
-  app.get("/api/projects/:projectId/planning/coverage", requireAuth, async (req, res) => {
+  router.get("/coverage", async (req: any, res: any) => {
     try {
       const { projectId } = req.params;
       const [phases, milestones, featureGroups, features, stories] = await Promise.all([
@@ -87,7 +159,7 @@ export function registerPlanningRoutes(app: Express) {
   });
 
   // ── Planning Methodology Config ───────────────────────────────────────────
-  app.get("/api/projects/:projectId/planning/config", requireAuth, async (req, res) => {
+  router.get("/config", async (req: any, res: any) => {
     try {
       const { projectId } = req.params;
       const rows = await db.select().from(planningMethodologyConfigs).where(eq(planningMethodologyConfigs.project_id, projectId)).limit(1);
@@ -97,10 +169,10 @@ export function registerPlanningRoutes(app: Express) {
     }
   });
 
-  app.put("/api/projects/:projectId/planning/config", requireAuth, async (req, res) => {
+  router.put("/config", async (req: any, res: any) => {
     try {
       const { projectId } = req.params;
-      const userId = req.headers["x-user-id"] as string;
+      const userId = getVerifiedUserId(req);
       const { methodology, methodology_version, config_snapshot, notes } = req.body;
       const existing = await db.select().from(planningMethodologyConfigs).where(eq(planningMethodologyConfigs.project_id, projectId)).limit(1);
       if (existing.length) {
@@ -108,7 +180,6 @@ export function registerPlanningRoutes(app: Express) {
           methodology, methodology_version: methodology_version ?? "1.0",
           config_snapshot, notes, updated_at: new Date(),
         }).where(eq(planningMethodologyConfigs.id, existing[0].id)).returning();
-        // Also update projects table
         await db.update(projects).set({ planning_methodology: methodology, updated_at: new Date() }).where(eq(projects.id, projectId));
         return res.json(updated[0]);
       }
@@ -125,14 +196,14 @@ export function registerPlanningRoutes(app: Express) {
   });
 
   // ── Phases CRUD ───────────────────────────────────────────────────────────
-  app.get("/api/projects/:projectId/planning/phases", requireAuth, async (req, res) => {
+  router.get("/phases", async (req: any, res: any) => {
     try {
       const rows = await db.select().from(planningPhases).where(eq(planningPhases.project_id, req.params.projectId)).orderBy(asc(planningPhases.sort_order));
       res.json(rows);
     } catch (err: any) { res.status(500).json({ error: "Failed to load phases" }); }
   });
 
-  app.post("/api/projects/:projectId/planning/phases", requireAuth, async (req, res) => {
+  router.post("/phases", async (req: any, res: any) => {
     try {
       const { projectId } = req.params;
       const maxOrder = await db.select({ max: sql<number>`coalesce(max(sort_order),0)` }).from(planningPhases).where(eq(planningPhases.project_id, projectId));
@@ -151,7 +222,7 @@ export function registerPlanningRoutes(app: Express) {
     } catch (err: any) { res.status(500).json({ error: "Failed to create phase" }); }
   });
 
-  app.put("/api/projects/:projectId/planning/phases/:id", requireAuth, async (req, res) => {
+  router.put("/phases/:id", async (req: any, res: any) => {
     try {
       const row = await db.update(planningPhases).set({
         name: req.body.name,
@@ -169,7 +240,7 @@ export function registerPlanningRoutes(app: Express) {
     } catch (err: any) { res.status(500).json({ error: "Failed to update phase" }); }
   });
 
-  app.delete("/api/projects/:projectId/planning/phases/:id", requireAuth, async (req, res) => {
+  router.delete("/phases/:id", async (req: any, res: any) => {
     try {
       await db.delete(planningPhases).where(and(eq(planningPhases.id, req.params.id), eq(planningPhases.project_id, req.params.projectId)));
       res.json({ ok: true });
@@ -177,14 +248,14 @@ export function registerPlanningRoutes(app: Express) {
   });
 
   // ── Stages CRUD ───────────────────────────────────────────────────────────
-  app.get("/api/projects/:projectId/planning/stages", requireAuth, async (req, res) => {
+  router.get("/stages", async (req: any, res: any) => {
     try {
       const rows = await db.select().from(planningStages).where(eq(planningStages.project_id, req.params.projectId)).orderBy(asc(planningStages.sort_order));
       res.json(rows);
     } catch (err: any) { res.status(500).json({ error: "Failed to load stages" }); }
   });
 
-  app.post("/api/projects/:projectId/planning/stages", requireAuth, async (req, res) => {
+  router.post("/stages", async (req: any, res: any) => {
     try {
       const { projectId } = req.params;
       const maxOrder = await db.select({ max: sql<number>`coalesce(max(sort_order),0)` }).from(planningStages).where(eq(planningStages.project_id, projectId));
@@ -204,7 +275,7 @@ export function registerPlanningRoutes(app: Express) {
     } catch (err: any) { res.status(500).json({ error: "Failed to create stage" }); }
   });
 
-  app.put("/api/projects/:projectId/planning/stages/:id", requireAuth, async (req, res) => {
+  router.put("/stages/:id", async (req: any, res: any) => {
     try {
       const row = await db.update(planningStages).set({
         name: req.body.name,
@@ -223,7 +294,7 @@ export function registerPlanningRoutes(app: Express) {
     } catch (err: any) { res.status(500).json({ error: "Failed to update stage" }); }
   });
 
-  app.delete("/api/projects/:projectId/planning/stages/:id", requireAuth, async (req, res) => {
+  router.delete("/stages/:id", async (req: any, res: any) => {
     try {
       await db.delete(planningStages).where(and(eq(planningStages.id, req.params.id), eq(planningStages.project_id, req.params.projectId)));
       res.json({ ok: true });
@@ -231,17 +302,16 @@ export function registerPlanningRoutes(app: Express) {
   });
 
   // ── User Stories CRUD ─────────────────────────────────────────────────────
-  app.get("/api/projects/:projectId/planning/user-stories", requireAuth, async (req, res) => {
+  router.get("/user-stories", async (req: any, res: any) => {
     try {
       const rows = await db.select().from(userStories).where(eq(userStories.project_id, req.params.projectId)).orderBy(asc(userStories.sort_order));
       res.json(rows);
     } catch (err: any) { res.status(500).json({ error: "Failed to load user stories" }); }
   });
 
-  app.post("/api/projects/:projectId/planning/user-stories", requireAuth, async (req, res) => {
+  router.post("/user-stories", async (req: any, res: any) => {
     try {
       const { projectId } = req.params;
-      // Generate tracking number
       const count = await db.select({ cnt: sql<number>`count(*)` }).from(userStories).where(eq(userStories.project_id, projectId));
       const trackNum = `US-${String((count[0]?.cnt ?? 0) + 1).padStart(3, "0")}`;
       const maxOrder = await db.select({ max: sql<number>`coalesce(max(sort_order),0)` }).from(userStories).where(eq(userStories.project_id, projectId));
@@ -265,7 +335,7 @@ export function registerPlanningRoutes(app: Express) {
     } catch (err: any) { res.status(500).json({ error: "Failed to create user story" }); }
   });
 
-  app.put("/api/projects/:projectId/planning/user-stories/:id", requireAuth, async (req, res) => {
+  router.put("/user-stories/:id", async (req: any, res: any) => {
     try {
       const row = await db.update(userStories).set({
         title: req.body.title,
@@ -287,7 +357,7 @@ export function registerPlanningRoutes(app: Express) {
     } catch (err: any) { res.status(500).json({ error: "Failed to update user story" }); }
   });
 
-  app.delete("/api/projects/:projectId/planning/user-stories/:id", requireAuth, async (req, res) => {
+  router.delete("/user-stories/:id", async (req: any, res: any) => {
     try {
       await db.delete(userStories).where(and(eq(userStories.id, req.params.id), eq(userStories.project_id, req.params.projectId)));
       res.json({ ok: true });
@@ -295,20 +365,29 @@ export function registerPlanningRoutes(app: Express) {
   });
 
   // ── Dependencies CRUD ─────────────────────────────────────────────────────
-  app.get("/api/projects/:projectId/planning/dependencies", requireAuth, async (req, res) => {
+  router.get("/dependencies", async (req: any, res: any) => {
     try {
       const rows = await db.select().from(planningDependencies).where(eq(planningDependencies.project_id, req.params.projectId));
       res.json(rows);
     } catch (err: any) { res.status(500).json({ error: "Failed to load dependencies" }); }
   });
 
-  app.post("/api/projects/:projectId/planning/dependencies", requireAuth, async (req, res) => {
+  router.post("/dependencies", async (req: any, res: any) => {
     try {
       const { projectId } = req.params;
       const { source_id, source_type, target_id, target_type, dependency_type } = req.body;
 
       if (!source_id || !target_id) return res.status(400).json({ error: "source_id and target_id are required" });
+      if (!source_type || !target_type) return res.status(400).json({ error: "source_type and target_type are required" });
       if (source_id === target_id) return res.status(400).json({ error: "An item cannot depend on itself" });
+
+      // Validate that both items exist in this project (prevents cross-project IDOR)
+      const [sourceOk, targetOk] = await Promise.all([
+        itemBelongsToProject(source_id, source_type, projectId),
+        itemBelongsToProject(target_id, target_type, projectId),
+      ]);
+      if (!sourceOk) return res.status(404).json({ error: "Source item not found in this project" });
+      if (!targetOk) return res.status(404).json({ error: "Target item not found in this project" });
 
       // Duplicate check
       const existing = await db.select().from(planningDependencies)
@@ -330,7 +409,6 @@ export function registerPlanningRoutes(app: Express) {
         db.select().from(userStories).where(eq(userStories.project_id, projectId)),
       ]);
 
-      // Fast lookup maps
       const phaseMap  = new Map(phases.map(p => [p.id, p]));
       const stageMap  = new Map(stages.map(s => [s.id, s]));
       const msMap     = new Map(milestones.map(m => [m.id, m]));
@@ -338,7 +416,6 @@ export function registerPlanningRoutes(app: Express) {
       const featMap   = new Map(features.map(f => [f.id, f]));
       const storyMap  = new Map(stories.map(s => [s.id, s]));
 
-      // All items flat (for date lookups)
       const itemMap = new Map<string, any>([
         ...phases.map(p => [p.id, p] as [string, any]),
         ...stages.map(s => [s.id, s] as [string, any]),
@@ -348,59 +425,44 @@ export function registerPlanningRoutes(app: Express) {
         ...stories.map(s => [s.id, s] as [string, any]),
       ]);
 
-      // ── Phase-rank resolution ─────────────────────────────────────────────
-      // Returns the sort_order of the phase this item ultimately belongs to,
-      // or null if the item is not anchored to any phase.
-      function getPhaseRank(id: string, type: string): number | null {
-        if (type === "phase") {
-          return phaseMap.get(id)?.sort_order ?? null;
-        }
+      const getPhaseRank = (id: string, type: string): number | null => {
+        if (type === "phase") return phaseMap.get(id)?.sort_order ?? null;
         if (type === "stage") {
           const s = stageMap.get(id) as any;
-          if (!s?.phase_id) return null;
-          return phaseMap.get(s.phase_id)?.sort_order ?? null;
+          return s?.phase_id ? phaseMap.get(s.phase_id)?.sort_order ?? null : null;
         }
         if (type === "milestone") {
           const m = msMap.get(id) as any;
           if (!m) return null;
           if (m.phase_id) return phaseMap.get(m.phase_id)?.sort_order ?? null;
-          if (m.stage_id) {
-            const st = stageMap.get(m.stage_id) as any;
-            return st?.phase_id ? phaseMap.get(st.phase_id)?.sort_order ?? null : null;
-          }
+          if (m.stage_id) { const st = stageMap.get(m.stage_id) as any; return st?.phase_id ? phaseMap.get(st.phase_id)?.sort_order ?? null : null; }
           return null;
         }
         if (type === "feature_group") {
           const fg = fgMap.get(id) as any;
           if (!fg) return null;
           if (fg.milestone_id) return getPhaseRank(fg.milestone_id, "milestone");
-          if (fg.stage_id)     return getPhaseRank(fg.stage_id, "stage");
-          if (fg.phase_id)     return phaseMap.get(fg.phase_id)?.sort_order ?? null;
+          if (fg.stage_id) return getPhaseRank(fg.stage_id, "stage");
+          if (fg.phase_id) return phaseMap.get(fg.phase_id)?.sort_order ?? null;
           return null;
         }
         if (type === "feature") {
           const feat = featMap.get(id) as any;
           if (!feat) return null;
           if (feat.feature_group_id) return getPhaseRank(feat.feature_group_id, "feature_group");
-          if (feat.stage_id)         return getPhaseRank(feat.stage_id, "stage");
-          if (feat.phase_id)         return phaseMap.get(feat.phase_id)?.sort_order ?? null;
+          if (feat.stage_id) return getPhaseRank(feat.stage_id, "stage");
+          if (feat.phase_id) return phaseMap.get(feat.phase_id)?.sort_order ?? null;
           return null;
         }
         if (type === "user_story") {
           const story = storyMap.get(id) as any;
-          if (!story) return null;
-          if (story.feature_id) return getPhaseRank(story.feature_id, "feature");
-          return null;
+          return story?.feature_id ? getPhaseRank(story.feature_id, "feature") : null;
         }
         return null;
-      }
+      };
 
-      // ── Phase sequence check ──────────────────────────────────────────────
-      // The predecessor (target) must belong to the same or an earlier phase
-      // than the successor (source). A dep on a later phase is rejected.
       const sourceRank = getPhaseRank(source_id, source_type ?? "");
       const targetRank = getPhaseRank(target_id, target_type ?? "");
-
       if (sourceRank !== null && targetRank !== null && targetRank > sourceRank) {
         const srcPhase = phases.find(p => p.sort_order === sourceRank);
         const tgtPhase = phases.find(p => p.sort_order === targetRank);
@@ -410,7 +472,7 @@ export function registerPlanningRoutes(app: Express) {
         });
       }
 
-      // ── Circular dependency check (BFS) ───────────────────────────────────
+      // Circular dependency check (BFS)
       const reachable = new Set<string>();
       const queue = [target_id];
       while (queue.length > 0) {
@@ -429,7 +491,6 @@ export function registerPlanningRoutes(app: Express) {
         });
       }
 
-      // ── Insert ────────────────────────────────────────────────────────────
       const row = await db.insert(planningDependencies).values({
         project_id: projectId,
         source_type,
@@ -439,7 +500,7 @@ export function registerPlanningRoutes(app: Express) {
         dependency_type: dependency_type ?? "finish_to_start",
       }).returning();
 
-      // ── Date conflict detection (soft warning, not blocking) ──────────────
+      // Date conflict detection (soft warning, not blocking)
       const srcItem = itemMap.get(source_id);
       const tgtItem = itemMap.get(target_id);
       let date_conflict: string | null = null;
@@ -450,17 +511,13 @@ export function registerPlanningRoutes(app: Express) {
         const tgtEnd   = tgtItem.end_date   ? new Date(tgtItem.end_date)   : null;
         const depKind  = dependency_type ?? "finish_to_start";
         const fmt = (d: Date) => d.toISOString().slice(0, 10);
-
         if (depKind === "finish_to_start") {
-          // Source should start on or after target ends
           if (srcStart && tgtEnd && srcStart < tgtEnd)
             date_conflict = `Date conflict: this item starts ${fmt(srcStart)} but the predecessor doesn't finish until ${fmt(tgtEnd)}.`;
         } else if (depKind === "start_to_start") {
-          // Source should start on or after target starts
           if (srcStart && tgtStart && srcStart < tgtStart)
             date_conflict = `Date conflict: this item starts ${fmt(srcStart)} before the predecessor starts ${fmt(tgtStart)}.`;
         } else if (depKind === "finish_to_finish") {
-          // Source should finish on or after target finishes
           if (srcEnd && tgtEnd && srcEnd < tgtEnd)
             date_conflict = `Date conflict: this item finishes ${fmt(srcEnd)} before the predecessor finishes ${fmt(tgtEnd)}.`;
         }
@@ -470,17 +527,15 @@ export function registerPlanningRoutes(app: Express) {
     } catch (err: any) { res.status(500).json({ error: "Failed to create dependency" }); }
   });
 
-  app.delete("/api/projects/:projectId/planning/dependencies/:id", requireAuth, async (req, res) => {
+  router.delete("/dependencies/:id", async (req: any, res: any) => {
     try {
       await db.delete(planningDependencies).where(and(eq(planningDependencies.id, req.params.id), eq(planningDependencies.project_id, req.params.projectId)));
       res.json({ ok: true });
     } catch (err: any) { res.status(500).json({ error: "Failed to delete dependency" }); }
   });
 
-  // ── Unified quick-edit PATCH (inline editing from planning table) ─────────
-  // Accepts: start_date, end_date, estimated_hours, owner_id (all optional/nullable)
-  // Also accepts planning-relationship fields (phase_id, stage_id, …) and planning_status
-  app.patch("/api/projects/:projectId/planning/quick-edit/:entityType/:id", requireAuth, async (req: any, res: any) => {
+  // ── Unified quick-edit PATCH ──────────────────────────────────────────────
+  router.patch("/quick-edit/:entityType/:id", async (req: any, res: any) => {
     try {
       const { projectId, entityType, id } = req.params;
       const body = req.body;
@@ -536,17 +591,15 @@ export function registerPlanningRoutes(app: Express) {
     }
   });
 
-  // ── Planning enhancements on milestones ───────────────────────────────────
-  // Patch milestone with planning fields (legacy — kept for NodeSheet compatibility)
-  app.patch("/api/projects/:projectId/planning/milestones/:id", requireAuth, async (req, res) => {
+  // ── Planning entity patches (legacy — kept for NodeSheet compatibility) ────
+  router.patch("/milestones/:id", async (req: any, res: any) => {
     try {
       const update: Record<string, any> = { updated_at: new Date() };
       const fields = ["phase_id", "stage_id", "planning_status", "estimated_hours", "owner_id",
                       "date_mode", "start_date", "end_date"];
       for (const f of fields) {
-        if (req.body[f] !== undefined) {
+        if (req.body[f] !== undefined)
           update[f] = (f === "start_date" || f === "end_date") && req.body[f] ? new Date(req.body[f]) : req.body[f];
-        }
       }
       const row = await db.update(projectMilestones).set(update)
         .where(and(eq(projectMilestones.id, req.params.id), eq(projectMilestones.project_id, req.params.projectId)))
@@ -556,15 +609,13 @@ export function registerPlanningRoutes(app: Express) {
     } catch (err: any) { res.status(500).json({ error: "Failed to update milestone planning" }); }
   });
 
-  // Patch feature group with planning fields
-  app.patch("/api/projects/:projectId/planning/feature-groups/:id", requireAuth, async (req, res) => {
+  router.patch("/feature-groups/:id", async (req: any, res: any) => {
     try {
       const update: Record<string, any> = { updated_at: new Date() };
       const fields = ["phase_id", "stage_id", "milestone_id", "planning_status", "estimated_hours", "owner_id", "sort_order", "start_date", "end_date"];
       for (const f of fields) {
-        if (req.body[f] !== undefined) {
+        if (req.body[f] !== undefined)
           update[f] = (f === "start_date" || f === "end_date") && req.body[f] ? new Date(req.body[f]) : req.body[f];
-        }
       }
       const row = await db.update(projectFeatureGroups).set(update)
         .where(and(eq(projectFeatureGroups.id, req.params.id), eq(projectFeatureGroups.project_id, req.params.projectId)))
@@ -574,15 +625,13 @@ export function registerPlanningRoutes(app: Express) {
     } catch (err: any) { res.status(500).json({ error: "Failed to update feature group planning" }); }
   });
 
-  // Patch feature with planning fields
-  app.patch("/api/projects/:projectId/planning/features/:id", requireAuth, async (req, res) => {
+  router.patch("/features/:id", async (req: any, res: any) => {
     try {
       const update: Record<string, any> = { updated_at: new Date() };
       const fields = ["phase_id", "stage_id", "planning_status", "estimated_hours", "owner_id", "sort_order", "start_date", "end_date", "date_mode", "acceptance_criteria"];
       for (const f of fields) {
-        if (req.body[f] !== undefined) {
+        if (req.body[f] !== undefined)
           update[f] = (f === "start_date" || f === "end_date") && req.body[f] ? new Date(req.body[f]) : req.body[f];
-        }
       }
       const row = await db.update(projectFeatures).set(update)
         .where(and(eq(projectFeatures.id, req.params.id), eq(projectFeatures.project_id, req.params.projectId)))
@@ -593,13 +642,12 @@ export function registerPlanningRoutes(app: Express) {
   });
 
   // ── AI Proposals ──────────────────────────────────────────────────────────
-  app.post("/api/projects/:projectId/planning/ai-propose", requireAuth, async (req, res) => {
+  router.post("/ai-propose", async (req: any, res: any) => {
     try {
       const { projectId } = req.params;
-      const userId = req.headers["x-user-id"] as string;
+      const userId = getVerifiedUserId(req);
       const { scope_type, scope_id, prompt, context } = req.body;
 
-      // Gather existing context
       const [milestones, featureGroups, features, stories, phases, stages] = await Promise.all([
         db.select().from(projectMilestones).where(eq(projectMilestones.project_id, projectId)),
         db.select().from(projectFeatureGroups).where(eq(projectFeatureGroups.project_id, projectId)),
@@ -609,7 +657,6 @@ export function registerPlanningRoutes(app: Express) {
         db.select().from(planningStages).where(eq(planningStages.project_id, projectId)),
       ]);
 
-      // Fetch AI settings
       const aiSettings = await storage.getAiSettings();
       if (!aiSettings || !aiSettings.is_enabled || !aiSettings.api_key) {
         return res.status(403).json({ error: "AI is not enabled or configured. Please configure AI settings first.", ai_unavailable: true });
@@ -654,7 +701,6 @@ Only propose items that do not already exist. Be precise and professional.`;
         summary = "AI response could not be parsed. Please try again with a more specific prompt.";
       }
 
-      // Create the proposal record
       const [proposal] = await db.insert(planningAiProposals).values({
         project_id: projectId,
         scope_type: scope_type ?? "project",
@@ -665,7 +711,6 @@ Only propose items that do not already exist. Be precise and professional.`;
         created_by: userId,
       }).returning();
 
-      // Create proposal items
       if (proposedItems.length) {
         await db.insert(planningAiProposalItems).values(
           proposedItems.map((item: any, idx: number) => ({
@@ -689,8 +734,7 @@ Only propose items that do not already exist. Be precise and professional.`;
     }
   });
 
-  // Get proposal with items
-  app.get("/api/projects/:projectId/planning/ai-proposals/:id", requireAuth, async (req, res) => {
+  router.get("/ai-proposals/:id", async (req: any, res: any) => {
     try {
       const [proposal] = await db.select().from(planningAiProposals).where(eq(planningAiProposals.id, req.params.id));
       if (!proposal) return res.status(404).json({ error: "Proposal not found" });
@@ -699,11 +743,10 @@ Only propose items that do not already exist. Be precise and professional.`;
     } catch (err: any) { res.status(500).json({ error: "Failed to load proposal" }); }
   });
 
-  // Accept / reject proposal items
-  app.put("/api/projects/:projectId/planning/ai-proposals/:id/review", requireAuth, async (req, res) => {
+  router.put("/ai-proposals/:id/review", async (req: any, res: any) => {
     try {
       const { projectId } = req.params;
-      const { accepted_item_ids, action } = req.body; // action: 'accept_all' | 'accept_selected' | 'reject'
+      const { accepted_item_ids, action } = req.body;
 
       if (action === "reject") {
         await db.update(planningAiProposals).set({ status: "rejected", updated_at: new Date() }).where(eq(planningAiProposals.id, req.params.id));
@@ -713,7 +756,6 @@ Only propose items that do not already exist. Be precise and professional.`;
       const items = await db.select().from(planningAiProposalItems).where(eq(planningAiProposalItems.proposal_id, req.params.id)).orderBy(asc(planningAiProposalItems.sort_order));
       const toCommit = action === "accept_all" ? items : items.filter(i => (accepted_item_ids ?? []).includes(i.id));
 
-      // Commit accepted items to production tables
       for (const item of toCommit) {
         const data = item.item_data as any;
         try {
@@ -751,8 +793,7 @@ Only propose items that do not already exist. Be precise and professional.`;
     }
   });
 
-  // ── Patch individual proposal item (inline editing) ──────────────────────
-  app.patch("/api/projects/:projectId/planning/ai-proposals/:proposalId/items/:itemId", requireAuth, async (req, res) => {
+  router.patch("/ai-proposals/:proposalId/items/:itemId", async (req: any, res: any) => {
     try {
       const { itemId, proposalId, projectId } = req.params;
       // Verify proposal belongs to project
@@ -760,10 +801,11 @@ Only propose items that do not already exist. Be precise and professional.`;
         .where(and(eq(planningAiProposals.id, proposalId), eq(planningAiProposals.project_id, projectId)));
       if (!proposal) return res.status(404).json({ error: "Proposal not found" });
 
-      const [current] = await db.select().from(planningAiProposalItems).where(eq(planningAiProposalItems.id, itemId));
+      // Bind itemId to proposalId to prevent cross-proposal IDOR
+      const [current] = await db.select().from(planningAiProposalItems)
+        .where(and(eq(planningAiProposalItems.id, itemId), eq(planningAiProposalItems.proposal_id, proposalId)));
       if (!current) return res.status(404).json({ error: "Item not found" });
 
-      // Merge patch fields into existing item_data
       const existingData = (current.item_data as any) ?? {};
       const { name, title, description, estimated_hours, planning_status } = req.body;
       const updated = {
@@ -786,12 +828,11 @@ Only propose items that do not already exist. Be precise and professional.`;
   });
 
   // ── PDF Export ─────────────────────────────────────────────────────────────
-  app.get("/api/projects/:projectId/planning/export/pdf", requireAuth, async (req: any, res: any) => {
+  router.get("/export/pdf", async (req: any, res: any) => {
     try {
       const { projectId } = req.params;
       const PDFDocument = (await import("pdfkit")).default;
 
-      // Fetch all data in parallel
       const [projectRows, phases, stages, milestones, featureGroups, features, stories, deps, configRows] =
         await Promise.all([
           db.select().from(projects).where(eq(projects.id, projectId)).limit(1),
@@ -809,7 +850,6 @@ Only propose items that do not already exist. Be precise and professional.`;
       if (!project) return res.status(404).json({ error: "Project not found" });
       const config = configRows[0];
 
-      // Coverage calculation
       const allCoverageItems = [...phases, ...milestones, ...featureGroups, ...features, ...stories];
       const total = allCoverageItems.length;
       const weights: Record<string, number> = { high_level: 0.25, partially_planned: 0.60, detailed: 0.90, reviewed: 1.00 };
@@ -832,7 +872,6 @@ Only propose items that do not already exist. Be precise and professional.`;
       const fmtDate = (d: any) => d ? new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—";
       const fmtHours = (h: any) => h ? `${h}h` : "—";
 
-      // Build item lookup for dependency labels
       const allItems = new Map<string, string>();
       phases.forEach(p => allItems.set(p.id, `Phase: ${p.name}`));
       stages.forEach(s => allItems.set(s.id, `Stage: ${s.name}`));
@@ -841,37 +880,18 @@ Only propose items that do not already exist. Be precise and professional.`;
       features.forEach(f => allItems.set(f.id, `Feature: ${f.name}`));
       stories.forEach(s => allItems.set(s.id, `Story: ${s.tracking_number} ${s.title}`));
 
-      // ── Build PDF ────────────────────────────────────────────────────────
       const doc = new PDFDocument({ size: "A4", margin: 50, bufferPages: true });
       const chunks: Buffer[] = [];
       doc.on("data", (chunk: Buffer) => chunks.push(chunk));
 
-      const PAGE_W = doc.page.width - 100; // usable width
-
-      // Palette
+      const PAGE_W = doc.page.width - 100;
       const C = { primary: "#1e3a5f", accent: "#2563eb", muted: "#64748b", light: "#e2e8f0", warn: "#b45309", green: "#15803d" };
 
-      // ── Helper drawing functions ──────────────────────────────────────────
       const heading1 = (text: string) => {
         doc.addPage();
         doc.rect(50, 50, PAGE_W, 32).fill(C.primary);
-        doc.fillColor("white").fontSize(14).font("Helvetica-Bold")
-           .text(text, 60, 60, { width: PAGE_W - 20 });
+        doc.fillColor("white").fontSize(14).font("Helvetica-Bold").text(text, 60, 60, { width: PAGE_W - 20 });
         doc.fillColor("black").moveDown(0.5);
-      };
-
-      const heading2 = (text: string, indent = 0) => {
-        doc.moveDown(0.4);
-        doc.fontSize(11).font("Helvetica-Bold").fillColor(C.primary).text(text, 50 + indent);
-        doc.moveDown(0.1);
-        doc.fillColor("black");
-      };
-
-      const row = (label: string, value: string, indent = 0, valueColor = "black") => {
-        const y = doc.y;
-        doc.fontSize(9).font("Helvetica-Bold").fillColor(C.muted).text(label, 50 + indent, y, { width: 120, continued: false });
-        doc.fontSize(9).font("Helvetica").fillColor(valueColor).text(value, 50 + indent + 125, y, { width: PAGE_W - 125 - indent });
-        doc.fillColor("black");
       };
 
       const planningTag = (status: string) => {
@@ -885,25 +905,13 @@ Only propose items that do not already exist. Be precise and professional.`;
         doc.moveDown(0.3).strokeColor("black").lineWidth(1);
       };
 
-      const safeText = (text: string, opts: any = {}) => {
-        if (doc.y > doc.page.height - 80) doc.addPage();
-        doc.text(text, opts);
-      };
-
-      // ────────────────────────────────────────────────────────────────────
       // COVER PAGE
-      // ────────────────────────────────────────────────────────────────────
       doc.rect(0, 0, doc.page.width, 200).fill(C.primary);
-      doc.fillColor("white").fontSize(24).font("Helvetica-Bold")
-         .text("Project Plan", 50, 80, { width: PAGE_W });
-      doc.fontSize(16).font("Helvetica")
-         .text((project as any).name ?? "Untitled Project", 50, 120, { width: PAGE_W });
-      doc.fontSize(9).fillColor("#94a3b8")
-         .text(`Generated ${new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" })}`, 50, 155);
-
+      doc.fillColor("white").fontSize(24).font("Helvetica-Bold").text("Project Plan", 50, 80, { width: PAGE_W });
+      doc.fontSize(16).font("Helvetica").text((project as any).name ?? "Untitled Project", 50, 120, { width: PAGE_W });
+      doc.fontSize(9).fillColor("#94a3b8").text(`Generated ${new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" })}`, 50, 155);
       doc.fillColor("black").moveDown(6);
 
-      // Cover meta box
       doc.rect(50, 215, PAGE_W, 120).fillAndStroke("#f8fafc", C.light);
       const mx = 65;
       doc.fillColor(C.muted).fontSize(8).font("Helvetica-Bold").text("PROJECT STATUS", mx, 228);
@@ -911,22 +919,17 @@ Only propose items that do not already exist. Be precise and professional.`;
       doc.fillColor(C.muted).fontSize(8).font("Helvetica-Bold").text("PLANNING METHODOLOGY", mx, 262);
       doc.fillColor("black").fontSize(10).font("Helvetica").text(METHODOLOGY_LABELS[config?.methodology ?? "manual"], mx, 276);
       doc.fillColor(C.muted).fontSize(8).font("Helvetica-Bold").text("PLANNING COVERAGE", mx + 200, 228);
-      doc.fillColor(coveragePct >= 80 ? C.green : coveragePct >= 50 ? C.warn : C.muted)
-         .fontSize(22).font("Helvetica-Bold").text(`${coveragePct}%`, mx + 200, 240);
+      doc.fillColor(coveragePct >= 80 ? C.green : coveragePct >= 50 ? C.warn : C.muted).fontSize(22).font("Helvetica-Bold").text(`${coveragePct}%`, mx + 200, 240);
       doc.fillColor(C.muted).fontSize(8).font("Helvetica-Bold").text("TOTAL EFFORT ESTIMATE", mx + 200, 275);
       doc.fillColor("black").fontSize(10).font("Helvetica").text(fmtHours(totalEffort), mx + 200, 287);
 
-      // ────────────────────────────────────────────────────────────────────
       // SECTION 1 – EXECUTIVE SUMMARY
-      // ────────────────────────────────────────────────────────────────────
       heading1("1. Executive Summary");
-
       doc.fontSize(9).font("Helvetica").fillColor("black")
          .text(`This document presents the project plan for ${(project as any).name ?? "this project"} as of ${new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" })}. The plan was developed using the ${METHODOLOGY_LABELS[config?.methodology ?? "manual"]} methodology and reflects the current state of planning across all hierarchy levels.`,
           50, doc.y, { width: PAGE_W });
       doc.moveDown(0.8);
 
-      // Coverage breakdown table
       const statusCounts: Record<string, number> = { high_level: 0, partially_planned: 0, detailed: 0, reviewed: 0 };
       allCoverageItems.forEach(i => { const s = (i as any).planning_status ?? "high_level"; statusCounts[s] = (statusCounts[s] ?? 0) + 1; });
       const summaryRows = [
@@ -950,23 +953,19 @@ Only propose items that do not already exist. Be precise and professional.`;
         const textY = tableY + 5;
         r.forEach((cell, ci) => {
           const x = 50 + colW.slice(0, ci).reduce((a, b) => a + b, 0);
-          doc.fillColor(ri === 0 ? "white" : "black")
-             .fontSize(8).font(ri === 0 ? "Helvetica-Bold" : "Helvetica")
+          doc.fillColor(ri === 0 ? "white" : "black").fontSize(8).font(ri === 0 ? "Helvetica-Bold" : "Helvetica")
              .text(cell, x + 4, textY, { width: colW[ci] - 8, ellipsis: true });
         });
         tableY += rowH;
       });
       doc.y = tableY + 8;
 
-      // ────────────────────────────────────────────────────────────────────
-      // SECTION 2 – PLANNING COVERAGE BREAKDOWN
-      // ────────────────────────────────────────────────────────────────────
+      // SECTION 2 – COVERAGE BREAKDOWN
       heading1("2. Planning Coverage Breakdown");
       doc.fontSize(9).font("Helvetica").text(
         "Planning coverage measures the depth of planning across all items. High Level = 25%, Partially Planned = 60%, Detailed = 90%, Reviewed = 100% weight.",
         50, doc.y, { width: PAGE_W });
       doc.moveDown(0.6);
-
       Object.entries(statusCounts).forEach(([k, count]) => {
         if (count === 0) return;
         const pct = total > 0 ? Math.round(count / total * 100) : 0;
@@ -978,11 +977,8 @@ Only propose items that do not already exist. Be precise and professional.`;
         doc.moveDown(0.5);
       });
 
-      // ────────────────────────────────────────────────────────────────────
       // SECTION 3 – PROJECT STRUCTURE
-      // ────────────────────────────────────────────────────────────────────
       heading1("3. Project Structure");
-
       const printItem = (label: string, item: any, depth: number) => {
         if (doc.y > doc.page.height - 70) doc.addPage();
         const indent = 50 + depth * 16;
@@ -994,25 +990,19 @@ Only propose items that do not already exist. Be precise and professional.`;
         const name = (item as any).name ?? (item as any).title ?? "—";
         const lineColor = status === "reviewed" ? C.green : status === "detailed" ? C.accent : status === "partially_planned" ? C.warn : C.muted;
         doc.rect(indent - 4, doc.y - 1, 3, 12).fill(lineColor);
-        doc.fontSize(depth === 0 ? 10 : 8.5)
-           .font(depth === 0 ? "Helvetica-Bold" : "Helvetica")
-           .fillColor("black")
+        doc.fontSize(depth === 0 ? 10 : 8.5).font(depth === 0 ? "Helvetica-Bold" : "Helvetica").fillColor("black")
            .text(`${label}: ${name}`, indent + 4, doc.y, { width: PAGE_W - (indent - 46), continued: false });
-        doc.fontSize(7.5).fillColor(C.muted)
-           .text(`  ${statusStr}${effortStr}${dateStr}`, indent + 4);
-        if ((item as any).description) {
+        doc.fontSize(7.5).fillColor(C.muted).text(`  ${statusStr}${effortStr}${dateStr}`, indent + 4);
+        if ((item as any).description)
           doc.fontSize(7.5).fillColor(C.muted).text((item as any).description.slice(0, 200), indent + 4, doc.y, { width: PAGE_W - (indent - 46) });
-        }
         doc.fillColor("black").moveDown(0.15);
       };
 
       if (phases.length === 0 && stages.length === 0 && milestones.length === 0) {
         doc.fontSize(9).font("Helvetica").fillColor(C.muted).text("No planning items have been created yet.", 50, doc.y);
       } else {
-        // Phases → Stages → Milestones → FGs → Features → Stories
         const ungroupedMilestones = milestones.filter(m => !(m as any).phase_id && !(m as any).stage_id);
         const ungroupedFGs = featureGroups.filter(fg => !(fg as any).phase_id && !(fg as any).stage_id && !(fg as any).milestone_id);
-
         for (const phase of phases) {
           printItem("Phase", phase, 0);
           for (const stage of stages.filter(s => (s as any).phase_id === phase.id)) {
@@ -1046,16 +1036,10 @@ Only propose items that do not already exist. Be precise and professional.`;
             }
           }
         }
-
-        // Stages not in any phase
         for (const stage of stages.filter(s => !(s as any).phase_id)) {
           printItem("Stage", stage, 0);
-          for (const ms of milestones.filter(m => (m as any).stage_id === stage.id)) {
-            printItem("Milestone", ms, 1);
-          }
+          for (const ms of milestones.filter(m => (m as any).stage_id === stage.id)) printItem("Milestone", ms, 1);
         }
-
-        // Orphan milestones
         for (const ms of ungroupedMilestones) {
           printItem("Milestone", ms, 0);
           for (const fg of featureGroups.filter(fg => (fg as any).milestone_id === ms.id)) {
@@ -1066,8 +1050,6 @@ Only propose items that do not already exist. Be precise and professional.`;
             }
           }
         }
-
-        // Orphan FGs
         for (const fg of ungroupedFGs) {
           printItem("Feature Group", fg, 0);
           for (const f of features.filter(f => (f as any).feature_group_id === fg.id)) {
@@ -1075,17 +1057,13 @@ Only propose items that do not already exist. Be precise and professional.`;
             for (const s of stories.filter(s => (s as any).feature_id === f.id)) printItem("User Story", s, 2);
           }
         }
-
-        // Unattached features (no FG)
         for (const f of features.filter(f => !(f as any).feature_group_id)) {
           printItem("Feature", f, 0);
           for (const s of stories.filter(s => (s as any).feature_id === f.id)) printItem("User Story", s, 1);
         }
       }
 
-      // ────────────────────────────────────────────────────────────────────
       // SECTION 4 – EFFORT SUMMARY
-      // ────────────────────────────────────────────────────────────────────
       heading1("4. Effort Summary");
       const effortTable = [
         ["Entity Type", "Count", "Total Estimated Hours"],
@@ -1107,24 +1085,20 @@ Only propose items that do not already exist. Be precise and professional.`;
         const tY = etY + 5;
         r.forEach((cell, ci) => {
           const x = 50 + ecW.slice(0, ci).reduce((a, b) => a + b, 0);
-          doc.fillColor(ri === 0 || isTotal ? "white" : "black")
-             .fontSize(8).font(ri === 0 || isTotal ? "Helvetica-Bold" : "Helvetica")
+          doc.fillColor(ri === 0 || isTotal ? "white" : "black").fontSize(8).font(ri === 0 || isTotal ? "Helvetica-Bold" : "Helvetica")
              .text(cell, x + 4, tY, { width: ecW[ci] - 8 });
         });
         etY += rH;
       });
       doc.y = etY + 8;
 
-      // ────────────────────────────────────────────────────────────────────
       // SECTION 5 – DEPENDENCIES
-      // ────────────────────────────────────────────────────────────────────
       if (deps.length > 0) {
         heading1("5. Dependencies");
         doc.fontSize(9).font("Helvetica").text(
           `${deps.length} dependency relationship${deps.length === 1 ? "" : "s"} defined across this project plan.`,
           50, doc.y, { width: PAGE_W });
         doc.moveDown(0.5);
-
         const dCols = [PAGE_W * 0.38, PAGE_W * 0.24, PAGE_W * 0.38];
         const dHeader = ["Dependent Item", "Type", "Predecessor (must complete first)"];
         let dY = doc.y;
@@ -1135,13 +1109,11 @@ Only propose items that do not already exist. Be precise and professional.`;
           const tY = dY + 5;
           r.forEach((cell, ci) => {
             const x = 50 + dCols.slice(0, ci).reduce((a, b) => a + b, 0);
-            doc.fillColor(ri === 0 ? "white" : "black")
-               .fontSize(7.5).font(ri === 0 ? "Helvetica-Bold" : "Helvetica")
+            doc.fillColor(ri === 0 ? "white" : "black").fontSize(7.5).font(ri === 0 ? "Helvetica-Bold" : "Helvetica")
                .text(cell, x + 4, tY, { width: dCols[ci] - 8, ellipsis: true });
           });
           dY += rH;
         };
-
         printDRow(dHeader, 0);
         deps.forEach((d, i) => {
           printDRow([
@@ -1153,16 +1125,13 @@ Only propose items that do not already exist. Be precise and professional.`;
         doc.y = dY + 8;
       }
 
-      // ────────────────────────────────────────────────────────────────────
       // SECTION 6 – PLANNING NOTES
-      // ────────────────────────────────────────────────────────────────────
       if (config?.notes) {
         heading1(deps.length > 0 ? "6. Planning Notes" : "5. Planning Notes");
-        doc.fontSize(9).font("Helvetica").fillColor("black")
-           .text(config.notes, 50, doc.y, { width: PAGE_W });
+        doc.fontSize(9).font("Helvetica").fillColor("black").text(config.notes, 50, doc.y, { width: PAGE_W });
       }
 
-      // ── Page numbers ─────────────────────────────────────────────────────
+      // Page numbers
       const totalPages = doc.bufferedPageRange().count;
       for (let i = 0; i < totalPages; i++) {
         doc.switchToPage(i);
@@ -1172,15 +1141,10 @@ Only propose items that do not already exist. Be precise and professional.`;
       }
 
       doc.end();
-
-      await new Promise<void>((resolve, reject) => {
-        doc.on("end", resolve);
-        doc.on("error", reject);
-      });
+      await new Promise<void>((resolve, reject) => { doc.on("end", resolve); doc.on("error", reject); });
 
       const pdfBuffer = Buffer.concat(chunks);
       const filename = `project-plan-${((project as any).name ?? "export").replace(/[^a-z0-9]/gi, "-").toLowerCase()}.pdf`;
-
       res.setHeader("Content-Type", "application/pdf");
       res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
       res.setHeader("Content-Length", pdfBuffer.length);
@@ -1190,4 +1154,7 @@ Only propose items that do not already exist. Be precise and professional.`;
       res.status(500).json({ error: "Failed to generate PDF: " + err.message });
     }
   });
+
+  // Mount the router — every route above gets requireAuth + requireProjectMember
+  app.use("/api/projects/:projectId/planning", router);
 }
