@@ -1775,6 +1775,7 @@ function TimelineView({ tree }: { tree: PlanningTree }) {
     return () => obs.disconnect();
   }, []);
 
+  // Include ALL items — undated ones get placeholder rows
   const allItems = useMemo(() => {
     const items: { id: string; name: string; type: NodeType; start_date?: string | null; end_date?: string | null; planning_status?: string }[] = [
       ...tree.phases.map((p: any) => ({ ...p, type: "phase" as NodeType })),
@@ -1783,7 +1784,7 @@ function TimelineView({ tree }: { tree: PlanningTree }) {
       ...tree.featureGroups.map((fg: any) => ({ ...fg, type: "feature_group" as NodeType })),
       ...tree.features.map((f: any) => ({ ...f, type: "feature" as NodeType })),
       ...tree.stories.map((s: any) => ({ ...s, name: s.title, type: "user_story" as NodeType })),
-    ].filter(i => i.start_date || i.end_date);
+    ];
     return items;
   }, [tree]);
 
@@ -1797,16 +1798,28 @@ function TimelineView({ tree }: { tree: PlanningTree }) {
     return (
       <div className="text-center py-16 text-gray-400">
         <Calendar className="h-12 w-12 mx-auto mb-3 opacity-30" />
-        <p className="text-sm font-medium">No dated items yet</p>
-        <p className="text-xs mt-1">Add start and end dates to planning items to see them on the timeline.</p>
+        <p className="text-sm font-medium">No planning items yet</p>
+        <p className="text-xs mt-1">Add planning items to see them on the timeline. Items with dates will show as bars; others appear as placeholders.</p>
       </div>
     );
   }
 
-  // Timeline bounds
-  const allDates = allItems.flatMap(i => [i.start_date, i.end_date].filter(Boolean) as string[]);
-  const minDate  = new Date(Math.min(...allDates.map(d => new Date(d).getTime())));
-  const maxDate  = new Date(Math.max(...allDates.map(d => new Date(d).getTime())));
+  // Timeline bounds — derived only from items that have at least one date
+  const datedItems = allItems.filter(i => i.start_date || i.end_date);
+  let minDate: Date, maxDate: Date;
+  if (datedItems.length > 0) {
+    const allDates = datedItems.flatMap(i => [i.start_date, i.end_date].filter(Boolean) as string[]);
+    minDate = new Date(Math.min(...allDates.map(d => new Date(d).getTime())));
+    maxDate = new Date(Math.max(...allDates.map(d => new Date(d).getTime())));
+    if (differenceInDays(maxDate, minDate) < 1) {
+      maxDate = new Date(minDate.getTime() + 7 * 24 * 60 * 60 * 1000);
+    }
+  } else {
+    // No dated items — show a 30-day window from today as a neutral backdrop
+    minDate = new Date();
+    minDate.setHours(0, 0, 0, 0);
+    maxDate = new Date(minDate.getTime() + 30 * 24 * 60 * 60 * 1000);
+  }
   const totalDays = Math.max(1, differenceInDays(maxDate, minDate));
 
   const pct = (d: Date) => (differenceInDays(d, minDate) / totalDays) * 100;
@@ -1822,14 +1835,34 @@ function TimelineView({ tree }: { tree: PlanningTree }) {
     phase: "bg-violet-400", stage: "bg-blue-400", milestone: "bg-orange-400",
     feature_group: "bg-teal-400", feature: "bg-indigo-400", user_story: "bg-pink-400",
   };
+  const BORDER_COLORS: Record<NodeType, string> = {
+    phase: "border-violet-400", stage: "border-blue-400", milestone: "border-orange-400",
+    feature_group: "border-teal-400", feature: "border-indigo-400", user_story: "border-pink-400",
+  };
   const SVG_COLORS: Record<NodeType, string> = {
     phase: "#a78bfa", stage: "#60a5fa", milestone: "#fb923c",
     feature_group: "#2dd4bf", feature: "#818cf8", user_story: "#f472b6",
   };
 
-  // Compute SVG arrows for each dependency whose both ends are in allItems
+  // For undated items, their placeholder x-position is the horizontal center of the grid
+  const getItemX = (item: typeof allItems[number], isEndAnchor: boolean, gw: number): number => {
+    if (!item.start_date && !item.end_date) return gw * 0.5;
+    if (isEndAnchor) {
+      const d = item.end_date ? new Date(item.end_date) : new Date(item.start_date!);
+      return (pct(d) / 100) * gw;
+    }
+    const d = item.start_date ? new Date(item.start_date) : new Date(item.end_date!);
+    return (pct(d) / 100) * gw;
+  };
+
+  // Compute SVG arrows — now includes undated items via placeholder positions
   const deps = tree.dependencies ?? [];
-  type Arrow = { x1: number; y1: number; x2: number; y2: number; conflict: boolean; srcType: NodeType };
+  type Arrow = {
+    x1: number; y1: number; x2: number; y2: number;
+    conflict: boolean; srcType: NodeType;
+    /** true when one or both endpoints have no dates — arrow is approximate */
+    approximate: boolean;
+  };
   const arrows: Arrow[] = [];
   if (gridWidth > 0) {
     for (const d of deps) {
@@ -1839,33 +1872,34 @@ function TimelineView({ tree }: { tree: PlanningTree }) {
       const src = allItems[srcIdx];
       const tgt = allItems[tgtIdx];
 
-      const srcStart = src.start_date ? new Date(src.start_date) : null;
-      const tgtEnd   = tgt.end_date   ? new Date(tgt.end_date)   : null;
-      const tgtStart = tgt.start_date ? new Date(tgt.start_date) : null;
+      const srcUndated = !src.start_date && !src.end_date;
+      const tgtUndated = !tgt.start_date && !tgt.end_date;
+      const approximate = srcUndated || tgtUndated;
 
-      // x positions as pixel values within the grid
-      let x1: number, x2: number;
-      if (d.dependency_type === "finish_to_start") {
-        if (!tgtEnd || !srcStart) continue;
-        x1 = (pct(tgtEnd)   / 100) * gridWidth;
-        x2 = (pct(srcStart) / 100) * gridWidth;
-      } else {
-        if (!tgtStart || !srcStart) continue;
-        x1 = (pct(tgtStart) / 100) * gridWidth;
-        x2 = (pct(srcStart) / 100) * gridWidth;
-      }
+      // x: end-of-target → start-of-source (FS) or start-of-target → start-of-source (SS)
+      const x1 = d.dependency_type === "finish_to_start"
+        ? getItemX(tgt, true, gridWidth)
+        : getItemX(tgt, false, gridWidth);
+      const x2 = getItemX(src, false, gridWidth);
+
       const y1 = tgtIdx * ROW_H + BAR_CY;
       const y2 = srcIdx * ROW_H + BAR_CY;
 
-      const conflict = d.dependency_type === "finish_to_start"
+      const srcStart = src.start_date ? new Date(src.start_date) : null;
+      const tgtEnd   = tgt.end_date   ? new Date(tgt.end_date)   : null;
+      const tgtStart = tgt.start_date ? new Date(tgt.start_date) : null;
+      // Conflicts are only meaningful when both items are dated
+      const conflict = !approximate && (d.dependency_type === "finish_to_start"
         ? !!(srcStart && tgtEnd && srcStart < tgtEnd)
-        : !!(srcStart && tgtStart && srcStart < tgtStart);
+        : !!(srcStart && tgtStart && srcStart < tgtStart));
 
-      arrows.push({ x1, y1, x2, y2, conflict, srcType: src.type });
+      arrows.push({ x1, y1, x2, y2, conflict, srcType: src.type, approximate });
     }
   }
 
   const svgH = allItems.length * ROW_H;
+  const hasUndatedItems = allItems.some(i => !i.start_date && !i.end_date);
+  const hasDeps = deps.length > 0;
 
   return (
     <div className="overflow-x-auto">
@@ -1885,10 +1919,14 @@ function TimelineView({ tree }: { tree: PlanningTree }) {
             {allItems.map(item => {
               const cfg = NODE_TYPE_CONFIG[item.type];
               const Icon = cfg.icon;
+              const isUndated = !item.start_date && !item.end_date;
               return (
-                <div key={item.id} className="h-6 flex items-center gap-1.5 min-w-0">
+                <div key={item.id} className={`h-6 flex items-center gap-1.5 min-w-0 ${isUndated ? "opacity-60" : ""}`}>
                   <Icon className={`h-3 w-3 shrink-0 ${cfg.color}`} />
                   <span className="text-xs text-gray-700 dark:text-gray-300 truncate">{item.name}</span>
+                  {isUndated && (
+                    <span className="text-[9px] text-gray-400 dark:text-gray-600 italic shrink-0">no dates</span>
+                  )}
                 </div>
               );
             })}
@@ -1898,15 +1936,26 @@ function TimelineView({ tree }: { tree: PlanningTree }) {
           <div className="flex-1 relative" ref={gridRef} style={{ height: `${svgH}px` }}>
             {/* Row backgrounds */}
             <div className="absolute inset-0 space-y-1">
-              {allItems.map(item => (
-                <div key={item.id} className="h-6 bg-gray-50 dark:bg-gray-800/50 rounded" />
-              ))}
+              {allItems.map(item => {
+                const isUndated = !item.start_date && !item.end_date;
+                return (
+                  <div
+                    key={item.id}
+                    className={`h-6 rounded ${
+                      isUndated
+                        ? "bg-gray-50/60 dark:bg-gray-800/30 border border-dashed border-gray-200 dark:border-gray-700"
+                        : "bg-gray-50 dark:bg-gray-800/50"
+                    }`}
+                  />
+                );
+              })}
             </div>
 
             {/* Bars */}
             <div className="absolute inset-0 space-y-1">
               {allItems.map(item => {
                 const barStyle = getBarStyle(item);
+                const isUndated = !item.start_date && !item.end_date;
                 return (
                   <div key={item.id} className="h-6 relative">
                     {barStyle && (
@@ -1914,6 +1963,14 @@ function TimelineView({ tree }: { tree: PlanningTree }) {
                         className={`absolute top-1 h-4 rounded ${COLORS[item.type]} opacity-80 hover:opacity-100 transition-opacity`}
                         style={barStyle}
                         title={`${item.name}: ${item.start_date ? format(new Date(item.start_date), "dd MMM") : "?"} → ${item.end_date ? format(new Date(item.end_date), "dd MMM") : "?"}`}
+                      />
+                    )}
+                    {isUndated && (
+                      /* Placeholder bar: dashed border centred on the row, no fill */
+                      <div
+                        className={`absolute top-1 h-4 rounded border-2 border-dashed ${BORDER_COLORS[item.type]} opacity-40`}
+                        style={{ left: "calc(50% - 20px)", width: "40px" }}
+                        title={`${item.name}: no dates set — position is approximate`}
                       />
                     )}
                   </div>
@@ -1929,16 +1986,20 @@ function TimelineView({ tree }: { tree: PlanningTree }) {
                 height={svgH}
               >
                 <defs>
-                  <marker id="arr-ok"  viewBox="0 0 8 8" refX="4" refY="4" markerWidth="5" markerHeight="5" orient="auto">
+                  <marker id="arr-ok"     viewBox="0 0 8 8" refX="4" refY="4" markerWidth="5" markerHeight="5" orient="auto">
                     <path d="M0,1 L6,4 L0,7 Z" fill="#6366f1" />
                   </marker>
-                  <marker id="arr-bad" viewBox="0 0 8 8" refX="4" refY="4" markerWidth="5" markerHeight="5" orient="auto">
+                  <marker id="arr-bad"    viewBox="0 0 8 8" refX="4" refY="4" markerWidth="5" markerHeight="5" orient="auto">
                     <path d="M0,1 L6,4 L0,7 Z" fill="#f59e0b" />
+                  </marker>
+                  <marker id="arr-approx" viewBox="0 0 8 8" refX="4" refY="4" markerWidth="5" markerHeight="5" orient="auto">
+                    <path d="M0,1 L6,4 L0,7 Z" fill="#9ca3af" />
                   </marker>
                 </defs>
                 {arrows.map((a, i) => {
-                  const stroke = a.conflict ? "#f59e0b" : SVG_COLORS[a.srcType] ?? "#6366f1";
-                  const marker = a.conflict ? "url(#arr-bad)" : "url(#arr-ok)";
+                  const stroke  = a.approximate ? "#9ca3af" : a.conflict ? "#f59e0b" : SVG_COLORS[a.srcType] ?? "#6366f1";
+                  const marker  = a.approximate ? "url(#arr-approx)" : a.conflict ? "url(#arr-bad)" : "url(#arr-ok)";
+                  const dashArr = a.approximate ? "4 4" : a.conflict ? "4 2" : undefined;
                   // Elbow connector: x1,y1 → midX,y1 → midX,y2 → x2,y2
                   const midX = (a.x1 + a.x2) / 2;
                   const pathD = `M ${a.x1} ${a.y1} L ${midX} ${a.y1} L ${midX} ${a.y2} L ${a.x2} ${a.y2}`;
@@ -1949,9 +2010,9 @@ function TimelineView({ tree }: { tree: PlanningTree }) {
                       fill="none"
                       stroke={stroke}
                       strokeWidth={a.conflict ? 1.5 : 1}
-                      strokeDasharray={a.conflict ? "4 2" : undefined}
+                      strokeDasharray={dashArr}
                       markerEnd={marker}
-                      opacity={0.75}
+                      opacity={a.approximate ? 0.55 : 0.75}
                     />
                   );
                 })}
@@ -1961,15 +2022,25 @@ function TimelineView({ tree }: { tree: PlanningTree }) {
         </div>
 
         {/* Legend */}
-        {deps.length > 0 && (
-          <div className="flex items-center gap-4 mt-3 pt-2 border-t border-gray-100 dark:border-gray-800 text-[10px] text-gray-400">
-            <span className="flex items-center gap-1">
-              <span className="inline-block w-6 h-px bg-indigo-400" />Dependency
+        {(hasDeps || hasUndatedItems) && (
+          <div className="flex flex-wrap items-center gap-4 mt-3 pt-2 border-t border-gray-100 dark:border-gray-800 text-[10px] text-gray-400">
+            {hasDeps && (
+              <>
+                <span className="flex items-center gap-1">
+                  <span className="inline-block w-6 h-px bg-indigo-400" />Dependency
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="inline-block w-6 h-px bg-amber-400" style={{ backgroundImage: "repeating-linear-gradient(90deg,#f59e0b 0,#f59e0b 4px,transparent 4px,transparent 6px)" }} />Conflict
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="inline-block w-6 h-px bg-gray-400" style={{ backgroundImage: "repeating-linear-gradient(90deg,#9ca3af 0,#9ca3af 4px,transparent 4px,transparent 8px)" }} />Approximate (no dates)
+                </span>
+              </>
+            )}
+            <span className="text-gray-300 dark:text-gray-600">
+              {hasDeps ? "Arrows: predecessor → dependent" : ""}
+              {hasUndatedItems ? " · Dashed bars and grey arrows indicate items without scheduled dates — positions are approximate" : ""}
             </span>
-            <span className="flex items-center gap-1">
-              <span className="inline-block w-6 h-px bg-amber-400" style={{ backgroundImage: "repeating-linear-gradient(90deg,#f59e0b 0,#f59e0b 4px,transparent 4px,transparent 6px)" }} />Conflict
-            </span>
-            <span className="text-gray-300 dark:text-gray-600">Arrows: predecessor → dependent</span>
           </div>
         )}
       </div>

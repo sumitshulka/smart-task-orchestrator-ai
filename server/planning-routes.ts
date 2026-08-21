@@ -38,6 +38,15 @@ function getAuthenticatedUserId(req: any): string | null {
   return req.session?.userId ?? null;
 }
 
+/**
+ * Identity for write operations that must be tied to a verified server session.
+ * Unlike getAuthenticatedUserId this never trusts a caller-supplied header,
+ * preventing IDOR attacks on state-mutating planning routes.
+ */
+function getSessionUserId(req: any): string | null {
+  return req.session?.userId ?? null;
+}
+
 /** Map entity type labels (from the UI) to their Drizzle table objects. */
 const ENTITY_TABLE_MAP: Record<string, { table: any }> = {
   phase:         { table: planningPhases       },
@@ -62,16 +71,17 @@ async function itemBelongsToProject(itemId: string, entityType: string, projectI
 // ── Auth middleware ───────────────────────────────────────────────────────────
 
 const requireAuth = async (req: any, res: any, next: any) => {
-  if (!getAuthenticatedUserId(req)) return res.status(401).json({ error: "Authentication required" });
+  if (!getSessionUserId(req)) return res.status(401).json({ error: "Authentication required" });
   next();
 };
 
 /**
  * Verify the authenticated user is an active member of :projectId.
- * User identity follows the same internal API convention used elsewhere.
+ * Identity is derived only from the verified server session — never from
+ * caller-supplied headers — to prevent IDOR / broken-access-control attacks.
  */
 const requireProjectMember = async (req: any, res: any, next: any) => {
-  const userId = getAuthenticatedUserId(req);
+  const userId = getSessionUserId(req);
   if (!userId) return res.status(401).json({ error: "Authentication required" });
   const { projectId } = req.params;
   if (!projectId) return next();
@@ -189,7 +199,7 @@ export function registerPlanningRoutes(app: Express) {
   router.put("/config", async (req: any, res: any) => {
     try {
       const { projectId } = req.params;
-      const userId = getVerifiedUserId(req);
+      const userId = getSessionUserId(req);
       const { methodology, methodology_version, config_snapshot, notes } = req.body;
       const existing = await db.select().from(planningMethodologyConfigs).where(eq(planningMethodologyConfigs.project_id, projectId)).limit(1);
       if (existing.length) {
@@ -662,7 +672,7 @@ export function registerPlanningRoutes(app: Express) {
   router.post("/ai-propose", async (req: any, res: any) => {
     try {
       const { projectId } = req.params;
-      const userId = getVerifiedUserId(req);
+      const userId = getSessionUserId(req);
       const { scope_type, scope_id, prompt, context } = req.body;
 
       const [milestones, featureGroups, features, stories, phases, stages] = await Promise.all([
