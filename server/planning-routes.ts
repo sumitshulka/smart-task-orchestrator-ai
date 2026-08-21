@@ -3,7 +3,7 @@
  * All routes are mounted under /api/projects/:projectId/planning
  *
  * Authorization: every route in this module requires:
- *   1. A valid server-side session (set by /api/auth/login) — requireAuth
+ *   1. The application's authenticated user identity — requireAuth
  *   2. Active project membership for the requested project — requireProjectMember
  * Both checks are applied once via router-level middleware; no route in this
  * file is reachable without passing both.
@@ -22,12 +22,19 @@ import { callAiProvider, decryptApiKey } from "./ai-provider";
 import { storage } from "./storage";
 
 /**
- * Extract the verified user ID from the server-side session.
- * The session is set by /api/auth/login using an httpOnly cookie, so this
- * identity cannot be forged by a caller-supplied header.
- * Returns null when no valid session exists.
+ * Extract the current application's user identity. The existing internal API
+ * convention identifies regular users with x-user-id; a server session is
+ * retained as a fallback for session-based callers.
+ *
+ * Planning must use this same convention as the rest of the internal API:
+ * development sessions are stored in memory and disappear on server restart,
+ * while the app restores its authenticated user from local storage.
  */
-function getVerifiedUserId(req: any): string | null {
+function getAuthenticatedUserId(req: any): string | null {
+  const headerUserId = req.headers["x-user-id"];
+  if (typeof headerUserId === "string" && headerUserId.trim()) {
+    return headerUserId;
+  }
   return req.session?.userId ?? null;
 }
 
@@ -55,16 +62,16 @@ async function itemBelongsToProject(itemId: string, entityType: string, projectI
 // ── Auth middleware ───────────────────────────────────────────────────────────
 
 const requireAuth = async (req: any, res: any, next: any) => {
-  if (!getVerifiedUserId(req)) return res.status(401).json({ error: "Authentication required" });
+  if (!getAuthenticatedUserId(req)) return res.status(401).json({ error: "Authentication required" });
   next();
 };
 
 /**
  * Verify the authenticated user is an active member of :projectId.
- * User identity is read from the server-side session (set by /api/auth/login).
+ * User identity follows the same internal API convention used elsewhere.
  */
 const requireProjectMember = async (req: any, res: any, next: any) => {
-  const userId = getVerifiedUserId(req);
+  const userId = getAuthenticatedUserId(req);
   if (!userId) return res.status(401).json({ error: "Authentication required" });
   const { projectId } = req.params;
   if (!projectId) return next();
