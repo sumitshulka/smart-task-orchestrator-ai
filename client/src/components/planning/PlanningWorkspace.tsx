@@ -1029,6 +1029,41 @@ function NodeSheet({
     ...depsToAdd.map(d => d.target_id),
   ]);
 
+  // IDs that would form a cycle if added as a dependency target for this node.
+  // BFS from each candidate: if node.id is reachable through the existing dep graph,
+  // adding node → candidate would close a loop.
+  const cyclicTargetIds = useMemo(() => {
+    if (!isEdit || !node) return new Set<string>();
+
+    // Edges: existing deps (minus pending removals) + pending adds
+    const edges: Array<{ source_id: string; target_id: string }> = [
+      ...(tree.dependencies ?? [])
+        .filter((d: any) => !depsToRemove.includes(d.id))
+        .map((d: any) => ({ source_id: d.source_id as string, target_id: d.target_id as string })),
+      ...depsToAdd.map(d => ({ source_id: node.id as string, target_id: d.target_id })),
+    ];
+
+    const cyclic = new Set<string>();
+    for (const candidate of allPickableItems) {
+      // BFS from candidate.id; if we reach node.id, the proposed edge is cyclic
+      const visited = new Set<string>([candidate.id]);
+      const queue: string[] = [candidate.id];
+      let found = false;
+      outer: while (queue.length > 0) {
+        const cur = queue.shift()!;
+        for (const edge of edges) {
+          if (edge.source_id === cur && !visited.has(edge.target_id)) {
+            if (edge.target_id === node.id) { found = true; break outer; }
+            visited.add(edge.target_id);
+            queue.push(edge.target_id);
+          }
+        }
+      }
+      if (found) cyclic.add(candidate.id);
+    }
+    return cyclic;
+  }, [isEdit, node, tree.dependencies, depsToRemove, depsToAdd, allPickableItems]);
+
   const addPendingDep = () => {
     if (!newDepTargetId) return;
     const target = allPickableItems.find(i => i.id === newDepTargetId);
@@ -1088,12 +1123,24 @@ function NodeSheet({
         })
       )
     );
-    const failedAdds = addResults.filter(r => r.status === "rejected").length;
+    const failedAddResults = addResults.filter(r => r.status === "rejected") as PromiseRejectedResult[];
+    const circularCount = failedAddResults.filter(r =>
+      (r.reason?.message ?? "").toLowerCase().includes("circular")
+    ).length;
+    const otherAddFails = failedAddResults.length - circularCount;
     const failedRemoves = removeResults.filter(r => r.status === "rejected").length;
-    if (failedAdds + failedRemoves > 0) {
+
+    if (circularCount > 0) {
+      toast({
+        title: "Circular dependency rejected",
+        description: `${circularCount} link${circularCount > 1 ? "s were" : " was"} not added because ${circularCount > 1 ? "they" : "it"} would create a loop. Remove an existing dependency in the chain first.`,
+        variant: "destructive",
+      });
+    }
+    if (otherAddFails + failedRemoves > 0) {
       toast({
         title: "Some dependency changes could not be saved",
-        description: `${failedAdds} addition(s) and ${failedRemoves} removal(s) failed. The item was saved; please retry the dependency changes.`,
+        description: `${otherAddFails} addition(s) and ${failedRemoves} removal(s) failed. The item was saved; please retry the dependency changes.`,
         variant: "destructive",
       });
     }
@@ -1405,11 +1452,14 @@ function NodeSheet({
                     <SelectItem value="none">— Select item —</SelectItem>
                     {allPickableItems
                       .filter(i => !alreadyLinkedIds.has(i.id))
-                      .map(i => (
-                        <SelectItem key={i.id} value={i.id}>
-                          {NODE_TYPE_CONFIG[i.type as NodeType]?.singularLabel ?? i.type}: {i.name}
-                        </SelectItem>
-                      ))}
+                      .map(i => {
+                        const isCyclic = cyclicTargetIds.has(i.id);
+                        return (
+                          <SelectItem key={i.id} value={i.id} disabled={isCyclic}>
+                            {isCyclic ? "⊘ " : ""}{NODE_TYPE_CONFIG[i.type as NodeType]?.singularLabel ?? i.type}: {i.name}{isCyclic ? " (would create a loop)" : ""}
+                          </SelectItem>
+                        );
+                      })}
                   </SelectContent>
                 </Select>
                 <Button type="button" size="sm" variant="outline" className="shrink-0 h-8 px-2"
