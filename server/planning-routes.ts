@@ -69,17 +69,27 @@ const requireProjectMember = async (req: any, res: any, next: any) => {
   const { projectId } = req.params;
   if (!projectId) return next();
   try {
-    const [member] = await db.select({ id: projectMembers.id })
-      .from(projectMembers)
-      .where(
-        and(
-          eq(projectMembers.project_id, projectId),
-          eq(projectMembers.user_id, userId),
-          eq(projectMembers.is_active, true),
+    // A project creator is authorized even if older project data does not
+    // contain a matching project_members row for them.
+    const [[member], [project]] = await Promise.all([
+      db.select({ id: projectMembers.id })
+        .from(projectMembers)
+        .where(
+          and(
+            eq(projectMembers.project_id, projectId),
+            eq(projectMembers.user_id, userId),
+            eq(projectMembers.is_active, true),
+          )
         )
-      )
-      .limit(1);
-    if (!member) return res.status(403).json({ error: "You are not a member of this project" });
+        .limit(1),
+      db.select({ created_by: projects.created_by })
+        .from(projects)
+        .where(eq(projects.id, projectId))
+        .limit(1),
+    ]);
+    if (!member && project?.created_by !== userId) {
+      return res.status(403).json({ error: "You are not a member of this project" });
+    }
     next();
   } catch {
     res.status(500).json({ error: "Failed to verify project membership" });

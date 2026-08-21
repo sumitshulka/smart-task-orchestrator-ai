@@ -1947,7 +1947,13 @@ export default function PlanningWorkspace({ projectId, users }: { projectId: str
   // Add node button
   const [addMenuOpen, setAddMenuOpen] = useState(false);
 
-  const { data: tree, isLoading, refetch: refetchTree } = useQuery<PlanningTree>({
+  const {
+    data: tree,
+    isLoading,
+    isError: isTreeError,
+    error: treeError,
+    refetch: refetchTree,
+  } = useQuery<PlanningTree>({
     queryKey: ["/api/projects", projectId, "planning/tree"],
     queryFn: () => apiClient.get(`/projects/${projectId}/planning/tree`),
     enabled: !!projectId,
@@ -2131,6 +2137,20 @@ export default function PlanningWorkspace({ projectId, users }: { projectId: str
         {isLoading ? (
           <div className="space-y-2 animate-pulse">
             {[1, 2, 3, 4].map(i => <div key={i} className="h-9 bg-gray-100 dark:bg-gray-800 rounded-lg" />)}
+          </div>
+        ) : isTreeError ? (
+          <div
+            role="alert"
+            className="max-w-xl mx-auto mt-10 rounded-lg border border-red-200 dark:border-red-900/70 bg-red-50 dark:bg-red-950/30 p-5 text-center"
+          >
+            <AlertTriangle className="h-7 w-7 mx-auto mb-2 text-red-600 dark:text-red-400" />
+            <p className="text-sm font-semibold text-red-900 dark:text-red-200">Couldn’t load the project plan</p>
+            <p className="mt-1 text-xs text-red-700 dark:text-red-300">
+              {treeError instanceof Error ? treeError.message : "The planning data could not be retrieved. Please try again."}
+            </p>
+            <Button size="sm" variant="outline" className="mt-4 border-red-300 text-red-800 hover:bg-red-100 dark:border-red-800 dark:text-red-200 dark:hover:bg-red-900/40" onClick={() => refetchTree()}>
+              <RefreshCw className="h-3.5 w-3.5 mr-1" />Retry
+            </Button>
           </div>
         ) : view === "tree" ? (
           <TreeView
