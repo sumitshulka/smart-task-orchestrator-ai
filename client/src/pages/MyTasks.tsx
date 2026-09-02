@@ -27,6 +27,7 @@ import { apiClient } from "@/lib/api";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import DateRangePresetSelector from "@/components/DateRangePresetSelector";
 import ActiveTimersBar from "@/components/ActiveTimersBar";
+import { buildMyTasksInput, AdminTaskView } from "./myTasksScope";
 
 function defaultDateRange() {
   const now = new Date();
@@ -207,7 +208,7 @@ export default function MyTasksPage() {
   const [loading, setLoading] = useState(false);
   const [view, setView] = useState<"list" | "kanban">("list");
   const [quickTaskOpen, setQuickTaskOpen] = useState(false);
-  const [taskScope, setTaskScope] = useState<"mine" | "all">("mine");
+  const [taskScope, setTaskScope] = useState<AdminTaskView>("mine");
 
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
@@ -314,19 +315,20 @@ export default function MyTasksPage() {
     const fromDateStr = fromDateObj.toISOString().slice(0, 10);
     const toDateStr = toDateObj.toISOString().slice(0, 10);
 
-    const input: FetchTasksInput = {
-      fromDate: fromDateStr,
-      toDate: toDateStr,
-      // My Tasks is always assignment-based. Admins can opt into the
-      // organization-wide view through the scope toggle.
-      assignedTo: showAllUserTasks
-        ? (userFilter !== "all" ? userFilter : undefined)
-        : user.id,
-      offset: (page - 1) * pageSize,
-      limit: pageSize,
-      // Always surface overdue tasks regardless of the creation-date window
-      includeOverdue: true,
-    };
+    const input: FetchTasksInput = buildMyTasksInput({
+      userId: user.id,
+      isAdmin,
+      adminTaskView: taskScope,
+      assigneeFilter: userFilter,
+      filters: {
+        fromDate: fromDateStr,
+        toDate: toDateStr,
+        offset: (page - 1) * pageSize,
+        limit: pageSize,
+        // Always surface overdue tasks regardless of the creation-date window
+        includeOverdue: true,
+      },
+    });
 
     // Apply filters
     if (priorityFilter !== "all") input.priority = Number(priorityFilter);
