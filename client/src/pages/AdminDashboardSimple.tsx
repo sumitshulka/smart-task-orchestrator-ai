@@ -56,7 +56,7 @@ function StatCard({
 }) {
   const up = (trend ?? 0) >= 0;
   return (
-    <div className={`${cardBg} rounded-2xl border ${cardBorder} shadow-sm p-5 flex items-start justify-between hover:shadow-md transition-shadow`}>
+    <div className={`${cardBg} rounded-2xl border ${cardBorder} shadow-sm p-4 flex items-start justify-between hover:shadow-md transition-shadow`}>
       <div className="flex-1">
         <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">{label}</p>
         <p className="text-3xl font-bold text-gray-900 mt-1 mb-2">{value}</p>
@@ -67,8 +67,8 @@ function StatCard({
           </span>
         )}
       </div>
-      <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${iconBg}`}>
-        <Icon className={`w-6 h-6 ${iconColor}`} />
+      <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${iconBg}`}>
+        <Icon className={`w-5 h-5 ${iconColor}`} />
       </div>
     </div>
   );
@@ -87,7 +87,7 @@ function SectionCard({ title, action, children, className = "", cardBg = "bg-whi
   return (
     <div className={`${cardBg} rounded-2xl border ${cardBorder} shadow-sm overflow-hidden ${className}`}>
       {accentBar && <div className={`h-1 w-full ${accentBar}`} />}
-      <div className="flex items-center justify-between px-5 pt-4 pb-3">
+      <div className="flex items-center justify-between px-4 pt-3 pb-2">
         <h3 className="text-sm font-semibold text-gray-800">{title}</h3>
         {action}
       </div>

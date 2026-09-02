@@ -913,7 +913,7 @@ export default function ProjectDetail() {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
 
                   {/* Project Health */}
-                  <div className={`rounded-xl border p-5 ${healthBg}`}>
+                  <div className={`rounded-xl border p-4 ${healthBg}`}>
                     <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-3">Project Health</p>
                     <div className="flex items-end gap-3 mb-2">
                       <span className={`text-5xl font-bold leading-none ${healthColor}`}>{healthScore}%</span>
@@ -933,7 +933,7 @@ export default function ProjectDetail() {
                   </div>
 
                   {/* Progress */}
-                  <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-5">
+                  <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
                     <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-1">Progress</p>
                     <div className="flex items-baseline gap-2 mb-2">
                       <span className="text-4xl font-bold text-gray-900 dark:text-white">{completionPct}%</span>
@@ -958,7 +958,7 @@ export default function ProjectDetail() {
                   </div>
 
                   {/* Timeline */}
-                  <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-5">
+                  <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
                     <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-3">Timeline</p>
                     <div className="space-y-3">
                       {[
@@ -999,7 +999,7 @@ export default function ProjectDetail() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
                   {/* Team & Workload */}
-                  <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-5">
+                  <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
                     <div className="flex items-center justify-between mb-4">
                       <p className="text-sm font-semibold text-gray-900 dark:text-white">Team & Workload</p>
                       <button
@@ -1052,7 +1052,7 @@ export default function ProjectDetail() {
                   </div>
 
                   {/* Upcoming Deadlines */}
-                  <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-5">
+                  <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
                     <div className="flex items-center justify-between mb-4">
                       <p className="text-sm font-semibold text-gray-900 dark:text-white">Upcoming Deadlines</p>
                       <button

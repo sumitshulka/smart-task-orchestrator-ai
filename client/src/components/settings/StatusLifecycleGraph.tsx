@@ -88,7 +88,7 @@ const StatusLifecycleGraph: React.FC<{ statuses: TaskStatus[] }> = ({ statuses }
 
   if (statuses.length === 0) {
     return (
-      <div className="w-full bg-white border rounded-lg p-6 shadow-sm">
+      <div className="w-full bg-white border rounded-lg p-4 shadow-sm">
         <h4 className="font-semibold mb-4 text-lg">Status Lifecycle (Transitions)</h4>
         <p className="text-muted-foreground">No statuses available to create transitions.</p>
       </div>
@@ -205,7 +205,7 @@ const StatusLifecycleGraph: React.FC<{ statuses: TaskStatus[] }> = ({ statuses }
   };
 
   return (
-    <div className="w-full bg-white border rounded-lg p-6 shadow-sm">
+    <div className="w-full bg-white border rounded-lg p-4 shadow-sm">
       <h4 className="font-semibold mb-4 text-lg">Status Lifecycle (Transitions)</h4>
       
       <div className="flex flex-wrap gap-3 mb-6 p-4 bg-gray-50 rounded-lg">

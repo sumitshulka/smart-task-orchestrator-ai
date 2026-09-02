@@ -205,7 +205,7 @@ const MyTeams = () => {
       )}
       <div className="flex flex-col gap-5 w-full">
         {teamsExtended.map((team) => (
-          <Card key={team.id} className="p-5 w-full">
+          <Card key={team.id} className="p-4 w-full">
             {/* HEADER ROW: name, manager */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 justify-between">
               <div className="flex items-center gap-3">

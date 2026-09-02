@@ -182,7 +182,7 @@ const StatusLifecycleGraphDraggable: React.FC<{ statuses: TaskStatus[] }> = ({ s
   };
 
   return (
-    <div className="w-full bg-white border rounded-lg p-6 shadow-sm">
+    <div className="w-full bg-white border rounded-lg p-4 shadow-sm">
       <h4 className="font-semibold mb-4 text-lg">Status Lifecycle (Drag & Drop)</h4>
       <p className="text-sm text-gray-600 mb-4">
         Drag the status circles to arrange them as you like. Transition arrows will follow automatically.

@@ -34,7 +34,7 @@ export default function TaskGroupCard({ group, onView, onDelete, canDelete, owne
   const borderColorClass = getBorderColor(group.visibility);
   
   return (
-    <div className={`rounded-lg shadow bg-white p-4 flex flex-col gap-3 border border-muted border-l-4 ${borderColorClass}`}>
+    <div className={`rounded-lg shadow bg-white p-3 flex flex-col gap-2 border border-muted border-l-4 ${borderColorClass}`}>
       <div className="flex items-center justify-between">
         <div className="font-semibold text-lg">{group.name}</div>
         <span className="px-2 py-1 text-xs rounded bg-gray-100 text-gray-600">{visibilityText[group.visibility]}</span>

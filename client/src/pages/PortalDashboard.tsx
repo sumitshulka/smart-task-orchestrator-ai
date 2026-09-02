@@ -159,7 +159,7 @@ export default function PortalDashboard() {
                   className="cursor-pointer hover:shadow-md transition-all group border border-gray-200 dark:border-gray-700"
                   onClick={() => navigate(`/portal/projects/${project.id}`)}
                 >
-                  <CardContent className="p-5">
+                  <CardContent className="p-4">
                     {/* Top */}
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex items-center gap-2.5">

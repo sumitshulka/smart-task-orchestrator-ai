@@ -211,19 +211,19 @@ export default function AnalyticsReport() {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-        <div className="bg-white p-6 rounded-lg border shadow-sm">
+        <div className="bg-white p-4 rounded-lg border shadow-sm">
           <h3 className="text-sm font-medium text-gray-500">Total Tasks</h3>
           <p className="text-3xl font-bold text-blue-600">{analytics.kpis.total}</p>
         </div>
-        <div className="bg-white p-6 rounded-lg border shadow-sm">
+        <div className="bg-white p-4 rounded-lg border shadow-sm">
           <h3 className="text-sm font-medium text-gray-500">Completed</h3>
           <p className="text-3xl font-bold text-green-600">{analytics.kpis.completed}</p>
         </div>
-        <div className="bg-white p-6 rounded-lg border shadow-sm">
+        <div className="bg-white p-4 rounded-lg border shadow-sm">
           <h3 className="text-sm font-medium text-gray-500">In Progress</h3>
           <p className="text-3xl font-bold text-yellow-600">{analytics.kpis.inProgress}</p>
         </div>
-        <div className="bg-white p-6 rounded-lg border shadow-sm">
+        <div className="bg-white p-4 rounded-lg border shadow-sm">
           <h3 className="text-sm font-medium text-gray-500">Overdue</h3>
           <p className="text-3xl font-bold text-red-600">{analytics.kpis.overdue}</p>
         </div>
@@ -231,7 +231,7 @@ export default function AnalyticsReport() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Status Distribution Chart */}
-        <div className="bg-white p-6 rounded-lg border shadow-sm">
+        <div className="bg-white p-4 rounded-lg border shadow-sm">
           <h3 className="text-lg font-semibold mb-4">Task Status Distribution</h3>
           <ResponsiveContainer width="100%" height={300}>
             <PieChart>
@@ -256,7 +256,7 @@ export default function AnalyticsReport() {
         </div>
 
         {/* Top Users by Task Count */}
-        <div className="bg-white p-6 rounded-lg border shadow-sm">
+        <div className="bg-white p-4 rounded-lg border shadow-sm">
           <h3 className="text-lg font-semibold mb-4">Top Users by Task Count</h3>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={analytics.userStats} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>

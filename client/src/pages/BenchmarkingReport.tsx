@@ -1416,7 +1416,7 @@ const BenchmarkingReport: React.FC = () => {
   if (!settings?.benchmarking_enabled) {
     return (
       <Card>
-        <CardContent className="p-6">
+        <CardContent className="p-4">
           <div className="text-center space-y-4">
             <AlertCircle className="w-12 h-12 text-orange-500 mx-auto" />
             <h3 className="text-lg font-semibold">Benchmarking Reports Disabled</h3>

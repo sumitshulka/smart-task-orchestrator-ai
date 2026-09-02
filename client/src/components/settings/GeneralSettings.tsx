@@ -169,7 +169,7 @@ const GeneralSettings: React.FC = () => {
   if (isLoading) {
     return (
       <Card>
-        <CardContent className="p-6">
+        <CardContent className="p-4">
           <div className="text-center">Loading...</div>
         </CardContent>
       </Card>
