@@ -22,6 +22,7 @@ import {
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import QuickPersonalTaskDialog from "./MyTasks/QuickPersonalTaskDialog";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface Task {
@@ -220,6 +221,7 @@ export default function MyWorkspace() {
   const [expandedNotif, setExpandedNotif] = useState<string | null>(null);
   const [aiBrief, setAiBrief] = useState<AiBrief | null>(null);
   const [briefError, setBriefError] = useState<string | null>(null);
+  const [quickTaskOpen, setQuickTaskOpen] = useState(false);
 
   const uid = user?.id ?? "";
   const firstName = (user?.user_name ?? "there").split(" ")[0];
@@ -265,6 +267,7 @@ export default function MyWorkspace() {
     completedStatuses.length > 0 ? completedStatuses.includes(t.status) : t.status === "completed" || t.status === "done";
   const inProgressStatus = () => (taskStatuses.find((s: any) => s.name?.toLowerCase().includes("progress")) as any)?.name ?? "in_progress";
   const completeStatus   = () => (taskStatuses.find((s: any) => s.name?.toLowerCase().includes("complet") || s.is_completed) as any)?.name ?? "completed";
+  const defaultTaskStatus = taskStatuses.find((s: any) => s.is_default)?.name ?? "New";
 
   // ── Mutations ─────────────────────────────────────────────────────────────────
   const updateStatus = useMutation({
@@ -479,7 +482,20 @@ export default function MyWorkspace() {
           {/* My Work — 2/3 */}
           <div className="lg:col-span-2">
             <Section icon={ListTodo} title="My Work" accent="bg-gradient-to-r from-indigo-500 to-blue-600"
-              action={<Link to="/admin/my-tasks" className="flex items-center gap-1 font-medium hover:text-indigo-600 dark:hover:text-indigo-400">All tasks <ArrowRight className="w-3 h-3" /></Link>}>
+              action={
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    aria-label="Create a quick personal task"
+                    title="Quick personal task"
+                    onClick={() => setQuickTaskOpen(true)}
+                    className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-slate-300 bg-white text-indigo-600 transition-colors hover:border-indigo-400 hover:bg-indigo-50 dark:border-slate-700 dark:bg-slate-900 dark:text-indigo-400 dark:hover:border-indigo-500 dark:hover:bg-indigo-950/50"
+                  >
+                    <Plus className="h-3.5 w-3.5" strokeWidth={2.5} />
+                  </button>
+                  <Link to="/admin/my-tasks" className="flex items-center gap-1 font-medium hover:text-indigo-600 dark:hover:text-indigo-400">All tasks <ArrowRight className="w-3 h-3" /></Link>
+                </div>
+              }>
               <div className="p-4">
                 <Tabs defaultValue="today">
                   <TabsList className="w-full grid grid-cols-4 h-9 mb-4 bg-slate-100 dark:bg-slate-800">
@@ -700,6 +716,15 @@ export default function MyWorkspace() {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+      <QuickPersonalTaskDialog
+        open={quickTaskOpen}
+        onOpenChange={setQuickTaskOpen}
+        defaultStatus={defaultTaskStatus}
+        userId={uid}
+        onTaskCreated={async () => {
+          await refetchTasks();
+        }}
+      />
     </div>
   );
 }
