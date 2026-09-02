@@ -72,27 +72,27 @@ const STATUS_DOT: Record<string, string> = {
 };
 function sl(s: string) { return (s ?? "").replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()); }
 
-// ── Section wrapper with coloured header ─────────────────────────────────────
+// ── Section wrapper using the shared neutral application surface ─────────────
 function Section({
   icon: Icon, title, accent, children, action,
 }: {
   icon: React.ElementType; title: string;
-  accent: string; // tailwind gradient classes
+  accent?: string; // retained for existing section call sites
   children: React.ReactNode;
   action?: React.ReactNode;
 }) {
   return (
-    <div className="rounded-2xl overflow-hidden shadow-sm ring-1 ring-black/5 dark:ring-white/5">
-      <div className={`${accent} px-4 py-3 flex items-center justify-between`}>
+    <div className="rounded-xl overflow-hidden border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50/80 px-4 py-3 dark:border-slate-800 dark:bg-slate-800/40">
         <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-lg bg-white/20 flex items-center justify-center">
-            <Icon className="w-4 h-4 text-white" />
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-50 dark:bg-indigo-950/50">
+            <Icon className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
           </div>
-          <span className="text-sm font-semibold text-white tracking-wide">{title}</span>
+          <span className="text-sm font-semibold tracking-wide text-slate-700 dark:text-slate-200">{title}</span>
         </div>
-        {action && <div className="text-white/80 hover:text-white text-xs">{action}</div>}
+        {action && <div className="text-xs text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-indigo-400">{action}</div>}
       </div>
-      <div className="bg-white dark:bg-gray-900">{children}</div>
+      <div className="bg-white dark:bg-slate-900">{children}</div>
     </div>
   );
 }
@@ -110,7 +110,7 @@ function TaskCard({ task, isCompleted, onNavigate, onMarkInProgress, onMarkCompl
   const overdue = !done && task.due_date && isPast(new Date(task.due_date)) && !isToday(new Date(task.due_date));
 
   return (
-    <div className={`group flex items-start gap-3 p-3 rounded-xl border transition-all ${overdue ? "border-red-200 bg-red-50/50 dark:border-red-900/40 dark:bg-red-900/10" : "border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/40 hover:border-indigo-200 dark:hover:border-indigo-700"}`}>
+      <div className={`group flex items-start gap-3 p-3 rounded-xl border transition-all ${overdue ? "border-red-200 bg-red-50/50 dark:border-red-900/40 dark:bg-red-900/10" : "border-slate-200 bg-slate-50/60 dark:border-slate-800 dark:bg-slate-800/40 hover:border-indigo-200 dark:hover:border-indigo-700"}`}>
       <span className={`mt-1.5 w-2 h-2 rounded-full flex-shrink-0 ${STATUS_DOT[task.status] ?? "bg-slate-400"}`} />
       <div className="flex-1 min-w-0">
         <div className="flex items-start justify-between gap-1">
@@ -168,10 +168,9 @@ function ProjectCard({ project, pending, today }: { project: Project; pending: n
   const st = STATUS[project.status] ?? STATUS.planning;
   return (
     <Link to={`/projects/${project.id}`}
-      className="group flex flex-col gap-3 p-4 rounded-xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 hover:shadow-md hover:border-indigo-200 dark:hover:border-indigo-700 transition-all">
+      className="group flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 transition-all hover:border-indigo-200 hover:shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:hover:border-indigo-700">
       <div className="flex items-start gap-3">
-        <div className="w-9 h-9 rounded-xl flex-shrink-0 flex items-center justify-center text-white text-base font-bold shadow-sm"
-          style={{ backgroundColor: project.color ?? "#6366f1" }}>
+         <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-slate-700 text-base font-bold text-white shadow-sm dark:bg-slate-600">
           {project.name[0]?.toUpperCase()}
         </div>
         <div className="flex-1 min-w-0">
@@ -197,9 +196,9 @@ function ProjectCard({ project, pending, today }: { project: Project; pending: n
 function DefectCard({ defect }: { defect: Defect }) {
   return (
     <Link to={`/defects?open=${defect.id}`}
-      className="group flex items-center gap-3 p-3 rounded-xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 hover:shadow-sm hover:border-orange-200 dark:hover:border-orange-700 transition-all">
-      <div className="w-8 h-8 rounded-lg bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center flex-shrink-0">
-        <Bug className="w-4 h-4 text-orange-600" />
+      className="group flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 transition-all hover:border-indigo-200 hover:shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:hover:border-indigo-700">
+      <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-800">
+         <Bug className="h-4 w-4 text-slate-600 dark:text-slate-300" />
       </div>
       <div className="flex-1 min-w-0">
         <p className="text-[10px] font-bold text-slate-400 tracking-wide mb-0.5">DEF-{String(defect.defect_number).padStart(5, "0")}</p>
@@ -209,7 +208,7 @@ function DefectCard({ defect }: { defect: Defect }) {
           <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500">{sl(defect.status)}</span>
         </div>
       </div>
-      <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-orange-500 flex-shrink-0 transition-colors" />
+       <ChevronRight className="w-4 h-4 flex-shrink-0 text-slate-300 transition-colors group-hover:text-indigo-500" />
     </Link>
   );
 }
@@ -312,34 +311,34 @@ export default function MyWorkspace() {
 
   // ── Calendar items ────────────────────────────────────────────────────────────
   const calItems: CalItem[] = [];
-  todayTasks.forEach(t => calItems.push({ title: t.title, subtitle: `Task #${t.task_number} · Due today`, date: new Date(t.due_date!), color: "text-indigo-700 dark:text-indigo-300", borderColor: "border-indigo-400", bgColor: "bg-indigo-50 dark:bg-indigo-900/20", link: `/admin/tasks?open=${t.id}` }));
-  overdueTasks.slice(0, 3).forEach(t => { const d = differenceInDays(today, new Date(t.due_date!)); calItems.push({ title: t.title, subtitle: `Task #${t.task_number} · ${d}d overdue`, date: new Date(t.due_date!), color: "text-red-700 dark:text-red-400", borderColor: "border-red-500", bgColor: "bg-red-50 dark:bg-red-900/20", link: `/admin/tasks?open=${t.id}` }); });
-  upcomingTasks.filter(t => t.due_date && isThisWeek(new Date(t.due_date))).slice(0, 3).forEach(t => calItems.push({ title: t.title, subtitle: `Task #${t.task_number} · Due ${format(new Date(t.due_date!), "EEE, MMM d")}`, date: new Date(t.due_date!), color: "text-amber-700 dark:text-amber-300", borderColor: "border-amber-400", bgColor: "bg-amber-50 dark:bg-amber-900/20", link: `/admin/tasks?open=${t.id}` }));
-  myProjects.filter(p => p.projected_end_date && p.status === "active").forEach(p => { const dl = differenceInDays(new Date(p.projected_end_date!), today); if (dl >= -7 && dl <= 30) calItems.push({ title: p.name, subtitle: dl < 0 ? `Project · ${Math.abs(dl)}d past deadline` : dl === 0 ? "Project · Deadline today" : `Project · ${dl}d until deadline`, date: new Date(p.projected_end_date!), color: dl <= 3 ? "text-red-700 dark:text-red-400" : "text-purple-700 dark:text-purple-300", borderColor: dl <= 3 ? "border-red-500" : "border-purple-400", bgColor: dl <= 3 ? "bg-red-50 dark:bg-red-900/20" : "bg-purple-50 dark:bg-purple-900/20", link: `/projects/${p.id}` }); });
+  todayTasks.forEach(t => calItems.push({ title: t.title, subtitle: `Task #${t.task_number} · Due today`, date: new Date(t.due_date!), color: "text-slate-700 dark:text-slate-200", borderColor: "border-slate-300 dark:border-slate-600", bgColor: "bg-slate-50 dark:bg-slate-800/50", link: `/admin/tasks?open=${t.id}` }));
+  overdueTasks.slice(0, 3).forEach(t => { const d = differenceInDays(today, new Date(t.due_date!)); calItems.push({ title: t.title, subtitle: `Task #${t.task_number} · ${d}d overdue`, date: new Date(t.due_date!), color: "text-red-700 dark:text-red-400", borderColor: "border-red-400", bgColor: "bg-red-50/60 dark:bg-red-900/10", link: `/admin/tasks?open=${t.id}` }); });
+  upcomingTasks.filter(t => t.due_date && isThisWeek(new Date(t.due_date))).slice(0, 3).forEach(t => calItems.push({ title: t.title, subtitle: `Task #${t.task_number} · Due ${format(new Date(t.due_date!), "EEE, MMM d")}`, date: new Date(t.due_date!), color: "text-slate-700 dark:text-slate-200", borderColor: "border-slate-300 dark:border-slate-600", bgColor: "bg-slate-50 dark:bg-slate-800/50", link: `/admin/tasks?open=${t.id}` }));
+  myProjects.filter(p => p.projected_end_date && p.status === "active").forEach(p => { const dl = differenceInDays(new Date(p.projected_end_date!), today); if (dl >= -7 && dl <= 30) calItems.push({ title: p.name, subtitle: dl < 0 ? `Project · ${Math.abs(dl)}d past deadline` : dl === 0 ? "Project · Deadline today" : `Project · ${dl}d until deadline`, date: new Date(p.projected_end_date!), color: dl <= 3 ? "text-red-700 dark:text-red-400" : "text-slate-700 dark:text-slate-200", borderColor: dl <= 3 ? "border-red-400" : "border-slate-300 dark:border-slate-600", bgColor: dl <= 3 ? "bg-red-50/60 dark:bg-red-900/10" : "bg-slate-50 dark:bg-slate-800/50", link: `/projects/${p.id}` }); });
   calItems.sort((a, b) => a.date.getTime() - b.date.getTime());
 
   const workloadBadge = aiBrief ? ({
-    heavy:    { label: "Heavy", color: "bg-red-500/20 text-red-100",    Icon: TrendingUp },
-    balanced: { label: "Balanced", color: "bg-emerald-500/20 text-emerald-100", Icon: CheckCheck },
-    light:    { label: "Light", color: "bg-sky-500/20 text-sky-100",    Icon: TrendingDown },
+    heavy:    { label: "Heavy", color: "bg-white/10 text-slate-200", Icon: TrendingUp },
+    balanced: { label: "Balanced", color: "bg-white/10 text-slate-200", Icon: CheckCheck },
+    light:    { label: "Light", color: "bg-white/10 text-slate-200", Icon: TrendingDown },
   } as const)[aiBrief.workload_status] : null;
 
   // ── Render ────────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-slate-100 dark:bg-slate-950">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-5">
 
         {/* ══ HERO BRIEF ══════════════════════════════════════════════════════ */}
         <div className="rounded-2xl overflow-hidden shadow-lg">
-          {/* Gradient header */}
-          <div className="bg-gradient-to-r from-indigo-600 via-violet-600 to-purple-700 px-6 pt-6 pb-8">
+          {/* Quiet hero header aligned with the shared application chrome */}
+          <div className="bg-slate-900 px-6 pb-8 pt-6 dark:bg-slate-800">
             <div className="flex items-start justify-between gap-4 flex-wrap">
               <div>
                 <div className="flex items-center gap-2 mb-2">
-                  <div className="w-7 h-7 rounded-lg bg-white/20 flex items-center justify-center">
+                   <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/10">
                     <Brain className="w-4 h-4 text-white" />
                   </div>
-                  <span className="text-sm font-semibold text-indigo-200 tracking-wide">My Workspace</span>
+                   <span className="text-sm font-semibold tracking-wide text-slate-300">My Workspace</span>
                   {aiBrief && workloadBadge && (
                     <span className={`flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full ${workloadBadge.color}`}>
                       <workloadBadge.Icon className="w-3 h-3" /> {workloadBadge.label}
@@ -347,10 +346,10 @@ export default function MyWorkspace() {
                   )}
                 </div>
                 <h1 className="text-3xl font-bold text-white">{greeting}, {firstName} 👋</h1>
-                <p className="text-indigo-200 text-sm mt-1">{format(today, "EEEE, MMMM d, yyyy")}</p>
+                 <p className="mt-1 text-sm text-slate-400">{format(today, "EEEE, MMMM d, yyyy")}</p>
               </div>
               <button onClick={() => { refetchTasks(); setAiBrief(null); setBriefError(null); }}
-                className="flex items-center gap-1.5 text-xs text-white/70 hover:text-white bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-lg transition-all">
+                 className="flex items-center gap-1.5 rounded-lg bg-white/10 px-3 py-1.5 text-xs text-slate-300 transition-all hover:bg-white/15 hover:text-white">
                 <RefreshCw className="w-3 h-3" /> Refresh
               </button>
             </div>
@@ -365,8 +364,8 @@ export default function MyWorkspace() {
                 { label: "Projects",  value: myProjects.length,   Icon: Briefcase,    bg: "bg-white/10",           hi: false },
                 { label: "Hours",     value: `${hoursLogged}h`,   Icon: Clock,        bg: "bg-white/10",           hi: false },
               ].map(({ label, value, Icon, bg }) => (
-                <div key={label} className={`${bg} backdrop-blur-sm rounded-2xl p-3 text-center`}>
-                  <Icon className="w-4 h-4 text-white/70 mx-auto mb-1" />
+                <div key={label} className={`${bg} rounded-xl border border-white/10 p-3 text-center`}>
+                  <Icon className="mx-auto mb-1 h-4 w-4 text-white/60" />
                   <p className="text-xl font-bold text-white leading-none">{value}</p>
                   <p className="text-[10px] text-white/60 mt-0.5 font-medium">{label}</p>
                 </div>
@@ -375,7 +374,7 @@ export default function MyWorkspace() {
           </div>
 
           {/* AI brief body — white panel with slight lift from the gradient */}
-          <div className="bg-white dark:bg-slate-900 px-6 py-5 border-t-0">
+            <div className="border-t border-slate-200 bg-white px-6 py-5 dark:border-slate-800 dark:bg-slate-900">
             {!aiBrief && !generateBrief.isPending && !briefError && (
               <div className="flex items-center justify-between gap-4 flex-wrap">
                 <div className="flex items-start gap-3">
@@ -480,7 +479,7 @@ export default function MyWorkspace() {
           {/* My Work — 2/3 */}
           <div className="lg:col-span-2">
             <Section icon={ListTodo} title="My Work" accent="bg-gradient-to-r from-indigo-500 to-blue-600"
-              action={<Link to="/admin/my-tasks" className="flex items-center gap-1 hover:text-white font-medium">All tasks <ArrowRight className="w-3 h-3" /></Link>}>
+              action={<Link to="/admin/my-tasks" className="flex items-center gap-1 font-medium hover:text-indigo-600 dark:hover:text-indigo-400">All tasks <ArrowRight className="w-3 h-3" /></Link>}>
               <div className="p-4">
                 <Tabs defaultValue="today">
                   <TabsList className="w-full grid grid-cols-4 h-9 mb-4 bg-slate-100 dark:bg-slate-800">
@@ -527,15 +526,15 @@ export default function MyWorkspace() {
             <Section icon={BarChart2} title="Performance" accent="bg-gradient-to-r from-violet-500 to-purple-600">
               <div className="p-4 grid grid-cols-2 gap-3">
                 {[
-                  { label: "Completed Today", value: completedToday.length, Icon: CheckCircle2, from: "from-emerald-400", to: "to-teal-500" },
-                  { label: "Hours Logged",    value: `${hoursLogged}h`,     Icon: Clock,        from: "from-indigo-400", to: "to-blue-500" },
-                  { label: "Open Defects",    value: openDefects.length,    Icon: Bug,          from: "from-orange-400", to: "to-rose-500" },
-                  { label: "Active Projects", value: myProjects.filter(p => p.status === "active").length, Icon: Briefcase, from: "from-violet-400", to: "to-purple-500" },
-                ].map(({ label, value, Icon, from, to }) => (
-                  <div key={label} className={`rounded-xl bg-gradient-to-br ${from} ${to} p-3 text-white shadow-sm`}>
-                    <Icon className="w-4 h-4 text-white/80 mb-1.5" />
-                    <p className="text-2xl font-bold leading-none">{value}</p>
-                    <p className="text-[10px] text-white/70 mt-1 leading-tight font-medium">{label}</p>
+                  { label: "Completed Today", value: completedToday.length, Icon: CheckCircle2 },
+                  { label: "Hours Logged", value: `${hoursLogged}h`, Icon: Clock },
+                  { label: "Open Defects", value: openDefects.length, Icon: Bug },
+                  { label: "Active Projects", value: myProjects.filter(p => p.status === "active").length, Icon: Briefcase },
+                ].map(({ label, value, Icon }) => (
+                  <div key={label} className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-800/50">
+                    <Icon className="mb-1.5 h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                    <p className="text-2xl font-bold leading-none text-slate-800 dark:text-slate-100">{value}</p>
+                    <p className="mt-1 text-[10px] font-medium leading-tight text-slate-500 dark:text-slate-400">{label}</p>
                   </div>
                 ))}
               </div>
@@ -582,7 +581,7 @@ export default function MyWorkspace() {
         {/* ══ MY PROJECTS ═════════════════════════════════════════════════════ */}
         {myProjects.length > 0 && (
           <Section icon={Briefcase} title="My Projects" accent="bg-gradient-to-r from-violet-600 to-indigo-600"
-            action={<Link to="/projects" className="flex items-center gap-1 hover:text-white font-medium">All projects <ArrowRight className="w-3 h-3" /></Link>}>
+            action={<Link to="/projects" className="flex items-center gap-1 font-medium hover:text-indigo-600 dark:hover:text-indigo-400">All projects <ArrowRight className="w-3 h-3" /></Link>}>
             <div className="p-4 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
               {myProjects.map(p => (
                 <ProjectCard key={p.id} project={p}
@@ -598,7 +597,7 @@ export default function MyWorkspace() {
           {/* Defects */}
           <Section icon={Bug} title={`My Defects${openDefects.length > 0 ? ` (${openDefects.length})` : ""}`}
             accent="bg-gradient-to-r from-orange-500 to-rose-500"
-            action={<Link to="/defects/my" className="flex items-center gap-1 hover:text-white font-medium">See all <ArrowRight className="w-3 h-3" /></Link>}>
+            action={<Link to="/defects/my" className="flex items-center gap-1 font-medium hover:text-indigo-600 dark:hover:text-indigo-400">See all <ArrowRight className="w-3 h-3" /></Link>}>
             <div className="p-4">
               {openDefects.length === 0 ? (
                 <div className="py-8 text-center">
@@ -615,7 +614,7 @@ export default function MyWorkspace() {
 
           {/* Workspace Activity */}
           <Section icon={Activity} title="Workspace Activity" accent="bg-gradient-to-r from-purple-500 to-violet-600"
-            action={<Link to="/decisions" className="flex items-center gap-1 hover:text-white font-medium">Decisions <ArrowRight className="w-3 h-3" /></Link>}>
+            action={<Link to="/decisions" className="flex items-center gap-1 font-medium hover:text-indigo-600 dark:hover:text-indigo-400">Decisions <ArrowRight className="w-3 h-3" /></Link>}>
             <div className="p-4">
               {recentActivity.length === 0 ? (
                 <div className="py-8 text-center">
@@ -628,8 +627,8 @@ export default function MyWorkspace() {
                     <Link key={item.id}
                       to={item.entity_type === "task" ? `/admin/tasks?open=${item.entity_id}` : item.entity_type === "project" ? `/projects/${item.entity_id}` : "/decisions"}
                       className="group flex items-start gap-2.5 p-2.5 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
-                      <div className="w-8 h-8 rounded-xl bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center flex-shrink-0 mt-0.5">
-                        <Shield className="w-4 h-4 text-amber-600" />
+                      <div className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl bg-indigo-50 dark:bg-indigo-950/50">
+                        <Shield className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-slate-800 dark:text-slate-100 truncate">{item.title}</p>
@@ -638,7 +637,7 @@ export default function MyWorkspace() {
                           <span className={`text-[10px] font-bold px-1.5 py-0 rounded-full ${item.status === "approved" ? "bg-emerald-100 text-emerald-700" : item.status === "rejected" ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700"}`}>{item.status}</span>
                         </div>
                       </div>
-                      <ChevronRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-violet-500 shrink-0 mt-1 transition-colors" />
+                      <ChevronRight className="w-3.5 h-3.5 shrink-0 text-slate-300 transition-colors group-hover:text-indigo-500" />
                     </Link>
                   ))}
                 </div>
@@ -656,10 +655,10 @@ export default function MyWorkspace() {
                   <button onClick={() => setExpandedNotif(expandedNotif === group.key ? null : group.key)}
                     className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 dark:bg-slate-800/60 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                     <div className="flex items-center gap-3">
-                      <div className="w-7 h-7 rounded-lg bg-sky-100 dark:bg-sky-900/30 flex items-center justify-center">
-                        {group.entity_type === "project" ? <Briefcase className="w-3.5 h-3.5 text-sky-600" /> :
-                         group.entity_type === "task"    ? <CheckSquare className="w-3.5 h-3.5 text-sky-600" /> :
-                         <Bug className="w-3.5 h-3.5 text-sky-600" />}
+                      <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-50 dark:bg-indigo-950/50">
+                        {group.entity_type === "project" ? <Briefcase className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" /> :
+                         group.entity_type === "task"    ? <CheckSquare className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" /> :
+                         <Bug className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />}
                       </div>
                       <div className="text-left">
                         <p className="text-sm font-semibold text-slate-700 dark:text-slate-200 capitalize">{group.entity_type} workspace</p>
@@ -689,15 +688,15 @@ export default function MyWorkspace() {
       <div className="fixed bottom-6 right-6 z-50">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="w-13 h-13 w-12 h-12 rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 hover:from-indigo-600 hover:to-violet-700 text-white shadow-xl shadow-indigo-900/40 flex items-center justify-center transition-all hover:scale-110 active:scale-95">
+            <button className="flex h-12 w-12 items-center justify-center rounded-full bg-indigo-600 text-white shadow-lg shadow-indigo-900/25 transition-all hover:scale-105 hover:bg-indigo-700 active:scale-95">
               <Plus className="w-5 h-5" />
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" side="top" className="mb-2 w-48 shadow-xl">
             <DropdownMenuItem onClick={() => navigate("/admin/tasks")}><CheckSquare className="w-4 h-4 mr-2 text-indigo-500" /> Create Task</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => navigate("/projects/new")}><FolderOpen className="w-4 h-4 mr-2 text-emerald-500" /> Create Project</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => navigate("/defects")}><Bug className="w-4 h-4 mr-2 text-orange-500" /> Report Defect</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => navigate("/decisions")}><MessageSquare className="w-4 h-4 mr-2 text-violet-500" /> Start Discussion</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => navigate("/projects/new")}><FolderOpen className="w-4 h-4 mr-2 text-indigo-500" /> Create Project</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => navigate("/defects")}><Bug className="w-4 h-4 mr-2 text-indigo-500" /> Report Defect</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => navigate("/decisions")}><MessageSquare className="w-4 h-4 mr-2 text-indigo-500" /> Start Discussion</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
