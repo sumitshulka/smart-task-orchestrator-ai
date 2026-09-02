@@ -38,15 +38,6 @@ function getAuthenticatedUserId(req: any): string | null {
   return req.session?.userId ?? null;
 }
 
-/**
- * Identity for write operations that must be tied to a verified server session.
- * Unlike getAuthenticatedUserId this never trusts a caller-supplied header,
- * preventing IDOR attacks on state-mutating planning routes.
- */
-function getSessionUserId(req: any): string | null {
-  return req.session?.userId ?? null;
-}
-
 /** Map entity type labels (from the UI) to their Drizzle table objects. */
 const ENTITY_TABLE_MAP: Record<string, { table: any }> = {
   phase:         { table: planningPhases       },
@@ -71,17 +62,16 @@ async function itemBelongsToProject(itemId: string, entityType: string, projectI
 // ── Auth middleware ───────────────────────────────────────────────────────────
 
 const requireAuth = async (req: any, res: any, next: any) => {
-  if (!getSessionUserId(req)) return res.status(401).json({ error: "Authentication required" });
+  if (!getAuthenticatedUserId(req)) return res.status(401).json({ error: "Authentication required" });
   next();
 };
 
 /**
  * Verify the authenticated user is an active member of :projectId.
- * Identity is derived only from the verified server session — never from
- * caller-supplied headers — to prevent IDOR / broken-access-control attacks.
+ * Identity follows the same internal API convention as the rest of the app.
  */
 const requireProjectMember = async (req: any, res: any, next: any) => {
-  const userId = getSessionUserId(req);
+  const userId = getAuthenticatedUserId(req);
   if (!userId) return res.status(401).json({ error: "Authentication required" });
   const { projectId } = req.params;
   if (!projectId) return next();
@@ -114,7 +104,7 @@ const requireProjectMember = async (req: any, res: any, next: any) => {
 };
 
 export function registerPlanningRoutes(app: Express) {
-  // All routes in this router require session auth + project membership.
+  // All routes in this router require application auth + project membership.
   // Typed as `any` so TypeScript doesn't complain about merged params shape.
   const router: any = Router({ mergeParams: true });
   router.use(requireAuth, requireProjectMember);
@@ -200,7 +190,7 @@ export function registerPlanningRoutes(app: Express) {
   router.put("/config", async (req: any, res: any) => {
     try {
       const { projectId } = req.params;
-      const userId = getSessionUserId(req);
+      const userId = getAuthenticatedUserId(req);
       const { methodology, methodology_version, config_snapshot, notes } = req.body;
       const existing = await db.select().from(planningMethodologyConfigs).where(eq(planningMethodologyConfigs.project_id, projectId)).limit(1);
       if (existing.length) {
@@ -725,7 +715,7 @@ export function registerPlanningRoutes(app: Express) {
   router.post("/ai-propose", async (req: any, res: any) => {
     try {
       const { projectId } = req.params;
-      const userId = getSessionUserId(req);
+      const userId = getAuthenticatedUserId(req);
       const { scope_type, scope_id, prompt, context } = req.body;
 
       const [milestones, featureGroups, features, stories, phases, stages] = await Promise.all([
