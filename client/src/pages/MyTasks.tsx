@@ -207,6 +207,7 @@ export default function MyTasksPage() {
   const [loading, setLoading] = useState(false);
   const [view, setView] = useState<"list" | "kanban">("list");
   const [quickTaskOpen, setQuickTaskOpen] = useState(false);
+  const [taskScope, setTaskScope] = useState<"mine" | "all">("mine");
 
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
@@ -273,6 +274,17 @@ export default function MyTasksPage() {
     })();
   }, [user?.id]);
 
+  const isAdmin = roles.includes("admin");
+  const showAllUserTasks = isAdmin && taskScope === "all";
+
+  const handleTaskScopeChange = (scope: "mine" | "all") => {
+    setTaskScope(scope);
+    setPage(1);
+    if (scope === "mine") {
+      setUserFilter("all");
+    }
+  };
+
   async function load() {
     if (!user?.id) {
       console.log("[DEBUG][MyTasksPage] No user or user.id present in session state!", user);
@@ -285,12 +297,12 @@ export default function MyTasksPage() {
     let fromDateObj = new Date(today);
     let toDateObj = new Date(today);
     
-    // For admin users, use a much wider date range to show all tasks
+    // Respect the selected date range. Only use the broad fallback when the
+    // admin has explicitly selected All User Tasks and no range is set.
     if (dateRange.from && dateRange.to) {
       fromDateObj = new Date(dateRange.from);
       toDateObj = new Date(dateRange.to);
-    } else if (roles.includes("admin")) {
-      // Admin sees all tasks - use very wide date range
+    } else if (showAllUserTasks) {
       fromDateObj = new Date('2020-01-01');
       toDateObj = new Date();
       toDateObj.setDate(toDateObj.getDate() + 365); // Future tasks too
@@ -305,8 +317,11 @@ export default function MyTasksPage() {
     const input: FetchTasksInput = {
       fromDate: fromDateStr,
       toDate: toDateStr,
-      // Admin users should see all tasks, not just assigned ones
-      assignedTo: roles.includes("admin") ? undefined : user.id,
+      // My Tasks is always assignment-based. Admins can opt into the
+      // organization-wide view through the scope toggle.
+      assignedTo: showAllUserTasks
+        ? (userFilter !== "all" ? userFilter : undefined)
+        : user.id,
       offset: (page - 1) * pageSize,
       limit: pageSize,
       // Always surface overdue tasks regardless of the creation-date window
@@ -319,7 +334,8 @@ export default function MyTasksPage() {
     if (teamFilter !== "all") input.teamId = teamFilter;
 
     console.log("[DEBUG][MyTasksPage] User roles:", roles);
-    console.log("[DEBUG][MyTasksPage] Is admin:", roles.includes("admin"));
+    console.log("[DEBUG][MyTasksPage] Is admin:", isAdmin);
+    console.log("[DEBUG][MyTasksPage] Task scope:", taskScope);
     console.log("[DEBUG][MyTasksPage] Date range - from:", fromDateStr, "to:", toDateStr);
     console.log("[DEBUG][MyTasksPage] Fetching tasks for user.id:", user.id, typeof user.id);
     console.log("[DEBUG][MyTasksPage] Input to fetchTasksPaginated:", input);
@@ -354,7 +370,7 @@ export default function MyTasksPage() {
   useEffect(() => {
     load();
     // eslint-disable-next-line
-  }, [user?.id, page, pageSize, priorityFilter, statusFilter, userFilter, teamFilter, dateRange, sortBy, sortOrder]);
+  }, [user?.id, page, pageSize, priorityFilter, statusFilter, userFilter, teamFilter, dateRange, sortBy, sortOrder, roles, taskScope]);
 
   // Sort tasks based on selected criteria
   const sortedTasks = useMemo(() => {
@@ -488,7 +504,41 @@ export default function MyTasksPage() {
   return (
     <div className="w-full p-4 mx-0">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">My Tasks</h1>
+        <div className="flex items-center gap-4">
+          <h1 className="text-2xl font-bold">My Tasks</h1>
+          {isAdmin && (
+            <div
+              className="flex items-center rounded-lg border bg-muted/40 p-1"
+              role="group"
+              aria-label="Task scope"
+            >
+              <button
+                type="button"
+                aria-pressed={!showAllUserTasks}
+                onClick={() => handleTaskScopeChange("mine")}
+                className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                  !showAllUserTasks
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                My Tasks
+              </button>
+              <button
+                type="button"
+                aria-pressed={showAllUserTasks}
+                onClick={() => handleTaskScopeChange("all")}
+                className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                  showAllUserTasks
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                All User Tasks
+              </button>
+            </div>
+          )}
+        </div>
         <div className="flex gap-2">
           <Button 
             variant="outline" 
@@ -595,7 +645,33 @@ export default function MyTasksPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              {isAdmin && showAllUserTasks && (
+                <div>
+                  <label className="block text-sm font-medium mb-2">Assigned User</label>
+                  <Select value={userFilter} onValueChange={setUserFilter}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="All Users" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Users</SelectItem>
+                      {users
+                        .slice()
+                        .sort((a: any, b: any) =>
+                          (a.user_name || a.email || "").localeCompare(
+                            b.user_name || b.email || ""
+                          )
+                        )
+                        .map((taskUser: any) => (
+                          <SelectItem key={taskUser.id} value={taskUser.id}>
+                            {taskUser.user_name || taskUser.email || taskUser.id}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
               {/* Priority Filter */}
               <div>
                 <label className="block text-sm font-medium mb-2">Priority</label>
