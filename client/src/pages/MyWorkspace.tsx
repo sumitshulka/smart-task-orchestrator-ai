@@ -502,7 +502,9 @@ export default function MyWorkspace() {
                     <TabsTrigger value="today" className="text-xs font-semibold">
                       Today {todayTasks.length > 0 && <span className="ml-1 bg-indigo-600 text-white text-[10px] px-1.5 py-0 rounded-full">{todayTasks.length}</span>}
                     </TabsTrigger>
-                    <TabsTrigger value="upcoming" className="text-xs font-semibold">Upcoming</TabsTrigger>
+                    <TabsTrigger value="upcoming" className="text-xs font-semibold">
+                      Upcoming {upcomingTasks.length > 0 && <span className="ml-1 bg-indigo-600 text-white text-[10px] px-1.5 py-0 rounded-full">{upcomingTasks.length}</span>}
+                    </TabsTrigger>
                     <TabsTrigger value="overdue" className="text-xs font-semibold">
                       Overdue {overdueTasks.length > 0 && <span className="ml-1 bg-red-500 text-white text-[10px] px-1.5 py-0 rounded-full">{overdueTasks.length}</span>}
                     </TabsTrigger>
