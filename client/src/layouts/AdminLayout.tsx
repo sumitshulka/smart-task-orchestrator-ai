@@ -115,9 +115,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           size="icon"
           aria-label="Create a task"
           title="Quick task creation"
-          className="fixed bottom-5 right-5 z-50 h-12 w-12 rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/25 transition-transform hover:scale-105 hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          className="group fixed bottom-5 right-5 z-50 h-14 w-14 rounded-full border border-white/20 bg-gradient-to-br from-indigo-500 via-violet-600 to-fuchsia-600 text-white shadow-[0_10px_28px_rgba(99,102,241,0.38)] ring-1 ring-indigo-300/30 transition-all duration-200 hover:scale-110 hover:shadow-[0_14px_34px_rgba(124,58,237,0.48)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300 focus-visible:ring-offset-2 active:scale-95"
         >
-          <Plus className="h-6 w-6" />
+          <span className="pointer-events-none absolute inset-1 rounded-full border border-white/20" />
+          <span className="relative flex h-8 w-8 items-center justify-center rounded-xl bg-white/15 shadow-inner shadow-white/20 backdrop-blur-sm">
+            <Plus className="h-5 w-5 transition-transform duration-200 group-hover:rotate-90" strokeWidth={2.75} />
+          </span>
         </Button>
       </CreateTaskSheet>
 
