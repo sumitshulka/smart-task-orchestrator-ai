@@ -206,7 +206,7 @@ export default function HistoricalTasksPage() {
             <div className="mb-4 text-sm text-gray-600">
               Showing {tasks.length} of {totalTasks} historical tasks
             </div>
-            <div className="grid gap-4">
+            <div className="grid gap-3">
               {tasks.map((task) => {
                 const statusObj = statuses.find(s => s.name.trim().toLowerCase().replace(/_/g, " ") === task.status.trim().toLowerCase().replace(/_/g, " "));
                 return (

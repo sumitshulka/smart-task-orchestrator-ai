@@ -674,7 +674,7 @@ export default function MyTasksPage() {
         )}
 
             {!loading && !statusesLoading && !showTooManyWarning && sortedTasks.length > 0 && view === "list" && (
-              <div className="grid grid-cols-1 gap-6">
+              <div className="grid grid-cols-1 gap-3">
                 {sortedTasks.map((task) => {
                   const statusObj = statuses.find(s => getStatusKey(s.name) === getStatusKey(task.status));
                   return (
