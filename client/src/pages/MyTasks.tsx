@@ -20,6 +20,7 @@ import { useQuery } from "@tanstack/react-query";
 import KanbanColumn from "./MyTasks/KanbanColumn";
 import KanbanTaskCard from "./MyTasks/KanbanTaskCard";
 import TaskCardClickable from "./MyTasks/TaskCardClickable";
+import QuickPersonalTaskDialog from "./MyTasks/QuickPersonalTaskDialog";
 import TasksPagination from "@/components/TasksPagination";
 import EditTaskSheet from "@/components/EditTaskSheet";
 import { apiClient } from "@/lib/api";
@@ -205,6 +206,7 @@ export default function MyTasksPage() {
   const [totalTasks, setTotalTasks] = useState(0);
   const [loading, setLoading] = useState(false);
   const [view, setView] = useState<"list" | "kanban">("list");
+  const [quickTaskOpen, setQuickTaskOpen] = useState(false);
 
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
@@ -707,6 +709,7 @@ export default function MyTasksPage() {
                           CARD_TYPE={CARD_TYPE}
                           statusStyle={getStatusStyle(statusKey, statusObj?.color)}
                           taskCount={tasksByStatus[statusKey]?.length || 0}
+                          onAddTask={statusObj?.is_default ? () => setQuickTaskOpen(true) : undefined}
                         >
                           {tasksByStatus[statusKey] && tasksByStatus[statusKey].length > 0 ? (
                             tasksByStatus[statusKey].map((task) => (
@@ -770,6 +773,13 @@ export default function MyTasksPage() {
               onOpenChange={setAiSheetOpen}
               onTaskCreated={load}
               currentUserId={user?.id}
+            />
+            <QuickPersonalTaskDialog
+              open={quickTaskOpen}
+              onOpenChange={setQuickTaskOpen}
+              defaultStatus={statuses.find((status) => status.is_default)?.name || "New"}
+              userId={user?.id}
+              onTaskCreated={load}
             />
         </div>
       </div>

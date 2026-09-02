@@ -1,6 +1,7 @@
 
 import React from "react";
 import { useDrop } from "react-dnd";
+import { Plus } from "lucide-react";
 
 interface KanbanColumnProps {
   statusKey: string;
@@ -19,6 +20,7 @@ interface KanbanColumnProps {
     };
   };
   taskCount: number;
+  onAddTask?: () => void;
 }
 
 const KanbanColumn: React.FC<KanbanColumnProps> = ({
@@ -29,6 +31,7 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
   CARD_TYPE,
   statusStyle,
   taskCount,
+  onAddTask,
 }) => {
   const [{ isOver, canDrop }, dropRef] = useDrop({
     accept: CARD_TYPE,
@@ -65,15 +68,31 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
           <h3 className="font-semibold text-sm uppercase tracking-wide">
             {statusLabel.replace(/_/g, " ")}
           </h3>
-          <span 
-            className={`
-              px-2.5 py-1 rounded-full text-xs font-semibold min-w-[24px] text-center
-              ${statusStyle.count}
-            `}
-            style={statusStyle.customStyles?.count}
-          >
-            {taskCount}
-          </span>
+          <div className="flex items-center gap-2">
+            {onAddTask && (
+              <button
+                type="button"
+                aria-label="Create a quick personal task"
+                title="Quick personal task"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onAddTask();
+                }}
+                className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-current/20 bg-white/70 text-current shadow-sm transition-all hover:scale-105 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current focus-visible:ring-offset-1"
+              >
+                <Plus className="h-4 w-4" strokeWidth={2.5} />
+              </button>
+            )}
+            <span
+              className={`
+                px-2.5 py-1 rounded-full text-xs font-semibold min-w-[24px] text-center
+                ${statusStyle.count}
+              `}
+              style={statusStyle.customStyles?.count}
+            >
+              {taskCount}
+            </span>
+          </div>
         </div>
       </div>
       

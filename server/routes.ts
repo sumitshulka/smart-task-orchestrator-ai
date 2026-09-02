@@ -86,6 +86,44 @@ const requirePortalAuth = (req: any, res: any, next: any) => {
   next();
 };
 
+function getTaskDateKey(value: unknown): string | null {
+  if (!value) return null;
+  if (typeof value === "string") {
+    const dateOnly = value.match(/^(\d{4}-\d{2}-\d{2})/);
+    if (dateOnly) return dateOnly[1];
+  }
+
+  const date = new Date(value as string | Date);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString().slice(0, 10);
+}
+
+async function getDailyTaskHours(userId: string, date: string) {
+  const settings = await storage.getOrganizationSettings();
+  const dailyLimitEnabled = settings?.daily_hour_limit_enabled !== false;
+  const maxHoursPerDay = settings?.max_daily_hours_limit ?? 14;
+  const userTasks = await storage.getTasksByUser(userId);
+  const cancelledStatuses = new Set(["cancelled", "canceled"]);
+
+  const currentHours = userTasks
+    .filter((task) => {
+      const status = (task.status || "").trim().toLowerCase();
+      return (
+        task.assigned_to === userId &&
+        !cancelledStatuses.has(status) &&
+        getTaskDateKey(task.start_date ?? task.due_date) === date
+      );
+    })
+    .reduce((total, task) => total + Number(task.estimated_hours ?? 0), 0);
+
+  return {
+    date,
+    enabled: dailyLimitEnabled,
+    current_hours: currentHours,
+    max_hours_per_day: maxHoursPerDay,
+    remaining_hours: Math.max(0, maxHoursPerDay - currentHours),
+  };
+}
+
 // Get user's visibility scope for data filtering
 async function getUserVisibilityScope(userId: string): Promise<{ scope: string; roleNames: string[] }> {
   try {
@@ -598,6 +636,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/tasks/daily-hours", requireAnyAuthenticated, async (req, res) => {
+    try {
+      const userId = req.headers['x-user-id'] as string;
+      const date = typeof req.query.date === "string" ? req.query.date : "";
+
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        return res.status(400).json({ error: "A valid date is required" });
+      }
+
+      res.json(await getDailyTaskHours(userId, date));
+    } catch (error) {
+      console.error("Failed to calculate daily task hours:", error);
+      res.status(500).json({ error: "Failed to calculate daily task hours" });
+    }
+  });
+
   app.get("/api/tasks/:id", async (req, res) => {
     try {
       const task = await storage.getTask(req.params.id);
@@ -614,6 +668,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       console.log("[DEBUG] Task creation request body:", JSON.stringify(req.body, null, 2));
       const taskData = insertTaskSchema.parse(req.body);
+
+      // Personal tasks contribute to the assignee's scheduled hours for their
+      // start date. Keep this check on the server so it cannot be bypassed by
+      // clients that skip the quick-create UI.
+      if (taskData.type === "personal" && taskData.estimated_hours && taskData.start_date) {
+        const userId =
+          (req.headers['x-user-id'] as string) ||
+          taskData.assigned_to ||
+          taskData.created_by;
+        const date = getTaskDateKey(taskData.start_date);
+        const taskHours = Number(taskData.estimated_hours);
+
+        if (userId && date && taskHours > 0) {
+          const dailyHours = await getDailyTaskHours(userId, date);
+          const totalHours = dailyHours.current_hours + taskHours;
+
+          if (dailyHours.enabled && totalHours > dailyHours.max_hours_per_day) {
+            return res.status(400).json({
+              error: "Daily hour limit exceeded",
+              details: `This task would bring ${date}'s scheduled hours to ${totalHours.toFixed(1)} hours, exceeding the ${dailyHours.max_hours_per_day}-hour daily limit. You have ${dailyHours.remaining_hours.toFixed(1)} hours remaining.`,
+            });
+          }
+        }
+      }
+
       const task = await storage.createTask(taskData);
       
       // Log task creation activity
