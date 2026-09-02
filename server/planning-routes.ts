@@ -11,7 +11,7 @@
 import type { Express } from "express";
 import { Router } from "express";
 import { db } from "./db";
-import { eq, and, asc, sql } from "drizzle-orm";
+import { eq, and, asc, sql, inArray } from "drizzle-orm";
 import {
   planningPhases, planningStages, userStories, planningDependencies,
   planningMethodologyConfigs, planningAiProposals, planningAiProposalItems,
@@ -131,7 +131,8 @@ export function registerPlanningRoutes(app: Express) {
           db.select().from(projectFeatureGroups).where(eq(projectFeatureGroups.project_id, projectId)).orderBy(asc((projectFeatureGroups as any).sort_order)),
           db.select().from(projectFeatures).where(eq(projectFeatures.project_id, projectId)).orderBy(asc((projectFeatures as any).sort_order)),
           db.select().from(userStories).where(eq(userStories.project_id, projectId)).orderBy(asc(userStories.sort_order)),
-          db.select().from(planningDependencies).where(eq(planningDependencies.project_id, projectId)),
+          // Sort by user-defined panel order (sort_order), tie-break by creation time
+          db.select().from(planningDependencies).where(eq(planningDependencies.project_id, projectId)).orderBy(asc((planningDependencies as any).sort_order), asc(planningDependencies.created_at)),
           db.select().from(planningMethodologyConfigs).where(eq(planningMethodologyConfigs.project_id, projectId)).limit(1),
         ]);
       res.json({ phases, stages, milestones, featureGroups, features, stories, dependencies: deps, config: config[0] ?? null });
@@ -394,7 +395,9 @@ export function registerPlanningRoutes(app: Express) {
   // ── Dependencies CRUD ─────────────────────────────────────────────────────
   router.get("/dependencies", async (req: any, res: any) => {
     try {
-      const rows = await db.select().from(planningDependencies).where(eq(planningDependencies.project_id, req.params.projectId));
+      const rows = await db.select().from(planningDependencies)
+        .where(eq(planningDependencies.project_id, req.params.projectId))
+        .orderBy(asc((planningDependencies as any).sort_order), asc(planningDependencies.created_at));
       res.json(rows);
     } catch (err: any) { res.status(500).json({ error: "Failed to load dependencies" }); }
   });
@@ -559,6 +562,56 @@ export function registerPlanningRoutes(app: Express) {
       await db.delete(planningDependencies).where(and(eq(planningDependencies.id, req.params.id), eq(planningDependencies.project_id, req.params.projectId)));
       res.json({ ok: true });
     } catch (err: any) { res.status(500).json({ error: "Failed to delete dependency" }); }
+  });
+
+  /** PATCH /dependencies/:id — update dependency_type inline without deleting the row */
+  router.patch("/dependencies/:id", async (req: any, res: any) => {
+    try {
+      const { projectId, id } = req.params;
+      const { dependency_type } = req.body;
+      const allowed = ["finish_to_start", "start_to_start"];
+      if (!dependency_type || !allowed.includes(dependency_type))
+        return res.status(400).json({ error: "dependency_type must be finish_to_start or start_to_start" });
+      const row = await db.update(planningDependencies)
+        .set({ dependency_type })
+        .where(and(eq(planningDependencies.id, id), eq(planningDependencies.project_id, projectId)))
+        .returning();
+      if (!row.length) return res.status(404).json({ error: "Dependency not found" });
+      res.json(row[0]);
+    } catch (err: any) {
+      res.status(500).json({ error: "Failed to update dependency type" });
+    }
+  });
+
+  /** PUT /dependencies/reorder — persist display sort_order from the Dependencies panel */
+  router.put("/dependencies/reorder", async (req: any, res: any) => {
+    try {
+      const { projectId } = req.params;
+      const { order } = req.body; // [{ id: string, sort_order: number }]
+      if (!Array.isArray(order) || order.length === 0)
+        return res.status(400).json({ error: "order must be a non-empty array of { id, sort_order } objects" });
+
+      // Validate all deps belong to this project before touching any
+      const ids = order.map((o: any) => o.id);
+      const existing = await db.select({ id: planningDependencies.id })
+        .from(planningDependencies)
+        .where(and(eq(planningDependencies.project_id, projectId), inArray(planningDependencies.id, ids)));
+      const validIds = new Set(existing.map(r => r.id));
+      const invalid = ids.filter((id: string) => !validIds.has(id));
+      if (invalid.length > 0)
+        return res.status(404).json({ error: `Unknown dependency ids: ${invalid.join(", ")}` });
+
+      await Promise.all(
+        order.map((o: any) =>
+          db.update(planningDependencies)
+            .set({ sort_order: o.sort_order })
+            .where(and(eq(planningDependencies.id, o.id), eq(planningDependencies.project_id, projectId)))
+        )
+      );
+      res.json({ ok: true, updated: order.length });
+    } catch (err: any) {
+      res.status(500).json({ error: "Failed to reorder dependencies" });
+    }
   });
 
   // ── Unified quick-edit PATCH ──────────────────────────────────────────────

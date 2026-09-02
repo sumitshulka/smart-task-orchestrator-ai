@@ -55,6 +55,11 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  // Run idempotent DB migrations before any route is registered so every
+  // schema addition is guaranteed to exist when the first request arrives.
+  const { runStartupMigrations } = await import("./startup-migrations");
+  await runStartupMigrations();
+
   const server = await registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {

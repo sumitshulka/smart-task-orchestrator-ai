@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "@/components/ui/sheet";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
-  Plus, Settings2, FileDown, Sparkles, ChevronDown, ChevronRight,
+  Plus, Settings2, FileDown, Sparkles, ChevronDown, ChevronRight, ChevronUp,
   Pencil, Trash2, MoreHorizontal, Calendar, Clock, User, Flag,
   Layers, FolderOpen, BookOpen, CheckSquare, GitBranch, Target,
   BarChart2, AlertTriangle, X, Check, RefreshCw, Network,
@@ -2048,10 +2048,492 @@ function TimelineView({ tree }: { tree: PlanningTree }) {
   );
 }
 
+// ── Dependencies View ──────────────────────────────────────────────────────
+function DependenciesView({ tree, projectId }: { tree: PlanningTree; projectId: string }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+
+  // Local ordered copy — seeded from tree, synced on refresh
+  const [orderedDeps, setOrderedDeps] = useState<any[]>(() => [...(tree.dependencies ?? [])]);
+  useEffect(() => {
+    setOrderedDeps([...(tree.dependencies ?? [])]);
+  }, [tree.dependencies]);
+
+  // Multi-select state
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const allIds = orderedDeps.map(d => d.id);
+  const allSelected = allIds.length > 0 && allIds.every(id => selected.has(id));
+  const someSelected = selected.size > 0 && !allSelected;
+
+  // Inline type-edit state
+  const [editingTypeId, setEditingTypeId] = useState<string | null>(null);
+  const [savingTypeId, setSavingTypeId] = useState<string | null>(null);
+  const [typeErrors, setTypeErrors] = useState<Record<string, string>>({});
+
+  // Action busy states
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [bulkEditType, setBulkEditType] = useState<string>("finish_to_start");
+  const [bulkEditing, setBulkEditing] = useState(false);
+  const [reordering, setReordering] = useState(false);
+
+  // Item lookup maps
+  const itemsById = useMemo(() => {
+    const m = new Map<string, { name: string; type: NodeType }>();
+    tree.phases.forEach((p: any) => m.set(p.id, { name: p.name, type: "phase" }));
+    tree.stages.forEach((s: any) => m.set(s.id, { name: s.name, type: "stage" }));
+    tree.milestones.forEach((ms: any) => m.set(ms.id, { name: ms.name, type: "milestone" }));
+    tree.featureGroups.forEach((fg: any) => m.set(fg.id, { name: fg.name, type: "feature_group" }));
+    tree.features.forEach((f: any) => m.set(f.id, { name: f.name, type: "feature" }));
+    tree.stories.forEach((s: any) => m.set(s.id, { name: s.title, type: "user_story" }));
+    return m;
+  }, [tree]);
+
+  const dataById = useMemo(() => {
+    const m = new Map<string, any>();
+    [...tree.phases, ...tree.stages, ...tree.milestones, ...tree.featureGroups, ...tree.features]
+      .forEach(i => m.set(i.id, i));
+    tree.stories.forEach((s: any) => m.set(s.id, s));
+    return m;
+  }, [tree]);
+
+  const getUserId = () => {
+    try { return JSON.parse(localStorage.getItem("user") ?? "{}")?.id ?? ""; } catch { return ""; }
+  };
+
+  // ── Selection helpers ──────────────────────────────────────────────────
+  const toggleSelect = (id: string) =>
+    setSelected(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const toggleSelectAll = () =>
+    setSelected(allSelected ? new Set() : new Set(allIds));
+
+  // ── Bulk type change ───────────────────────────────────────────────────
+  const bulkChangeType = async () => {
+    if (selected.size === 0) return;
+    setBulkEditing(true);
+    const ids = Array.from(selected);
+    const results = await Promise.allSettled(
+      ids.map(id =>
+        fetch(`/api/projects/${projectId}/planning/dependencies/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json", "x-user-id": getUserId() },
+          body: JSON.stringify({ dependency_type: bulkEditType }),
+        }).then(r => { if (!r.ok) throw new Error("failed"); return r.json(); })
+      )
+    );
+    const failed = results.filter(r => r.status === "rejected").length;
+    const succeeded = ids.length - failed;
+    // Optimistically update local order for succeeded rows
+    setOrderedDeps(prev =>
+      prev.map(d => selected.has(d.id) ? { ...d, dependency_type: bulkEditType } : d)
+    );
+    qc.invalidateQueries({ queryKey: ["/api/projects", projectId, "planning/tree"] });
+    if (failed > 0) {
+      toast({
+        title: `${succeeded} updated, ${failed} failed`,
+        description: "Some dependency types could not be changed. Please try again.",
+        variant: "destructive",
+      });
+    } else {
+      const label = bulkEditType === "finish_to_start" ? "FS" : "SS";
+      toast({ title: `${succeeded} ${succeeded === 1 ? "dependency" : "dependencies"} set to ${label}` });
+    }
+    setBulkEditing(false);
+  };
+
+  // ── Single delete ──────────────────────────────────────────────────────
+  const deleteSingle = async (depId: string) => {
+    setDeletingId(depId);
+    try {
+      const resp = await fetch(`/api/projects/${projectId}/planning/dependencies/${depId}`, {
+        method: "DELETE", headers: { "x-user-id": getUserId() },
+      });
+      if (!resp.ok) throw new Error("failed");
+      setSelected(prev => { const n = new Set(prev); n.delete(depId); return n; });
+      qc.invalidateQueries({ queryKey: ["/api/projects", projectId, "planning/tree"] });
+      toast({ title: "Dependency removed" });
+    } catch {
+      toast({ title: "Failed to remove dependency", variant: "destructive" });
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  // ── Bulk delete ────────────────────────────────────────────────────────
+  const bulkDelete = async () => {
+    if (selected.size === 0) return;
+    setBulkDeleting(true);
+    const ids = Array.from(selected);
+    const results = await Promise.allSettled(
+      ids.map(id => fetch(`/api/projects/${projectId}/planning/dependencies/${id}`, {
+        method: "DELETE", headers: { "x-user-id": getUserId() },
+      }).then(r => { if (!r.ok) throw new Error("failed"); }))
+    );
+    const failed = results.filter(r => r.status === "rejected").length;
+    const succeeded = ids.length - failed;
+    setSelected(new Set());
+    qc.invalidateQueries({ queryKey: ["/api/projects", projectId, "planning/tree"] });
+    if (failed > 0) {
+      toast({
+        title: `${succeeded} removed, ${failed} failed`,
+        description: "Some dependencies could not be removed. Please try again.",
+        variant: "destructive",
+      });
+    } else {
+      toast({ title: `${succeeded} ${succeeded === 1 ? "dependency" : "dependencies"} removed` });
+    }
+    setBulkDeleting(false);
+  };
+
+  // ── Inline type change ─────────────────────────────────────────────────
+  const changeType = async (depId: string, newType: string) => {
+    setSavingTypeId(depId);
+    setTypeErrors(prev => { const n = { ...prev }; delete n[depId]; return n; });
+    try {
+      const resp = await fetch(`/api/projects/${projectId}/planning/dependencies/${depId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", "x-user-id": getUserId() },
+        body: JSON.stringify({ dependency_type: newType }),
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        setTypeErrors(prev => ({ ...prev, [depId]: (err as any).error ?? "Save failed" }));
+        return;
+      }
+      // Optimistically update local order without a full tree refetch for speed
+      setOrderedDeps(prev => prev.map(d => d.id === depId ? { ...d, dependency_type: newType } : d));
+      setEditingTypeId(null);
+      // Still invalidate so conflict detection reflects the new type
+      qc.invalidateQueries({ queryKey: ["/api/projects", projectId, "planning/tree"] });
+    } catch {
+      setTypeErrors(prev => ({ ...prev, [depId]: "Network error — try again" }));
+    } finally {
+      setSavingTypeId(null);
+    }
+  };
+
+  // ── Reorder (up / down) ────────────────────────────────────────────────
+  const moveRow = async (index: number, direction: "up" | "down") => {
+    const next = [...orderedDeps];
+    const swapIdx = direction === "up" ? index - 1 : index + 1;
+    if (swapIdx < 0 || swapIdx >= next.length) return;
+    [next[index], next[swapIdx]] = [next[swapIdx], next[index]];
+    setOrderedDeps(next); // optimistic
+    setReordering(true);
+    try {
+      const resp = await fetch(`/api/projects/${projectId}/planning/dependencies/reorder`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", "x-user-id": getUserId() },
+        body: JSON.stringify({ order: next.map((d, i) => ({ id: d.id, sort_order: i })) }),
+      });
+      if (!resp.ok) throw new Error("failed");
+      // Invalidate so remounting the panel (e.g. tab switch) seeds from the
+      // server's new sort_order values rather than the pre-reorder cache.
+      qc.invalidateQueries({ queryKey: ["/api/projects", projectId, "planning/tree"] });
+    } catch {
+      setOrderedDeps([...(tree.dependencies ?? [])]); // revert optimistic update
+      toast({ title: "Failed to save order", variant: "destructive" });
+    } finally {
+      setReordering(false);
+    }
+  };
+
+  const conflictCount = orderedDeps.filter(dep => {
+    const src = dataById.get(dep.source_id);
+    const tgt = dataById.get(dep.target_id);
+    return src && tgt && !!checkDepConflict(dep, src, tgt);
+  }).length;
+
+  if (orderedDeps.length === 0) {
+    return (
+      <div className="text-center py-16 text-gray-400">
+        <Link2 className="h-12 w-12 mx-auto mb-3 opacity-30" />
+        <p className="text-sm font-medium">No dependencies yet</p>
+        <p className="text-xs mt-1 max-w-xs mx-auto">
+          Open any item in the Tree view and add a dependency in its edit sheet.
+        </p>
+      </div>
+    );
+  }
+
+  const isBusy = bulkDeleting || bulkEditing || !!deletingId || reordering;
+
+  return (
+    <div className="space-y-3">
+      {/* ── Summary + bulk action bar ────────────────────────────────────── */}
+      <div className="flex items-center gap-3 flex-wrap min-h-[28px]">
+        <span className="text-xs text-gray-500">
+          <strong className="text-gray-800 dark:text-gray-200">{orderedDeps.length}</strong>{" "}
+          {orderedDeps.length === 1 ? "dependency" : "dependencies"}
+        </span>
+        {conflictCount > 0 && (
+          <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 font-semibold">
+            <AlertTriangle className="h-3 w-3" />{conflictCount} date {conflictCount === 1 ? "conflict" : "conflicts"}
+          </span>
+        )}
+        <div className="flex-1" />
+        {reordering && (
+          <span className="text-[11px] text-gray-400 flex items-center gap-1">
+            <RefreshCw className="h-3 w-3 animate-spin" />Saving order…
+          </span>
+        )}
+        {selected.size > 0 && (
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs text-gray-500 shrink-0">{selected.size} selected</span>
+            {/* Bulk type change */}
+            <div className="flex items-center gap-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-md px-1.5 py-0.5">
+              <span className="text-[11px] text-gray-500 shrink-0">Set type:</span>
+              <select
+                value={bulkEditType}
+                onChange={e => setBulkEditType(e.target.value)}
+                disabled={bulkEditing || bulkDeleting}
+                className="text-[11px] bg-transparent text-gray-700 dark:text-gray-300 focus:outline-none cursor-pointer"
+              >
+                <option value="finish_to_start">FS – Finish → Start</option>
+                <option value="start_to_start">SS – Start → Start</option>
+              </select>
+              <Button
+                size="sm"
+                className="h-6 text-[11px] px-2 bg-blue-600 hover:bg-blue-700 text-white"
+                onClick={bulkChangeType}
+                disabled={bulkEditing || bulkDeleting}
+              >
+                {bulkEditing
+                  ? <RefreshCw className="h-3 w-3 animate-spin" />
+                  : <><Check className="h-3 w-3 mr-0.5" />Apply</>}
+              </Button>
+            </div>
+            {/* Bulk delete */}
+            <Button
+              size="sm"
+              variant="destructive"
+              className="h-7 text-xs px-3"
+              onClick={bulkDelete}
+              disabled={bulkDeleting || bulkEditing}
+            >
+              {bulkDeleting
+                ? <><RefreshCw className="h-3 w-3 mr-1 animate-spin" />Deleting…</>
+                : <><Trash2 className="h-3 w-3 mr-1" />Delete {selected.size}</>}
+            </Button>
+            <button
+              className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              onClick={() => setSelected(new Set())}
+              disabled={bulkDeleting || bulkEditing}
+            >
+              Clear
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* ── Dependency table ─────────────────────────────────────────────── */}
+      <div className="rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="bg-gray-50 dark:bg-gray-800/60 border-b border-gray-200 dark:border-gray-700">
+              <th className="w-8 px-2 py-2 text-center">
+                <input
+                  type="checkbox"
+                  checked={allSelected}
+                  ref={el => { if (el) el.indeterminate = someSelected; }}
+                  onChange={toggleSelectAll}
+                  className="rounded"
+                  title={allSelected ? "Deselect all" : "Select all"}
+                />
+              </th>
+              <th className="text-left px-3 py-2 font-semibold text-gray-500 dark:text-gray-400 w-[32%]">Dependent (source)</th>
+              <th className="text-left px-3 py-2 font-semibold text-gray-500 dark:text-gray-400 w-28">Type</th>
+              <th className="text-left px-3 py-2 font-semibold text-gray-500 dark:text-gray-400 w-[32%]">Predecessor (target)</th>
+              <th className="text-left px-3 py-2 font-semibold text-gray-500 dark:text-gray-400">Status</th>
+              <th className="w-24 px-2 py-2 text-right">
+                <span className="text-[10px] font-normal text-gray-400">Order</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+            {orderedDeps.map((dep, idx) => {
+              const src = itemsById.get(dep.source_id);
+              const tgt = itemsById.get(dep.target_id);
+              const srcData = dataById.get(dep.source_id);
+              const tgtData = dataById.get(dep.target_id);
+              const conflict = srcData && tgtData ? checkDepConflict(dep, srcData, tgtData) : null;
+              const SrcIcon = src ? NODE_TYPE_CONFIG[src.type]?.icon : null;
+              const TgtIcon = tgt ? NODE_TYPE_CONFIG[tgt.type]?.icon : null;
+              const srcColor = src ? NODE_TYPE_CONFIG[src.type]?.color : "text-gray-400";
+              const tgtColor = tgt ? NODE_TYPE_CONFIG[tgt.type]?.color : "text-gray-400";
+              const isSelected = selected.has(dep.id);
+              const isDeleting = deletingId === dep.id;
+              const isSavingType = savingTypeId === dep.id;
+              const isEditingType = editingTypeId === dep.id;
+              const typeError = typeErrors[dep.id];
+              const depTypeLabel = dep.dependency_type === "finish_to_start" ? "FS" : "SS";
+
+              return (
+                <tr
+                  key={dep.id}
+                  className={`transition-colors ${
+                    isSelected
+                      ? "bg-blue-50/50 dark:bg-blue-950/10"
+                      : conflict
+                        ? "bg-amber-50/50 dark:bg-amber-950/10 hover:bg-amber-50 dark:hover:bg-amber-950/20"
+                        : "hover:bg-gray-50 dark:hover:bg-gray-800/40"
+                  }`}
+                >
+                  {/* Checkbox */}
+                  <td className="w-8 px-2 py-2.5 text-center">
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => toggleSelect(dep.id)}
+                      className="rounded"
+                      disabled={isBusy && !isSelected}
+                    />
+                  </td>
+
+                  {/* Source item */}
+                  <td className="px-3 py-2.5">
+                    <span className="flex items-center gap-1.5 min-w-0">
+                      {SrcIcon && <SrcIcon className={`h-3.5 w-3.5 shrink-0 ${srcColor}`} />}
+                      <span className="truncate text-gray-800 dark:text-gray-200 font-medium">
+                        {src?.name ?? <span className="italic text-gray-400">{dep.source_id.slice(0, 8)}…</span>}
+                      </span>
+                      {src && (
+                        <span className="shrink-0 text-[10px] text-gray-400">
+                          ({NODE_TYPE_CONFIG[src.type]?.singularLabel})
+                        </span>
+                      )}
+                    </span>
+                  </td>
+
+                  {/* Dependency type — inline editable */}
+                  <td className="px-3 py-2.5">
+                    <div className="flex flex-col gap-0.5">
+                      {isEditingType ? (
+                        <div className="flex items-center gap-1">
+                          <select
+                            autoFocus
+                            className="text-[11px] border border-blue-300 dark:border-blue-600 rounded px-1.5 py-0.5 bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                            defaultValue={dep.dependency_type}
+                            onChange={e => changeType(dep.id, e.target.value)}
+                            disabled={isSavingType}
+                            onBlur={() => {
+                              if (!isSavingType) {
+                                setEditingTypeId(null);
+                                setTypeErrors(p => { const n = { ...p }; delete n[dep.id]; return n; });
+                              }
+                            }}
+                          >
+                            <option value="finish_to_start">FS – Finish → Start</option>
+                            <option value="start_to_start">SS – Start → Start</option>
+                          </select>
+                          {isSavingType
+                            ? <RefreshCw className="h-3 w-3 animate-spin text-blue-500 shrink-0" />
+                            : <button
+                                onMouseDown={e => e.preventDefault()}
+                                onClick={() => { setEditingTypeId(null); setTypeErrors(p => { const n = { ...p }; delete n[dep.id]; return n; }); }}
+                                className="text-gray-400 hover:text-gray-600 shrink-0"
+                              ><X className="h-3 w-3" /></button>
+                          }
+                        </div>
+                      ) : (
+                        <button
+                          className="inline-flex items-center gap-1 font-mono text-[10px] px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 font-semibold hover:bg-blue-100 dark:hover:bg-blue-900/30 hover:text-blue-700 dark:hover:text-blue-300 transition-colors group w-fit"
+                          title="Click to change dependency type"
+                          onClick={() => !isBusy && setEditingTypeId(dep.id)}
+                          disabled={isBusy}
+                        >
+                          <ArrowRight className="h-2.5 w-2.5" />
+                          {depTypeLabel}
+                          <Pencil className="h-2 w-2 opacity-0 group-hover:opacity-60 transition-opacity" />
+                        </button>
+                      )}
+                      {typeError && (
+                        <p className="text-[10px] text-red-500 mt-0.5 max-w-[100px] truncate" title={typeError}>{typeError}</p>
+                      )}
+                    </div>
+                  </td>
+
+                  {/* Target item */}
+                  <td className="px-3 py-2.5">
+                    <span className="flex items-center gap-1.5 min-w-0">
+                      {TgtIcon && <TgtIcon className={`h-3.5 w-3.5 shrink-0 ${tgtColor}`} />}
+                      <span className="truncate text-gray-700 dark:text-gray-300">
+                        {tgt?.name ?? <span className="italic text-gray-400">{dep.target_id.slice(0, 8)}…</span>}
+                      </span>
+                      {tgt && (
+                        <span className="shrink-0 text-[10px] text-gray-400">
+                          ({NODE_TYPE_CONFIG[tgt.type]?.singularLabel})
+                        </span>
+                      )}
+                    </span>
+                  </td>
+
+                  {/* Conflict status */}
+                  <td className="px-3 py-2.5">
+                    {conflict ? (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300">
+                        <AlertTriangle className="h-2.5 w-2.5 shrink-0" />
+                        <span className="truncate max-w-[140px]" title={conflict}>{conflict}</span>
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-green-50 dark:bg-green-950/30 text-green-600 dark:text-green-400">
+                        <Check className="h-2.5 w-2.5" />OK
+                      </span>
+                    )}
+                  </td>
+
+                  {/* Row actions: move up, move down, delete */}
+                  <td className="px-2 py-2.5">
+                    <div className="flex items-center gap-0.5 justify-end">
+                      <button
+                        onClick={() => moveRow(idx, "up")}
+                        disabled={idx === 0 || isBusy}
+                        className="p-1 rounded text-gray-300 dark:text-gray-600 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
+                        title="Move up"
+                      >
+                        <ChevronUp className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        onClick={() => moveRow(idx, "down")}
+                        disabled={idx === orderedDeps.length - 1 || isBusy}
+                        className="p-1 rounded text-gray-300 dark:text-gray-600 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
+                        title="Move down"
+                      >
+                        <ChevronDown className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        onClick={() => deleteSingle(dep.id)}
+                        disabled={isDeleting || bulkDeleting}
+                        className="p-1 rounded text-gray-300 dark:text-gray-600 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
+                        title="Remove dependency"
+                      >
+                        {isDeleting
+                          ? <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                          : <Trash2 className="h-3.5 w-3.5" />}
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      <p className="text-[11px] text-gray-400 italic">
+        Click any <strong className="font-semibold">FS / SS</strong> badge to change that dependency's type inline.
+        Select rows to bulk-change type or bulk-delete.
+        Use <ChevronUp className="h-2.5 w-2.5 inline" /><ChevronDown className="h-2.5 w-2.5 inline" /> to reorder rows.
+        To add dependencies, open an item in the Tree view and use its edit sheet.
+      </p>
+    </div>
+  );
+}
+
 // ── Main Planning Workspace ────────────────────────────────────────────────
 export default function PlanningWorkspace({ projectId, users }: { projectId: string; users: UserType[] }) {
   const { toast } = useToast();
-  const [view, setView] = useState<"tree" | "timeline">("tree");
+  const [view, setView] = useState<"tree" | "timeline" | "dependencies">("tree");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
   const [proposal, setProposal] = useState<{ proposal: any; items: any[] } | null>(null);
@@ -2170,15 +2652,24 @@ export default function PlanningWorkspace({ projectId, users }: { projectId: str
 
           {/* View switcher */}
           <div className="flex bg-gray-100 dark:bg-gray-800 rounded-lg p-0.5">
-            {(["tree", "timeline"] as const).map(v => (
+            {(["tree", "timeline", "dependencies"] as const).map(v => (
               <button
                 key={v}
                 onClick={() => setView(v)}
-                className={`px-3 py-1 rounded-md text-xs font-medium transition-colors capitalize ${
+                className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
                   view === v ? "bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm" : "text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
                 }`}
               >
-                {v === "tree" ? "Tree" : "Timeline"}
+                {v === "tree" ? "Tree" : v === "timeline" ? "Timeline" : (
+                  <span className="flex items-center gap-1">
+                    Dependencies
+                    {(t.dependencies?.length ?? 0) > 0 && (
+                      <span className="text-[10px] font-semibold px-1 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400">
+                        {t.dependencies.length}
+                      </span>
+                    )}
+                  </span>
+                )}
               </button>
             ))}
           </div>
@@ -2279,8 +2770,10 @@ export default function PlanningWorkspace({ projectId, users }: { projectId: str
             onEdit={openEdit} onDelete={openDelete}
             onAddChild={(type, defaults) => openAdd(type, defaults)}
           />
-        ) : (
+        ) : view === "timeline" ? (
           <TimelineView tree={t} />
+        ) : (
+          <DependenciesView tree={t} projectId={projectId} />
         )}
       </div>
 

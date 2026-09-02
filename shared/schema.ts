@@ -1345,6 +1345,7 @@ export const planningDependencies = pgTable("planning_dependencies", {
   target_type: text("target_type").notNull(),
   target_id: uuid("target_id").notNull(),
   dependency_type: text("dependency_type").notNull().default("finish_to_start"), // finish_to_start | start_to_start
+  sort_order: integer("sort_order").default(0), // user-defined display order in the Dependencies panel
   created_at: timestamp("created_at").defaultNow(),
 });
 
