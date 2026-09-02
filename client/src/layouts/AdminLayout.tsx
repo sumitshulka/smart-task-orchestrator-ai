@@ -6,7 +6,10 @@ import { useCurrentUserRoleAndTeams } from "@/hooks/useCurrentUserRoleAndTeams";
 import { useLicenseCheck } from "@/hooks/useLicenseCheck";
 import { LicenseAcquisitionScreen } from "@/components/LicenseAcquisitionScreen";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertCircle } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import CreateTaskSheet from "@/components/CreateTaskSheet";
+import { queryClient } from "@/lib/queryClient";
+import { AlertCircle, Plus } from "lucide-react";
 
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -37,6 +40,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   // Handle license acquisition success
   const handleLicenseAcquired = () => {
     refetchLicense();
+  };
+
+  const handleQuickTaskCreated = () => {
+    queryClient.invalidateQueries({ queryKey: ["/api/tasks"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
   };
 
   // Show license acquisition screen if no valid license exists for admin users
@@ -99,6 +107,19 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           {children}
         </main>
       </div>
+
+      {/* Persistent quick task creation action */}
+      <CreateTaskSheet onTaskCreated={handleQuickTaskCreated}>
+        <Button
+          type="button"
+          size="icon"
+          aria-label="Create a task"
+          title="Quick task creation"
+          className="fixed bottom-5 right-5 z-50 h-12 w-12 rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/25 transition-transform hover:scale-105 hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        >
+          <Plus className="h-6 w-6" />
+        </Button>
+      </CreateTaskSheet>
 
       {/* Universal Search modal */}
       <UniversalSearch open={searchOpen} onClose={() => setSearchOpen(false)} />
