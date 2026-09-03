@@ -140,6 +140,7 @@ export interface IStorage {
   
   // Task operations
   getTask(id: string): Promise<Task | undefined>;
+  getTaskForUser(id: string, userId: string): Promise<Task | undefined>;
   getAllTasks(): Promise<Task[]>;
   getTasksByUser(userId: string): Promise<Task[]>;
   getTasksPaginated(filters: TaskQueryFilters, visibleUserIds?: string[]): Promise<{ tasks: Task[]; total: number }>;
@@ -534,6 +535,15 @@ export class DatabaseStorage implements IStorage {
   // Task operations
   async getTask(id: string): Promise<Task | undefined> {
     const result = await db.select().from(tasks).where(eq(tasks.id, id)).limit(1);
+    return result[0];
+  }
+
+  async getTaskForUser(id: string, userId: string): Promise<Task | undefined> {
+    const result = await db
+      .select()
+      .from(tasks)
+      .where(and(eq(tasks.id, id), eq(tasks.assigned_to, userId)))
+      .limit(1);
     return result[0];
   }
 

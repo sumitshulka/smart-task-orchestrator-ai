@@ -681,9 +681,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/tasks/:id", async (req, res) => {
+  app.get("/api/tasks/:id", requireAnyAuthenticated, async (req, res) => {
     try {
-      const task = await storage.getTask(req.params.id);
+      const userId = req.headers['x-user-id'] as string;
+      const { scope } = await getUserVisibilityScope(userId);
+      const task = scope === "organization"
+        ? await storage.getTask(req.params.id)
+        : await storage.getTaskForUser(req.params.id, userId);
+
       if (!task) {
         return res.status(404).json({ error: "Task not found" });
       }
