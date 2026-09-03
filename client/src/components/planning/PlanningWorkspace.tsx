@@ -2724,7 +2724,7 @@ export default function PlanningWorkspace({ projectId, users }: { projectId: str
   return (
     <div className="flex flex-col h-full min-h-0">
       {/* ── Top summary bar ─────────────────────────────────────────────── */}
-      <div className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 px-5 py-3 shrink-0">
+      <div className="relative z-30 overflow-visible bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 px-5 py-3 shrink-0">
         <div className="flex items-center gap-4 flex-wrap">
           {/* Methodology */}
           <div className="flex items-center gap-1.5 text-xs text-gray-500">
@@ -2781,14 +2781,14 @@ export default function PlanningWorkspace({ projectId, users }: { projectId: str
           </div>
 
           {/* Actions */}
-          <div className="relative">
+          <div className="relative z-50 shrink-0">
             <Button size="sm" className="h-8 text-xs" onClick={() => setAddMenuOpen(v => !v)}>
               <Plus className="h-3.5 w-3.5 mr-1" />Add
             </Button>
             {addMenuOpen && (
               <>
-                <div className="fixed inset-0 z-10" onClick={() => setAddMenuOpen(false)} />
-                <div className="absolute right-0 top-9 z-20 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1 min-w-[160px]">
+                <div className="fixed inset-0 z-40" onClick={() => setAddMenuOpen(false)} />
+                <div className="absolute right-0 top-9 z-50 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1 min-w-[160px]">
                   {(["phase", "stage", "milestone", "feature_group", "feature", "user_story"] as NodeType[]).map(nt => {
                     const cfg = NODE_TYPE_CONFIG[nt];
                     const Icon = cfg.icon;

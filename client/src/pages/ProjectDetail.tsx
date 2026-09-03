@@ -898,7 +898,7 @@ export default function ProjectDetail() {
           </div>
 
           {/* Section Content */}
-          <div className={`flex-1 ${activeSection === "planning" ? "overflow-hidden flex flex-col" : "overflow-auto p-4 lg:p-6"}`}>
+          <div className={`flex-1 min-h-0 ${activeSection === "planning" ? "overflow-visible flex flex-col" : "overflow-auto p-4 lg:p-6"}`}>
 
             {/* ══════════════════ PLANNING ══════════════════ */}
             {activeSection === "planning" && (
