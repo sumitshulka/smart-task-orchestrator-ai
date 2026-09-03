@@ -21,7 +21,7 @@ import DefectDetailsSheet from "@/components/DefectDetailsSheet";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import {
-  ArrowLeft, CheckCircle2, Users, Milestone, Layers, Plus, Pencil, Trash2,
+  ArrowLeft, CheckCircle2, ClipboardCheck, Users, Milestone, Layers, Plus, Pencil, Trash2,
   Calendar, Clock, DollarSign, History, UserCircle, Tag, Grip, ChevronDown, ChevronUp,
   Search, ListTodo, ExternalLink, Flag, Bug, Building2, MessageSquare,
   LayoutDashboard, Menu, X, ChevronLeft, ChevronRight, TrendingUp,
@@ -714,6 +714,7 @@ export default function ProjectDetail() {
     { id: "milestones",  label: "Milestones",  icon: Milestone, count: milestones.length },
     { id: "features",    label: "Features",    icon: Layers,    count: features.length },
     { id: "tasks",       label: "Tasks",       icon: ListTodo,  count: projectTasks.length },
+    { id: "test-cases",  label: "Test Cases",  icon: ClipboardCheck, comingSoon: true },
     { id: "defects",     label: "Defects",     icon: Bug,       count: projectDefects.length, badge: projectDefects.length > 0 },
     { id: "meetings",    label: "Meetings",    icon: Calendar },
     { id: "finance",     label: "Finance",     icon: DollarSign },
@@ -828,6 +829,11 @@ export default function ProjectDetail() {
                   {!sidebarCollapsed && (
                     <>
                       <span className="flex-1 text-left truncate">{item.label}</span>
+                      {(item as any).comingSoon && (
+                        <span className="shrink-0 rounded-full border border-indigo-200 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-indigo-500 dark:border-indigo-800 dark:text-indigo-300">
+                          Soon
+                        </span>
+                      )}
                       {(item as any).count !== undefined && (item as any).count > 0 && (
                         <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full leading-none ${isActive ? "bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300" : "bg-gray-100 dark:bg-gray-800 text-gray-500"}`}>
                           {(item as any).count}
@@ -946,6 +952,13 @@ export default function ProjectDetail() {
                 icon={DollarSign}
                 title="Project Finance"
                 description="This module will contain project-related finance items and will ultimately help determine project profitability."
+              />
+            )}
+            {activeSection === "test-cases" && (
+              <LaunchingSoonSection
+                icon={ClipboardCheck}
+                title="Test Cases"
+                description="Test case authoring, execution, coverage, and delivery quality reporting are coming soon."
               />
             )}
             {activeSection === "meetings" && (
