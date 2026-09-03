@@ -285,8 +285,14 @@ export default function ProjectSettingsPanel({ project, users, clients, members,
 
   const financeHeads = data?.financeHeads ?? [];
   const audit = data?.audit ?? [];
-  const activeMembers = members.filter((member) => member.is_active !== false);
-  const internalMembers = activeMembers.filter((member) => (member as any).member_user_type !== "client_contact" && member.user_id);
+  const activeMembers = useMemo(
+    () => members.filter((member) => member.is_active !== false),
+    [members],
+  );
+  const internalMembers = useMemo(
+    () => activeMembers.filter((member) => (member as any).member_user_type !== "client_contact" && member.user_id),
+    [activeMembers],
+  );
   const isDirty = useMemo(() => JSON.stringify({ settings, general, managerId }) !== initialSnapshot, [settings, general, managerId, initialSnapshot]);
 
   useEffect(() => {
