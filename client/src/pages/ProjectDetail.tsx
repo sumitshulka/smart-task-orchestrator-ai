@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import CreateTaskSheet from "@/components/CreateTaskSheet";
 import EditTaskSheet from "@/components/EditTaskSheet";
+import TaskCard from "@/components/TaskCard";
 import CreateDefectSheet from "@/components/CreateDefectSheet";
 import DefectDetailsSheet from "@/components/DefectDetailsSheet";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -604,13 +605,8 @@ export default function ProjectDetail() {
     tasksByMilestone.push({ milestoneId: null, milestoneName: "No Milestone", tasks: unlinkedTasks });
   }
 
-  const PRIORITY_MAP: Record<number, { label: string; color: string }> = {
-    1: { label: "Critical", color: "text-red-600"    },
-    2: { label: "High",     color: "text-orange-500" },
-    3: { label: "Medium",   color: "text-yellow-500" },
-    4: { label: "Low",      color: "text-blue-400"   },
-    5: { label: "Minimal",  color: "text-gray-400"   },
-  };
+  const canDeleteProjectTask = (status: string) =>
+    Boolean(taskStatuses.find((statusOption) => statusOption.name === status)?.can_delete);
 
   // Helpers
   const getUserName = (userId: string | null) => {
@@ -1536,45 +1532,25 @@ export default function ProjectDetail() {
                         </div>
                         <div className="space-y-1.5">
                           {tasks.map((task) => {
-                            const statusObj = taskStatuses.find(s => s.id === task.status);
-                            const assigneeName = task.assigned_to ? getUserName(task.assigned_to) : null;
-                            const priorityInfo = task.priority ? PRIORITY_MAP[task.priority as number] : null;
+                            const statusObj = taskStatuses.find(s => s.id === task.status)
+                              ?? taskStatuses.find(s => s.name === task.status);
+                            const taskCardData = {
+                              ...task,
+                              status: statusObj?.name ?? task.status,
+                            };
                             return (
-                              <div
+                              <TaskCard
                                 key={task.id}
-                                className="flex items-center gap-3 p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 hover:border-gray-300 dark:hover:border-gray-600 cursor-pointer group transition-colors"
-                                onClick={() => { setEditingTask(task); setEditTaskOpen(true); }}
-                              >
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-sm font-medium truncate">{task.title}</span>
-                                    {task.tracking_number && (
-                                      <span className="text-xs font-mono text-gray-400 shrink-0">{task.tracking_number}</span>
-                                    )}
-                                  </div>
-                                  <div className="flex items-center gap-2 mt-0.5">
-                                    {statusObj && (
-                                      <Badge className="text-[10px] border-0 h-4 px-1.5" style={{ backgroundColor: `${statusObj.color}20`, color: statusObj.color }}>
-                                        {statusObj.name}
-                                      </Badge>
-                                    )}
-                                    {priorityInfo && (
-                                      <span className={`text-[10px] font-medium ${priorityInfo.color}`}>{priorityInfo.label}</span>
-                                    )}
-                                    {assigneeName && (
-                                      <span className="text-[10px] text-gray-400 flex items-center gap-0.5">
-                                        <UserCircle className="h-3 w-3" />{assigneeName}
-                                      </span>
-                                    )}
-                                    {task.due_date && (
-                                      <span className={`text-[10px] flex items-center gap-0.5 ${new Date(task.due_date) < new Date() ? "text-red-500" : "text-gray-400"}`}>
-                                        <Calendar className="h-3 w-3" />{format(new Date(task.due_date), "d MMM")}
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-                                <Pencil className="h-3.5 w-3.5 text-gray-300 group-hover:text-gray-500 shrink-0" />
-                              </div>
+                                task={taskCardData as any}
+                                onTaskUpdated={() => refetchTasks()}
+                                canDelete={canDeleteProjectTask}
+                                statusColor={statusObj?.color ?? undefined}
+                                onOpenDetails={() => {
+                                  setEditingTask(task);
+                                  setEditTaskOpen(true);
+                                }}
+                                compact
+                              />
                             );
                           })}
                         </div>
@@ -1752,6 +1728,7 @@ export default function ProjectDetail() {
           setCreateDefectOpen(v);
           if (!v) queryClient.invalidateQueries({ queryKey: ["/api/projects", id, "defects"] });
         }}
+        currentUserId={user?.id ?? ""}
         defaultProjectId={id}
         defaultProjectName={(project as any)?.name}
       />
