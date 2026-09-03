@@ -121,6 +121,7 @@ const GeneralSettings: React.FC = () => {
     },
     onSuccess: (response) => {
       console.log("Settings saved successfully:", response);
+        queryClient.setQueryData(['/api/organization-settings'], response);
       queryClient.invalidateQueries({ queryKey: ['/api/organization-settings'] });
       toast({ title: "Success", description: "Organization settings saved successfully" });
     },

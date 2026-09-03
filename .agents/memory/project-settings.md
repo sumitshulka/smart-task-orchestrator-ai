@@ -14,3 +14,9 @@ Resource salaries are an effective-dated history, not a mutable user attribute. 
 **Why:** Compensation can change during a project, but historical months must remain reproducible and must not be recalculated using a later salary.
 
 **How to apply:** Keep one record per project resource and effective month, reject duplicates, retain prior records, and use the month resolver whenever project people cost is calculated or reported.
+
+Resource gross salary currency follows the global organization currency setting, not the project billing currency.
+
+**Why:** Salaries and people-cost reporting are organization-level internal costs, while project currency can differ for client budgets and billing.
+
+**How to apply:** Read the current organization currency when displaying or creating salary records, refresh it after global settings changes, and preserve the currency captured on historical salary records.

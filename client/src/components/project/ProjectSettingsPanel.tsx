@@ -256,6 +256,187 @@ function RolePicker({ value, onChange, disabled = false }: { value: string[]; on
   );
 }
 
+type ResourceSalaryRowProps = {
+  resourceName: string;
+  userId: string;
+  records: any[];
+  currency: string;
+  canEdit: boolean;
+  onSave: (payload: { id?: string; user_id: string; gross_salary: string; effective_month: string }) => void;
+  onDelete: (id: string) => void;
+  isSaving: boolean;
+  isDeleting: boolean;
+};
+
+function ResourceSalaryRows({
+  resourceName,
+  userId,
+  records,
+  currency,
+  canEdit,
+  onSave,
+  onDelete,
+  isSaving,
+  isDeleting,
+}: ResourceSalaryRowProps) {
+  const [showNew, setShowNew] = useState(records.length === 0);
+  const [newSalary, setNewSalary] = useState("");
+  const [newEffectiveMonth, setNewEffectiveMonth] = useState(new Date().toISOString().slice(0, 7));
+
+  useEffect(() => {
+    if (records.length === 0) setShowNew(true);
+  }, [records.length]);
+
+  const sortedRecords = [...records].sort((a, b) => String(a.effective_month).localeCompare(String(b.effective_month)));
+
+  return (
+    <>
+      {sortedRecords.map((record) => (
+        <ResourceSalaryRecordRow
+          key={record.id}
+          resourceName={resourceName}
+          record={record}
+          currency={currency}
+          canEdit={canEdit}
+          onSave={onSave}
+          onDelete={onDelete}
+          isSaving={isSaving}
+          isDeleting={isDeleting}
+        />
+      ))}
+      {showNew && (
+        <tr className="bg-indigo-50/40 dark:bg-indigo-950/10">
+          <td className="px-3 py-3 align-top">
+            <div className="font-medium">{resourceName}</div>
+            <div className="mt-1 text-xs text-gray-500">New salary record</div>
+          </td>
+          <td className="px-3 py-3 align-top">
+            <div className="flex items-center gap-1">
+              <span className="text-xs text-gray-500">{currency}</span>
+              <Input
+                type="number"
+                min="0"
+                step="0.01"
+                value={newSalary}
+                disabled={!canEdit || isSaving}
+                onChange={(event) => setNewSalary(event.target.value)}
+                placeholder="Gross salary"
+                className="h-9 min-w-[150px]"
+                aria-label={`${resourceName} gross salary`}
+              />
+            </div>
+          </td>
+          <td className="px-3 py-3 align-top">
+            <Input
+              type="month"
+              value={newEffectiveMonth}
+              disabled={!canEdit || isSaving}
+              onChange={(event) => setNewEffectiveMonth(event.target.value)}
+              className="h-9 min-w-[145px]"
+              aria-label={`${resourceName} effective month`}
+            />
+          </td>
+          <td className="px-3 py-3 text-right align-top">
+            <Button
+              size="sm"
+              disabled={!canEdit || isSaving || !newSalary || !newEffectiveMonth}
+              onClick={() => onSave({ user_id: userId, gross_salary: newSalary, effective_month: newEffectiveMonth })}
+            >
+              <Save className="mr-1 h-3.5 w-3.5" /> Save
+            </Button>
+          </td>
+        </tr>
+      )}
+      {!showNew && (
+        <tr>
+          <td colSpan={4} className="px-3 pb-3 pt-0">
+            <Button variant="ghost" size="sm" className="h-8 text-xs" disabled={!canEdit} onClick={() => setShowNew(true)}>
+              <Plus className="mr-1 h-3.5 w-3.5" /> Add salary change
+            </Button>
+          </td>
+        </tr>
+      )}
+    </>
+  );
+}
+
+function ResourceSalaryRecordRow({
+  resourceName,
+  record,
+  currency,
+  canEdit,
+  onSave,
+  onDelete,
+  isSaving,
+  isDeleting,
+}: {
+  resourceName: string;
+  record: any;
+  currency: string;
+  canEdit: boolean;
+  onSave: ResourceSalaryRowProps["onSave"];
+  onDelete: ResourceSalaryRowProps["onDelete"];
+  isSaving: boolean;
+  isDeleting: boolean;
+}) {
+  const [grossSalary, setGrossSalary] = useState(String(record.gross_salary ?? ""));
+  const [effectiveMonth, setEffectiveMonth] = useState(String(record.effective_month ?? "").slice(0, 7));
+
+  useEffect(() => {
+    setGrossSalary(String(record.gross_salary ?? ""));
+    setEffectiveMonth(String(record.effective_month ?? "").slice(0, 7));
+  }, [record.gross_salary, record.effective_month]);
+
+  return (
+    <tr className="border-t dark:border-gray-800">
+      <td className="px-3 py-3 align-top">
+        <div className="font-medium">{resourceName}</div>
+        <div className="mt-1 text-xs text-gray-500">Salary history</div>
+      </td>
+      <td className="px-3 py-3 align-top">
+        <div className="flex items-center gap-1">
+          <span className="text-xs text-gray-500">{currency}</span>
+          <Input
+            type="number"
+            min="0"
+            step="0.01"
+            value={grossSalary}
+            disabled={!canEdit || isSaving}
+            onChange={(event) => setGrossSalary(event.target.value)}
+            className="h-9 min-w-[150px]"
+            aria-label={`${resourceName} gross salary`}
+          />
+        </div>
+      </td>
+      <td className="px-3 py-3 align-top">
+        <Input
+          type="month"
+          value={effectiveMonth}
+          disabled={!canEdit || isSaving}
+          onChange={(event) => setEffectiveMonth(event.target.value)}
+          className="h-9 min-w-[145px]"
+          aria-label={`${resourceName} effective month`}
+        />
+      </td>
+      <td className="px-3 py-3 text-right align-top">
+        <div className="flex justify-end gap-1">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={!canEdit || isSaving || !grossSalary || !effectiveMonth}
+            onClick={() => onSave({ id: record.id, user_id: record.user_id, gross_salary: grossSalary, effective_month: effectiveMonth })}
+          >
+            <Save className="mr-1 h-3.5 w-3.5" /> Save
+          </Button>
+          <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700" onClick={() => onDelete(record.id)} disabled={!canEdit || isDeleting}>
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      </td>
+    </tr>
+  );
+}
+
 export default function ProjectSettingsPanel({ project, users, clients, members, onNavigate }: Props) {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("general");
@@ -277,18 +458,22 @@ export default function ProjectSettingsPanel({ project, users, clients, members,
   const [financeHeadDialog, setFinanceHeadDialog] = useState(false);
   const [editingHead, setEditingHead] = useState<any>(null);
   const [headForm, setHeadForm] = useState({ name: "", code: "", description: "", is_active: true, budget_allowed: true, actual_expense_allowed: true });
-  const [resourceCostDialog, setResourceCostDialog] = useState(false);
-  const [editingResourceCost, setEditingResourceCost] = useState<any>(null);
-  const [resourceCostForm, setResourceCostForm] = useState({ user_id: "", gross_salary: "", effective_month: "" });
 
   const { data, isLoading } = useQuery<any>({
     queryKey: ["/api/projects", project.id, "settings"],
     queryFn: () => apiClient.get(`/projects/${project.id}/settings`),
+    refetchOnMount: "always",
+  });
+
+  const { data: organizationSettings } = useQuery<any>({
+    queryKey: ["/api/organization-settings"],
+    queryFn: () => apiClient.get("/organization-settings"),
+    refetchOnMount: "always",
   });
 
   const financeHeads = data?.financeHeads ?? [];
   const resourceCosts = data?.resourceCosts ?? [];
-  const organizationCurrency = data?.organizationCurrency ?? "USD";
+  const organizationCurrency = organizationSettings?.currency ?? data?.organizationCurrency ?? "USD";
   const audit = data?.audit ?? [];
   const activeMembers = useMemo(
     () => members.filter((member) => member.is_active !== false),
@@ -374,17 +559,15 @@ export default function ProjectSettingsPanel({ project, users, clients, members,
   });
 
   const resourceCostMutation = useMutation({
-    mutationFn: () => editingResourceCost
-      ? apiClient.put(`/projects/${project.id}/settings/resource-costs/${editingResourceCost.id}`, {
-        gross_salary: resourceCostForm.gross_salary,
-        effective_month: resourceCostForm.effective_month,
+    mutationFn: (payload: { id?: string; user_id: string; gross_salary: string; effective_month: string }) => payload.id
+      ? apiClient.put(`/projects/${project.id}/settings/resource-costs/${payload.id}`, {
+        gross_salary: payload.gross_salary,
+        effective_month: payload.effective_month,
       })
-      : apiClient.post(`/projects/${project.id}/settings/resource-costs`, resourceCostForm),
+      : apiClient.post(`/projects/${project.id}/settings/resource-costs`, payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects", project.id, "settings"] });
-      setResourceCostDialog(false);
-      setEditingResourceCost(null);
-      toast({ title: editingResourceCost ? "Resource salary updated" : "Resource salary added" });
+      toast({ title: "Resource salary saved" });
     },
     onError: (error: any) => toast({ title: "Unable to save resource salary", description: error.message, variant: "destructive" }),
   });
@@ -415,14 +598,6 @@ export default function ProjectSettingsPanel({ project, users, clients, members,
     setFinanceHeadDialog(true);
   };
 
-  const openResourceCost = (record?: any) => {
-    setEditingResourceCost(record ?? null);
-    setResourceCostForm(record
-      ? { user_id: record.user_id, gross_salary: record.gross_salary, effective_month: String(record.effective_month).slice(0, 7) }
-      : { user_id: internalMembers[0]?.user_id ?? "", gross_salary: "", effective_month: new Date().toISOString().slice(0, 7) });
-    setResourceCostDialog(true);
-  };
-
   const displayUser = (userId: string | null) => {
     const user = users.find((candidate) => candidate.id === userId);
     return user?.user_name ?? user?.email ?? "Unknown user";
@@ -437,7 +612,8 @@ export default function ProjectSettingsPanel({ project, users, clients, members,
   const workspaceEnabled = settings.collaboration.workspaceEnabled;
   const clientCollaborationEnabled = settings.collaboration.clientCollaboration;
   const defectsEnabled = settings.quality.defectManagement;
-  const resourceCostManagementEnabled = financeEnabled && settings.finance.trackPeopleCost && !isDirty;
+  const resourceCostManagementEnabled = financeEnabled && settings.finance.trackPeopleCost;
+  const resourceCostEditingEnabled = resourceCostManagementEnabled && !isDirty;
 
   return (
     <div className="mx-auto max-w-7xl">
@@ -561,46 +737,48 @@ export default function ProjectSettingsPanel({ project, users, clients, members,
               <Card className={!financeEnabled ? "opacity-60" : ""}><CardHeader><CardTitle className="text-base">People cost visibility</CardTitle><CardDescription>Do not expose internal cost information to project members or clients by default.</CardDescription></CardHeader><CardContent><RolePicker value={settings.finance.peopleCostVisibility} disabled={!financeEnabled || !settings.finance.trackPeopleCost} onChange={(value) => updateSetting("finance.peopleCostVisibility", value)} /></CardContent></Card>
                <Card className={!resourceCostManagementEnabled ? "opacity-75" : ""}>
                  <CardHeader>
-                   <div className="flex items-start justify-between gap-3">
-                     <div>
-                       <CardTitle className="text-base">Resource gross salary</CardTitle>
-                       <CardDescription>
-                         Enter each resource&apos;s gross salary in the organization currency. A new salary takes effect from its selected month only.
-                       </CardDescription>
-                     </div>
-                     <Button size="sm" disabled={!resourceCostManagementEnabled || internalMembers.length === 0} onClick={() => openResourceCost()}>
-                       <Plus className="mr-1.5 h-3.5 w-3.5" /> Add Salary
-                     </Button>
-                   </div>
+                   <CardTitle className="text-base">Resource gross salary</CardTitle>
+                   <CardDescription>
+                     Every active internal project resource is listed below. Enter gross salary in the organization currency ({organizationCurrency}) and select the month from which it applies.
+                   </CardDescription>
                  </CardHeader>
                  <CardContent>
-                   {!financeEnabled || !settings.finance.trackPeopleCost ? (
-                     <p className="rounded-lg border border-dashed p-4 text-sm text-gray-500">Enable Finance and Track People Cost to manage resource salaries.</p>
-                   ) : isDirty ? (
-                     <p className="rounded-lg border border-dashed border-amber-300 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200">Save the Finance and Track People Cost settings first, then resource salary records can be added.</p>
-                   ) : resourceCosts.length === 0 ? (
-                     <p className="rounded-lg border border-dashed p-4 text-sm text-gray-500">No resource salaries configured yet. Add the first effective-dated salary to start calculating people cost.</p>
+                   {!resourceCostManagementEnabled ? (
+                     <p className="rounded-lg border border-dashed p-4 text-sm text-gray-500">Enable Finance and Track People Cost to open the resource table.</p>
+                   ) : internalMembers.length === 0 ? (
+                     <p className="rounded-lg border border-dashed p-4 text-sm text-gray-500">Add an internal project member to enter resource salary details.</p>
                    ) : (
-                     <div className="space-y-2">
-                       {resourceCosts.map((record: any) => (
-                         <div key={record.id} className="flex flex-wrap items-center gap-3 rounded-lg border p-3">
-                           <div className="min-w-0 flex-1">
-                             <div className="flex flex-wrap items-center gap-2">
-                               <span className="font-medium">{displayUser(record.user_id)}</span>
-                               <Badge variant="outline">{organizationCurrency}</Badge>
-                             </div>
-                             <p className="mt-1 text-xs text-gray-500">
-                               {organizationCurrency} {Number(record.gross_salary).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} · Effective {String(record.effective_month).slice(0, 7)}
-                             </p>
-                             <p className="mt-1 text-xs text-gray-400">Used from this month until a newer effective salary is recorded.</p>
-                           </div>
-                           <Button variant="ghost" size="sm" onClick={() => openResourceCost(record)}><Cog className="mr-1 h-3.5 w-3.5" /> Edit</Button>
-                           <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700" onClick={() => deleteResourceCostMutation.mutate(record.id)} disabled={deleteResourceCostMutation.isPending}><Trash2 className="h-3.5 w-3.5" /></Button>
-                         </div>
-                       ))}
+                     <div className="overflow-x-auto rounded-lg border">
+                       <table className="w-full min-w-[720px] text-left text-sm">
+                         <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500 dark:bg-gray-900/60 dark:text-gray-400">
+                           <tr>
+                             <th className="px-3 py-3 font-medium">Resource</th>
+                             <th className="px-3 py-3 font-medium">Gross salary</th>
+                             <th className="px-3 py-3 font-medium">Effective month</th>
+                             <th className="px-3 py-3 text-right font-medium">Actions</th>
+                           </tr>
+                         </thead>
+                         <tbody>
+                           {internalMembers.map((member) => (
+                             <ResourceSalaryRows
+                               key={member.id}
+                               resourceName={displayUser(member.user_id)}
+                               userId={member.user_id!}
+                               records={resourceCosts.filter((record: any) => record.user_id === member.user_id)}
+                               currency={organizationCurrency}
+                               canEdit={resourceCostEditingEnabled}
+                               onSave={(payload) => resourceCostMutation.mutate(payload)}
+                               onDelete={(costId) => deleteResourceCostMutation.mutate(costId)}
+                               isSaving={resourceCostMutation.isPending}
+                               isDeleting={deleteResourceCostMutation.isPending}
+                             />
+                           ))}
+                         </tbody>
+                       </table>
                      </div>
                    )}
-                   <p className="mt-3 text-xs text-gray-500">Changing a salary creates a new month-based record; it does not rewrite the previous salary history.</p>
+                   {isDirty && resourceCostManagementEnabled && <p className="mt-3 text-xs text-amber-700 dark:text-amber-300">Save the Finance settings above before editing salary values.</p>}
+                   <p className="mt-3 text-xs text-gray-500">Adding a new salary change creates a new effective-dated record. Earlier months continue using the previous salary.</p>
                  </CardContent>
                </Card>
               <Card className={!financeEnabled ? "opacity-60" : ""}><CardHeader><CardTitle className="text-base">Finance visibility</CardTitle><CardDescription>Finance being enabled does not automatically make every financial measure visible.</CardDescription></CardHeader><CardContent className="space-y-4">{([["budget", "Project Budget"], ["expenses", "Project Expenses"], ["resourceCost", "Resource Cost"], ["profitability", "Profitability / Margin"]] as const).map(([key, label]) => <div key={key}><Label className="mb-2 block text-sm">{label}</Label><RolePicker value={settings.finance.visibility[key]} disabled={!financeEnabled} onChange={(value) => updateSetting(`finance.visibility.${key}`, value)} /></div>)}</CardContent></Card>
@@ -654,53 +832,6 @@ export default function ProjectSettingsPanel({ project, users, clients, members,
         <DialogContent>
           <DialogHeader><DialogTitle>{pendingDisable?.label}</DialogTitle><DialogDescription>{pendingDisable?.description}</DialogDescription></DialogHeader>
           <DialogFooter><Button variant="outline" onClick={() => setPendingDisable(null)}>Cancel</Button><Button variant="destructive" onClick={() => { if (pendingDisable) updateSetting(pendingDisable.path, false); setPendingDisable(null); }}>{pendingDisable?.label?.replace("?", "")}</Button></DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={resourceCostDialog} onOpenChange={setResourceCostDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{editingResourceCost ? "Edit Resource Salary" : "Add Resource Salary"}</DialogTitle>
-            <DialogDescription>
-              Salary is recorded in the organization currency ({organizationCurrency}) and applies from the first day of the selected month.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-1.5">
-              <Label>Resource</Label>
-              <Select
-                value={resourceCostForm.user_id || "none"}
-                disabled={!!editingResourceCost}
-                onValueChange={(value) => setResourceCostForm((current) => ({ ...current, user_id: value === "none" ? "" : value }))}
-              >
-                <SelectTrigger><SelectValue placeholder="Select a project resource" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Select a project resource</SelectItem>
-                  {internalMembers.map((member) => <SelectItem key={member.user_id} value={member.user_id!}>{displayUser(member.user_id)}</SelectItem>)}
-                </SelectContent>
-              </Select>
-              {editingResourceCost && <p className="text-xs text-gray-500">Resource cannot be changed on an existing history record; add a new record instead.</p>}
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label>Gross Salary ({organizationCurrency})</Label>
-                <Input type="number" min="0" step="0.01" value={resourceCostForm.gross_salary} onChange={(e) => setResourceCostForm((current) => ({ ...current, gross_salary: e.target.value }))} placeholder="0.00" />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Effective Month</Label>
-                <Input type="month" value={resourceCostForm.effective_month} onChange={(e) => setResourceCostForm((current) => ({ ...current, effective_month: e.target.value }))} />
-              </div>
-            </div>
-            <div className="rounded-lg border border-indigo-100 bg-indigo-50 p-3 text-xs leading-5 text-indigo-800 dark:border-indigo-900 dark:bg-indigo-950/30 dark:text-indigo-200">
-              If a salary changes in October, enter the new salary with October as the effective month. September and earlier months continue using the previous record.
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setResourceCostDialog(false)}>Cancel</Button>
-            <Button onClick={() => resourceCostMutation.mutate()} disabled={resourceCostMutation.isPending || !resourceCostForm.user_id || !resourceCostForm.gross_salary || !resourceCostForm.effective_month}>
-              <Check className="mr-1.5 h-4 w-4" /> {resourceCostMutation.isPending ? "Saving…" : "Save Salary"}
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
 
