@@ -21,6 +21,7 @@ const presets = [
   { key: "last_week", label: "Last Week" },
   { key: "this_month", label: "This Month" },
   { key: "last_month", label: "Last Month" },
+  { key: "all_time", label: "All Time" },
   { key: "custom", label: "Custom" },
 ];
 
@@ -64,6 +65,8 @@ function computeRange(key: string): { from: Date | null; to: Date | null } {
         from: startOfDay(startOfMonth(prevM)),
         to: endOfDay(endOfMonth(prevM)),
       };
+    case "all_time":
+      return { from: null, to: null };
     default:
       // Custom, just pass-through
       return { from: null, to: null };

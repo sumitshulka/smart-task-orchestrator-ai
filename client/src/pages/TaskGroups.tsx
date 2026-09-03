@@ -15,10 +15,9 @@ import { format, startOfMonth, endOfMonth } from "date-fns";
 import DateRangePresetSelector from "@/components/DateRangePresetSelector";
 
 function defaultDateRange() {
-  const now = new Date();
   return {
-    from: startOfMonth(now),
-    to: endOfMonth(now),
+    from: null,
+    to: null,
   };
 }
 
@@ -44,7 +43,7 @@ export default function TaskGroupsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showFilters, setShowFilters] = useState(false);
   const [dateRange, setDateRange] = useState(defaultDateRange());
-  const [preset, setPreset] = useState<string>("This Month");
+  const [preset, setPreset] = useState<string>("all_time");
   const [visibilityFilter, setVisibilityFilter] = useState<string>("all");
   const [createdByFilter, setCreatedByFilter] = useState<string>("all");
   

@@ -810,6 +810,9 @@ export class DatabaseStorage implements IStorage {
   async getTaskGroupsForUser(userId: string): Promise<TaskGroup[]> {
     const userRoles = await this.getUserRoles(userId);
     const roleNames = userRoles.map(ur => ur.role?.name).filter(Boolean);
+    const normalizedRoleNames = roleNames.map((role) =>
+      role.toLowerCase().replace(/[\s-]+/g, "_")
+    );
     
     const baseSelect = {
       id: taskGroups.id,
@@ -826,7 +829,9 @@ export class DatabaseStorage implements IStorage {
     };
     
     // Admin can see all task groups
-    if (roleNames.includes('admin')) {
+    if (normalizedRoleNames.some((role) =>
+      role === 'admin' || role === 'superadmin' || role === 'super_admin'
+    )) {
       return await db.select(baseSelect).from(taskGroups)
         .leftJoin(users, eq(taskGroups.owner_id, users.id));
     }
