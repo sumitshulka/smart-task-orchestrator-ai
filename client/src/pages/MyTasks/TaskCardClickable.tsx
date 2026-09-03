@@ -9,12 +9,14 @@ function TaskCardClickable({
   canDelete,
   onTaskUpdated,
   statusColor,
+  compact = false,
 }: {
   task: Task;
   onOpen: () => void;
   canDelete: (status: string) => boolean;
   onTaskUpdated: () => void;
   statusColor?: string;
+  compact?: boolean;
 }) {
   return (
     <TaskCard 
@@ -22,6 +24,7 @@ function TaskCardClickable({
       onTaskUpdated={onTaskUpdated} 
       canDelete={canDelete} 
       statusColor={statusColor}
+      compact={compact}
       onOpenDetails={(task) => {
         onOpen();
       }}
