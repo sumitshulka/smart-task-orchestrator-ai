@@ -1,0 +1,1080 @@
+Build a complete “Project Settings” module/tab for the existing Tazq application.
+
+IMPORTANT:
+- First inspect the existing application, database schema, routes, components, authentication, roles/permissions, project module, task module, defect module, workspace, finance-related structures, custom fields and notification structures.
+- DO NOT create duplicate entities where an existing entity already exists.
+- Reuse existing components, APIs, database tables/models and design system wherever possible.
+- Do not break any existing functionality.
+- Follow the existing Tazq visual language, but make this page feel enterprise-grade, clean, modern and organized.
+- This is a settings/configuration area, NOT a dashboard.
+- All settings must persist to the database.
+- Changes should take effect throughout the project wherever applicable.
+
+==================================================
+1. PROJECT SETTINGS LOCATION
+==================================================
+
+Add a “Settings” tab inside the existing Project workspace/sub-navigation.
+
+The project navigation should continue to contain the existing modules such as:
+- Overview
+- Planning
+- Tasks
+- Quality / Defects / Test Cases
+- Workspace
+- Finance (only when enabled)
+- Reports
+- Settings
+
+Do not replace the global Tazq sidebar.
+
+Project Settings should open as:
+
+Project Settings
+Project Name / Code
+
+Internal settings navigation on the left:
+
+1. General
+2. Planning
+3. Finance
+4. Quality & Delivery
+5. Collaboration
+6. Access
+7. Notifications
+8. Customization
+
+Right side contains the selected settings.
+
+Use a clean enterprise settings layout similar to modern SaaS applications.
+
+==================================================
+2. GENERAL SETTINGS
+==================================================
+
+Create the General settings section.
+
+Fields:
+
+Project Name
+Project Code
+Project Description
+Project Type
+Project Manager
+Client
+Project Status
+Planned Start Date
+Target End Date
+Visibility
+Time Zone
+Currency
+
+IMPORTANT:
+- If these fields already exist in the Project entity, do NOT create duplicate fields.
+- Bind the settings page to the existing Project data.
+- Project Manager should use existing users.
+- Client should use the existing Client entity if available.
+- Project Status should use the existing project status system.
+- Currency should use existing organization/currency configuration if available.
+
+Visibility options:
+
+Private
+- Only explicitly assigned project members can access.
+
+Organization
+- Users within the organization can discover/access according to permissions.
+
+Client
+- Client users can access according to client permissions.
+
+Provide proper validation.
+
+Project code should be unique.
+
+==================================================
+3. PLANNING SETTINGS
+==================================================
+
+Create a Planning configuration section.
+
+Settings:
+
+Planning Enabled
+Toggle ON/OFF
+
+Planning Methodology
+Dropdown:
+
+- Manual
+- Complexity Based
+- Component Based
+- Function Point Analysis
+- Story Point Based
+- Historical Data Based
+- Custom
+
+For now, fully implement:
+- Manual
+
+Architect the system so additional methodologies can be plugged in later without changing the Project module.
+
+Additional toggles:
+
+Allow AI Planning
+Allow Planning Approval
+Allow Phases
+Allow Stages
+Allow Milestones
+Allow Feature Groups
+Allow User Stories
+Allow Dependencies
+
+Default Planning Granularity:
+
+Project
+Phase
+Stage
+Milestone
+Feature Group
+Feature
+User Story
+Task
+
+Do not force a hierarchy. These settings control what planning structures are available to the project.
+
+Planning methodology must be stored against the project.
+
+IMPORTANT:
+
+Store the methodology configuration/version with the project so that historical project plans do not change automatically if organization-level methodology settings are changed later.
+
+Example:
+
+Planning Methodology:
+Component Based
+
+Configuration:
+UI - Simple = 8 hrs
+UI - Medium = 16 hrs
+UI - Complex = 32 hrs
+Business Logic - Simple = 12 hrs
+Business Logic - Medium = 24 hrs
+Business Logic - Complex = 40 hrs
+Backend - Simple = 10 hrs
+Backend - Medium = 20 hrs
+Backend - Complex = 36 hrs
+
+Do NOT implement the entire methodology engine here if Planning already has its own architecture.
+
+Project Settings should configure which methodology is used.
+
+Provide:
+
+“Configure Methodology”
+
+button that opens the methodology configuration UI when supported.
+
+Also provide:
+
+“Planning Defaults”
+
+section where future planning defaults can be configured.
+
+==================================================
+4. FINANCE SETTINGS
+==================================================
+
+This is extremely important.
+
+Create a Finance settings section.
+
+Primary setting:
+
+Track Finance
+ON / OFF
+
+When OFF:
+- Finance tab should not be visible in project navigation.
+- Finance-related project calculations should not be active.
+- Existing project finance data must NOT be deleted.
+- Turning Finance ON again should restore access to existing finance data.
+
+When ON:
+- Finance tab becomes available.
+- Project can track budgets, expenses, resource costs and other finance information.
+
+Do not expose accounting functionality.
+
+Tazq is tracking project financial intelligence, not replacing accounting software.
+
+--------------------------------------------------
+4.1 PEOPLE COST
+--------------------------------------------------
+
+Setting:
+
+Track People Cost
+ON / OFF
+
+If ON, project can calculate resource cost based on:
+
+Hours Worked × Internal Cost Rate = Resource Cost
+
+Do NOT display “Member Salary” as the normal project setting.
+
+Use:
+
+Internal Cost Rate
+
+Example:
+
+Rahul
+₹1,250 / hour
+
+Project Settings should control whether people cost information is visible.
+
+Create:
+
+People Cost Visibility
+
+Options:
+
+Organization Admin
+Finance
+Project Manager
+Team Lead
+Project Members
+Client
+
+Allow appropriate multi-selection based on existing role architecture.
+
+Recommended default:
+
+Organization Admin
+Finance
+Project Manager
+
+Do not expose cost information to normal project members or clients by default.
+
+IMPORTANT:
+Do not create a second role/permission system.
+Reuse the existing Tazq roles and permissions.
+
+--------------------------------------------------
+4.2 FINANCE HEADS
+--------------------------------------------------
+
+Create a “Finance Heads” management area.
+
+Finance heads are configurable project-level categories.
+
+Examples:
+
+Project Travel
+Marketing
+Software
+Training
+Infrastructure
+Consulting
+Communication
+Other
+
+Each Finance Head should support:
+
+Name
+Code
+Description
+Active / Inactive
+Budget Allowed
+Actual Expense Allowed
+
+Allow:
+
+Add Finance Head
+Edit
+Activate / Deactivate
+Delete only if unused
+
+Prevent deletion if the finance head is already used in transactions. Offer deactivate instead.
+
+Finance Heads should be stored as child records of the project, not as hardcoded fields.
+
+Example:
+
+Project
+  └── Finance Heads
+       ├── Travel
+       ├── Marketing
+       ├── Software
+       └── Training
+
+--------------------------------------------------
+4.3 FINANCE VISIBILITY
+--------------------------------------------------
+
+Create:
+
+Finance Visibility
+
+Control who can see:
+
+Project Budget
+Project Expenses
+Resource Cost
+Profitability / Margin
+
+These should not automatically be visible to everyone just because Finance is enabled.
+
+Reuse existing role/permission architecture.
+
+Client should NEVER see people cost or profitability unless explicitly supported by a future controlled feature.
+
+==================================================
+5. QUALITY & DELIVERY SETTINGS
+==================================================
+
+Create Quality & Delivery settings.
+
+Toggles:
+
+Defect Management
+ON / OFF
+
+Test Case Management
+ON / OFF
+
+Allow Client Defect Creation
+ON / OFF
+
+Allow Client Test Case Visibility
+ON / OFF
+
+Allow Client Test Execution
+ON / OFF
+
+Future-ready settings:
+
+Require Test Cases for Feature Completion
+Require Test Cases for Milestone Completion
+Require Defects to be Resolved before Milestone Closure
+
+These can initially be stored as configuration even if some enforcement is implemented later.
+
+When Defect Management is OFF:
+- Hide/disable Defect-related project navigation.
+- Do not delete defects.
+
+When Test Case Management is OFF:
+- Hide/disable Test Case-related navigation.
+- Do not delete existing test cases.
+
+==================================================
+6. COLLABORATION SETTINGS
+==================================================
+
+Create Collaboration settings.
+
+Settings:
+
+Workspace Enabled
+ON / OFF
+
+Internal Collaboration
+ON / OFF
+
+Client Collaboration
+ON / OFF
+
+Client Comments
+ON / OFF
+
+Client File Upload
+ON / OFF
+
+Client Defect Creation
+ON / OFF
+
+Client Activity Visibility
+ON / OFF
+
+Client Decision Visibility
+ON / OFF
+
+Client Workspace Access
+ON / OFF
+
+IMPORTANT:
+
+Workspace is the contextual collaboration layer already existing in Tazq.
+
+Do NOT create a separate chat application.
+
+These settings control whether the existing Workspace functionality is available and what clients can see/do.
+
+If Workspace Enabled = OFF:
+- Hide Workspace from project navigation.
+- Do not delete Workspace data.
+
+If Client Collaboration = OFF:
+- Client users cannot participate in project Workspace.
+- Internal Workspace continues normally.
+
+==================================================
+7. ACCESS SETTINGS
+==================================================
+
+Create Access settings.
+
+Project Access:
+
+Private
+Organization
+Client
+
+Then:
+
+Project Members
+
+Display existing project members.
+
+For each member show:
+
+Name
+Role
+Team
+Access Status
+
+Allow:
+
+Add Member
+Remove Member
+Change Project Role
+
+But reuse the existing project membership and permission system.
+
+Do NOT build another authorization framework.
+
+Provide:
+
+“Manage Permissions”
+
+which should use the existing Tazq permission system if available.
+
+Potential future permissions should be structured around:
+
+Project
+Planning
+Tasks
+Defects
+Test Cases
+Workspace
+Finance
+Reports
+Settings
+
+==================================================
+8. NOTIFICATION SETTINGS
+==================================================
+
+Create project-level notification settings.
+
+Allow project manager/admin to control:
+
+Task Assigned
+Task Completed
+Task Overdue
+Milestone Completed
+Milestone Delayed
+Defect Created
+Defect Assigned
+Defect Resolved
+Defect Reopened
+Workspace Mention
+Workspace Comment
+Planning Updated
+Planning Approval Required
+Finance Entry Added
+Budget Threshold Reached
+Client Activity
+
+For each notification:
+
+Enabled / Disabled
+
+And optionally:
+
+In-App
+Email
+Push
+
+Only expose notification channels that the existing notification infrastructure supports.
+
+Do not create a separate notification engine.
+
+==================================================
+9. CUSTOMIZATION SETTINGS
+==================================================
+
+Do not create a second Custom Fields system.
+
+Link the project settings page to the existing Tazq Custom Fields functionality.
+
+Show:
+
+Project Custom Fields
+Task Custom Fields
+Feature Custom Fields
+User Story Custom Fields
+Defect Custom Fields
+Test Case Custom Fields
+
+Provide:
+
+“Manage Custom Fields”
+
+button.
+
+If the existing Custom Fields module supports project-specific configuration, use that.
+
+Important existing requirements for Custom Fields:
+
+Each custom field may have:
+
+Name
+Field Type
+Mandatory
+Searchable
+Reportable
+Validation
+Range where applicable
+Default Value
+Active / Inactive
+
+Searchable custom fields should later be available in the Search Console / Custom Filters.
+
+Do not duplicate this functionality inside Project Settings.
+
+==================================================
+10. DEPENDENT SETTINGS BEHAVIOR
+==================================================
+
+Settings must behave intelligently.
+
+Example:
+
+Track Finance = OFF
+
+Then:
+
+Track People Cost
+Finance Heads
+Finance Visibility
+
+should be visually disabled.
+
+When Finance is turned ON:
+
+They become active.
+
+Similarly:
+
+Planning Enabled = OFF
+
+Disable:
+
+Planning Methodology
+AI Planning
+Planning Approval
+Planning Defaults
+
+Defect Management = OFF
+
+Disable client defect creation.
+
+Workspace Enabled = OFF
+
+Disable Workspace collaboration settings.
+
+Client Collaboration = OFF
+
+Disable:
+
+Client Comments
+Client File Upload
+Client Activity Visibility
+Client Decision Visibility
+Client Workspace Access
+
+The UI should clearly explain why a setting is disabled.
+
+Do not silently change unrelated settings.
+
+==================================================
+11. SETTING DEPENDENCY WARNINGS
+==================================================
+
+When disabling an important feature, show a confirmation dialog.
+
+Example:
+
+Disable Finance?
+
+“This will hide Finance from this project and stop finance-related project workflows. Existing finance data will be retained and can be restored by enabling Finance again.”
+
+Buttons:
+
+Cancel
+Disable Finance
+
+Similarly:
+
+Disable Defect Management?
+
+“Existing defects will be retained but defect management will no longer be available from this project.”
+
+Do not delete data when disabling modules.
+
+==================================================
+12. UNSAVED CHANGES
+==================================================
+
+Settings should support controlled saving.
+
+Use either:
+
+Save Changes
+
+or autosave if consistent with the existing Tazq architecture.
+
+Prefer explicit Save Changes for groups of related settings.
+
+Show:
+
+Unsaved changes
+
+Save Changes
+Discard Changes
+
+After save:
+
+“Settings saved successfully.”
+
+Do not reload the entire application unnecessarily.
+
+==================================================
+13. AUDIT TRAIL
+==================================================
+
+Important enterprise requirement.
+
+Record changes to important project settings.
+
+Example:
+
+Project Finance enabled
+Changed by: Admin
+Date/time
+Previous value: OFF
+New value: ON
+
+Examples that should be audited:
+
+Finance enabled/disabled
+Planning methodology changed
+AI Planning enabled/disabled
+Client collaboration changed
+Client defect creation changed
+Access/visibility changed
+People cost visibility changed
+Quality settings changed
+
+Reuse the existing audit/activity infrastructure if available.
+
+Do not build a completely separate audit engine if one already exists.
+
+==================================================
+14. PROJECT SETTINGS DATA MODEL
+==================================================
+
+Inspect the existing database first.
+
+Use existing Project fields where appropriate.
+
+For settings that do not belong directly in Project, create a structured project settings model.
+
+Conceptually:
+
+Project
+  └── ProjectSettings
+        ├── General Configuration
+        ├── Planning Configuration
+        ├── Finance Configuration
+        ├── Quality Configuration
+        ├── Collaboration Configuration
+        ├── Access Configuration
+        └── Notification Configuration
+
+Also:
+
+Project
+  └── ProjectFinanceHeads
+
+Avoid creating hundreds of nullable columns directly on Project.
+
+Prefer structured configuration where appropriate.
+
+However, follow the existing Tazq database conventions rather than blindly applying this structure.
+
+==================================================
+15. PROJECT SETTINGS UX
+==================================================
+
+The page should feel like a serious enterprise SaaS product.
+
+Layout:
+
+------------------------------------------------
+Project Settings
+Project Name / Code
+
+[Settings Navigation]       [Settings Content]
+
+General                    General
+Planning                   Project Information
+Finance                    Project Status
+Quality & Delivery         Dates
+Collaboration              Visibility
+Access
+Notifications
+Customization
+
+                                      [Save Changes]
+------------------------------------------------
+
+Use:
+
+Cards
+Sections
+Toggles
+Dropdowns
+Inline descriptions
+Permission chips
+Clear hierarchy
+
+Avoid:
+
+Huge forms
+Dense tables everywhere
+Excessive borders
+Unnecessary gradients
+Dashboard charts
+Decorative UI
+
+Use sensible spacing and responsive behavior.
+
+==================================================
+16. ROLE-BASED SETTINGS ACCESS
+==================================================
+
+Only authorized users should be able to edit Project Settings.
+
+At minimum:
+
+Project Manager / Project Admin:
+- General
+- Planning
+- Quality
+- Collaboration
+- Notifications
+
+Finance-related settings:
+- Only users with appropriate Finance permission.
+
+Access settings:
+- Only Project Admin / Organization Admin.
+
+People Cost visibility:
+- Only authorized administrators/finance users.
+
+Do not expose sensitive financial information merely because a user can open Project Settings.
+
+Reuse existing permission middleware.
+
+==================================================
+17. PROJECT NAVIGATION INTEGRATION
+==================================================
+
+Project Settings must dynamically affect project navigation.
+
+Examples:
+
+Finance OFF
+→ Finance tab hidden.
+
+Finance ON
+→ Finance tab visible.
+
+Defects OFF
+→ Defect area hidden.
+
+Test Cases OFF
+→ Test Case area hidden.
+
+Workspace OFF
+→ Workspace hidden.
+
+Planning OFF
+→ Planning should either be hidden or shown as disabled according to the existing navigation design.
+
+Do not remove data.
+
+Do not change global application navigation.
+
+==================================================
+18. API / BACKEND
+==================================================
+
+Create or extend backend APIs as required.
+
+Expected operations:
+
+GET project settings
+UPDATE project settings
+
+GET finance heads
+CREATE finance head
+UPDATE finance head
+ACTIVATE/DEACTIVATE finance head
+DELETE finance head when safe
+
+GET project members
+UPDATE project access/roles using existing membership APIs
+
+GET notification settings
+UPDATE notification settings
+
+GET project customization configuration
+
+Use existing authentication and authorization middleware.
+
+Validate all settings server-side.
+
+Do not rely only on frontend validation.
+
+==================================================
+19. VALIDATION RULES
+==================================================
+
+Implement appropriate validation.
+
+Examples:
+
+Project Code:
+- Required
+- Unique
+
+Dates:
+- Planned Start <= Target End
+
+Finance:
+- Finance Head name required
+- No duplicate finance head names/codes within project
+
+Planning:
+- Methodology must be valid
+- If Planning disabled, methodology configuration should not be executable
+
+Visibility:
+- Must be a supported project visibility
+
+Permission:
+- Users cannot grant permissions they themselves do not possess
+
+Client settings:
+- Client collaboration settings only apply if a client is associated with the project
+
+==================================================
+20. FUTURE-READY ARCHITECTURE
+==================================================
+
+Design this module so new settings can be added without rewriting the page.
+
+Examples of future settings:
+
+Risk Management
+Resource Management
+Capacity Planning
+SLA Management
+Approval Workflows
+Change Requests
+Requirements Management
+AI Automation
+External Integrations
+API Access
+Data Retention
+Advanced Reporting
+
+The settings architecture should therefore be modular.
+
+Each settings section should be independently maintainable.
+
+==================================================
+21. IMPORTANT ARCHITECTURAL PRINCIPLE
+==================================================
+
+Project Settings is the CONTROL CENTER for how a project behaves.
+
+It should NOT become a dumping ground for every project feature.
+
+Settings should answer:
+
+“What capabilities are enabled for this project?”
+
+“What methodology does this project use?”
+
+“Who can access what?”
+
+“What can clients do?”
+
+“What information is visible?”
+
+“What notifications are generated?”
+
+“What financial information is tracked?”
+
+Do not put operational records inside Settings.
+
+For example:
+
+Finance Settings:
+→ Configure Finance.
+
+Finance tab:
+→ Actually manage budgets and expenses.
+
+Planning Settings:
+→ Configure Planning.
+
+Planning tab:
+→ Actually build the project plan.
+
+Quality Settings:
+→ Configure Quality.
+
+Quality tab:
+→ Actually manage Test Cases and Defects.
+
+==================================================
+22. IMPLEMENTATION APPROACH
+==================================================
+
+Before coding:
+
+1. Inspect existing Project entity/schema.
+2. Inspect existing Project Settings if any.
+3. Inspect existing roles and permissions.
+4. Inspect project membership.
+5. Inspect Client entity.
+6. Inspect Finance-related entities.
+7. Inspect Workspace.
+8. Inspect Defect/Test Case modules.
+9. Inspect Custom Fields.
+10. Inspect Notification system.
+11. Inspect Audit/Activity system.
+12. Inspect existing project navigation/sub-navigation.
+
+Then create an implementation plan internally.
+
+Do NOT rewrite working modules.
+
+Implement in this order:
+
+Phase 1:
+- Project Settings route
+- Settings navigation
+- General settings
+
+Phase 2:
+- Planning settings
+
+Phase 3:
+- Finance settings
+- Finance Heads
+
+Phase 4:
+- Quality & Delivery
+
+Phase 5:
+- Collaboration
+
+Phase 6:
+- Access
+
+Phase 7:
+- Notifications
+
+Phase 8:
+- Customization integration
+
+Phase 9:
+- Audit trail
+
+Phase 10:
+- Dynamic project navigation integration
+
+==================================================
+23. TESTING
+==================================================
+
+After implementation test:
+
+1. Project Settings loads correctly.
+2. Existing projects continue working.
+3. Existing project data is not duplicated.
+4. Settings persist after refresh.
+5. Finance ON/OFF works.
+6. Finance data is retained when Finance is disabled.
+7. Finance tab dynamically appears/disappears.
+8. People Cost visibility respects permissions.
+9. Finance Heads CRUD works.
+10. Planning settings persist.
+11. Quality settings work.
+12. Client collaboration settings work.
+13. Workspace settings do not delete Workspace data.
+14. Access settings respect permissions.
+15. Notification settings persist.
+16. Custom Fields integration opens the existing Custom Fields system.
+17. Audit records are generated for sensitive configuration changes.
+18. Unauthorized users cannot modify settings.
+19. Server-side validation works.
+20. Mobile/tablet responsive behavior works.
+
+==================================================
+24. FINAL QUALITY BAR
+==================================================
+
+The final result should look like a mature enterprise project management product.
+
+Do NOT make this look like a generic CRUD settings page.
+
+The user should immediately understand:
+
+Project Settings
+→ Configure how this project operates.
+
+The settings should be:
+
+- Modular
+- Persistent
+- Permission-aware
+- Enterprise-ready
+- Extensible
+- Non-destructive
+- Integrated with existing Tazq modules
+
+Most importantly:
+
+DO NOT create duplicate Project, Client, User, Role, Finance, Custom Field, Workspace, Notification, Defect, Test Case or Membership entities if they already exist.
+
+Reuse the existing Tazq architecture wherever possible.
