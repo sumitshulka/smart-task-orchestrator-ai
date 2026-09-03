@@ -127,8 +127,12 @@ export default function TaskCard({ task, onTaskUpdated, canDelete, statusColor, 
 
   return (
     <Card 
-      className={`relative group transition hover:shadow-lg ${compact ? 'rounded-none' : ''} ${isCompleted ? 'border-l-4 border-l-blue-500' : ''}`}
-      style={dynamicCardStyling}
+      className={`relative group transition hover:shadow-lg ${compact ? 'rounded-none border-2 border-l-[5px] border-slate-300 bg-slate-50 dark:border-slate-600 dark:bg-slate-900/40' : ''} ${!compact && isCompleted ? 'border-l-4 border-l-blue-500' : ''}`}
+      style={compact ? {
+        backgroundColor: "#f8fafc",
+        borderColor: "#cbd5e1",
+        borderLeftColor: statusColor || (isCompleted ? "#3b82f6" : "#94a3b8"),
+      } : dynamicCardStyling}
     >
       {/* Floating top/center actions visible on hover */}
       <div className="absolute left-1/2 top-1.5 -translate-x-1/2 z-10 flex gap-0.5 rounded-md bg-background/95 p-0.5 opacity-0 shadow-sm ring-1 ring-border group-hover:opacity-100 transition-all">
