@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   CheckSquare, CheckCircle, XCircle, Clock, Search,
-  FolderKanban, ChevronRight, AlertCircle,
+  FolderKanban, ChevronRight, AlertCircle, RotateCcw,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { NavLink } from "react-router-dom";
@@ -208,9 +208,24 @@ export default function DecisionsPage() {
                   {/* Top row */}
                   <div className="flex items-start gap-2 flex-wrap">
                     <span className="font-semibold text-gray-900 text-sm flex-1 min-w-0">{d.title}</span>
-                    <span className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full border ${sc.color}`}>
-                      {sc.icon}{sc.label}
-                    </span>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <span className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full border ${sc.color}`}>
+                        {sc.icon}{sc.label}
+                      </span>
+                      {!isPending && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 gap-1 px-2 text-[11px] text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+                          disabled={updateStatus.isPending}
+                          aria-label="Reopen decision for review"
+                          onClick={() => updateStatus.mutate({ id: d.id, status: "pending" })}
+                        >
+                          <RotateCcw className="h-3 w-3" />
+                          Reopen
+                        </Button>
+                      )}
+                    </div>
                   </div>
 
                   {/* Description */}
@@ -243,45 +258,32 @@ export default function DecisionsPage() {
                     {/* Date */}
                     <span>{formatDistanceToNow(new Date(d.created_at), { addSuffix: true })}</span>
                   </div>
-                </div>
 
-                {/* Action buttons */}
-                {isPending && (
-                  <div className="flex flex-col gap-2 sm:flex-shrink-0 sm:justify-center">
-                    <Button
-                      size="sm"
-                      className="h-8 w-full bg-green-600 px-4 text-xs text-white hover:bg-green-700 sm:w-auto"
-                      disabled={updateStatus.isPending}
-                      onClick={() => updateStatus.mutate({ id: d.id, status: "approved" })}
-                    >
-                      <CheckCircle className="w-3.5 h-3.5 mr-1" />
-                      Approve
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-8 w-full border-red-200 px-4 text-xs text-red-600 hover:bg-red-50 sm:w-auto"
-                      disabled={updateStatus.isPending}
-                      onClick={() => updateStatus.mutate({ id: d.id, status: "rejected" })}
-                    >
-                      <XCircle className="w-3.5 h-3.5 mr-1" />
-                      Reject
-                    </Button>
-                  </div>
-                )}
-                {!isPending && (
-                  <div className="flex flex-col gap-2 sm:flex-shrink-0 sm:justify-center">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-8 w-full px-3 text-xs text-gray-400 hover:text-gray-600 sm:w-auto"
-                      disabled={updateStatus.isPending}
-                      onClick={() => updateStatus.mutate({ id: d.id, status: "pending" })}
-                    >
-                      Reset to Pending
-                    </Button>
-                  </div>
-                )}
+                  {/* Pending actions stay in the card's content flow. */}
+                  {isPending && (
+                    <div className="flex flex-wrap justify-end gap-2 border-t border-gray-100 pt-3">
+                      <Button
+                        size="sm"
+                        className="h-8 min-w-[6.5rem] bg-green-600 px-4 text-xs text-white hover:bg-green-700"
+                        disabled={updateStatus.isPending}
+                        onClick={() => updateStatus.mutate({ id: d.id, status: "approved" })}
+                      >
+                        <CheckCircle className="w-3.5 h-3.5 mr-1" />
+                        Approve
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 min-w-[6.5rem] border-red-200 px-4 text-xs text-red-600 hover:bg-red-50"
+                        disabled={updateStatus.isPending}
+                        onClick={() => updateStatus.mutate({ id: d.id, status: "rejected" })}
+                      >
+                        <XCircle className="w-3.5 h-3.5 mr-1" />
+                        Reject
+                      </Button>
+                    </div>
+                  )}
+                </div>
               </div>
             );
           })}
