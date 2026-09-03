@@ -127,7 +127,7 @@ export default function TaskCard({ task, onTaskUpdated, canDelete, statusColor, 
 
   return (
     <Card 
-      className={`relative group transition hover:shadow-lg ${isCompleted ? 'border-l-4 border-l-blue-500' : ''}`}
+      className={`relative group transition hover:shadow-lg ${compact ? 'rounded-none' : ''} ${isCompleted ? 'border-l-4 border-l-blue-500' : ''}`}
       style={dynamicCardStyling}
     >
       {/* Floating top/center actions visible on hover */}
