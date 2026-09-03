@@ -29,6 +29,7 @@ export default function TasksList({ tasks, onTaskUpdated, canDelete, statuses = 
             canDelete={canDelete} 
             statusColor={statusObj?.color}
             onOpenDetails={onOpenDetails}
+            compact
           />
         );
       })}

@@ -56,9 +56,10 @@ type TaskCardProps = {
   canDelete: (status: string) => boolean;
   statusColor?: string;
   onOpenDetails?: (task: Task) => void;
+  compact?: boolean;
 };
 
-export default function TaskCard({ task, onTaskUpdated, canDelete, statusColor, onOpenDetails }: TaskCardProps) {
+export default function TaskCard({ task, onTaskUpdated, canDelete, statusColor, onOpenDetails, compact = false }: TaskCardProps) {
   const { getUserName } = useUserNames();
   const { isTransitionAllowed, getAllowedNextStatuses } = useStatusTransitionValidation();
   const dynamicCardStyling = getDynamicCardStyling(statusColor);
@@ -176,15 +177,15 @@ export default function TaskCard({ task, onTaskUpdated, canDelete, statusColor, 
       </div>
 
       {/* Card header and summary */}
-      <CardHeader className="pb-2">
-        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
-          <div className="flex items-center gap-2 min-w-0">
+      <CardHeader className={compact ? "!px-4 !py-3" : "pb-2"}>
+        <div className={`flex flex-col sm:flex-row sm:justify-between sm:items-center ${compact ? "gap-1" : "gap-2"}`}>
+          <div className={`flex items-center min-w-0 ${compact ? "gap-1.5" : "gap-2"}`}>
             {task.task_number && (
-              <span className="text-xs font-mono bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded border flex-shrink-0">
+              <span className={`font-mono bg-gray-100 dark:bg-gray-800 rounded border flex-shrink-0 ${compact ? "text-[11px] px-1.5 py-0.5" : "text-xs px-2 py-1"}`}>
                 #{task.task_number}
               </span>
             )}
-            <h2 className="font-semibold text-base sm:text-lg truncate cursor-pointer hover:text-blue-600 transition-colors" 
+            <h2 className={`font-semibold truncate cursor-pointer hover:text-blue-600 transition-colors ${compact ? "text-base" : "text-base sm:text-lg"}`}
                 onClick={(e) => {
                   e.stopPropagation();
                   if (onOpenDetails) {
@@ -194,9 +195,9 @@ export default function TaskCard({ task, onTaskUpdated, canDelete, statusColor, 
               {task.title}
             </h2>
           </div>
-          <div className="flex gap-1 sm:gap-2 items-center flex-wrap">
+          <div className={`flex items-center flex-wrap ${compact ? "gap-1" : "gap-1 sm:gap-2"}`}>
             {/* Priority badge */}
-            <span className={`text-xs px-2 py-1 rounded-full ${priorityClass}`}>
+            <span className={`${compact ? "text-[11px] px-1.5 py-0.5" : "text-xs px-2 py-1"} rounded-full ${priorityClass}`}>
               {task.priority === 1
                 ? "High"
                 : task.priority === 2
@@ -205,48 +206,48 @@ export default function TaskCard({ task, onTaskUpdated, canDelete, statusColor, 
             </span>
             {/* In Time/Overdue badge */}
             {timeStatus === "in_time" && (
-              <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-700 font-medium">
+              <span className={`${compact ? "text-[11px] px-1.5 py-0.5" : "text-xs px-2 py-1"} rounded-full bg-green-100 text-green-700 font-medium`}>
                 In Time
               </span>
             )}
             {timeStatus === "overdue" && (
-              <span className="text-xs px-2 py-1 rounded-full bg-red-100 text-red-700 font-medium">
+              <span className={`${compact ? "text-[11px] px-1.5 py-0.5" : "text-xs px-2 py-1"} rounded-full bg-red-100 text-red-700 font-medium`}>
                 Overdue
               </span>
             )}
             {/* Defect Fix badge */}
             {isDefectTask && (
-              <Badge className="bg-orange-100 text-orange-700 flex items-center gap-1 text-xs border border-orange-200" variant="secondary" title="This task was created to fix a defect">
+              <Badge className={`bg-orange-100 text-orange-700 flex items-center gap-1 ${compact ? "text-[11px] px-1.5 py-0.5" : "text-xs"} border border-orange-200`} variant="secondary" title="This task was created to fix a defect">
                 <Bug size={12} /> <span className="hidden sm:inline">Defect Fix</span>
               </Badge>
             )}
             {/* Subtask and Dependency Badges */}
             {isSubTask && (
-              <Badge className="bg-purple-100 text-purple-700 flex items-center gap-1 text-xs" variant="secondary" title="Subtask in Group">
+              <Badge className={`bg-purple-100 text-purple-700 flex items-center gap-1 ${compact ? "text-[11px] px-1.5 py-0.5" : "text-xs"}`} variant="secondary" title="Subtask in Group">
                 <List size={12} /> <span className="hidden sm:inline">Subtask</span>
               </Badge>
             )}
             {isDependent && (
-              <Badge className="bg-blue-100 text-blue-700 flex items-center gap-1 text-xs" variant="secondary" title="Dependent task">
+              <Badge className={`bg-blue-100 text-blue-700 flex items-center gap-1 ${compact ? "text-[11px] px-1.5 py-0.5" : "text-xs"}`} variant="secondary" title="Dependent task">
                 <Link2 size={12} /> <span className="hidden sm:inline">Dependent</span>
               </Badge>
             )}
             {task.is_ai_created && (
-              <Badge className="bg-purple-100 text-purple-700 flex items-center gap-1 text-xs border border-purple-200" variant="secondary" title="Created by AI">
+              <Badge className={`bg-purple-100 text-purple-700 flex items-center gap-1 ${compact ? "text-[11px] px-1.5 py-0.5" : "text-xs"} border border-purple-200`} variant="secondary" title="Created by AI">
                 <Sparkles size={12} /> <span className="hidden sm:inline">AI Created</span>
               </Badge>
             )}
             {task.needs_cf_review && (
-              <Badge className="bg-amber-100 text-amber-700 flex items-center gap-1 text-xs border border-amber-200" variant="secondary" title="Required custom fields are missing — please edit this task to fill them in">
+              <Badge className={`bg-amber-100 text-amber-700 flex items-center gap-1 ${compact ? "text-[11px] px-1.5 py-0.5" : "text-xs"} border border-amber-200`} variant="secondary" title="Required custom fields are missing — please edit this task to fill them in">
                 <AlertTriangle size={12} /> <span className="hidden sm:inline">Needs Review</span>
               </Badge>
             )}
           </div>
         </div>
-        <div className="mt-1 text-xs text-muted-foreground line-clamp-2">{task.description}</div>
+        <div className={`mt-1 text-xs text-muted-foreground ${compact ? "line-clamp-1" : "line-clamp-2"}`}>{task.description}</div>
       </CardHeader>
-      <CardContent>
-        <div className="flex flex-col md:flex-row md:items-center md:gap-6 gap-2 text-sm">
+      <CardContent className={compact ? "!px-4 !pb-3 !pt-0" : undefined}>
+        <div className={`flex flex-col md:flex-row md:items-center text-sm ${compact ? "md:gap-4 gap-1.5 text-xs" : "md:gap-6 gap-2"}`}>
           <div>
             <span className="font-semibold">Status:</span>{" "}
             <span className="capitalize">{task.status}</span>
@@ -281,7 +282,7 @@ export default function TaskCard({ task, onTaskUpdated, canDelete, statusColor, 
         
         {/* Timer component for time-managed tasks */}
         {task.is_time_managed && (
-          <div className="mt-4">
+          <div className={compact ? "mt-2" : "mt-4"}>
             <TaskTimer task={task} onTaskUpdated={onTaskUpdated} compact={false} />
           </div>
         )}
