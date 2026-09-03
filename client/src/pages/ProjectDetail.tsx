@@ -1510,20 +1510,11 @@ export default function ProjectDetail() {
                       ))}
                     </SelectContent>
                   </Select>
-                  <Button size="sm" className="ml-auto gap-1 h-9"
-                    onClick={() => {
-                      const el = document.querySelector("[data-create-task-trigger]") as HTMLButtonElement;
-                      el?.click();
-                    }}>
-                    <Plus className="h-4 w-4" /> Add Task
-                  </Button>
                 </div>
 
                 <CreateTaskSheet
-                  trigger={<button data-create-task-trigger className="hidden" />}
                   defaultProjectId={id}
-                  defaultProjectName={project.name}
-                  onCreated={() => refetchTasks()}
+                  onTaskCreated={() => refetchTasks()}
                 />
 
                 {filteredProjectTasks.length === 0 ? (
