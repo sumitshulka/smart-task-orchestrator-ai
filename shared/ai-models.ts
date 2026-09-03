@@ -1,0 +1,130 @@
+export interface AiProviderModelConfig {
+  label: string;
+  models: string[];
+  needsBaseUrl?: boolean;
+}
+
+// Curated text-capable models that work with the providers supported by
+// ai-provider.ts. Users can still enter a custom model/deployment name in the
+// AI Settings screen for provider-specific or self-hosted models.
+export const AI_PROVIDER_MODELS: Record<string, AiProviderModelConfig> = {
+  openai: {
+    label: "OpenAI",
+    models: [
+      "gpt-5.6-sol",
+      "gpt-5.6-terra",
+      "gpt-5.6-luna",
+      "gpt-5.5",
+      "gpt-5.5-pro",
+      "gpt-5.4",
+      "gpt-5.4-pro",
+      "gpt-5.4-mini",
+      "gpt-5.4-nano",
+      "gpt-5.3-codex",
+      "gpt-5.2",
+      "gpt-5.2-pro",
+      "gpt-5.1",
+      "gpt-5",
+      "gpt-5-mini",
+      "gpt-5-nano",
+      "gpt-4.1",
+      "gpt-4o",
+      "gpt-4o-mini",
+    ],
+  },
+  anthropic: {
+    label: "Anthropic",
+    models: [
+      "claude-opus-5",
+      "claude-sonnet-5",
+      "claude-fable-5-1",
+      "claude-haiku-4-5-20251001",
+      "claude-opus-4-7",
+      "claude-opus-4-6",
+      "claude-sonnet-4-6",
+      "claude-sonnet-4-5",
+      "claude-opus-4-5",
+      "claude-opus-4-1",
+    ],
+  },
+  google: {
+    label: "Google Gemini",
+    models: [
+      "gemini-3.8-flash",
+      "gemini-3.7-flash",
+      "gemini-3.6-flash",
+      "gemini-3.5-flash",
+      "gemini-3.5-flash-lite",
+      "gemini-3.1-pro-preview",
+      "gemini-3-flash-preview",
+      "gemini-2.5-pro",
+      "gemini-2.5-flash",
+      "gemini-2.5-flash-lite",
+    ],
+  },
+  azure: {
+    label: "Azure OpenAI",
+    models: [
+      "gpt-5.6-sol",
+      "gpt-5.6-terra",
+      "gpt-5.6-luna",
+      "gpt-chat-latest",
+      "gpt-5.5",
+      "gpt-5.4",
+      "gpt-5.4-pro",
+      "gpt-5.4-mini",
+      "gpt-5.4-nano",
+      "gpt-5.3-chat",
+      "gpt-5.3-codex",
+      "gpt-5.2",
+      "gpt-5.2-chat",
+      "gpt-5.2-codex",
+      "gpt-5.1",
+      "gpt-5.1-chat",
+      "gpt-5.1-codex",
+      "gpt-5.1-codex-mini",
+      "gpt-5",
+      "gpt-5-mini",
+      "gpt-5-nano",
+      "gpt-4o",
+      "gpt-4o-mini",
+    ],
+    needsBaseUrl: true,
+  },
+  mistral: {
+    label: "Mistral AI",
+    models: [
+      "mistral-medium-3.5",
+      "mistral-small-4",
+      "mistral-large-3",
+      "mistral-medium-2508",
+      "mistral-small-2506",
+      "mistral-large-2411",
+      "magistral-medium-latest",
+      "magistral-small-latest",
+      "devstral-medium-latest",
+      "devstral-small-latest",
+      "ministral-3-14b",
+      "ministral-3-8b",
+      "ministral-3-3b",
+    ],
+  },
+  ollama: {
+    label: "Ollama (Local)",
+    models: [
+      "gpt-oss",
+      "llama4",
+      "qwen3",
+      "gemma3",
+      "deepseek-r1",
+      "devstral",
+      "mistral-small3.2",
+      "phi4",
+      "llama3.2",
+      "mistral",
+    ],
+    needsBaseUrl: true,
+  },
+};
+
+export const DEFAULT_AI_MODEL = "gpt-5.6-terra";

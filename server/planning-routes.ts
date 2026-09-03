@@ -19,7 +19,7 @@ import {
   projectMilestones, projectFeatureGroups, projectFeatures, projects, users,
   projectMembers,
 } from "@shared/schema";
-import { callAiProvider, decryptApiKey } from "./ai-provider";
+import { callAiProvider, decryptApiKey, DEFAULT_AI_MODEL } from "./ai-provider";
 import { storage } from "./storage";
 
 /**
@@ -833,7 +833,7 @@ Only propose items that do not already exist. Be precise and professional.`;
         : prompt.trim();
 
       const rawResponse = await callAiProvider(
-        { provider: aiSettings.provider || "openai", apiKey: decryptedKey, model: aiSettings.model || "gpt-4o-mini", baseUrl: aiSettings.base_url ?? null },
+        { provider: aiSettings.provider || "openai", apiKey: decryptedKey, model: aiSettings.model || DEFAULT_AI_MODEL, baseUrl: aiSettings.base_url ?? null },
         [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }]
       );
 

@@ -11,7 +11,7 @@ import {
 import { licenseManager, APP_ID } from "./license-manager";
 import { registerPlanningRoutes } from "./planning-routes";
 import { insertUserSchema, insertTaskSchema, insertTeamSchema, insertTaskGroupSchema, insertRoleSchema, insertOfficeLocationSchema, userRoles, insertDefectSchema, insertClientSchema, insertClientContactSchema, insertClientProjectAccessSchema, insertCustomFieldGroupSchema, insertCustomFieldDefinitionSchema, insertCustomFieldValueSchema, tasks as tasksTable, projects as projectsTable, defects as defectsTable, users as usersTable, teams as teamsTable, workspaceDecisions } from "@shared/schema";
-import { callAiProvider, encryptApiKey, decryptApiKey, DEFAULT_SYSTEM_PROMPT_HEADER } from "./ai-provider";
+import { callAiProvider, encryptApiKey, decryptApiKey, DEFAULT_SYSTEM_PROMPT_HEADER, AI_PROVIDER_MODELS, DEFAULT_AI_MODEL } from "./ai-provider";
 import { db } from "./db";
 import { ilike, or, sql } from "drizzle-orm";
 import bcrypt from "bcrypt";
@@ -2322,6 +2322,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ── AI Settings ──────────────────────────────────────────────────────────────
 
+  // GET /api/ai/models  (admin only)
+  // The catalog is shared with the AI provider layer so the selector and
+  // backend never drift apart when models are updated.
+  app.get("/api/ai/models", requireAdmin, (_req, res) => {
+    res.json({ providers: AI_PROVIDER_MODELS, default_model: DEFAULT_AI_MODEL });
+  });
+
   // GET /api/ai/settings  (admin only)
   app.get("/api/ai/settings", requireAdmin, async (req, res) => {
     try {
@@ -2330,7 +2337,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.json({
           provider: "openai",
           api_key: "",
-          model: "gpt-4o",
+          model: DEFAULT_AI_MODEL,
           base_url: "",
           system_prompt_header: DEFAULT_SYSTEM_PROMPT_HEADER,
           is_enabled: false,
@@ -2398,7 +2405,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       let resolvedKey: string | null = null;
       let resolvedProvider = bodyProvider || "openai";
-      let resolvedModel = bodyModel || "gpt-4o";
+      let resolvedModel = bodyModel || DEFAULT_AI_MODEL;
       let resolvedBaseUrl = bodyBaseUrl || null;
 
       if (bodyKey && !String(bodyKey).startsWith("••••")) {
@@ -2413,7 +2420,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         resolvedKey = decryptApiKey(settings.api_key);
         // Use stored values for anything not supplied
         if (!bodyProvider) resolvedProvider = settings.provider;
-        if (!bodyModel) resolvedModel = settings.model || "gpt-4o";
+        if (!bodyModel) resolvedModel = settings.model || DEFAULT_AI_MODEL;
         if (!bodyBaseUrl) resolvedBaseUrl = settings.base_url;
       }
 
@@ -2544,7 +2551,7 @@ When you have enough information to create the task, output ONLY the following m
         {
           provider: settings.provider,
           apiKey: decryptedKey,
-          model: settings.model || "gpt-4o",
+          model: settings.model || DEFAULT_AI_MODEL,
           baseUrl: settings.base_url,
         },
         chatMessages
@@ -2745,7 +2752,7 @@ Rules:
         {
           provider: aiSettings.provider,
           apiKey:   decryptedKey,
-          model:    aiSettings.model || "gpt-4o",
+          model:    aiSettings.model || DEFAULT_AI_MODEL,
           baseUrl:  aiSettings.base_url,
         },
         [
@@ -2822,7 +2829,7 @@ User: "critical bugs" → {"type":"search","label":"Critical Defects","query":"d
 User: "login project" → {"type":"search","label":"Search Projects","query":"project:login","description":"Find projects matching login"}`;
 
       const raw = await callAiProvider(
-        { provider: settings.provider || "openai", apiKey: decryptedKey, model: settings.model || "gpt-4o-mini", baseUrl: settings.base_url ?? null },
+        { provider: settings.provider || "openai", apiKey: decryptedKey, model: settings.model || DEFAULT_AI_MODEL, baseUrl: settings.base_url ?? null },
         [{ role: "system", content: systemPrompt }, { role: "user", content: query }]
       );
 
@@ -2907,7 +2914,7 @@ Output EXACTLY this JSON (no text outside it):
         {
           provider: aiSettings.provider,
           apiKey:   decryptedKey,
-          model:    aiSettings.model || "gpt-4o",
+          model:    aiSettings.model || DEFAULT_AI_MODEL,
           baseUrl:  aiSettings.base_url,
         },
         [

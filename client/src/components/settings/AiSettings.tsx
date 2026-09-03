@@ -14,40 +14,7 @@ import { Separator } from "@/components/ui/separator";
 import { Eye, EyeOff, Wifi, WifiOff, Save, RefreshCw, Info } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-
-const PROVIDER_MODELS: Record<string, { label: string; models: string[]; needsBaseUrl?: boolean }> = {
-  openai: {
-    label: "OpenAI",
-    models: ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-4", "gpt-3.5-turbo"],
-  },
-  anthropic: {
-    label: "Anthropic",
-    models: [
-      "claude-3-5-sonnet-20241022",
-      "claude-3-5-haiku-20241022",
-      "claude-3-opus-20240229",
-      "claude-3-sonnet-20240229",
-    ],
-  },
-  google: {
-    label: "Google Gemini",
-    models: ["gemini-1.5-pro", "gemini-1.5-flash", "gemini-2.0-flash", "gemini-pro"],
-  },
-  azure: {
-    label: "Azure OpenAI",
-    models: ["gpt-4o", "gpt-4", "gpt-35-turbo"],
-    needsBaseUrl: true,
-  },
-  mistral: {
-    label: "Mistral AI",
-    models: ["mistral-large-latest", "mistral-medium-latest", "mistral-small-latest", "open-mixtral-8x22b"],
-  },
-  ollama: {
-    label: "Ollama (Local)",
-    models: ["llama3.2", "llama3.1", "mistral", "codellama", "phi3", "gemma2"],
-    needsBaseUrl: true,
-  },
-};
+import { AI_PROVIDER_MODELS, DEFAULT_AI_MODEL } from "@shared/ai-models";
 
 interface AiSettingsData {
   provider: string;
@@ -81,7 +48,7 @@ const AiSettings: React.FC = () => {
   const [form, setForm] = useState<AiSettingsData>({
     provider: "openai",
     api_key: "",
-    model: "gpt-4o",
+    model: DEFAULT_AI_MODEL,
     base_url: "",
     system_prompt_header: DEFAULT_SYSTEM_PROMPT,
     is_enabled: false,
@@ -95,12 +62,19 @@ const AiSettings: React.FC = () => {
     queryFn: () => apiClient.get("/ai/settings"),
   });
 
+  const { data: modelCatalog } = useQuery({
+    queryKey: ["/api/ai/models"],
+    queryFn: () => apiClient.get("/ai/models"),
+  });
+
+  const providerModels = modelCatalog?.providers ?? AI_PROVIDER_MODELS;
+
   useEffect(() => {
     if (data) {
       setForm({
         provider: data.provider ?? "openai",
         api_key: data.api_key ?? "",
-        model: data.model ?? "gpt-4o",
+        model: data.model ?? DEFAULT_AI_MODEL,
         base_url: data.base_url ?? "",
         system_prompt_header: data.system_prompt_header ?? DEFAULT_SYSTEM_PROMPT,
         is_enabled: data.is_enabled ?? false,
@@ -146,12 +120,12 @@ const AiSettings: React.FC = () => {
   };
 
   const handleProviderChange = (p: string) => {
-    const models = PROVIDER_MODELS[p]?.models ?? [];
+    const models = providerModels[p]?.models ?? [];
     setForm((f) => ({ ...f, provider: p, model: models[0] ?? "" }));
     setTestStatus("idle");
   };
 
-  const providerInfo = PROVIDER_MODELS[form.provider];
+  const providerInfo = providerModels[form.provider];
   const needsBaseUrl = providerInfo?.needsBaseUrl ?? false;
 
   if (isLoading) {
@@ -202,7 +176,7 @@ const AiSettings: React.FC = () => {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {Object.entries(PROVIDER_MODELS).map(([key, val]) => (
+                {Object.entries(providerModels).map(([key, val]) => (
                   <SelectItem key={key} value={key}>
                     {val.label}
                   </SelectItem>
