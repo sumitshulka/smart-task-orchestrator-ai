@@ -1510,12 +1510,15 @@ export default function ProjectDetail() {
                       ))}
                     </SelectContent>
                   </Select>
+                   <CreateTaskSheet
+                     defaultProjectId={id}
+                     onTaskCreated={() => refetchTasks()}
+                   >
+                     <Button size="sm" className="ml-auto gap-1 h-9">
+                       <Plus className="h-4 w-4" /> Add Task
+                     </Button>
+                   </CreateTaskSheet>
                 </div>
-
-                <CreateTaskSheet
-                  defaultProjectId={id}
-                  onTaskCreated={() => refetchTasks()}
-                />
 
                 {filteredProjectTasks.length === 0 ? (
                   <div className="text-center py-12 text-gray-400">
@@ -1712,6 +1715,34 @@ export default function ProjectDetail() {
           </div>
         </div>
       </div>
+
+      {/* Project-scoped quick create action */}
+      {activeSection === "workspace" && (
+        <CreateTaskSheet
+          defaultProjectId={id}
+          onTaskCreated={() => refetchTasks()}
+        >
+          <button
+            type="button"
+            aria-label="Create task for this project"
+            title="Create task for this project"
+            className="fixed bottom-6 right-6 z-50 flex h-12 w-12 items-center justify-center rounded-full bg-indigo-600 text-white shadow-lg shadow-indigo-900/25 transition-all hover:scale-105 hover:bg-indigo-700 active:scale-95"
+          >
+            <Plus className="h-5 w-5" />
+          </button>
+        </CreateTaskSheet>
+      )}
+      {activeSection === "defects" && (
+        <button
+          type="button"
+          aria-label="Report defect for this project"
+          title="Report defect for this project"
+          onClick={() => setCreateDefectOpen(true)}
+          className="fixed bottom-6 right-6 z-50 flex h-12 w-12 items-center justify-center rounded-full bg-indigo-600 text-white shadow-lg shadow-indigo-900/25 transition-all hover:scale-105 hover:bg-indigo-700 active:scale-95"
+        >
+          <Plus className="h-5 w-5" />
+        </button>
+      )}
 
       {/* ── Sheets & Dialogs (outside layout) ─────────────────────────────────── */}
 
