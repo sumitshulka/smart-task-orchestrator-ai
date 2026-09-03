@@ -1,5 +1,6 @@
 import { eq, desc, and, or, ne, sql, asc, inArray, ilike, lt, gte, lte } from "drizzle-orm";
 import { db } from "./db";
+import { buildTaskQueryConditions, type TaskQueryFilters } from "./task-query";
 import { 
   users, 
   tasks, 
@@ -392,17 +393,7 @@ export interface IStorage {
   }>;
 }
 
-export type TaskQueryFilters = {
-  assignedTo?: string;
-  teamId?: string;
-  status?: string;
-  priority?: number;
-  fromDate?: string;
-  toDate?: string;
-  offset?: number;
-  limit?: number;
-  includeOverdue?: boolean;
-};
+export type { TaskQueryFilters } from "./task-query";
 
 export class DatabaseStorage implements IStorage {
   // User operations
@@ -564,46 +555,7 @@ export class DatabaseStorage implements IStorage {
       return { tasks: [], total: 0 };
     }
 
-    const conditions = [];
-
-    if (visibleUserIds) {
-      conditions.push(inArray(tasks.assigned_to, visibleUserIds));
-    }
-    if (filters.assignedTo) {
-      conditions.push(eq(tasks.assigned_to, filters.assignedTo));
-    }
-    if (filters.teamId) {
-      conditions.push(eq(tasks.team_id, filters.teamId));
-    }
-    if (filters.status && filters.status !== "all") {
-      conditions.push(ilike(tasks.status, `%${filters.status}%`));
-    }
-    if (filters.priority !== undefined && filters.priority !== -1) {
-      conditions.push(eq(tasks.priority, filters.priority));
-    }
-
-    const dateConditions = [];
-    if (filters.fromDate) {
-      dateConditions.push(gte(tasks.created_at, new Date(filters.fromDate)));
-    }
-    if (filters.toDate) {
-      dateConditions.push(lte(tasks.created_at, new Date(filters.toDate)));
-    }
-
-    if (dateConditions.length > 0) {
-      const createdAtCondition = and(...dateConditions);
-      if (filters.includeOverdue) {
-        const overdueCondition = and(
-          lt(tasks.due_date, new Date()),
-          sql`lower(${tasks.status}) NOT IN ('completed', 'done', 'verified', 'closed', 'resolved')`,
-        );
-        conditions.push(or(createdAtCondition, overdueCondition));
-      } else {
-        conditions.push(createdAtCondition);
-      }
-    }
-
-    const whereCondition = conditions.length > 0 ? and(...conditions) : undefined;
+    const whereCondition = buildTaskQueryConditions(filters, visibleUserIds);
     const countResult = await db
       .select({ count: sql<number>`count(*)` })
       .from(tasks)

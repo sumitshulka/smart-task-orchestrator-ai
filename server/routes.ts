@@ -1,7 +1,13 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import type { TaskQueryFilters } from "./storage";
+import {
+  applyTaskVisibilityScope,
+  getTaskQueryFilters,
+  getTeamVisibleUserIds,
+  hasTaskQueryParams,
+  type TaskVisibilityScope,
+} from "./task-query";
 import { licenseManager, APP_ID } from "./license-manager";
 import { registerPlanningRoutes } from "./planning-routes";
 import { insertUserSchema, insertTaskSchema, insertTeamSchema, insertTaskGroupSchema, insertRoleSchema, insertOfficeLocationSchema, userRoles, insertDefectSchema, insertClientSchema, insertClientContactSchema, insertClientProjectAccessSchema, insertCustomFieldGroupSchema, insertCustomFieldDefinitionSchema, insertCustomFieldValueSchema, tasks as tasksTable, projects as projectsTable, defects as defectsTable, users as usersTable, teams as teamsTable, workspaceDecisions } from "@shared/schema";
@@ -98,67 +104,6 @@ function getTaskDateKey(value: unknown): string | null {
   return Number.isNaN(date.getTime()) ? null : date.toISOString().slice(0, 10);
 }
 
-function hasTaskQueryParams(query: Record<string, unknown>): boolean {
-  return [
-    "fromDate",
-    "toDate",
-    "assignedTo",
-    "teamId",
-    "status",
-    "priority",
-    "offset",
-    "limit",
-    "includeOverdue",
-    "paginated",
-  ].some((key) => query[key] !== undefined);
-}
-
-function getTaskQueryValue(query: Record<string, unknown>, key: string): string | undefined {
-  const value = query[key];
-  if (value === undefined) return undefined;
-  if (typeof value !== "string" || value.length === 0) {
-    throw new Error(`Invalid ${key} query parameter`);
-  }
-  return value;
-}
-
-function getTaskQueryInteger(
-  query: Record<string, unknown>,
-  key: string,
-  minimum: number,
-): number | undefined {
-  const value = getTaskQueryValue(query, key);
-  if (value === undefined) return undefined;
-
-  const parsed = Number(value);
-  if (!Number.isInteger(parsed) || parsed < minimum) {
-    throw new Error(`Invalid ${key} query parameter`);
-  }
-  return parsed;
-}
-
-function getTaskQueryFilters(query: Record<string, unknown>): TaskQueryFilters {
-  const fromDate = getTaskQueryValue(query, "fromDate");
-  const toDate = getTaskQueryValue(query, "toDate");
-  for (const [key, value] of [["fromDate", fromDate], ["toDate", toDate]]) {
-    if (value && Number.isNaN(new Date(value).getTime())) {
-      throw new Error(`Invalid ${key} query parameter`);
-    }
-  }
-
-  return {
-    fromDate,
-    toDate,
-    assignedTo: getTaskQueryValue(query, "assignedTo"),
-    teamId: getTaskQueryValue(query, "teamId"),
-    status: getTaskQueryValue(query, "status"),
-    priority: getTaskQueryInteger(query, "priority", -1),
-    offset: getTaskQueryInteger(query, "offset", 0),
-    limit: getTaskQueryInteger(query, "limit", 1),
-    includeOverdue: getTaskQueryValue(query, "includeOverdue") === "true",
-  };
-}
-
 async function getDailyTaskHours(userId: string, date: string) {
   const settings = await storage.getOrganizationSettings();
   const dailyLimitEnabled = settings?.daily_hour_limit_enabled !== false;
@@ -187,7 +132,7 @@ async function getDailyTaskHours(userId: string, date: string) {
 }
 
 // Get user's visibility scope for data filtering
-async function getUserVisibilityScope(userId: string): Promise<{ scope: string; roleNames: string[] }> {
+async function getUserVisibilityScope(userId: string): Promise<{ scope: TaskVisibilityScope; roleNames: string[] }> {
   try {
     // Check user roles cache first
     const userCacheEntry = userRolesCache.get(userId);
@@ -217,7 +162,7 @@ async function getUserVisibilityScope(userId: string): Promise<{ scope: string; 
     }
 
     // Determine visibility scope based on roles
-    let scope = "user"; // Default to most restrictive
+    let scope: TaskVisibilityScope = "user"; // Default to most restrictive
     
     if (roleNames.includes('admin')) {
       scope = "organization";
@@ -228,7 +173,7 @@ async function getUserVisibilityScope(userId: string): Promise<{ scope: string; 
     return { scope, roleNames };
   } catch (error) {
     console.error('Error getting user visibility scope:', error);
-    return { scope: "user", roleNames: [] };
+      return { scope: "user", roleNames: [] };
   }
 }
 
@@ -341,7 +286,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/users", requireManagerOrAdmin, async (req, res) => {
     try {
       const userId = req.headers['x-user-id'] as string;
-      const { scope, roleNames } = await getUserVisibilityScope(userId);
+      const { scope } = await getUserVisibilityScope(userId);
       
       let users;
       
@@ -633,19 +578,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         if (scope === "team") {
           const allUsers = await storage.getAllUsers();
-          visibleUserIds = allUsers
-            .filter((u: any) => u.manager === userId || u.id === userId)
-            .map((u: any) => u.id);
+          visibleUserIds = getTeamVisibleUserIds(userId, allUsers);
         }
 
         // A regular user can supply filters, but never another assignee.
         // Admins retain organization-wide access, optionally narrowed by
         // assignedTo.
-        if (scope === "user") {
-          filters.assignedTo = userId;
-        }
+        const scopedFilters = applyTaskVisibilityScope(filters, scope, userId);
 
-        const result = await storage.getTasksPaginated(filters, visibleUserIds);
+        const result = await storage.getTasksPaginated(scopedFilters, visibleUserIds);
         return res.json(result);
       }
       

@@ -1,7 +1,7 @@
 // API client for communicating with our Express server
 // Replaces all Supabase client calls
 
-const API_BASE = import.meta.env.VITE_API_BASE || '';
+const API_BASE = import.meta.env?.VITE_API_BASE || '';
 
 class ApiClient {
   private async request(endpoint: string, options: RequestInit = {}) {
