@@ -131,34 +131,34 @@ export default function TaskCard({ task, onTaskUpdated, canDelete, statusColor, 
       style={dynamicCardStyling}
     >
       {/* Floating top/center actions visible on hover */}
-      <div className="absolute left-1/2 top-2 -translate-x-1/2 z-10 flex gap-2 sm:gap-4 opacity-0 group-hover:opacity-100 transition-all">
+      <div className="absolute left-1/2 top-1.5 -translate-x-1/2 z-10 flex gap-0.5 rounded-md bg-background/95 p-0.5 opacity-0 shadow-sm ring-1 ring-border group-hover:opacity-100 transition-all">
         {/* Edit icon always present */}
         <EditTaskSheet task={task} onUpdated={onTaskUpdated}>
-          <Button size="icon" variant="ghost" className="text-gray-400 hover:text-blue-600 h-8 w-8 sm:h-10 sm:w-10" title="Edit Task">
-            <Edit size={16} className="sm:w-5 sm:h-5" />
+          <Button size="icon" variant="ghost" className="h-7 w-7 text-gray-400 hover:text-blue-600" title="Edit Task">
+            <Edit size={14} />
           </Button>
         </EditTaskSheet>
         {/* Delete icon */}
         <Button
           size="icon"
           variant="ghost"
-          className={`text-gray-400 h-8 w-8 sm:h-10 sm:w-10 ${canDelete(task.status) ? "hover:text-red-600" : "opacity-60 cursor-not-allowed"}`}
+          className={`h-7 w-7 text-gray-400 ${canDelete(task.status) ? "hover:text-red-600" : "opacity-60 cursor-not-allowed"}`}
           title={canDelete(task.status) ? "Delete Task" : "Cannot delete tasks with this status"}
           onClick={() => canDelete(task.status) && handleDeleteTask(task.id)}
           disabled={!canDelete(task.status)}
         >
-          <Trash2 size={16} className="sm:w-5 sm:h-5" />
+          <Trash2 size={14} />
         </Button>
         {/* Mark complete */}
         <Button
           size="icon"
           variant="ghost"
-          className={`text-gray-400 hover:text-green-700 h-8 w-8 sm:h-10 sm:w-10`}
+          className="h-7 w-7 text-gray-400 hover:text-green-700"
           title={task.status === "completed" ? "Already completed" : "Mark as Complete"}
           onClick={() => handleCompleteTask(task)}
           disabled={task.status === "completed"}
         >
-          <Check size={16} className="sm:w-5 sm:h-5" />
+          <Check size={14} />
         </Button>
         {/* Workspace icon */}
         <WorkspaceDialog
@@ -166,11 +166,11 @@ export default function TaskCard({ task, onTaskUpdated, canDelete, statusColor, 
           entityId={task.id}
           trigger={(open) => (
             <Button size="icon" variant="ghost"
-              className="text-gray-400 hover:text-indigo-600 h-8 w-8 sm:h-10 sm:w-10"
+              className="h-7 w-7 text-gray-400 hover:text-indigo-600"
               title="Open Workspace"
               onClick={(e) => { e.stopPropagation(); open(); }}
             >
-              <MessageSquare size={16} className="sm:w-5 sm:h-5" />
+              <MessageSquare size={14} />
             </Button>
           )}
         />
@@ -178,8 +178,8 @@ export default function TaskCard({ task, onTaskUpdated, canDelete, statusColor, 
 
       {/* Card header and summary */}
       <CardHeader className={compact ? "!px-4 !py-3" : "pb-2"}>
-        <div className={`flex flex-col sm:flex-row sm:justify-between sm:items-center ${compact ? "gap-1" : "gap-2"}`}>
-          <div className={`flex items-center min-w-0 ${compact ? "gap-1.5" : "gap-2"}`}>
+        <div className={compact ? "flex flex-wrap items-center gap-x-3 gap-y-1" : "flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"}>
+          <div className={`flex items-center min-w-0 ${compact ? "flex-1 gap-1.5" : "gap-2"}`}>
             {task.task_number && (
               <span className={`font-mono bg-gray-100 dark:bg-gray-800 rounded border flex-shrink-0 ${compact ? "text-[11px] px-1.5 py-0.5" : "text-xs px-2 py-1"}`}>
                 #{task.task_number}
@@ -243,11 +243,31 @@ export default function TaskCard({ task, onTaskUpdated, canDelete, statusColor, 
               </Badge>
             )}
           </div>
+          {compact && (
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+              <span><strong className="font-semibold text-foreground/75">Status:</strong> <span className="capitalize">{task.status}</span></span>
+              <span><strong className="font-semibold text-foreground/75">Due:</strong> {task.due_date ? formatOrgDate(task.due_date) : "No due date"}</span>
+              <span><strong className="font-semibold text-foreground/75">Created:</strong> {task.created_at ? formatOrgDate(task.created_at) : "-"}</span>
+              <span className="max-w-[200px] truncate">
+                <strong className="font-semibold text-foreground/75">Assigned:</strong>{" "}
+                {task.assigned_user
+                  ? task.assigned_user.user_name || task.assigned_user.email
+                  : task.assigned_to
+                  ? getUserName(task.assigned_to)
+                  : "-"}
+              </span>
+              {task.status === "completed" && task.actual_completion_date && (
+                <span><strong className="font-semibold text-foreground/75">Completed:</strong> {formatOrgDate(task.actual_completion_date)}</span>
+              )}
+            </div>
+          )}
         </div>
-        <div className={`mt-1 text-xs text-muted-foreground ${compact ? "line-clamp-1" : "line-clamp-2"}`}>{task.description}</div>
+        {!compact && <div className="mt-1 line-clamp-2 text-xs text-muted-foreground">{task.description}</div>}
       </CardHeader>
-      <CardContent className={compact ? "!px-4 !pb-3 !pt-0" : undefined}>
-        <div className={`flex flex-col md:flex-row md:items-center text-sm ${compact ? "md:gap-4 gap-1.5 text-xs" : "md:gap-6 gap-2"}`}>
+      {(!compact || task.is_time_managed) && (
+      <CardContent className={compact ? "!px-4 !pb-2 !pt-0" : undefined}>
+        {!compact && (
+        <div className="flex flex-col gap-2 text-sm md:flex-row md:items-center md:gap-6">
           <div>
             <span className="font-semibold">Status:</span>{" "}
             <span className="capitalize">{task.status}</span>
@@ -279,14 +299,16 @@ export default function TaskCard({ task, onTaskUpdated, canDelete, statusColor, 
             </div>
           )}
         </div>
+        )}
         
         {/* Timer component for time-managed tasks */}
         {task.is_time_managed && (
           <div className={compact ? "mt-2" : "mt-4"}>
-            <TaskTimer task={task} onTaskUpdated={onTaskUpdated} compact={false} />
+            <TaskTimer task={task} onTaskUpdated={onTaskUpdated} compact={compact} />
           </div>
         )}
       </CardContent>
+      )}
     </Card>
   );
 }
