@@ -93,6 +93,144 @@ const requirePortalAuth = (req: any, res: any, next: any) => {
   next();
 };
 
+const DEFAULT_PROJECT_SETTINGS = {
+  visibility: "private",
+  timeZone: "UTC",
+  planning: {
+    enabled: true,
+    methodology: "manual",
+    allowAiPlanning: true,
+    allowPlanningApproval: false,
+    allowPhases: true,
+    allowStages: true,
+    allowMilestones: true,
+    allowFeatureGroups: true,
+    allowUserStories: true,
+    allowDependencies: true,
+    granularity: "task",
+  },
+  finance: {
+    trackFinance: true,
+    trackPeopleCost: false,
+    peopleCostVisibility: ["organization_admin", "finance", "project_manager"],
+    visibility: {
+      budget: ["organization_admin", "finance", "project_manager"],
+      expenses: ["organization_admin", "finance", "project_manager"],
+      resourceCost: ["organization_admin", "finance", "project_manager"],
+      profitability: ["organization_admin", "finance"],
+    },
+  },
+  quality: {
+    defectManagement: true,
+    testCaseManagement: true,
+    allowClientDefectCreation: false,
+    allowClientTestCaseVisibility: false,
+    allowClientTestExecution: false,
+    requireTestCasesForFeatureCompletion: false,
+    requireTestCasesForMilestoneCompletion: false,
+    requireDefectsResolvedForMilestoneClosure: false,
+  },
+  collaboration: {
+    workspaceEnabled: true,
+    internalCollaboration: true,
+    clientCollaboration: false,
+    clientComments: false,
+    clientFileUpload: false,
+    clientDefectCreation: false,
+    clientActivityVisibility: false,
+    clientDecisionVisibility: false,
+    clientWorkspaceAccess: false,
+  },
+  notifications: {
+    taskAssigned: { enabled: true, channels: ["in_app"] },
+    taskCompleted: { enabled: true, channels: ["in_app"] },
+    taskOverdue: { enabled: true, channels: ["in_app"] },
+    milestoneCompleted: { enabled: true, channels: ["in_app"] },
+    milestoneDelayed: { enabled: true, channels: ["in_app"] },
+    defectCreated: { enabled: true, channels: ["in_app"] },
+    defectAssigned: { enabled: true, channels: ["in_app"] },
+    defectResolved: { enabled: true, channels: ["in_app"] },
+    defectReopened: { enabled: true, channels: ["in_app"] },
+    workspaceMention: { enabled: true, channels: ["in_app"] },
+    workspaceComment: { enabled: true, channels: ["in_app"] },
+    planningUpdated: { enabled: true, channels: ["in_app"] },
+    planningApprovalRequired: { enabled: true, channels: ["in_app"] },
+    financeEntryAdded: { enabled: true, channels: ["in_app"] },
+    budgetThresholdReached: { enabled: true, channels: ["in_app"] },
+    clientActivity: { enabled: false, channels: ["in_app"] },
+  },
+};
+
+const PROJECT_SETTING_ENUMS = {
+  visibility: ["private", "organization", "client"],
+  methodology: ["manual", "complexity_based", "component_based", "function_point", "story_point", "historical", "custom"],
+  granularity: ["project", "phase", "stage", "milestone", "feature_group", "feature", "user_story", "task"],
+  peopleCostVisibility: ["organization_admin", "finance", "project_manager", "team_lead", "project_member", "client"],
+};
+
+function isRecord(value: unknown): value is Record<string, any> {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+function mergeProjectSettings(saved: any): Record<string, any> {
+  const source = isRecord(saved) ? saved : {};
+  return {
+    ...DEFAULT_PROJECT_SETTINGS,
+    ...source,
+    planning: { ...DEFAULT_PROJECT_SETTINGS.planning, ...(isRecord(source.planning) ? source.planning : {}) },
+    finance: {
+      ...DEFAULT_PROJECT_SETTINGS.finance,
+      ...(isRecord(source.finance) ? source.finance : {}),
+      visibility: {
+        ...DEFAULT_PROJECT_SETTINGS.finance.visibility,
+        ...(isRecord(source.finance?.visibility) ? source.finance.visibility : {}),
+      },
+    },
+    quality: { ...DEFAULT_PROJECT_SETTINGS.quality, ...(isRecord(source.quality) ? source.quality : {}) },
+    collaboration: { ...DEFAULT_PROJECT_SETTINGS.collaboration, ...(isRecord(source.collaboration) ? source.collaboration : {}) },
+    notifications: { ...DEFAULT_PROJECT_SETTINGS.notifications, ...(isRecord(source.notifications) ? source.notifications : {}) },
+  };
+}
+
+function validateProjectSettings(input: unknown): { settings?: Record<string, any>; error?: string } {
+  if (!isRecord(input)) return { error: "settings must be an object" };
+  const settings = mergeProjectSettings(input);
+  if (!PROJECT_SETTING_ENUMS.visibility.includes(settings.visibility)) return { error: "Unsupported project visibility" };
+  if (!PROJECT_SETTING_ENUMS.methodology.includes(settings.planning.methodology)) return { error: "Unsupported planning methodology" };
+  if (!PROJECT_SETTING_ENUMS.granularity.includes(settings.planning.granularity)) return { error: "Unsupported planning granularity" };
+
+  const booleanGroups = ["planning", "finance", "quality", "collaboration"] as const;
+  for (const group of booleanGroups) {
+    for (const [key, value] of Object.entries(settings[group])) {
+      if (key === "peopleCostVisibility" || key === "visibility" || key === "methodology" || key === "granularity") continue;
+      if (typeof value !== "boolean") return { error: `${group}.${key} must be boolean` };
+    }
+  }
+  if (!Array.isArray(settings.finance.peopleCostVisibility) ||
+      settings.finance.peopleCostVisibility.some((role: unknown) => !PROJECT_SETTING_ENUMS.peopleCostVisibility.includes(role as string))) {
+    return { error: "Invalid people cost visibility role" };
+  }
+  for (const key of ["budget", "expenses", "resourceCost", "profitability"]) {
+    const roles = settings.finance.visibility[key];
+    if (!Array.isArray(roles) || roles.some((role: unknown) => !PROJECT_SETTING_ENUMS.peopleCostVisibility.includes(role as string))) {
+      return { error: `Invalid finance visibility for ${key}` };
+    }
+  }
+  for (const [event, config] of Object.entries(settings.notifications)) {
+    if (!isRecord(config) || typeof config.enabled !== "boolean" ||
+        !Array.isArray(config.channels) || config.channels.some((channel: unknown) => channel !== "in_app")) {
+      return { error: `Invalid notification configuration for ${event}` };
+    }
+  }
+  return { settings };
+}
+
+function changedSettingEntries(before: Record<string, any>, after: Record<string, any>) {
+  return Object.keys(after)
+    .filter((key) => JSON.stringify(before[key]) !== JSON.stringify(after[key]))
+    .map((key) => ({ key, previous: before[key] ?? null, next: after[key] ?? null }));
+}
+
 function getTaskDateKey(value: unknown): string | null {
   if (!value) return null;
   if (typeof value === "string") {
@@ -1966,6 +2104,219 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(project);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch project" });
+    }
+  });
+
+  // ========== PROJECT SETTINGS ==========
+  // The Settings tab uses this structured configuration alongside existing
+  // project fields. Missing rows resolve to safe defaults for older projects.
+  app.get("/api/projects/:id/settings", requireAnyAuthenticated, async (req, res) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project) return res.status(404).json({ error: "Project not found" });
+      const saved = await storage.getProjectSettings(req.params.id);
+      const financeHeads = await storage.getProjectFinanceHeads(req.params.id);
+      const audit = await storage.getProjectSettingAudit(req.params.id);
+      res.json({
+        project,
+        settings: mergeProjectSettings(saved?.settings),
+        financeHeads,
+        audit,
+      });
+    } catch (error) {
+      console.error("Failed to fetch project settings:", error);
+      res.status(500).json({ error: "Failed to fetch project settings" });
+    }
+  });
+
+  app.put("/api/projects/:id/settings", requireManagerOrAdmin, async (req, res) => {
+    try {
+      const userId = req.headers["x-user-id"] as string;
+      const project = await storage.getProject(req.params.id);
+      if (!project) return res.status(404).json({ error: "Project not found" });
+
+      const parsed = validateProjectSettings(req.body?.settings);
+      if (parsed.error || !parsed.settings) {
+        return res.status(400).json({ error: parsed.error ?? "Invalid project settings" });
+      }
+
+      const projectUpdates: Record<string, any> = {};
+      const allowedProjectFields = [
+        "name", "project_code", "description", "project_type", "status",
+        "start_date", "projected_end_date", "currency", "client_id", "client_name",
+      ];
+      for (const field of allowedProjectFields) {
+        if (Object.prototype.hasOwnProperty.call(req.body?.projectUpdates ?? {}, field)) {
+          projectUpdates[field] = req.body.projectUpdates[field];
+        }
+      }
+      if (projectUpdates.name !== undefined && !String(projectUpdates.name).trim()) {
+        return res.status(400).json({ error: "Project name is required" });
+      }
+      if (projectUpdates.project_code !== undefined) {
+        const code = String(projectUpdates.project_code).trim().toUpperCase();
+        if (!code) return res.status(400).json({ error: "Project code is required" });
+        const projects = await storage.getAllProjects();
+        if (projects.some((candidate) => candidate.id !== project.id &&
+            (candidate as any).project_code?.toUpperCase() === code)) {
+          return res.status(409).json({ error: "Project code must be unique" });
+        }
+        projectUpdates.project_code = code;
+      }
+      if (projectUpdates.start_date && projectUpdates.projected_end_date &&
+          new Date(projectUpdates.start_date) > new Date(projectUpdates.projected_end_date)) {
+        return res.status(400).json({ error: "Planned start date must be on or before target end date" });
+      }
+      if (projectUpdates.project_type !== undefined &&
+          !["fixed_cost", "time_material", "milestone", "retainer"].includes(projectUpdates.project_type)) {
+        return res.status(400).json({ error: "Unsupported project type" });
+      }
+      if (projectUpdates.status !== undefined &&
+          !["planning", "active", "on_hold", "completed", "cancelled"].includes(projectUpdates.status)) {
+        return res.status(400).json({ error: "Unsupported project status" });
+      }
+
+      const saved = await storage.getProjectSettings(req.params.id);
+      const previousSettings = mergeProjectSettings(saved?.settings);
+      const nextSettings = parsed.settings;
+      const auditEntries = changedSettingEntries(previousSettings, nextSettings);
+      const currentMembers = await storage.getProjectMembers(req.params.id);
+      const currentManager = currentMembers.find((member) => member.member_type === "project_manager");
+      const requestedManagerId = req.body?.managerId === undefined ? undefined : (req.body.managerId || null);
+      if (requestedManagerId !== undefined) {
+        const requestedManager = requestedManagerId
+          ? currentMembers.find((member) => member.user_id === requestedManagerId && member.member_user_type !== "client_contact")
+          : null;
+        if (requestedManagerId && !requestedManager) {
+          return res.status(400).json({ error: "Project Manager must already be an active project member" });
+        }
+        if (requestedManagerId !== currentManager?.user_id) {
+          for (const member of currentMembers) {
+            if (member.member_type === "project_manager" && member.id !== requestedManager?.id) {
+              await storage.updateProjectMember(member.id, { member_type: "member" });
+            }
+          }
+          if (requestedManager) {
+            await storage.updateProjectMember(requestedManager.id, { member_type: "project_manager" });
+          }
+          await storage.addProjectSettingAudit({
+            project_id: req.params.id,
+            setting_key: "general.project_manager",
+            previous_value: currentManager?.user_id ?? null,
+            new_value: requestedManagerId,
+            changed_by: userId,
+          });
+        }
+      }
+
+      if (Object.keys(projectUpdates).length > 0) {
+        const oldProject = project;
+        const updatedProject = await storage.updateProject(req.params.id, projectUpdates);
+        for (const field of Object.keys(projectUpdates)) {
+          const oldValue = (oldProject as any)[field] ?? null;
+          const newValue = (updatedProject as any)[field] ?? null;
+          if (JSON.stringify(oldValue) !== JSON.stringify(newValue)) {
+            await storage.addProjectSettingAudit({
+              project_id: req.params.id,
+              setting_key: `general.${field}`,
+              previous_value: oldValue,
+              new_value: newValue,
+              changed_by: userId,
+            });
+          }
+        }
+      }
+      await storage.saveProjectSettings(req.params.id, nextSettings, userId);
+      for (const entry of auditEntries) {
+        await storage.addProjectSettingAudit({
+          project_id: req.params.id,
+          setting_key: entry.key,
+          previous_value: entry.previous,
+          new_value: entry.next,
+          changed_by: userId,
+        });
+      }
+
+      const updatedProject = await storage.getProject(req.params.id);
+      res.json({ project: updatedProject, settings: nextSettings });
+    } catch (error: any) {
+      console.error("Failed to update project settings:", error);
+      res.status(400).json({ error: error?.message || "Failed to update project settings" });
+    }
+  });
+
+  app.get("/api/projects/:id/settings/finance-heads", requireAnyAuthenticated, async (req, res) => {
+    try {
+      res.json(await storage.getProjectFinanceHeads(req.params.id));
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch finance heads" });
+    }
+  });
+
+  app.post("/api/projects/:id/settings/finance-heads", requireManagerOrAdmin, async (req, res) => {
+    try {
+      const userId = req.headers["x-user-id"] as string;
+      const name = String(req.body?.name ?? "").trim();
+      const code = String(req.body?.code ?? "").trim().toUpperCase();
+      if (!name || !code) return res.status(400).json({ error: "Finance head name and code are required" });
+      const existing = await storage.getProjectFinanceHeads(req.params.id);
+      if (existing.some((head) => head.name.toLowerCase() === name.toLowerCase() || head.code.toUpperCase() === code)) {
+        return res.status(409).json({ error: "Finance head name and code must be unique within this project" });
+      }
+      const head = await storage.createProjectFinanceHead({
+        project_id: req.params.id,
+        name,
+        code,
+        description: req.body.description ? String(req.body.description).trim() : null,
+        is_active: req.body.is_active !== false,
+        budget_allowed: req.body.budget_allowed !== false,
+        actual_expense_allowed: req.body.actual_expense_allowed !== false,
+        created_by: userId,
+      });
+      res.status(201).json(head);
+    } catch (error: any) {
+      res.status(400).json({ error: error?.message || "Failed to create finance head" });
+    }
+  });
+
+  app.put("/api/projects/:id/settings/finance-heads/:headId", requireManagerOrAdmin, async (req, res) => {
+    try {
+      const current = (await storage.getProjectFinanceHeads(req.params.id))
+        .find((head) => head.id === req.params.headId);
+      if (!current) return res.status(404).json({ error: "Finance head not found" });
+      const name = req.body?.name !== undefined ? String(req.body.name).trim() : current.name;
+      const code = req.body?.code !== undefined ? String(req.body.code).trim().toUpperCase() : current.code;
+      if (!name || !code) return res.status(400).json({ error: "Finance head name and code are required" });
+      const existing = await storage.getProjectFinanceHeads(req.params.id);
+      if (existing.some((head) => head.id !== current.id &&
+          (head.name.toLowerCase() === name.toLowerCase() || head.code.toUpperCase() === code))) {
+        return res.status(409).json({ error: "Finance head name and code must be unique within this project" });
+      }
+      const head = await storage.updateProjectFinanceHead(req.params.headId, {
+        name,
+        code,
+        description: req.body.description !== undefined ? (req.body.description ? String(req.body.description).trim() : null) : current.description,
+        is_active: req.body.is_active ?? current.is_active,
+        budget_allowed: req.body.budget_allowed ?? current.budget_allowed,
+        actual_expense_allowed: req.body.actual_expense_allowed ?? current.actual_expense_allowed,
+      });
+      res.json(head);
+    } catch (error: any) {
+      res.status(400).json({ error: error?.message || "Failed to update finance head" });
+    }
+  });
+
+  app.delete("/api/projects/:id/settings/finance-heads/:headId", requireManagerOrAdmin, async (req, res) => {
+    try {
+      const current = (await storage.getProjectFinanceHeads(req.params.id))
+        .find((head) => head.id === req.params.headId);
+      if (!current) return res.status(404).json({ error: "Finance head not found" });
+      // No finance transaction entity exists yet. When one is introduced, this
+      // endpoint should return a conflict for used heads and offer deactivation.
+      await storage.deleteProjectFinanceHead(req.params.headId);
+      res.status(204).send();
+    } catch (error) {
+      res.status(400).json({ error: "Failed to delete finance head" });
     }
   });
 

@@ -1,4 +1,4 @@
-import { useState, type ComponentType } from "react";
+import { useEffect, useState, type ComponentType } from "react";
 import WorkspaceTab from "@/components/WorkspaceTab";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -28,6 +28,7 @@ import {
   BarChart3, FileText, FolderOpen, ArrowRight, Target, Network, Settings2,
 } from "lucide-react";
 import PlanningWorkspace from "@/components/planning/PlanningWorkspace";
+import ProjectSettingsPanel from "@/components/project/ProjectSettingsPanel";
 import { format, differenceInDays } from "date-fns";
 import type {
   Project, ProjectTemplate, ProjectMember, ProjectMemberHistory,
@@ -309,6 +310,12 @@ export default function ProjectDetail() {
   const { data: project, isLoading } = useQuery<Project>({
     queryKey: ["/api/projects", id],
     queryFn: () => apiClient.get(`/projects/${id}`),
+    enabled: !!id,
+  });
+
+  const { data: projectSettingsData } = useQuery<any>({
+    queryKey: ["/api/projects", id, "settings"],
+    queryFn: () => apiClient.get(`/projects/${id}/settings`),
     enabled: !!id,
   });
 
@@ -712,7 +719,21 @@ export default function ProjectDetail() {
     { id: "finance",     label: "Finance",     icon: DollarSign },
     { id: "documents",   label: "Documents",   icon: FileText },
     { id: "settings",    label: "Settings",    icon: Settings2 },
-  ];
+  ].filter((item) => {
+    const configured = projectSettingsData?.settings;
+    if (!configured) return true;
+    if (item.id === "planning" && configured.planning?.enabled === false) return false;
+    if (item.id === "workspace" && configured.collaboration?.workspaceEnabled === false) return false;
+    if (item.id === "defects" && configured.quality?.defectManagement === false) return false;
+    if (item.id === "finance" && configured.finance?.trackFinance === false) return false;
+    return true;
+  });
+
+  useEffect(() => {
+    if (activeSection !== "settings" && !navItems.some((item) => item.id === activeSection)) {
+      setActiveSection("overview");
+    }
+  }, [activeSection, projectSettingsData?.settings]);
 
   if (isLoading) {
     return (
@@ -942,10 +963,12 @@ export default function ProjectDetail() {
               />
             )}
             {activeSection === "settings" && (
-              <LaunchingSoonSection
-                icon={Settings2}
-                title="Project Settings"
-                description="This area will contain project-related configuration and settings."
+              <ProjectSettingsPanel
+                project={project}
+                users={users}
+                clients={clients}
+                members={members}
+                onNavigate={setActiveSection}
               />
             )}
 

@@ -33,6 +33,7 @@ export const organizationSettings = pgTable("organization_settings", {
 export const projects = pgTable("projects", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),
+  project_code: text("project_code"),
   client_name: text("client_name"),
   template_id: uuid("template_id").references(() => projectTemplates.id),
   project_type: text("project_type").notNull().default("fixed_cost"),
@@ -55,6 +56,44 @@ export const projects = pgTable("projects", {
   created_by: uuid("created_by").references(() => users.id),
   created_at: timestamp("created_at").defaultNow(),
   updated_at: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  projectCodeUnique: unique("projects_project_code_unique").on(table.project_code),
+}));
+
+// Project configuration is kept separate from operational project records.
+// General fields that already belong to projects remain on `projects`.
+export const projectSettings = pgTable("project_settings", {
+  project_id: uuid("project_id").primaryKey().references(() => projects.id, { onDelete: "cascade" }),
+  settings: jsonb("settings").notNull(),
+  updated_by: uuid("updated_by").references(() => users.id, { onDelete: "set null" }),
+  created_at: timestamp("created_at").defaultNow(),
+  updated_at: timestamp("updated_at").defaultNow(),
+});
+
+export const projectFinanceHeads = pgTable("project_finance_heads", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  project_id: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  code: text("code").notNull(),
+  description: text("description"),
+  is_active: boolean("is_active").notNull().default(true),
+  budget_allowed: boolean("budget_allowed").notNull().default(true),
+  actual_expense_allowed: boolean("actual_expense_allowed").notNull().default(true),
+  created_by: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+  created_at: timestamp("created_at").defaultNow(),
+  updated_at: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  projectCodeUnique: unique("project_finance_heads_project_code_unique").on(table.project_id, table.code),
+}));
+
+export const projectSettingAudit = pgTable("project_setting_audit", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  project_id: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  setting_key: text("setting_key").notNull(),
+  previous_value: jsonb("previous_value"),
+  new_value: jsonb("new_value"),
+  changed_by: uuid("changed_by").references(() => users.id, { onDelete: "set null" }),
+  created_at: timestamp("created_at").defaultNow(),
 });
 
 // Project Members table (current state)
@@ -811,6 +850,9 @@ export type InsertProjectTemplateStage = z.infer<typeof insertProjectTemplateSta
 export type ProjectTemplateStage = typeof projectTemplateStages.$inferSelect;
 export type InsertProject = z.infer<typeof insertProjectSchema>;
 export type Project = typeof projects.$inferSelect;
+export type ProjectSettings = typeof projectSettings.$inferSelect;
+export type ProjectFinanceHead = typeof projectFinanceHeads.$inferSelect;
+export type ProjectSettingAudit = typeof projectSettingAudit.$inferSelect;
 export type InsertProjectMember = z.infer<typeof insertProjectMemberSchema>;
 export type ProjectMember = typeof projectMembers.$inferSelect;
 export type InsertProjectMemberHistory = z.infer<typeof insertProjectMemberHistorySchema>;

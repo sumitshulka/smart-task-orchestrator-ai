@@ -23,6 +23,9 @@ import {
   projectTemplates,
   projectTemplateStages,
   projects,
+  projectSettings,
+  projectFinanceHeads,
+  projectSettingAudit,
   projectMembers,
   projectMemberHistory,
   projectMilestones,
@@ -71,6 +74,9 @@ import {
   InsertProjectTemplateStage,
   Project,
   InsertProject,
+  ProjectSettings,
+  ProjectFinanceHead,
+  ProjectSettingAudit,
   ProjectMember,
   InsertProjectMember,
   ProjectMemberHistory,
@@ -258,6 +264,14 @@ export interface IStorage {
   updateProject(id: string, updates: Partial<Project>): Promise<Project>;
   deleteProject(id: string): Promise<void>;
   confirmProject(id: string): Promise<Project>;
+  getProjectSettings(projectId: string): Promise<ProjectSettings | undefined>;
+  saveProjectSettings(projectId: string, settings: Record<string, unknown>, updatedBy: string): Promise<ProjectSettings>;
+  getProjectFinanceHeads(projectId: string): Promise<ProjectFinanceHead[]>;
+  createProjectFinanceHead(head: Omit<ProjectFinanceHead, "id" | "created_at" | "updated_at">): Promise<ProjectFinanceHead>;
+  updateProjectFinanceHead(id: string, updates: Partial<ProjectFinanceHead>): Promise<ProjectFinanceHead>;
+  deleteProjectFinanceHead(id: string): Promise<void>;
+  getProjectSettingAudit(projectId: string): Promise<ProjectSettingAudit[]>;
+  addProjectSettingAudit(entry: Omit<ProjectSettingAudit, "id" | "created_at">): Promise<ProjectSettingAudit>;
 
   // Project member operations
   getProjectMembers(projectId: string): Promise<ProjectMember[]>;
@@ -1448,6 +1462,69 @@ export class DatabaseStorage implements IStorage {
     const result = await db.update(projects).set({ ...updates, updated_at: new Date() }).where(eq(projects.id, id)).returning();
     if (!result[0]) throw new Error("Project not found");
     return result[0];
+  }
+
+  async getProjectSettings(projectId: string): Promise<ProjectSettings | undefined> {
+    const result = await db.select().from(projectSettings)
+      .where(eq(projectSettings.project_id, projectId))
+      .limit(1);
+    return result[0];
+  }
+
+  async saveProjectSettings(
+    projectId: string,
+    settings: Record<string, unknown>,
+    updatedBy: string,
+  ): Promise<ProjectSettings> {
+    const [result] = await db.insert(projectSettings).values({
+      project_id: projectId,
+      settings,
+      updated_by: updatedBy,
+    }).onConflictDoUpdate({
+      target: projectSettings.project_id,
+      set: { settings, updated_by: updatedBy, updated_at: new Date() },
+    }).returning();
+    return result;
+  }
+
+  async getProjectFinanceHeads(projectId: string): Promise<ProjectFinanceHead[]> {
+    return await db.select().from(projectFinanceHeads)
+      .where(eq(projectFinanceHeads.project_id, projectId))
+      .orderBy(asc(projectFinanceHeads.name));
+  }
+
+  async createProjectFinanceHead(
+    head: Omit<ProjectFinanceHead, "id" | "created_at" | "updated_at">,
+  ): Promise<ProjectFinanceHead> {
+    const [result] = await db.insert(projectFinanceHeads).values(head).returning();
+    return result;
+  }
+
+  async updateProjectFinanceHead(id: string, updates: Partial<ProjectFinanceHead>): Promise<ProjectFinanceHead> {
+    const [result] = await db.update(projectFinanceHeads)
+      .set({ ...updates, updated_at: new Date() })
+      .where(eq(projectFinanceHeads.id, id))
+      .returning();
+    if (!result) throw new Error("Finance head not found");
+    return result;
+  }
+
+  async deleteProjectFinanceHead(id: string): Promise<void> {
+    await db.delete(projectFinanceHeads).where(eq(projectFinanceHeads.id, id));
+  }
+
+  async getProjectSettingAudit(projectId: string): Promise<ProjectSettingAudit[]> {
+    return await db.select().from(projectSettingAudit)
+      .where(eq(projectSettingAudit.project_id, projectId))
+      .orderBy(desc(projectSettingAudit.created_at))
+      .limit(50);
+  }
+
+  async addProjectSettingAudit(
+    entry: Omit<ProjectSettingAudit, "id" | "created_at">,
+  ): Promise<ProjectSettingAudit> {
+    const [result] = await db.insert(projectSettingAudit).values(entry).returning();
+    return result;
   }
 
   async deleteProject(id: string): Promise<void> {
