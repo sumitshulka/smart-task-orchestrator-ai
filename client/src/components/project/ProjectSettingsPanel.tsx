@@ -437,6 +437,110 @@ function ResourceSalaryRecordRow({
   );
 }
 
+type FinanceHeadRowProps = {
+  head?: any;
+  canEdit: boolean;
+  onSave: (payload: {
+    id?: string;
+    name: string;
+    code: string;
+    description: string;
+    is_active: boolean;
+    budget_allowed: boolean;
+    actual_expense_allowed: boolean;
+  }) => void;
+  onDelete: (id: string) => void;
+  isSaving: boolean;
+  isDeleting: boolean;
+};
+
+function FinanceHeadRow({ head, canEdit, onSave, onDelete, isSaving, isDeleting }: FinanceHeadRowProps) {
+  const [form, setForm] = useState({
+    name: head?.name ?? "",
+    code: head?.code ?? "",
+    description: head?.description ?? "",
+    is_active: head?.is_active ?? true,
+    budget_allowed: head?.budget_allowed ?? true,
+    actual_expense_allowed: head?.actual_expense_allowed ?? true,
+  });
+
+  useEffect(() => {
+    setForm({
+      name: head?.name ?? "",
+      code: head?.code ?? "",
+      description: head?.description ?? "",
+      is_active: head?.is_active ?? true,
+      budget_allowed: head?.budget_allowed ?? true,
+      actual_expense_allowed: head?.actual_expense_allowed ?? true,
+    });
+  }, [head?.id, head?.name, head?.code, head?.description, head?.is_active, head?.budget_allowed, head?.actual_expense_allowed]);
+
+  return (
+    <tr className={`border-t align-top dark:border-gray-800 ${!head ? "bg-indigo-50/40 dark:bg-indigo-950/10" : ""}`}>
+      <td className="px-3 py-3">
+        <Input
+          value={form.code}
+          disabled={!canEdit || isSaving}
+          onChange={(event) => setForm((current) => ({ ...current, code: event.target.value.toUpperCase() }))}
+          placeholder="CODE"
+          className="h-9 min-w-[110px] font-mono uppercase"
+          aria-label="Finance head code"
+        />
+      </td>
+      <td className="px-3 py-3">
+        <Input
+          value={form.name}
+          disabled={!canEdit || isSaving}
+          onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
+          placeholder="Head name"
+          className="h-9 min-w-[160px]"
+          aria-label="Finance head name"
+        />
+      </td>
+      <td className="px-3 py-3">
+        <Textarea
+          value={form.description}
+          disabled={!canEdit || isSaving}
+          onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
+          placeholder="Optional description"
+          rows={2}
+          className="min-w-[220px] resize-y"
+          aria-label="Finance head description"
+        />
+      </td>
+      {(["is_active", "budget_allowed", "actual_expense_allowed"] as const).map((key) => (
+        <td key={key} className="px-3 py-3 text-center">
+          <input
+            type="checkbox"
+            checked={form[key]}
+            disabled={!canEdit || isSaving}
+            onChange={(event) => setForm((current) => ({ ...current, [key]: event.target.checked }))}
+            className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+            aria-label={`${key.replace(/_/g, " ")} for ${form.name || "new finance head"}`}
+          />
+        </td>
+      ))}
+      <td className="px-3 py-3 text-right">
+        <div className="flex min-w-[130px] justify-end gap-1">
+          <Button
+            size="sm"
+            variant={head ? "outline" : "default"}
+            disabled={!canEdit || isSaving || !form.name.trim() || !form.code.trim()}
+            onClick={() => onSave({ ...form, id: head?.id })}
+          >
+            <Save className="mr-1 h-3.5 w-3.5" /> {head ? "Save" : "Add"}
+          </Button>
+          {head && (
+            <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700" onClick={() => onDelete(head.id)} disabled={!canEdit || isDeleting}>
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          )}
+        </div>
+      </td>
+    </tr>
+  );
+}
+
 export default function ProjectSettingsPanel({ project, users, clients, members, onNavigate }: Props) {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("general");
@@ -455,9 +559,6 @@ export default function ProjectSettingsPanel({ project, users, clients, members,
   });
   const [managerId, setManagerId] = useState("");
   const [pendingDisable, setPendingDisable] = useState<{ path: string; label: string; description: string } | null>(null);
-  const [financeHeadDialog, setFinanceHeadDialog] = useState(false);
-  const [editingHead, setEditingHead] = useState<any>(null);
-  const [headForm, setHeadForm] = useState({ name: "", code: "", description: "", is_active: true, budget_allowed: true, actual_expense_allowed: true });
 
   const { data, isLoading } = useQuery<any>({
     queryKey: ["/api/projects", project.id, "settings"],
@@ -537,14 +638,12 @@ export default function ProjectSettingsPanel({ project, users, clients, members,
   });
 
   const financeHeadMutation = useMutation({
-    mutationFn: () => editingHead
-      ? apiClient.put(`/projects/${project.id}/settings/finance-heads/${editingHead.id}`, headForm)
-      : apiClient.post(`/projects/${project.id}/settings/finance-heads`, headForm),
+    mutationFn: (payload: { id?: string; name: string; code: string; description: string; is_active: boolean; budget_allowed: boolean; actual_expense_allowed: boolean }) => payload.id
+      ? apiClient.put(`/projects/${project.id}/settings/finance-heads/${payload.id}`, payload)
+      : apiClient.post(`/projects/${project.id}/settings/finance-heads`, payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects", project.id, "settings"] });
-      setFinanceHeadDialog(false);
-      setEditingHead(null);
-      toast({ title: editingHead ? "Finance head updated" : "Finance head added" });
+      toast({ title: "Finance head saved" });
     },
     onError: (error: any) => toast({ title: "Unable to save finance head", description: error.message, variant: "destructive" }),
   });
@@ -588,14 +687,6 @@ export default function ProjectSettingsPanel({ project, users, clients, members,
     } else {
       updateSetting(path, value);
     }
-  };
-
-  const openFinanceHead = (head?: any) => {
-    setEditingHead(head ?? null);
-    setHeadForm(head
-      ? { name: head.name, code: head.code, description: head.description ?? "", is_active: head.is_active, budget_allowed: head.budget_allowed, actual_expense_allowed: head.actual_expense_allowed }
-      : { name: "", code: "", description: "", is_active: true, budget_allowed: true, actual_expense_allowed: true });
-    setFinanceHeadDialog(true);
   };
 
   const displayUser = (userId: string | null) => {
