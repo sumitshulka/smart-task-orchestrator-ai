@@ -1496,7 +1496,7 @@ export class DatabaseStorage implements IStorage {
   async getProjectFinanceHeads(projectId: string): Promise<ProjectFinanceHead[]> {
     return await db.select().from(projectFinanceHeads)
       .where(eq(projectFinanceHeads.project_id, projectId))
-      .orderBy(asc(projectFinanceHeads.name));
+      .orderBy(asc(projectFinanceHeads.created_at), asc(projectFinanceHeads.name));
   }
 
   async createProjectFinanceHead(
