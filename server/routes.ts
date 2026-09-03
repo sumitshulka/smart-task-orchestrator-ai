@@ -2184,6 +2184,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
           new Date(projectUpdates.start_date) > new Date(projectUpdates.projected_end_date)) {
         return res.status(400).json({ error: "Planned start date must be on or before target end date" });
       }
+      for (const [field, label] of [
+        ["start_date", "start date"],
+        ["projected_end_date", "target end date"],
+      ] as const) {
+        const value = projectUpdates[field];
+        if (value !== undefined && value !== null && Number.isNaN(new Date(value).getTime())) {
+          return res.status(400).json({ error: `Invalid project ${label}` });
+        }
+      }
       if (projectUpdates.project_type !== undefined &&
           !["fixed_cost", "time_material", "milestone", "retainer"].includes(projectUpdates.project_type)) {
         return res.status(400).json({ error: "Unsupported project type" });

@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import PlanningWorkspace from "@/components/planning/PlanningWorkspace";
 import ProjectSettingsPanel from "@/components/project/ProjectSettingsPanel";
+import { filterProjectNavigation } from "./projectNavigation";
 import { format, differenceInDays } from "date-fns";
 import type {
   Project, ProjectTemplate, ProjectMember, ProjectMemberHistory,
@@ -720,21 +721,14 @@ export default function ProjectDetail() {
     { id: "finance",     label: "Finance",     icon: DollarSign },
     { id: "documents",   label: "Documents",   icon: FileText },
     { id: "settings",    label: "Settings",    icon: Settings2 },
-  ].filter((item) => {
-    const configured = projectSettingsData?.settings;
-    if (!configured) return true;
-    if (item.id === "planning" && configured.planning?.enabled === false) return false;
-    if (item.id === "workspace" && configured.collaboration?.workspaceEnabled === false) return false;
-    if (item.id === "defects" && configured.quality?.defectManagement === false) return false;
-    if (item.id === "finance" && configured.finance?.trackFinance === false) return false;
-    return true;
-  });
+  ];
+  const visibleNavItems = filterProjectNavigation(navItems, projectSettingsData?.settings);
 
   useEffect(() => {
-    if (activeSection !== "settings" && !navItems.some((item) => item.id === activeSection)) {
+    if (activeSection !== "settings" && !visibleNavItems.some((item) => item.id === activeSection)) {
       setActiveSection("overview");
     }
-  }, [activeSection, projectSettingsData?.settings]);
+  }, [activeSection, visibleNavItems]);
 
   if (isLoading) {
     return (
@@ -810,7 +804,7 @@ export default function ProjectDetail() {
 
           {/* Navigation */}
           <nav className="flex-1 overflow-y-auto py-2 px-2 space-y-0.5">
-            {navItems.map(item => {
+            {visibleNavItems.map(item => {
               const Icon = item.icon;
               const isActive = activeSection === item.id;
               return (
