@@ -18,7 +18,7 @@ const getStatusKey = (status: string) => {
 
 export default function TasksList({ tasks, onTaskUpdated, canDelete, statuses = [], onOpenDetails }: TasksListProps) {
   return (
-    <div className="grid grid-cols-1 gap-3">
+    <div className="grid grid-cols-1 gap-1.5">
       {tasks.map((task) => {
         const statusObj = statuses.find(s => getStatusKey(s.name) === getStatusKey(task.status));
         return (
