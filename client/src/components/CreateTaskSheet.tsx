@@ -531,24 +531,24 @@ const CreateTaskSheet: React.FC<Props> = ({
           </Button>
         )}
       </SheetTrigger>
-      <SheetContent side="right" className="w-full sm:w-[90vw] md:w-[70vw] lg:w-[50vw] lg:min-w-[800px] max-w-none overflow-y-auto">
-        <form className="p-3 sm:p-6 space-y-4 sm:space-y-8" onSubmit={handleSubmit}>
-          <SheetHeader className="space-y-2 sm:space-y-4 pb-4 sm:pb-6 border-b border-gray-200">
-            <SheetTitle className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900">Create New Task</SheetTitle>
-            <SheetDescription className="text-sm sm:text-base lg:text-lg text-gray-600">
+       <SheetContent side="right" className="w-full sm:w-[90vw] md:w-[70vw] lg:w-[50vw] lg:min-w-[800px] max-w-none overflow-y-auto">
+         <form className="create-task-form p-3 sm:p-4 space-y-3 sm:space-y-4" onSubmit={handleSubmit}>
+           <SheetHeader className="space-y-1 pb-3 border-b border-gray-200">
+             <SheetTitle className="text-xl font-bold text-gray-900">Create New Task</SheetTitle>
+             <SheetDescription className="text-sm text-gray-600">
               Fill in the details below to create a comprehensive task with all necessary information.
             </SheetDescription>
           </SheetHeader>
           {/* SECTION 1: BASIC INFORMATION */}
-          <div className="space-y-3 sm:space-y-4">
-            <div className="bg-gray-50 p-3 sm:p-4 rounded-lg">
-              <h3 className="text-sm sm:text-base font-medium text-gray-800 mb-3 flex items-center">
+           <div className="space-y-2">
+             <div className="bg-gray-50 p-3 rounded-lg">
+               <h3 className="text-sm font-medium text-gray-800 mb-2 flex items-center">
                 <span className="bg-blue-100 text-blue-800 rounded-full w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center text-xs font-bold mr-2">1</span>
                 Basic Information
               </h3>
-              <div className="grid grid-cols-1 gap-3 sm:gap-4">
+               <div className="grid grid-cols-1 gap-2">
                 <div className="md:col-span-2">
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Task Title *</label>
+                   <label className="block text-sm font-semibold text-gray-700 mb-1">Task Title *</label>
                   <Input
                     name="title"
                     value={form.title}
@@ -559,7 +559,7 @@ const CreateTaskSheet: React.FC<Props> = ({
                   />
                 </div>
                 <div className="md:col-span-2">
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Description</label>
+                   <label className="block text-sm font-semibold text-gray-700 mb-1">Description</label>
                   <Textarea
                     name="description"
                     value={form.description}
@@ -573,15 +573,15 @@ const CreateTaskSheet: React.FC<Props> = ({
           </div>
 
           {/* SECTION 2: TASK SETTINGS */}
-          <div className="space-y-3 sm:space-y-4">
-            <div className="bg-green-50 p-3 sm:p-4 rounded-lg">
-              <h3 className="text-sm sm:text-base font-medium text-gray-800 mb-3 flex items-center">
+           <div className="space-y-2">
+             <div className="bg-green-50 p-3 rounded-lg">
+               <h3 className="text-sm font-medium text-gray-800 mb-2 flex items-center">
                 <span className="bg-green-100 text-green-800 rounded-full w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center text-xs font-bold mr-2">2</span>
                 Task Settings
               </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Priority Level</label>
+                   <label className="block text-sm font-semibold text-gray-700 mb-1">Priority Level</label>
                   <select
                     name="priority"
                     value={form.priority}
@@ -594,7 +594,7 @@ const CreateTaskSheet: React.FC<Props> = ({
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Initial Status *</label>
+                   <label className="block text-sm font-semibold text-gray-700 mb-1">Initial Status *</label>
                   <select
                     name="status"
                     value={form.status}
@@ -612,7 +612,7 @@ const CreateTaskSheet: React.FC<Props> = ({
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Estimated Hours <span className="text-red-500">*</span></label>
+                   <label className="block text-sm font-semibold text-gray-700 mb-1">Estimated Hours <span className="text-red-500">*</span></label>
                   <Input
                     name="estimated_hours"
                     value={form.estimated_hours}
@@ -642,15 +642,15 @@ const CreateTaskSheet: React.FC<Props> = ({
           </div>
 
           {/* SECTION 3: TIMELINE */}
-          <div className="space-y-3 sm:space-y-4">
-            <div className="bg-purple-50 p-3 sm:p-4 rounded-lg">
-              <h3 className="text-sm sm:text-base font-medium text-gray-800 mb-3 flex items-center">
+           <div className="space-y-2">
+             <div className="bg-purple-50 p-3 rounded-lg">
+               <h3 className="text-sm font-medium text-gray-800 mb-2 flex items-center">
                 <span className="bg-purple-100 text-purple-800 rounded-full w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center text-xs font-bold mr-2">3</span>
                 Timeline & Scheduling
               </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Start Date <span className="text-red-500">*</span></label>
+                   <label className="block text-sm font-semibold text-gray-700 mb-1">Start Date <span className="text-red-500">*</span></label>
                   <Input
                     name="start_date"
                     type="date"
@@ -672,7 +672,7 @@ const CreateTaskSheet: React.FC<Props> = ({
                   )}
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Expected End Date <span className="text-red-500">*</span></label>
+                   <label className="block text-sm font-semibold text-gray-700 mb-1">Expected End Date <span className="text-red-500">*</span></label>
                   <Input
                     name="due_date"
                     type="date"
@@ -697,15 +697,15 @@ const CreateTaskSheet: React.FC<Props> = ({
           </div>
 
           {/* SECTION 4: ASSIGNMENT */}
-          <div className="space-y-3 sm:space-y-4">
-            <div className="bg-orange-50 p-3 sm:p-4 rounded-lg">
-              <h3 className="text-sm sm:text-base font-medium text-gray-800 mb-3 flex items-center">
+           <div className="space-y-2">
+             <div className="bg-orange-50 p-3 rounded-lg">
+               <h3 className="text-sm font-medium text-gray-800 mb-2 flex items-center">
                 <span className="bg-orange-100 text-orange-800 rounded-full w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center text-xs font-bold mr-2">4</span>
                 Assignment & Responsibility
               </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Assignment Type</label>
+                   <label className="block text-sm font-semibold text-gray-700 mb-1">Assignment Type</label>
                   <select
                     name="type"
                     value={form.type}
@@ -718,30 +718,30 @@ const CreateTaskSheet: React.FC<Props> = ({
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Assigned To</label>
+                   <label className="block text-sm font-semibold text-gray-700 mb-1">Assigned To</label>
                   {renderAssignedToInput()}
                 </div>
               </div>
             </div>
           </div>
           {/* SECTION 5: ADVANCED OPTIONS */}
-          <div className="space-y-3 sm:space-y-4">
-            <div className="bg-gray-50 p-3 sm:p-4 rounded-lg border-2 border-dashed border-gray-300">
-              <h3 className="text-sm sm:text-base font-medium text-gray-800 mb-3 flex items-center">
+           <div className="space-y-2">
+             <div className="bg-gray-50 p-3 rounded-lg border-2 border-dashed border-gray-300">
+               <h3 className="text-sm font-medium text-gray-800 mb-2 flex items-center">
                 <span className="bg-gray-100 text-gray-800 rounded-full w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center text-xs font-bold mr-2">5</span>
                 Advanced Options
               </h3>
               
-              <div className="space-y-4 sm:space-y-6">
+               <div className="space-y-3">
                 {/* Subtask Option */}
-                <div className="bg-white p-4 rounded-lg border border-gray-200">
-                  <label className="flex items-center cursor-pointer text-base font-medium text-gray-700">
+                 <div className="bg-white p-3 rounded-lg border border-gray-200">
+                   <label className="flex items-center cursor-pointer text-sm font-medium text-gray-700">
                     <input
                       type="checkbox"
                       name="isSubTask"
                       checked={form.isSubTask}
                       onChange={handleChange}
-                      className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 mr-3"
+                       className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 mr-2"
                     />
                     <span className="flex items-center">
                       <span className="mr-2">📋</span>
@@ -775,14 +775,14 @@ const CreateTaskSheet: React.FC<Props> = ({
                 </div>
 
                 {/* Dependency Option */}
-                <div className="bg-white p-4 rounded-lg border border-gray-200">
-                  <label className="flex items-center cursor-pointer text-base font-medium text-gray-700">
+                 <div className="bg-white p-3 rounded-lg border border-gray-200">
+                   <label className="flex items-center cursor-pointer text-sm font-medium text-gray-700">
                     <input
                       type="checkbox"
                       name="isDependent"
                       checked={form.isDependent}
                       onChange={handleChange}
-                      className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 mr-3"
+                       className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 mr-2"
                     />
                     <span className="flex items-center">
                       <span className="mr-2">🔗</span>
@@ -931,7 +931,7 @@ const CreateTaskSheet: React.FC<Props> = ({
                 </div>
 
                 {/* Project Linkage */}
-                <div className="bg-white p-4 rounded-lg border border-gray-200">
+                 <div className="bg-white p-3 rounded-lg border border-gray-200">
                   <div className="flex items-center mb-1">
                     <span className="mr-2">🗂️</span>
                     <span className="text-base font-medium text-gray-700">Link to Project</span>
@@ -1006,8 +1006,8 @@ const CreateTaskSheet: React.FC<Props> = ({
           {/* CUSTOM FIELDS */}
           <TaskCustomFields ref={cfRef} open={open} />
 
-          <SheetFooter className="mt-10 pt-6 border-t border-gray-200 flex-col sm:flex-row gap-4">
-            <div className="flex gap-4 w-full">
+          <SheetFooter className="mt-5 pt-3 border-t border-gray-200 flex-col sm:flex-row gap-2">
+            <div className="flex gap-2 w-full">
               <Button 
                 type="submit" 
                 disabled={creating || sessionLoading || !user}
