@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter } from "@/components/ui/sheet";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   Plus, Settings2, FileDown, Sparkles, ChevronDown, ChevronRight, ChevronUp,
@@ -1212,19 +1212,23 @@ function NodeSheet({
 
   return (
     <Sheet open={open} onOpenChange={onClose}>
-      <SheetContent className="w-full max-w-lg flex flex-col" side="right">
-        <SheetHeader>
-          <SheetTitle className="flex items-center gap-2">
+      <SheetContent className="w-full flex flex-col sm:max-w-2xl" side="right">
+        <SheetHeader className="shrink-0 border-b border-gray-100 pb-3 pr-8 dark:border-gray-800">
+          <SheetTitle className="flex items-center gap-2 text-base">
             <cfg.icon className={`h-4 w-4 ${cfg.color}`} />
             {isEdit ? `Edit ${cfg.singularLabel}` : `New ${cfg.singularLabel}`}
           </SheetTitle>
+          <SheetDescription className="text-xs">
+            {isEdit ? "Update the planning details for this item." : "Add this item to the project plan."}
+          </SheetDescription>
         </SheetHeader>
 
-        <div className="flex-1 overflow-y-auto space-y-4 py-4 pr-1">
+        <div className="min-h-0 flex-1 overflow-y-auto space-y-3 py-3 pr-1 [&_label]:text-xs">
           {/* Name / Title */}
-          <div className="space-y-1.5">
-            <Label>{type === "user_story" ? "Story Title" : "Name"} <span className="text-red-500">*</span></Label>
+          <div className="space-y-1">
+            <Label className="font-medium">{type === "user_story" ? "Story Title" : "Name"} <span className="text-red-500">*</span></Label>
             <Input
+              className="h-9 text-sm"
               value={form.name}
               onChange={e => set("name", e.target.value)}
               placeholder={
@@ -1239,25 +1243,25 @@ function NodeSheet({
           </div>
 
           {/* Description */}
-          <div className="space-y-1.5">
-            <Label>Description</Label>
-            <Textarea rows={3} value={form.description} onChange={e => set("description", e.target.value)} className="resize-none" />
+          <div className="space-y-1">
+            <Label className="font-medium">Description</Label>
+            <Textarea rows={3} value={form.description} onChange={e => set("description", e.target.value)} className="resize-none text-sm" />
           </div>
 
           {/* Acceptance Criteria (Feature & User Story) */}
           {(type === "feature" || type === "user_story") && (
-            <div className="space-y-1.5">
-              <Label>Acceptance Criteria</Label>
-              <Textarea rows={4} value={form.acceptance_criteria} onChange={e => set("acceptance_criteria", e.target.value)} placeholder="Given… When… Then…" className="resize-none" />
+            <div className="space-y-1">
+              <Label className="font-medium">Acceptance Criteria</Label>
+              <Textarea rows={3} value={form.acceptance_criteria} onChange={e => set("acceptance_criteria", e.target.value)} placeholder="Given… When… Then…" className="resize-none text-sm" />
             </div>
           )}
 
           {/* Parent selectors */}
           {type === "stage" && tree.phases.length > 0 && (
-            <div className="space-y-1.5">
-              <Label>Phase (optional)</Label>
+            <div className="space-y-1">
+              <Label className="font-medium">Phase (optional)</Label>
               <Select value={form.phase_id || "none"} onValueChange={v => set("phase_id", v === "none" ? "" : v)}>
-                <SelectTrigger><SelectValue placeholder="Unassigned" /></SelectTrigger>
+                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Unassigned" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">— None —</SelectItem>
                   {tree.phases.map((p: any) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
@@ -1266,10 +1270,10 @@ function NodeSheet({
             </div>
           )}
           {(type === "milestone" || type === "feature_group" || type === "feature") && tree.phases.length > 0 && (
-            <div className="space-y-1.5">
-              <Label>Phase (optional)</Label>
+            <div className="space-y-1">
+              <Label className="font-medium">Phase (optional)</Label>
               <Select value={form.phase_id || "none"} onValueChange={v => set("phase_id", v === "none" ? "" : v)}>
-                <SelectTrigger><SelectValue placeholder="Unassigned" /></SelectTrigger>
+                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Unassigned" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">— None —</SelectItem>
                   {tree.phases.map((p: any) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
@@ -1278,10 +1282,10 @@ function NodeSheet({
             </div>
           )}
           {(type === "milestone" || type === "feature_group" || type === "feature") && tree.stages.length > 0 && (
-            <div className="space-y-1.5">
-              <Label>Stage (optional)</Label>
+            <div className="space-y-1">
+              <Label className="font-medium">Stage (optional)</Label>
               <Select value={form.stage_id || "none"} onValueChange={v => set("stage_id", v === "none" ? "" : v)}>
-                <SelectTrigger><SelectValue placeholder="Unassigned" /></SelectTrigger>
+                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Unassigned" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">— None —</SelectItem>
                   {tree.stages.map((s: any) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
@@ -1290,10 +1294,10 @@ function NodeSheet({
             </div>
           )}
           {type === "feature_group" && tree.milestones.length > 0 && (
-            <div className="space-y-1.5">
-              <Label>Milestone (optional)</Label>
+            <div className="space-y-1">
+              <Label className="font-medium">Milestone (optional)</Label>
               <Select value={form.milestone_id || "none"} onValueChange={v => set("milestone_id", v === "none" ? "" : v)}>
-                <SelectTrigger><SelectValue placeholder="Unassigned" /></SelectTrigger>
+                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Unassigned" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">— None —</SelectItem>
                   {tree.milestones.map((m: any) => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}
@@ -1302,10 +1306,10 @@ function NodeSheet({
             </div>
           )}
           {type === "feature" && tree.featureGroups.length > 0 && (
-            <div className="space-y-1.5">
-              <Label>Feature Group (optional)</Label>
+            <div className="space-y-1">
+              <Label className="font-medium">Feature Group (optional)</Label>
               <Select value={form.feature_group_id || "none"} onValueChange={v => set("feature_group_id", v === "none" ? "" : v)}>
-                <SelectTrigger><SelectValue placeholder="Unassigned" /></SelectTrigger>
+                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Unassigned" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">— None —</SelectItem>
                   {tree.featureGroups.map((fg: any) => <SelectItem key={fg.id} value={fg.id}>{fg.name}</SelectItem>)}
@@ -1314,10 +1318,10 @@ function NodeSheet({
             </div>
           )}
           {type === "user_story" && tree.features.length > 0 && (
-            <div className="space-y-1.5">
-              <Label>Feature (optional)</Label>
+            <div className="space-y-1">
+              <Label className="font-medium">Feature (optional)</Label>
               <Select value={form.feature_id || "none"} onValueChange={v => set("feature_id", v === "none" ? "" : v)}>
-                <SelectTrigger><SelectValue placeholder="Unassigned" /></SelectTrigger>
+                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Unassigned" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">— None —</SelectItem>
                   {tree.features.map((f: any) => <SelectItem key={f.id} value={f.id}>{f.tracking_number} {f.name}</SelectItem>)}
@@ -1328,13 +1332,13 @@ function NodeSheet({
 
           {/* Dates */}
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label className="flex items-center gap-1"><Calendar className="h-3 w-3" />Start Date</Label>
-              <Input type="date" value={form.start_date} onChange={e => set("start_date", e.target.value)} />
+            <div className="space-y-1">
+              <Label className="flex items-center gap-1 font-medium"><Calendar className="h-3 w-3" />Start Date</Label>
+              <Input className="h-9 text-sm" type="date" value={form.start_date} onChange={e => set("start_date", e.target.value)} />
             </div>
-            <div className="space-y-1.5">
-              <Label className="flex items-center gap-1"><Calendar className="h-3 w-3" />End Date</Label>
-              <Input type="date" value={form.end_date} onChange={e => set("end_date", e.target.value)} />
+            <div className="space-y-1">
+              <Label className="flex items-center gap-1 font-medium"><Calendar className="h-3 w-3" />End Date</Label>
+              <Input className="h-9 text-sm" type="date" value={form.end_date} onChange={e => set("end_date", e.target.value)} />
             </div>
           </div>
           {dateWarn && (
@@ -1343,30 +1347,32 @@ function NodeSheet({
             </div>
           )}
 
-          {/* Effort */}
-          <div className="space-y-1.5">
-            <Label className="flex items-center gap-1"><Clock className="h-3 w-3" />Estimated Hours</Label>
-            <Input type="number" min="0" value={form.estimated_hours} onChange={e => set("estimated_hours", e.target.value)} placeholder="e.g. 40" />
-          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {/* Effort */}
+            <div className="space-y-1">
+              <Label className="flex items-center gap-1 font-medium"><Clock className="h-3 w-3" />Estimated Hours</Label>
+              <Input className="h-9 text-sm" type="number" min="0" value={form.estimated_hours} onChange={e => set("estimated_hours", e.target.value)} placeholder="e.g. 40" />
+            </div>
 
-          {/* Planning Status */}
-          <div className="space-y-1.5">
-            <Label>Planning Status</Label>
-            <Select value={form.planning_status} onValueChange={v => set("planning_status", v)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {Object.entries(PLANNING_STATUS_CONFIG).map(([v, c]) => (
-                  <SelectItem key={v} value={v}>{c.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {/* Planning Status */}
+            <div className="space-y-1">
+              <Label className="font-medium">Planning Status</Label>
+              <Select value={form.planning_status} onValueChange={v => set("planning_status", v)}>
+                <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {Object.entries(PLANNING_STATUS_CONFIG).map(([v, c]) => (
+                    <SelectItem key={v} value={v}>{c.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           {/* Owner */}
-          <div className="space-y-1.5">
-            <Label className="flex items-center gap-1"><User className="h-3 w-3" />Owner</Label>
+          <div className="space-y-1">
+            <Label className="flex items-center gap-1 font-medium"><User className="h-3 w-3" />Owner</Label>
             <Select value={form.owner_id || "none"} onValueChange={v => set("owner_id", v === "none" ? "" : v)}>
-              <SelectTrigger><SelectValue placeholder="Unassigned" /></SelectTrigger>
+              <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Unassigned" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">— Unassigned —</SelectItem>
                 {users.map((u: any) => (
@@ -1378,8 +1384,8 @@ function NodeSheet({
 
           {/* Dependencies */}
           {allPickableItems.length > 0 && (
-            <div className="space-y-2 pt-1">
-              <Label className="flex items-center gap-1"><Link2 className="h-3 w-3" />Dependencies</Label>
+            <div className="space-y-2 border-t border-gray-100 pt-3 dark:border-gray-800">
+              <Label className="flex items-center gap-1 font-medium"><Link2 className="h-3 w-3" />Dependencies</Label>
               <p className="text-[11px] text-gray-400">This item depends on the completion/start of another item.</p>
 
               {/* Existing deps */}
@@ -1471,9 +1477,9 @@ function NodeSheet({
           )}
         </div>
 
-        <SheetFooter>
-          <Button variant="outline" onClick={onClose} className="flex-1">Cancel</Button>
-          <Button onClick={() => save.mutate()} disabled={save.isPending || !form.name.trim()} className="flex-1">
+        <SheetFooter className="shrink-0 border-t border-gray-100 pt-3 dark:border-gray-800">
+          <Button variant="outline" onClick={onClose} className="h-9 flex-1 text-sm">Cancel</Button>
+          <Button onClick={() => save.mutate()} disabled={save.isPending || !form.name.trim()} className="h-9 flex-1 text-sm">
             {save.isPending ? "Saving…" : isEdit ? `Update ${cfg.singularLabel}` : `Create ${cfg.singularLabel}`}
           </Button>
         </SheetFooter>
