@@ -1538,7 +1538,34 @@ function TreeView({ tree, projectId, users, onEdit, onDelete, onAddChild }: {
   onDelete: (node: any, type: NodeType) => void;
   onAddChild: (type: NodeType, defaults?: Partial<typeof EMPTY_FORM>) => void;
 }) {
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const allNodeIds = useMemo(
+    () => new Set<string>([
+      ...tree.phases,
+      ...tree.stages,
+      ...tree.milestones,
+      ...tree.featureGroups,
+      ...tree.features,
+      ...tree.stories,
+    ].map((item: any) => item.id)),
+    [tree],
+  );
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set(allNodeIds));
+  const knownNodeIds = useRef<Set<string>>(new Set());
+
+  // Open the complete tree on first load and expand nodes added later.
+  // Existing manual collapse/expand choices are preserved while this view stays mounted.
+  useEffect(() => {
+    const newNodeIds = Array.from(allNodeIds).filter(id => !knownNodeIds.current.has(id));
+    if (newNodeIds.length > 0) {
+      setExpanded(previous => {
+        const next = new Set(previous);
+        newNodeIds.forEach(id => next.add(id));
+        return next;
+      });
+    }
+    knownNodeIds.current = new Set(allNodeIds);
+  }, [allNodeIds]);
+
   const toggle = (id: string) => setExpanded(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
   // Flat lookup for all items — used by NodeRow for dep conflict detection
