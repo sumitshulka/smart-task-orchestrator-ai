@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import type { TaskQueryFilters } from "./storage";
 import { licenseManager, APP_ID } from "./license-manager";
 import { registerPlanningRoutes } from "./planning-routes";
 import { insertUserSchema, insertTaskSchema, insertTeamSchema, insertTaskGroupSchema, insertRoleSchema, insertOfficeLocationSchema, userRoles, insertDefectSchema, insertClientSchema, insertClientContactSchema, insertClientProjectAccessSchema, insertCustomFieldGroupSchema, insertCustomFieldDefinitionSchema, insertCustomFieldValueSchema, tasks as tasksTable, projects as projectsTable, defects as defectsTable, users as usersTable, teams as teamsTable, workspaceDecisions } from "@shared/schema";
@@ -95,6 +96,67 @@ function getTaskDateKey(value: unknown): string | null {
 
   const date = new Date(value as string | Date);
   return Number.isNaN(date.getTime()) ? null : date.toISOString().slice(0, 10);
+}
+
+function hasTaskQueryParams(query: Record<string, unknown>): boolean {
+  return [
+    "fromDate",
+    "toDate",
+    "assignedTo",
+    "teamId",
+    "status",
+    "priority",
+    "offset",
+    "limit",
+    "includeOverdue",
+    "paginated",
+  ].some((key) => query[key] !== undefined);
+}
+
+function getTaskQueryValue(query: Record<string, unknown>, key: string): string | undefined {
+  const value = query[key];
+  if (value === undefined) return undefined;
+  if (typeof value !== "string" || value.length === 0) {
+    throw new Error(`Invalid ${key} query parameter`);
+  }
+  return value;
+}
+
+function getTaskQueryInteger(
+  query: Record<string, unknown>,
+  key: string,
+  minimum: number,
+): number | undefined {
+  const value = getTaskQueryValue(query, key);
+  if (value === undefined) return undefined;
+
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < minimum) {
+    throw new Error(`Invalid ${key} query parameter`);
+  }
+  return parsed;
+}
+
+function getTaskQueryFilters(query: Record<string, unknown>): TaskQueryFilters {
+  const fromDate = getTaskQueryValue(query, "fromDate");
+  const toDate = getTaskQueryValue(query, "toDate");
+  for (const [key, value] of [["fromDate", fromDate], ["toDate", toDate]]) {
+    if (value && Number.isNaN(new Date(value).getTime())) {
+      throw new Error(`Invalid ${key} query parameter`);
+    }
+  }
+
+  return {
+    fromDate,
+    toDate,
+    assignedTo: getTaskQueryValue(query, "assignedTo"),
+    teamId: getTaskQueryValue(query, "teamId"),
+    status: getTaskQueryValue(query, "status"),
+    priority: getTaskQueryInteger(query, "priority", -1),
+    offset: getTaskQueryInteger(query, "offset", 0),
+    limit: getTaskQueryInteger(query, "limit", 1),
+    includeOverdue: getTaskQueryValue(query, "includeOverdue") === "true",
+  };
 }
 
 async function getDailyTaskHours(userId: string, date: string) {
@@ -560,6 +622,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.headers['x-user-id'] as string;
       const { scope, roleNames } = await getUserVisibilityScope(userId);
+      const query = req.query as Record<string, unknown>;
+
+      // Filtered requests use the storage query so filtering, counting, and
+      // pagination happen before task rows leave the database. Keep the
+      // unfiltered array response for existing callers of this endpoint.
+      if (hasTaskQueryParams(query)) {
+        const filters = getTaskQueryFilters(query);
+        let visibleUserIds: string[] | undefined;
+
+        if (scope === "team") {
+          const allUsers = await storage.getAllUsers();
+          visibleUserIds = allUsers
+            .filter((u: any) => u.manager === userId || u.id === userId)
+            .map((u: any) => u.id);
+        }
+
+        // A regular user can supply filters, but never another assignee.
+        // Admins retain organization-wide access, optionally narrowed by
+        // assignedTo.
+        if (scope === "user") {
+          filters.assignedTo = userId;
+        }
+
+        const result = await storage.getTasksPaginated(filters, visibleUserIds);
+        return res.json(result);
+      }
       
       let tasks;
       

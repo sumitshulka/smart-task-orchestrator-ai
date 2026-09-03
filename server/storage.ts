@@ -1,4 +1,4 @@
-import { eq, desc, and, or, ne, sql, asc, inArray } from "drizzle-orm";
+import { eq, desc, and, or, ne, sql, asc, inArray, ilike, lt, gte, lte } from "drizzle-orm";
 import { db } from "./db";
 import { 
   users, 
@@ -141,6 +141,7 @@ export interface IStorage {
   getTask(id: string): Promise<Task | undefined>;
   getAllTasks(): Promise<Task[]>;
   getTasksByUser(userId: string): Promise<Task[]>;
+  getTasksPaginated(filters: TaskQueryFilters, visibleUserIds?: string[]): Promise<{ tasks: Task[]; total: number }>;
   getTasksByTeam(teamId: string): Promise<Task[]>;
   getTasksByProject(projectId: string): Promise<Task[]>;
   createTask(task: InsertTask): Promise<Task>;
@@ -391,6 +392,18 @@ export interface IStorage {
   }>;
 }
 
+export type TaskQueryFilters = {
+  assignedTo?: string;
+  teamId?: string;
+  status?: string;
+  priority?: number;
+  fromDate?: string;
+  toDate?: string;
+  offset?: number;
+  limit?: number;
+  includeOverdue?: boolean;
+};
+
 export class DatabaseStorage implements IStorage {
   // User operations
   async getUser(id: string): Promise<User | undefined> {
@@ -541,6 +554,81 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(tasks).where(
       or(eq(tasks.assigned_to, userId), eq(tasks.created_by, userId))
     ).orderBy(desc(tasks.created_at));
+  }
+
+  async getTasksPaginated(
+    filters: TaskQueryFilters,
+    visibleUserIds?: string[],
+  ): Promise<{ tasks: Task[]; total: number }> {
+    if (visibleUserIds && visibleUserIds.length === 0) {
+      return { tasks: [], total: 0 };
+    }
+
+    const conditions = [];
+
+    if (visibleUserIds) {
+      conditions.push(inArray(tasks.assigned_to, visibleUserIds));
+    }
+    if (filters.assignedTo) {
+      conditions.push(eq(tasks.assigned_to, filters.assignedTo));
+    }
+    if (filters.teamId) {
+      conditions.push(eq(tasks.team_id, filters.teamId));
+    }
+    if (filters.status && filters.status !== "all") {
+      conditions.push(ilike(tasks.status, `%${filters.status}%`));
+    }
+    if (filters.priority !== undefined && filters.priority !== -1) {
+      conditions.push(eq(tasks.priority, filters.priority));
+    }
+
+    const dateConditions = [];
+    if (filters.fromDate) {
+      dateConditions.push(gte(tasks.created_at, new Date(filters.fromDate)));
+    }
+    if (filters.toDate) {
+      dateConditions.push(lte(tasks.created_at, new Date(filters.toDate)));
+    }
+
+    if (dateConditions.length > 0) {
+      const createdAtCondition = and(...dateConditions);
+      if (filters.includeOverdue) {
+        const overdueCondition = and(
+          lt(tasks.due_date, new Date()),
+          sql`lower(${tasks.status}) NOT IN ('completed', 'done', 'verified', 'closed', 'resolved')`,
+        );
+        conditions.push(or(createdAtCondition, overdueCondition));
+      } else {
+        conditions.push(createdAtCondition);
+      }
+    }
+
+    const whereCondition = conditions.length > 0 ? and(...conditions) : undefined;
+    const countResult = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(tasks)
+      .where(whereCondition);
+
+    let taskQuery = db
+      .select()
+      .from(tasks)
+      .where(whereCondition)
+      .orderBy(desc(tasks.created_at));
+
+    if (filters.limit !== undefined) {
+      taskQuery = taskQuery.limit(filters.limit) as typeof taskQuery;
+      if (filters.offset !== undefined) {
+        taskQuery = taskQuery.offset(filters.offset) as typeof taskQuery;
+      }
+    } else if (filters.offset !== undefined) {
+      taskQuery = taskQuery.offset(filters.offset) as typeof taskQuery;
+    }
+
+    const result = await taskQuery;
+    return {
+      tasks: result,
+      total: Number(countResult[0]?.count ?? 0),
+    };
   }
 
   async getTasksByTeam(teamId: string): Promise<Task[]> {

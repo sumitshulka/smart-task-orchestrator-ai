@@ -152,81 +152,27 @@ export type FetchTasksResult = {
 };
 
 export async function fetchTasksPaginated(input: FetchTasksInput = {}): Promise<FetchTasksResult> {
-  // For now, fetch all tasks and filter/paginate on client
-  // In production, this should be implemented with server-side filtering
-  const allTasks = await fetchTasks();
-  let filteredTasks = allTasks;
+  const params = new URLSearchParams();
+  params.set("paginated", "true");
+  if (input.fromDate) params.set("fromDate", input.fromDate);
+  if (input.toDate) params.set("toDate", input.toDate);
+  if (input.assignedTo) params.set("assignedTo", input.assignedTo);
+  if (input.teamId) params.set("teamId", input.teamId);
+  if (input.status) params.set("status", input.status);
+  if (input.priority !== undefined) params.set("priority", String(input.priority));
+  if (input.offset !== undefined) params.set("offset", String(input.offset));
+  if (input.limit !== undefined) params.set("limit", String(input.limit));
+  if (input.includeOverdue) params.set("includeOverdue", "true");
 
-  console.log(`[DEBUG] fetchTasksPaginated filters:`, {
-    assignedTo: input.assignedTo,
-    teamId: input.teamId,
-    status: input.status,
-    priority: input.priority,
-    fromDate: input.fromDate,
-    toDate: input.toDate
-  });
-  console.log(`[DEBUG] Total tasks before filtering:`, allTasks.length);
-
-  // Apply filters
-  if (input.assignedTo) {
-    console.log(`[DEBUG] Filtering by assignedTo: ${input.assignedTo}`);
-    filteredTasks = filteredTasks.filter(task => task.assigned_to === input.assignedTo);
-    console.log(`[DEBUG] Tasks after assignedTo filter:`, filteredTasks.length);
-  }
-  if (input.teamId) {
-    console.log(`[DEBUG] Filtering by teamId: ${input.teamId}`);
-    filteredTasks = filteredTasks.filter(task => task.team_id === input.teamId);
-    console.log(`[DEBUG] Tasks after teamId filter:`, filteredTasks.length);
-  }
-  if (input.status && input.status !== "all") {
-    console.log(`[DEBUG] Filtering by status: ${input.status}`);
-    filteredTasks = filteredTasks.filter(task => 
-      task.status.toLowerCase().includes(input.status!.toLowerCase())
-    );
-    console.log(`[DEBUG] Tasks after status filter:`, filteredTasks.length);
-  }
-  if (input.priority && input.priority !== -1) {
-    console.log(`[DEBUG] Filtering by priority: ${input.priority}`);
-    filteredTasks = filteredTasks.filter(task => task.priority === input.priority);
-    console.log(`[DEBUG] Tasks after priority filter:`, filteredTasks.length);
-  }
-  if (input.fromDate || input.toDate) {
-    const today = new Date();
-    today.setHours(23, 59, 59, 999);
-    filteredTasks = filteredTasks.filter(task => {
-      const taskDate = new Date(task.created_at);
-      const fromDate = input.fromDate ? new Date(input.fromDate) : null;
-      const toDate = input.toDate ? new Date(input.toDate) : null;
-
-      // When includeOverdue is true, bypass the date filter for any task that is
-      // currently overdue (due_date < today) and not in a completed/closed state.
-      // This prevents old-but-still-active overdue tasks from disappearing when
-      // the user's selected date range doesn't cover their creation date.
-      if (input.includeOverdue) {
-        const isDone = ["completed", "done", "verified", "closed", "resolved"].includes(
-          (task.status ?? "").toLowerCase()
-        );
-        const dueDate = task.due_date ? new Date(task.due_date) : null;
-        const isOverdue = dueDate !== null && dueDate < new Date();
-        if (isOverdue && !isDone) return true;
-      }
-
-      if (fromDate && taskDate < fromDate) return false;
-      if (toDate && taskDate > toDate) return false;
-      return true;
-    });
-  }
-
-  // Apply pagination
-  const offset = input.offset || 0;
-  const limit = input.limit || filteredTasks.length;
-  const paginatedTasks = filteredTasks.slice(offset, offset + limit);
-
-  console.log(`[DEBUG] Final filtered tasks:`, filteredTasks.length);
-  console.log(`[DEBUG] Paginated tasks:`, paginatedTasks.length);
-
+  const result = await apiClient.get(`/tasks?${params.toString()}`) as FetchTasksResult;
   return {
-    tasks: paginatedTasks,
-    total: filteredTasks.length,
+    tasks: (result.tasks || []).map((task: any) => ({
+      ...task,
+      assigned_user: task.assigned_user || null,
+      actual_completion_date: task.actual_completion_date ?? null,
+      group_ids: task.group_ids || [],
+      is_dependent: !!task.is_dependent,
+    })),
+    total: result.total ?? 0,
   };
 }
