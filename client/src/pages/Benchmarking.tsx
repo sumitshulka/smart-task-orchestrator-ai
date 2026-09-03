@@ -207,7 +207,7 @@ const Benchmarking: React.FC = () => {
 
   if (!settings?.benchmarking_enabled) {
     return (
-      <div className="container mx-auto p-6">
+      <div className="w-full p-4 sm:p-6">
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <Target className="h-12 w-12 text-muted-foreground mb-4" />
@@ -223,8 +223,8 @@ const Benchmarking: React.FC = () => {
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="w-full p-4 sm:p-6 space-y-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <Target className="h-6 w-6" />
@@ -266,12 +266,12 @@ const Benchmarking: React.FC = () => {
       {/* Calendar View */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle className="flex items-center gap-2">
               <Calendar className="h-5 w-5" />
               {format(currentDate, viewType === 'weekly' ? "'Week of' MMM dd, yyyy" : "MMMM yyyy")}
             </CardTitle>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Tabs value={viewType} onValueChange={(value) => setViewType(value as 'weekly' | 'monthly')}>
                 <TabsList>
                   <TabsTrigger value="weekly">Weekly</TabsTrigger>
@@ -288,10 +288,10 @@ const Benchmarking: React.FC = () => {
           </div>
         </CardHeader>
         <CardContent>
-          <div className={`grid gap-2 ${viewType === 'weekly' ? 'grid-cols-7' : 'grid-cols-7'}`}>
+          <div className="grid grid-cols-7 gap-1 sm:gap-2">
             {/* Day headers */}
             {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => (
-              <div key={day} className="text-center text-sm font-medium text-muted-foreground p-2">
+              <div key={day} className="text-center text-[10px] font-medium text-muted-foreground p-1 sm:p-2 sm:text-sm">
                 {day}
               </div>
             ))}
@@ -305,7 +305,7 @@ const Benchmarking: React.FC = () => {
                 <div
                   key={dayData.date}
                   className={`
-                    min-h-[100px] border rounded-lg p-2 space-y-1
+                    min-h-[80px] border rounded-lg p-1 space-y-1 text-[10px] sm:min-h-[100px] sm:p-2 sm:text-xs
                     ${getStatusColor(dayData.status)}
                     ${isToday ? 'ring-2 ring-primary' : ''}
                   `}
@@ -336,7 +336,7 @@ const Benchmarking: React.FC = () => {
           <CardTitle>Benchmark Guidelines</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-3 gap-4 text-sm">
+          <div className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-3">
             <div className="space-y-2">
               <div className="font-medium">Daily Target</div>
               <div>{settings.min_hours_per_day}h - {settings.max_hours_per_day}h</div>
@@ -353,7 +353,7 @@ const Benchmarking: React.FC = () => {
           
           <div className="mt-4 pt-4 border-t space-y-2">
             <div className="font-medium text-sm">Color Legend:</div>
-            <div className="flex gap-4 text-xs">
+            <div className="flex flex-wrap gap-4 text-xs">
               <div className="flex items-center gap-2">
                 <div className="w-4 h-4 bg-green-100 border border-green-200 rounded"></div>
                 <span>On Target</span>

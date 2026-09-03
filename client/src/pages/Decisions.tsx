@@ -102,9 +102,9 @@ export default function DecisionsPage() {
   };
 
   return (
-    <div className="p-6 max-w-5xl mx-auto space-y-6">
+    <div className="w-full p-4 sm:p-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
             <CheckSquare className="w-6 h-6 text-amber-600" />
@@ -115,7 +115,7 @@ export default function DecisionsPage() {
           </p>
         </div>
         {counts.pending > 0 && (
-          <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 border border-amber-200 rounded-xl">
+          <div className="flex w-fit items-center gap-2 px-4 py-2 bg-amber-50 border border-amber-200 rounded-xl">
             <AlertCircle className="w-4 h-4 text-amber-600" />
             <span className="text-sm font-medium text-amber-700">
               {counts.pending} pending approval
@@ -125,9 +125,9 @@ export default function DecisionsPage() {
       </div>
 
       {/* Filters row */}
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:flex-wrap sm:items-center">
         {/* Status tabs */}
-        <div className="flex items-center bg-gray-100 rounded-lg p-1 gap-0.5">
+        <div className="flex max-w-full items-center gap-0.5 overflow-x-auto rounded-lg bg-gray-100 p-1">
           {(["all", "pending", "approved", "rejected"] as Status[]).map(s => (
             <button
               key={s}
@@ -146,7 +146,7 @@ export default function DecisionsPage() {
         </div>
 
         {/* Entity type filter */}
-        <div className="flex items-center gap-1">
+        <div className="flex flex-wrap items-center gap-1">
           {(["all", "task", "project"] as EntityFilter[]).map(e => (
             <button
               key={e}
@@ -162,13 +162,13 @@ export default function DecisionsPage() {
         </div>
 
         {/* Search */}
-        <div className="relative ml-auto">
+        <div className="relative w-full sm:ml-auto sm:w-56">
           <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <Input
             placeholder="Search decisions…"
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="pl-9 h-9 w-56 text-sm"
+            className="h-9 w-full pl-9 text-sm"
           />
         </div>
       </div>
@@ -197,11 +197,11 @@ export default function DecisionsPage() {
             return (
               <div
                 key={d.id}
-                className={`bg-white border rounded-xl p-4 shadow-sm flex gap-4 transition-shadow hover:shadow-md
+                className={`flex flex-col gap-3 rounded-xl border bg-white p-4 shadow-sm transition-shadow hover:shadow-md sm:flex-row sm:gap-4
                   ${isPending ? "border-amber-200" : "border-gray-200"}`}
               >
                 {/* Status indicator stripe */}
-                <div className={`w-1 rounded-full flex-shrink-0 self-stretch
+                <div className={`h-1 w-full flex-shrink-0 rounded-full sm:h-auto sm:w-1 sm:self-stretch
                   ${d.status === "approved" ? "bg-green-400" : d.status === "rejected" ? "bg-red-400" : "bg-amber-400"}`} />
 
                 <div className="flex-1 min-w-0 space-y-2">
@@ -247,10 +247,10 @@ export default function DecisionsPage() {
 
                 {/* Action buttons */}
                 {isPending && (
-                  <div className="flex flex-col gap-2 flex-shrink-0 justify-center">
+                  <div className="flex flex-col gap-2 sm:flex-shrink-0 sm:justify-center">
                     <Button
                       size="sm"
-                      className="bg-green-600 hover:bg-green-700 text-white h-8 px-4 text-xs"
+                      className="h-8 w-full bg-green-600 px-4 text-xs text-white hover:bg-green-700 sm:w-auto"
                       disabled={updateStatus.isPending}
                       onClick={() => updateStatus.mutate({ id: d.id, status: "approved" })}
                     >
@@ -260,7 +260,7 @@ export default function DecisionsPage() {
                     <Button
                       size="sm"
                       variant="outline"
-                      className="border-red-200 text-red-600 hover:bg-red-50 h-8 px-4 text-xs"
+                      className="h-8 w-full border-red-200 px-4 text-xs text-red-600 hover:bg-red-50 sm:w-auto"
                       disabled={updateStatus.isPending}
                       onClick={() => updateStatus.mutate({ id: d.id, status: "rejected" })}
                     >
@@ -270,11 +270,11 @@ export default function DecisionsPage() {
                   </div>
                 )}
                 {!isPending && (
-                  <div className="flex flex-col gap-2 flex-shrink-0 justify-center">
+                  <div className="flex flex-col gap-2 sm:flex-shrink-0 sm:justify-center">
                     <Button
                       size="sm"
                       variant="ghost"
-                      className="text-gray-400 hover:text-gray-600 h-8 px-3 text-xs"
+                      className="h-8 w-full px-3 text-xs text-gray-400 hover:text-gray-600 sm:w-auto"
                       disabled={updateStatus.isPending}
                       onClick={() => updateStatus.mutate({ id: d.id, status: "pending" })}
                     >
