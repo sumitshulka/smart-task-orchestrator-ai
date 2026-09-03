@@ -24,7 +24,7 @@ import {
   Calendar, Clock, DollarSign, History, UserCircle, Tag, Grip, ChevronDown, ChevronUp,
   Search, ListTodo, ExternalLink, Flag, Bug, Building2, MessageSquare,
   LayoutDashboard, Menu, X, ChevronLeft, ChevronRight, TrendingUp,
-  BarChart3, FileText, FolderOpen, ArrowRight, Target, Network,
+  BarChart3, FileText, FolderOpen, ArrowRight, Target, Network, Settings2,
 } from "lucide-react";
 import PlanningWorkspace from "@/components/planning/PlanningWorkspace";
 import { format, differenceInDays } from "date-fns";
@@ -706,14 +706,15 @@ export default function ProjectDetail() {
   const navItems = [
     { id: "overview",    label: "Overview",    icon: LayoutDashboard },
     { id: "planning",    label: "Planning",    icon: Network },
-    { id: "finance",     label: "Finance",     icon: DollarSign },
-    { id: "meetings",    label: "Meetings",    icon: Calendar },
-    { id: "documents",   label: "Documents",   icon: FileText },
     { id: "members",     label: "Members",     icon: Users,     count: members.length },
     { id: "milestones",  label: "Milestones",  icon: Milestone, count: milestones.length },
     { id: "features",    label: "Features",    icon: Layers,    count: features.length },
     { id: "tasks",       label: "Tasks",       icon: ListTodo,  count: projectTasks.length },
     { id: "defects",     label: "Defects",     icon: Bug,       count: projectDefects.length, badge: projectDefects.length > 0 },
+    { id: "meetings",    label: "Meetings",    icon: Calendar },
+    { id: "finance",     label: "Finance",     icon: DollarSign },
+    { id: "documents",   label: "Documents",   icon: FileText },
+    { id: "settings",    label: "Settings",    icon: Settings2 },
   ];
 
   if (isLoading) {
@@ -955,6 +956,13 @@ export default function ProjectDetail() {
                 icon={FileText}
                 title="Project Documents"
                 description="This module will store project-related documents and act as the project document repository."
+              />
+            )}
+            {activeSection === "settings" && (
+              <LaunchingSoonSection
+                icon={Settings2}
+                title="Project Settings"
+                description="This area will contain project-related configuration and settings."
               />
             )}
 
