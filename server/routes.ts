@@ -231,6 +231,19 @@ function changedSettingEntries(before: Record<string, any>, after: Record<string
     .map((key) => ({ key, previous: before[key] ?? null, next: after[key] ?? null }));
 }
 
+function normalizeEffectiveMonth(value: unknown): string | null {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}$/.test(value)) return null;
+  const [year, month] = value.split("-").map(Number);
+  if (month < 1 || month > 12 || year < 1900 || year > 2200) return null;
+  return `${value}-01`;
+}
+
+function normalizeGrossSalary(value: unknown): string | null {
+  const amount = typeof value === "number" ? value : Number(String(value ?? "").replace(/,/g, ""));
+  if (!Number.isFinite(amount) || amount < 0 || amount > 1_000_000_000_000) return null;
+  return amount.toFixed(2);
+}
+
 function getTaskDateKey(value: unknown): string | null {
   if (!value) return null;
   if (typeof value === "string") {
@@ -2117,10 +2130,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const saved = await storage.getProjectSettings(req.params.id);
       const financeHeads = await storage.getProjectFinanceHeads(req.params.id);
       const audit = await storage.getProjectSettingAudit(req.params.id);
+      const resourceCosts = await storage.getProjectResourceCostHistory(req.params.id);
+      const organizationSettings = await storage.getOrganizationSettings();
       res.json({
         project,
         settings: mergeProjectSettings(saved?.settings),
         financeHeads,
+        resourceCosts,
+        organizationCurrency: organizationSettings?.currency ?? "USD",
         audit,
       });
     } catch (error) {
@@ -2317,6 +2334,140 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(204).send();
     } catch (error) {
       res.status(400).json({ error: "Failed to delete finance head" });
+    }
+  });
+
+  const getResourceCostContext = async (projectId: string) => {
+    const projectSettings = await storage.getProjectSettings(projectId);
+    const settings = mergeProjectSettings(projectSettings?.settings);
+    const organizationSettings = await storage.getOrganizationSettings();
+    return {
+      settings,
+      organizationCurrency: organizationSettings?.currency ?? "USD",
+    };
+  };
+
+  app.get("/api/projects/:id/settings/resource-costs", requireAnyAuthenticated, async (req, res) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project) return res.status(404).json({ error: "Project not found" });
+      const context = await getResourceCostContext(req.params.id);
+      res.json({
+        resourceCosts: await storage.getProjectResourceCostHistory(req.params.id),
+        organizationCurrency: context.organizationCurrency,
+        trackingEnabled: context.settings.finance.trackFinance && context.settings.finance.trackPeopleCost,
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch resource costs" });
+    }
+  });
+
+  app.get("/api/projects/:id/settings/resource-costs/effective", requireAnyAuthenticated, async (req, res) => {
+    try {
+      const effectiveMonth = normalizeEffectiveMonth(req.query.month);
+      if (!effectiveMonth) return res.status(400).json({ error: "month must use YYYY-MM format" });
+      const userId = String(req.query.userId ?? "");
+      if (!userId) return res.status(400).json({ error: "userId is required" });
+      const history = await storage.getProjectResourceCostHistory(req.params.id);
+      const effective = history
+        .filter((entry) => entry.user_id === userId && entry.effective_month <= effectiveMonth)
+        .sort((a, b) => b.effective_month.localeCompare(a.effective_month))[0] ?? null;
+      res.json({ resourceCost: effective, month: String(req.query.month) });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to resolve resource cost" });
+    }
+  });
+
+  app.post("/api/projects/:id/settings/resource-costs", requireManagerOrAdmin, async (req, res) => {
+    try {
+      const userId = req.headers["x-user-id"] as string;
+      const { settings, organizationCurrency } = await getResourceCostContext(req.params.id);
+      if (!settings.finance.trackFinance || !settings.finance.trackPeopleCost) {
+        return res.status(409).json({ error: "Enable Finance and Track People Cost before adding resource costs" });
+      }
+      const memberUserId = String(req.body?.user_id ?? "");
+      const effectiveMonth = normalizeEffectiveMonth(req.body?.effective_month);
+      const grossSalary = normalizeGrossSalary(req.body?.gross_salary);
+      if (!memberUserId || !effectiveMonth || grossSalary === null) {
+        return res.status(400).json({ error: "Resource, gross salary, and a valid effective month are required" });
+      }
+      const members = await storage.getProjectMembers(req.params.id);
+      const member = members.find((candidate) =>
+        candidate.user_id === memberUserId &&
+        candidate.is_active !== false &&
+        (candidate as any).member_user_type !== "client_contact",
+      );
+      if (!member) return res.status(400).json({ error: "Resource must be an active internal project member" });
+      const existing = await storage.getProjectResourceCostHistory(req.params.id);
+      if (existing.some((entry) => entry.user_id === memberUserId && entry.effective_month === effectiveMonth)) {
+        return res.status(409).json({ error: "A salary is already recorded for this resource and effective month" });
+      }
+      const record = await storage.createProjectResourceCost({
+        project_id: req.params.id,
+        user_id: memberUserId,
+        gross_salary: grossSalary,
+        organization_currency: organizationCurrency,
+        effective_month: effectiveMonth,
+        created_by: userId,
+      });
+      res.status(201).json(record);
+    } catch (error: any) {
+      res.status(400).json({ error: error?.message || "Failed to create resource cost" });
+    }
+  });
+
+  app.put("/api/projects/:id/settings/resource-costs/:costId", requireManagerOrAdmin, async (req, res) => {
+    try {
+      const userId = req.headers["x-user-id"] as string;
+      const { settings, organizationCurrency } = await getResourceCostContext(req.params.id);
+      if (!settings.finance.trackFinance || !settings.finance.trackPeopleCost) {
+        return res.status(409).json({ error: "Enable Finance and Track People Cost before editing resource costs" });
+      }
+      const existing = (await storage.getProjectResourceCostHistory(req.params.id))
+        .find((entry) => entry.id === req.params.costId);
+      if (!existing) return res.status(404).json({ error: "Resource cost record not found" });
+      const effectiveMonth = req.body?.effective_month === undefined
+        ? existing.effective_month
+        : normalizeEffectiveMonth(req.body.effective_month);
+      const grossSalary = req.body?.gross_salary === undefined
+        ? existing.gross_salary
+        : normalizeGrossSalary(req.body.gross_salary);
+      if (!effectiveMonth || grossSalary === null) {
+        return res.status(400).json({ error: "Gross salary and effective month are required" });
+      }
+      const allRecords = await storage.getProjectResourceCostHistory(req.params.id);
+      if (allRecords.some((entry) => entry.id !== existing.id &&
+          entry.user_id === existing.user_id && entry.effective_month === effectiveMonth)) {
+        return res.status(409).json({ error: "A salary is already recorded for this resource and effective month" });
+      }
+      const record = await storage.updateProjectResourceCost(req.params.costId, {
+        gross_salary: grossSalary,
+        effective_month: effectiveMonth,
+        organization_currency: organizationCurrency,
+        updated_at: new Date(),
+      });
+      await storage.addProjectSettingAudit({
+        project_id: req.params.id,
+        setting_key: `finance.resource_cost.${existing.user_id}`,
+        previous_value: { gross_salary: existing.gross_salary, effective_month: existing.effective_month },
+        new_value: { gross_salary: record.gross_salary, effective_month: record.effective_month },
+        changed_by: userId,
+      });
+      res.json(record);
+    } catch (error: any) {
+      res.status(400).json({ error: error?.message || "Failed to update resource cost" });
+    }
+  });
+
+  app.delete("/api/projects/:id/settings/resource-costs/:costId", requireManagerOrAdmin, async (req, res) => {
+    try {
+      const existing = (await storage.getProjectResourceCostHistory(req.params.id))
+        .find((entry) => entry.id === req.params.costId);
+      if (!existing) return res.status(404).json({ error: "Resource cost record not found" });
+      await storage.deleteProjectResourceCost(req.params.costId);
+      res.status(204).send();
+    } catch (error) {
+      res.status(400).json({ error: "Failed to delete resource cost" });
     }
   });
 

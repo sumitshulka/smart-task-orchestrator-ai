@@ -277,6 +277,9 @@ export default function ProjectSettingsPanel({ project, users, clients, members,
   const [financeHeadDialog, setFinanceHeadDialog] = useState(false);
   const [editingHead, setEditingHead] = useState<any>(null);
   const [headForm, setHeadForm] = useState({ name: "", code: "", description: "", is_active: true, budget_allowed: true, actual_expense_allowed: true });
+  const [resourceCostDialog, setResourceCostDialog] = useState(false);
+  const [editingResourceCost, setEditingResourceCost] = useState<any>(null);
+  const [resourceCostForm, setResourceCostForm] = useState({ user_id: "", gross_salary: "", effective_month: "" });
 
   const { data, isLoading } = useQuery<any>({
     queryKey: ["/api/projects", project.id, "settings"],
@@ -284,6 +287,8 @@ export default function ProjectSettingsPanel({ project, users, clients, members,
   });
 
   const financeHeads = data?.financeHeads ?? [];
+  const resourceCosts = data?.resourceCosts ?? [];
+  const organizationCurrency = data?.organizationCurrency ?? "USD";
   const audit = data?.audit ?? [];
   const activeMembers = useMemo(
     () => members.filter((member) => member.is_active !== false),
@@ -368,6 +373,31 @@ export default function ProjectSettingsPanel({ project, users, clients, members,
     onError: (error: any) => toast({ title: "Unable to delete finance head", description: error.message, variant: "destructive" }),
   });
 
+  const resourceCostMutation = useMutation({
+    mutationFn: () => editingResourceCost
+      ? apiClient.put(`/projects/${project.id}/settings/resource-costs/${editingResourceCost.id}`, {
+        gross_salary: resourceCostForm.gross_salary,
+        effective_month: resourceCostForm.effective_month,
+      })
+      : apiClient.post(`/projects/${project.id}/settings/resource-costs`, resourceCostForm),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", project.id, "settings"] });
+      setResourceCostDialog(false);
+      setEditingResourceCost(null);
+      toast({ title: editingResourceCost ? "Resource salary updated" : "Resource salary added" });
+    },
+    onError: (error: any) => toast({ title: "Unable to save resource salary", description: error.message, variant: "destructive" }),
+  });
+
+  const deleteResourceCostMutation = useMutation({
+    mutationFn: (costId: string) => apiClient.delete(`/projects/${project.id}/settings/resource-costs/${costId}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", project.id, "settings"] });
+      toast({ title: "Resource salary record deleted" });
+    },
+    onError: (error: any) => toast({ title: "Unable to delete resource salary", description: error.message, variant: "destructive" }),
+  });
+
   const updateSetting = (path: string, value: any) => setSettings((current) => setPath(current, path, value));
   const toggleSetting = (path: string, value: boolean, label: string, description: string) => {
     if (!value && Boolean(path.split(".").reduce((cursor: any, key) => cursor?.[key], settings))) {
@@ -385,6 +415,14 @@ export default function ProjectSettingsPanel({ project, users, clients, members,
     setFinanceHeadDialog(true);
   };
 
+  const openResourceCost = (record?: any) => {
+    setEditingResourceCost(record ?? null);
+    setResourceCostForm(record
+      ? { user_id: record.user_id, gross_salary: record.gross_salary, effective_month: String(record.effective_month).slice(0, 7) }
+      : { user_id: internalMembers[0]?.user_id ?? "", gross_salary: "", effective_month: new Date().toISOString().slice(0, 7) });
+    setResourceCostDialog(true);
+  };
+
   const displayUser = (userId: string | null) => {
     const user = users.find((candidate) => candidate.id === userId);
     return user?.user_name ?? user?.email ?? "Unknown user";
@@ -399,6 +437,7 @@ export default function ProjectSettingsPanel({ project, users, clients, members,
   const workspaceEnabled = settings.collaboration.workspaceEnabled;
   const clientCollaborationEnabled = settings.collaboration.clientCollaboration;
   const defectsEnabled = settings.quality.defectManagement;
+  const resourceCostManagementEnabled = financeEnabled && settings.finance.trackPeopleCost && !isDirty;
 
   return (
     <div className="mx-auto max-w-7xl">
@@ -520,6 +559,50 @@ export default function ProjectSettingsPanel({ project, users, clients, members,
                 <ToggleRow label="Track People Cost" description="Calculate resource cost from hours worked multiplied by internal cost rate." checked={settings.finance.trackPeopleCost} disabled={!financeEnabled} disabledReason="Enable Finance to change people cost tracking." onChange={(value) => updateSetting("finance.trackPeopleCost", value)} />
               </CardContent></Card>
               <Card className={!financeEnabled ? "opacity-60" : ""}><CardHeader><CardTitle className="text-base">People cost visibility</CardTitle><CardDescription>Do not expose internal cost information to project members or clients by default.</CardDescription></CardHeader><CardContent><RolePicker value={settings.finance.peopleCostVisibility} disabled={!financeEnabled || !settings.finance.trackPeopleCost} onChange={(value) => updateSetting("finance.peopleCostVisibility", value)} /></CardContent></Card>
+               <Card className={!resourceCostManagementEnabled ? "opacity-75" : ""}>
+                 <CardHeader>
+                   <div className="flex items-start justify-between gap-3">
+                     <div>
+                       <CardTitle className="text-base">Resource gross salary</CardTitle>
+                       <CardDescription>
+                         Enter each resource&apos;s gross salary in the organization currency. A new salary takes effect from its selected month only.
+                       </CardDescription>
+                     </div>
+                     <Button size="sm" disabled={!resourceCostManagementEnabled || internalMembers.length === 0} onClick={() => openResourceCost()}>
+                       <Plus className="mr-1.5 h-3.5 w-3.5" /> Add Salary
+                     </Button>
+                   </div>
+                 </CardHeader>
+                 <CardContent>
+                   {!financeEnabled || !settings.finance.trackPeopleCost ? (
+                     <p className="rounded-lg border border-dashed p-4 text-sm text-gray-500">Enable Finance and Track People Cost to manage resource salaries.</p>
+                   ) : isDirty ? (
+                     <p className="rounded-lg border border-dashed border-amber-300 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200">Save the Finance and Track People Cost settings first, then resource salary records can be added.</p>
+                   ) : resourceCosts.length === 0 ? (
+                     <p className="rounded-lg border border-dashed p-4 text-sm text-gray-500">No resource salaries configured yet. Add the first effective-dated salary to start calculating people cost.</p>
+                   ) : (
+                     <div className="space-y-2">
+                       {resourceCosts.map((record: any) => (
+                         <div key={record.id} className="flex flex-wrap items-center gap-3 rounded-lg border p-3">
+                           <div className="min-w-0 flex-1">
+                             <div className="flex flex-wrap items-center gap-2">
+                               <span className="font-medium">{displayUser(record.user_id)}</span>
+                               <Badge variant="outline">{organizationCurrency}</Badge>
+                             </div>
+                             <p className="mt-1 text-xs text-gray-500">
+                               {organizationCurrency} {Number(record.gross_salary).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} · Effective {String(record.effective_month).slice(0, 7)}
+                             </p>
+                             <p className="mt-1 text-xs text-gray-400">Used from this month until a newer effective salary is recorded.</p>
+                           </div>
+                           <Button variant="ghost" size="sm" onClick={() => openResourceCost(record)}><Cog className="mr-1 h-3.5 w-3.5" /> Edit</Button>
+                           <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700" onClick={() => deleteResourceCostMutation.mutate(record.id)} disabled={deleteResourceCostMutation.isPending}><Trash2 className="h-3.5 w-3.5" /></Button>
+                         </div>
+                       ))}
+                     </div>
+                   )}
+                   <p className="mt-3 text-xs text-gray-500">Changing a salary creates a new month-based record; it does not rewrite the previous salary history.</p>
+                 </CardContent>
+               </Card>
               <Card className={!financeEnabled ? "opacity-60" : ""}><CardHeader><CardTitle className="text-base">Finance visibility</CardTitle><CardDescription>Finance being enabled does not automatically make every financial measure visible.</CardDescription></CardHeader><CardContent className="space-y-4">{([["budget", "Project Budget"], ["expenses", "Project Expenses"], ["resourceCost", "Resource Cost"], ["profitability", "Profitability / Margin"]] as const).map(([key, label]) => <div key={key}><Label className="mb-2 block text-sm">{label}</Label><RolePicker value={settings.finance.visibility[key]} disabled={!financeEnabled} onChange={(value) => updateSetting(`finance.visibility.${key}`, value)} /></div>)}</CardContent></Card>
               <Card className={!financeEnabled ? "opacity-60" : ""}><CardHeader><div className="flex items-start justify-between gap-3"><div><CardTitle className="text-base">Finance Heads</CardTitle><CardDescription>Project-level categories used by future budgets and expense records.</CardDescription></div><Button size="sm" disabled={!financeEnabled} onClick={() => openFinanceHead()}><Plus className="mr-1.5 h-3.5 w-3.5" /> Add Finance Head</Button></div></CardHeader><CardContent>{financeHeads.length === 0 ? <p className="rounded-lg border border-dashed p-5 text-center text-sm text-gray-500">No finance heads configured.</p> : <div className="space-y-2">{financeHeads.map((head: any) => <div key={head.id} className="flex flex-wrap items-center gap-3 rounded-lg border p-3"><div className="min-w-0 flex-1"><div className="flex items-center gap-2"><span className="font-medium">{head.name}</span><Badge variant="outline" className="font-mono text-[10px]">{head.code}</Badge>{!head.is_active && <Badge variant="secondary">Inactive</Badge>}</div><p className="mt-1 text-xs text-gray-500">{head.description || "No description"} · {head.budget_allowed ? "Budget" : "No budget"} · {head.actual_expense_allowed ? "Expenses" : "No expenses"}</p></div><Button variant="ghost" size="sm" onClick={() => openFinanceHead(head)}><Cog className="mr-1 h-3.5 w-3.5" /> Edit</Button><Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700" onClick={() => deleteFinanceHeadMutation.mutate(head.id)} disabled={deleteFinanceHeadMutation.isPending}><Trash2 className="h-3.5 w-3.5" /></Button></div>)}</div>}</CardContent></Card>
             </>
@@ -571,6 +654,53 @@ export default function ProjectSettingsPanel({ project, users, clients, members,
         <DialogContent>
           <DialogHeader><DialogTitle>{pendingDisable?.label}</DialogTitle><DialogDescription>{pendingDisable?.description}</DialogDescription></DialogHeader>
           <DialogFooter><Button variant="outline" onClick={() => setPendingDisable(null)}>Cancel</Button><Button variant="destructive" onClick={() => { if (pendingDisable) updateSetting(pendingDisable.path, false); setPendingDisable(null); }}>{pendingDisable?.label?.replace("?", "")}</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={resourceCostDialog} onOpenChange={setResourceCostDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editingResourceCost ? "Edit Resource Salary" : "Add Resource Salary"}</DialogTitle>
+            <DialogDescription>
+              Salary is recorded in the organization currency ({organizationCurrency}) and applies from the first day of the selected month.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label>Resource</Label>
+              <Select
+                value={resourceCostForm.user_id || "none"}
+                disabled={!!editingResourceCost}
+                onValueChange={(value) => setResourceCostForm((current) => ({ ...current, user_id: value === "none" ? "" : value }))}
+              >
+                <SelectTrigger><SelectValue placeholder="Select a project resource" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Select a project resource</SelectItem>
+                  {internalMembers.map((member) => <SelectItem key={member.user_id} value={member.user_id!}>{displayUser(member.user_id)}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              {editingResourceCost && <p className="text-xs text-gray-500">Resource cannot be changed on an existing history record; add a new record instead.</p>}
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label>Gross Salary ({organizationCurrency})</Label>
+                <Input type="number" min="0" step="0.01" value={resourceCostForm.gross_salary} onChange={(e) => setResourceCostForm((current) => ({ ...current, gross_salary: e.target.value }))} placeholder="0.00" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Effective Month</Label>
+                <Input type="month" value={resourceCostForm.effective_month} onChange={(e) => setResourceCostForm((current) => ({ ...current, effective_month: e.target.value }))} />
+              </div>
+            </div>
+            <div className="rounded-lg border border-indigo-100 bg-indigo-50 p-3 text-xs leading-5 text-indigo-800 dark:border-indigo-900 dark:bg-indigo-950/30 dark:text-indigo-200">
+              If a salary changes in October, enter the new salary with October as the effective month. September and earlier months continue using the previous record.
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setResourceCostDialog(false)}>Cancel</Button>
+            <Button onClick={() => resourceCostMutation.mutate()} disabled={resourceCostMutation.isPending || !resourceCostForm.user_id || !resourceCostForm.gross_salary || !resourceCostForm.effective_month}>
+              <Check className="mr-1.5 h-4 w-4" /> {resourceCostMutation.isPending ? "Saving…" : "Save Salary"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

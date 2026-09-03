@@ -26,6 +26,7 @@ import {
   projectSettings,
   projectFinanceHeads,
   projectSettingAudit,
+  projectResourceCostHistory,
   projectMembers,
   projectMemberHistory,
   projectMilestones,
@@ -77,6 +78,7 @@ import {
   ProjectSettings,
   ProjectFinanceHead,
   ProjectSettingAudit,
+  ProjectResourceCostHistory,
   ProjectMember,
   InsertProjectMember,
   ProjectMemberHistory,
@@ -272,6 +274,10 @@ export interface IStorage {
   deleteProjectFinanceHead(id: string): Promise<void>;
   getProjectSettingAudit(projectId: string): Promise<ProjectSettingAudit[]>;
   addProjectSettingAudit(entry: Omit<ProjectSettingAudit, "id" | "created_at">): Promise<ProjectSettingAudit>;
+  getProjectResourceCostHistory(projectId: string): Promise<ProjectResourceCostHistory[]>;
+  createProjectResourceCost(entry: Omit<ProjectResourceCostHistory, "id" | "created_at" | "updated_at">): Promise<ProjectResourceCostHistory>;
+  updateProjectResourceCost(id: string, updates: Partial<ProjectResourceCostHistory>): Promise<ProjectResourceCostHistory>;
+  deleteProjectResourceCost(id: string): Promise<void>;
 
   // Project member operations
   getProjectMembers(projectId: string): Promise<ProjectMember[]>;
@@ -1525,6 +1531,35 @@ export class DatabaseStorage implements IStorage {
   ): Promise<ProjectSettingAudit> {
     const [result] = await db.insert(projectSettingAudit).values(entry).returning();
     return result;
+  }
+
+  async getProjectResourceCostHistory(projectId: string): Promise<ProjectResourceCostHistory[]> {
+    return await db.select().from(projectResourceCostHistory)
+      .where(eq(projectResourceCostHistory.project_id, projectId))
+      .orderBy(desc(projectResourceCostHistory.effective_month));
+  }
+
+  async createProjectResourceCost(
+    entry: Omit<ProjectResourceCostHistory, "id" | "created_at" | "updated_at">,
+  ): Promise<ProjectResourceCostHistory> {
+    const [result] = await db.insert(projectResourceCostHistory).values(entry).returning();
+    return result;
+  }
+
+  async updateProjectResourceCost(
+    id: string,
+    updates: Partial<ProjectResourceCostHistory>,
+  ): Promise<ProjectResourceCostHistory> {
+    const [result] = await db.update(projectResourceCostHistory)
+      .set({ ...updates, updated_at: new Date() })
+      .where(eq(projectResourceCostHistory.id, id))
+      .returning();
+    if (!result) throw new Error("Resource cost record not found");
+    return result;
+  }
+
+  async deleteProjectResourceCost(id: string): Promise<void> {
+    await db.delete(projectResourceCostHistory).where(eq(projectResourceCostHistory.id, id));
   }
 
   async deleteProject(id: string): Promise<void> {

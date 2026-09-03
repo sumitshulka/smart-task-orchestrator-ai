@@ -21,6 +21,10 @@ export async function runStartupMigrations(): Promise<void> {
       ALTER TABLE projects ADD COLUMN IF NOT EXISTS project_code text
     `);
     await client.query(`
+      ALTER TABLE organization_settings
+        ADD COLUMN IF NOT EXISTS currency text NOT NULL DEFAULT 'USD'
+    `);
+    await client.query(`
       CREATE UNIQUE INDEX IF NOT EXISTS projects_project_code_unique
         ON projects(project_code)
         WHERE project_code IS NOT NULL
@@ -59,6 +63,21 @@ export async function runStartupMigrations(): Promise<void> {
         new_value jsonb,
         changed_by uuid REFERENCES users(id) ON DELETE SET NULL,
         created_at timestamp DEFAULT now()
+      )
+    `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS project_resource_cost_history (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        project_id uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        gross_salary text NOT NULL,
+        organization_currency text NOT NULL,
+        effective_month date NOT NULL,
+        created_by uuid REFERENCES users(id) ON DELETE SET NULL,
+        created_at timestamp DEFAULT now(),
+        updated_at timestamp DEFAULT now(),
+        CONSTRAINT project_resource_cost_project_user_month_unique
+          UNIQUE (project_id, user_id, effective_month)
       )
     `);
   } finally {

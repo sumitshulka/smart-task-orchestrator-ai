@@ -8,3 +8,9 @@ Project-level configuration belongs in a structured settings record rather than 
 **Why:** Settings need to grow by module without duplicating entities or making project rows hard to maintain. Disabling a module must hide or stop its workflows while retaining data for later re-enablement.
 
 **How to apply:** Add validated settings keys and idempotent startup migrations for new structured configuration. Gate project navigation from persisted module toggles, enforce edits server-side by role, and record sensitive changes in project settings audit history.
+
+Resource salaries are an effective-dated history, not a mutable user attribute. Cost calculation for a month must select the latest salary record whose effective month is on or before that month, and new records must use the current organization currency.
+
+**Why:** Compensation can change during a project, but historical months must remain reproducible and must not be recalculated using a later salary.
+
+**How to apply:** Keep one record per project resource and effective month, reject duplicates, retain prior records, and use the month resolver whenever project people cost is calculated or reported.

@@ -1,4 +1,4 @@
-import { pgTable, text, uuid, timestamp, integer, boolean, pgEnum, serial, jsonb, unique } from "drizzle-orm/pg-core";
+import { pgTable, text, uuid, timestamp, integer, boolean, pgEnum, serial, jsonb, unique, date } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { relations } from "drizzle-orm";
@@ -7,6 +7,7 @@ import { relations } from "drizzle-orm";
 export const organizationSettings = pgTable("organization_settings", {
   id: uuid("id").primaryKey().defaultRandom(),
   organization_name: text("organization_name").notNull().default("My Organization"),
+  currency: text("currency").notNull().default("USD"),
   date_format: text("date_format").notNull().default("MM/dd/yyyy"),
   time_zone: text("time_zone").notNull().default("UTC"),
   // Daily hour limit settings (separate from benchmarking)
@@ -95,6 +96,24 @@ export const projectSettingAudit = pgTable("project_setting_audit", {
   changed_by: uuid("changed_by").references(() => users.id, { onDelete: "set null" }),
   created_at: timestamp("created_at").defaultNow(),
 });
+
+export const projectResourceCostHistory = pgTable("project_resource_cost_history", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  project_id: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  user_id: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  gross_salary: text("gross_salary").notNull(),
+  organization_currency: text("organization_currency").notNull(),
+  effective_month: date("effective_month").notNull(),
+  created_by: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+  created_at: timestamp("created_at").defaultNow(),
+  updated_at: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  projectUserMonthUnique: unique("project_resource_cost_project_user_month_unique").on(
+    table.project_id,
+    table.user_id,
+    table.effective_month,
+  ),
+}));
 
 // Project Members table (current state)
 export const projectMembers = pgTable("project_members", {
@@ -853,6 +872,7 @@ export type Project = typeof projects.$inferSelect;
 export type ProjectSettings = typeof projectSettings.$inferSelect;
 export type ProjectFinanceHead = typeof projectFinanceHeads.$inferSelect;
 export type ProjectSettingAudit = typeof projectSettingAudit.$inferSelect;
+export type ProjectResourceCostHistory = typeof projectResourceCostHistory.$inferSelect;
 export type InsertProjectMember = z.infer<typeof insertProjectMemberSchema>;
 export type ProjectMember = typeof projectMembers.$inferSelect;
 export type InsertProjectMemberHistory = z.infer<typeof insertProjectMemberHistorySchema>;

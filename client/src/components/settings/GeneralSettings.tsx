@@ -13,6 +13,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 type OrganizationSettings = {
   id: string;
   organization_name: string;
+  currency: string;
   date_format: string;
   time_zone: string;
   daily_hour_limit_enabled: boolean;
@@ -63,6 +64,7 @@ const GeneralSettings: React.FC = () => {
 
   const [formData, setFormData] = useState({
     organization_name: "",
+    currency: "USD",
     date_format: "MM/dd/yyyy",
     time_zone: "UTC",
     daily_hour_limit_enabled: true,
@@ -84,6 +86,7 @@ const GeneralSettings: React.FC = () => {
     if (settings) {
       setFormData({
         organization_name: settings.organization_name || "",
+        currency: settings.currency || "USD",
         date_format: settings.date_format || "MM/dd/yyyy",
         time_zone: settings.time_zone || "UTC",
         daily_hour_limit_enabled: settings.daily_hour_limit_enabled !== undefined ? settings.daily_hour_limit_enabled : true,
@@ -230,6 +233,26 @@ const GeneralSettings: React.FC = () => {
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="organization-currency">Organization Currency</Label>
+            <Select
+              value={formData.currency}
+              onValueChange={(value) => handleFormChange('currency', value)}
+            >
+              <SelectTrigger id="organization-currency">
+                <SelectValue placeholder="Select organization currency" />
+              </SelectTrigger>
+              <SelectContent>
+                {["USD", "INR", "EUR", "GBP", "AUD", "CAD", "SGD"].map((currency) => (
+                  <SelectItem key={currency} value={currency}>{currency}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-sm text-muted-foreground">
+              Resource gross salaries and people-cost calculations use this currency.
+            </p>
           </div>
         </CardContent>
       </Card>
