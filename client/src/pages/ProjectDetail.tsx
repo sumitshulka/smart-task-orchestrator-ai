@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ComponentType } from "react";
 import WorkspaceTab from "@/components/WorkspaceTab";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -67,6 +67,33 @@ const FEATURE_STATUS_COLORS: Record<string, string> = {
   in_progress: "bg-blue-100 text-blue-700 dark:bg-blue-900",
   completed: "bg-green-100 text-green-700 dark:bg-green-900",
 };
+
+function LaunchingSoonSection({
+  icon: Icon,
+  title,
+  description,
+}: {
+  icon: ComponentType<{ className?: string }>;
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className="flex min-h-full items-center justify-center">
+      <Card className="w-full max-w-2xl border-dashed">
+        <CardContent className="flex flex-col items-center px-6 py-14 text-center">
+          <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600 dark:bg-indigo-950/50 dark:text-indigo-300">
+            <Icon className="h-7 w-7" />
+          </div>
+          <Badge variant="secondary" className="mb-3 text-[10px] uppercase tracking-wider">
+            Launching soon
+          </Badge>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">{title}</h2>
+          <p className="mt-3 max-w-lg text-sm leading-6 text-gray-500 dark:text-gray-400">{description}</p>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
 
 // ==============================
 // SUB-COMPONENT: MilestonePanel
@@ -679,6 +706,9 @@ export default function ProjectDetail() {
   const navItems = [
     { id: "overview",    label: "Overview",    icon: LayoutDashboard },
     { id: "planning",    label: "Planning",    icon: Network },
+    { id: "finance",     label: "Finance",     icon: DollarSign },
+    { id: "meetings",    label: "Meetings",    icon: Calendar },
+    { id: "documents",   label: "Documents",   icon: FileText },
     { id: "members",     label: "Members",     icon: Users,     count: members.length },
     { id: "milestones",  label: "Milestones",  icon: Milestone, count: milestones.length },
     { id: "features",    label: "Features",    icon: Layers,    count: features.length },
@@ -903,6 +933,29 @@ export default function ProjectDetail() {
             {/* ══════════════════ PLANNING ══════════════════ */}
             {activeSection === "planning" && (
               <PlanningWorkspace projectId={id!} users={users as User[]} />
+            )}
+
+            {/* ══════════════════ COMING SOON MODULES ══════════════════ */}
+            {activeSection === "finance" && (
+              <LaunchingSoonSection
+                icon={DollarSign}
+                title="Project Finance"
+                description="This module will contain project-related finance items and will ultimately help determine project profitability."
+              />
+            )}
+            {activeSection === "meetings" && (
+              <LaunchingSoonSection
+                icon={Calendar}
+                title="Project Meetings"
+                description="This advanced module will store project meeting details, action plans, and related items so progress can be tracked from the project level."
+              />
+            )}
+            {activeSection === "documents" && (
+              <LaunchingSoonSection
+                icon={FileText}
+                title="Project Documents"
+                description="This module will store project-related documents and act as the project document repository."
+              />
             )}
 
             {/* ══════════════════ OVERVIEW ══════════════════ */}
