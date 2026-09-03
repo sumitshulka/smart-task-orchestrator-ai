@@ -15,13 +15,15 @@ class ApiClient {
     
     console.log('API Request:', { url, endpoint, cleanEndpoint, userId: user?.id, method: options.method || 'GET' });
 
+    const headers = new Headers(options.headers);
+    if (!(options.body instanceof FormData)) {
+      headers.set('Content-Type', 'application/json');
+    }
+    if (user?.id) headers.set('x-user-id', user.id);
+
     const response = await fetch(url, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...(user?.id && { 'x-user-id': user.id }),
-        ...options.headers,
-      },
       ...options,
+      headers,
     });
 
     if (!response.ok) {
@@ -341,21 +343,21 @@ class ApiClient {
   async post(endpoint: string, data?: any) {
     return this.request(endpoint, {
       method: 'POST',
-      body: data ? JSON.stringify(data) : undefined,
+      body: data instanceof FormData ? data : data ? JSON.stringify(data) : undefined,
     });
   }
 
   async put(endpoint: string, data?: any) {
     return this.request(endpoint, {
       method: 'PUT',
-      body: data ? JSON.stringify(data) : undefined,
+      body: data instanceof FormData ? data : data ? JSON.stringify(data) : undefined,
     });
   }
 
   async patch(endpoint: string, data?: any) {
     return this.request(endpoint, {
       method: 'PATCH',
-      body: data ? JSON.stringify(data) : undefined,
+      body: data instanceof FormData ? data : data ? JSON.stringify(data) : undefined,
     });
   }
 

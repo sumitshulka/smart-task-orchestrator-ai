@@ -17,7 +17,7 @@ import {
   Pencil, Trash2, MoreHorizontal, Calendar, Clock, User, Flag,
   Layers, FolderOpen, BookOpen, CheckSquare, GitBranch, Target,
   BarChart2, AlertTriangle, X, Check, RefreshCw, Network,
-  Link2, ArrowRight,
+  Link2, ArrowRight, FileText, Upload,
 } from "lucide-react";
 import { format, differenceInDays } from "date-fns";
 import type { User as UserType } from "@shared/schema";
@@ -619,18 +619,42 @@ function AiPlanningPanel({
   const [scopeType, setScopeType] = useState("project");
   const [scopeId, setScopeId] = useState("");
   const [prompt, setPrompt] = useState("");
+  const [documentFile, setDocumentFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
+  const documentInputRef = useRef<HTMLInputElement>(null);
+
+  const handleDocumentChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    const isSupportedType =
+      file.name.toLowerCase().endsWith(".pdf") ||
+      file.name.toLowerCase().endsWith(".docx");
+    if (!isSupportedType) {
+      toast({ title: "Unsupported document", description: "Upload a PDF or DOCX file.", variant: "destructive" });
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      toast({ title: "Document is too large", description: "Upload a document smaller than 10 MB.", variant: "destructive" });
+      return;
+    }
+    setDocumentFile(file);
+  };
 
   const propose = async () => {
     if (!prompt.trim()) { toast({ title: "Please enter a prompt", variant: "destructive" }); return; }
     setLoading(true);
     try {
-      const data = await apiClient.post(`/projects/${projectId}/planning/ai-propose`, {
-        scope_type: scopeType,
-        scope_id: scopeId || null,
-        prompt,
-      });
+      const request = new FormData();
+      request.append("scope_type", scopeType);
+      request.append("scope_id", scopeId || "");
+      request.append("prompt", prompt.trim());
+      if (documentFile) request.append("document", documentFile);
+
+      const data = await apiClient.post(`/projects/${projectId}/planning/ai-propose`, request);
       onProposalReady(data);
+      setDocumentFile(null);
       onClose();
     } catch {
       toast({ title: "AI planning failed", description: "Check AI settings or try again.", variant: "destructive" });
@@ -648,18 +672,21 @@ function AiPlanningPanel({
 
   return (
     <Sheet open={open} onOpenChange={onClose}>
-      <SheetContent className="w-full max-w-md flex flex-col" side="right">
-        <SheetHeader>
-          <SheetTitle className="flex items-center gap-2">
+      <SheetContent className="w-full flex flex-col sm:max-w-2xl" side="right">
+        <SheetHeader className="shrink-0 border-b border-gray-100 pb-3 pr-8 dark:border-gray-800">
+          <SheetTitle className="flex items-center gap-2 text-base">
             <Sparkles className="h-4 w-4 text-violet-500" />AI Planning
           </SheetTitle>
+          <SheetDescription className="text-xs">
+            Give the AI a planning goal and it will prepare a proposal for your review.
+          </SheetDescription>
         </SheetHeader>
-        <div className="flex-1 overflow-y-auto space-y-4 py-4">
-          <div className="rounded-lg bg-violet-50 dark:bg-violet-950/30 border border-violet-200 dark:border-violet-800 p-3 text-xs text-violet-700 dark:text-violet-300">
+        <div className="min-h-0 flex-1 overflow-y-auto space-y-3 py-3 pr-1 [&_label]:text-xs">
+          <div className="rounded-lg border border-violet-200 bg-violet-50 p-3 text-xs text-violet-700 dark:border-violet-800 dark:bg-violet-950/30 dark:text-violet-300">
             AI will analyze your project and propose planning items. You review and approve before anything is created.
           </div>
-          <div className="space-y-1.5">
-            <Label>Planning Scope</Label>
+          <div className="space-y-1">
+            <Label className="font-medium">Planning Scope</Label>
             <Select
               value={scopeType === "project" ? "project" : `${scopeType}:${scopeId}`}
               onValueChange={val => {
@@ -667,23 +694,69 @@ function AiPlanningPanel({
                 else { const [t, ...id] = val.split(":"); setScopeType(t); setScopeId(id.join(":")); }
               }}
             >
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {scopeOptions.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-1.5">
-            <Label>Your Instruction</Label>
+          <div className="space-y-1">
+            <Label className="font-medium">Your Instruction</Label>
             <Textarea
-              rows={5}
+              rows={4}
               value={prompt}
               onChange={e => setPrompt(e.target.value)}
               placeholder={`e.g. "Break this feature into user stories with acceptance criteria" or "Plan Phase 2 - Development with realistic milestones"`}
-              className="resize-none"
+              className="resize-none text-sm"
             />
           </div>
-          <div className="rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 p-3 space-y-1">
+
+          <div className="space-y-1.5">
+            <Label className="flex items-center gap-1.5 font-medium">
+              <FileText className="h-3.5 w-3.5 text-violet-500" />Reference Document
+              <span className="font-normal text-gray-400">(optional)</span>
+            </Label>
+            <input
+              ref={documentInputRef}
+              type="file"
+              accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+              onChange={handleDocumentChange}
+              className="hidden"
+            />
+            {documentFile ? (
+              <div className="flex items-center justify-between gap-3 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800/60">
+                <span className="flex min-w-0 items-center gap-2">
+                  <FileText className="h-4 w-4 shrink-0 text-violet-500" />
+                  <span className="min-w-0 truncate">{documentFile.name}</span>
+                  <span className="shrink-0 text-xs text-gray-400">
+                    {(documentFile.size / 1024 / 1024).toFixed(1)} MB
+                  </span>
+                </span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setDocumentFile(null)}
+                  className="h-7 shrink-0 px-2 text-gray-500 hover:text-red-500"
+                  aria-label="Remove reference document"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => documentInputRef.current?.click()}
+                className="flex w-full items-center justify-center gap-2 rounded-md border border-dashed border-gray-300 px-3 py-3 text-sm text-gray-500 transition-colors hover:border-violet-400 hover:bg-violet-50/60 hover:text-violet-600 dark:border-gray-700 dark:hover:border-violet-700 dark:hover:bg-violet-950/20 dark:hover:text-violet-300"
+              >
+                <Upload className="h-4 w-4" />
+                Upload PDF or DOCX
+              </button>
+            )}
+            <p className="text-[11px] text-gray-400">The AI will read the document as reference material. Maximum size: 10 MB.</p>
+          </div>
+
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 space-y-1 dark:border-amber-800 dark:bg-amber-950/30">
             <p className="text-xs font-semibold text-amber-700 dark:text-amber-300">AI Assistance Rules</p>
             <ul className="text-xs text-amber-600 dark:text-amber-400 space-y-0.5 list-disc list-inside">
               <li>AI proposes — you approve</li>
@@ -692,9 +765,9 @@ function AiPlanningPanel({
             </ul>
           </div>
         </div>
-        <SheetFooter>
-          <Button variant="outline" onClick={onClose} className="flex-1">Cancel</Button>
-          <Button onClick={propose} disabled={loading} className="flex-1 bg-violet-600 hover:bg-violet-700 text-white">
+        <SheetFooter className="shrink-0 border-t border-gray-100 pt-3 dark:border-gray-800">
+          <Button variant="outline" onClick={onClose} className="h-9 flex-1 text-sm">Cancel</Button>
+          <Button onClick={propose} disabled={loading} className="h-9 flex-1 bg-violet-600 text-sm text-white hover:bg-violet-700">
             {loading ? <><RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" />Generating…</> : <><Sparkles className="h-3.5 w-3.5 mr-1.5" />Generate Plan</>}
           </Button>
         </SheetFooter>
