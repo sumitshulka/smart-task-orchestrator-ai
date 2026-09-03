@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
-  Bell, BookOpen, Calendar, Check, ChevronRight, CircleDollarSign, ClipboardCheck,
+  Bell, BookOpen, Calendar, ChevronRight, CircleDollarSign, ClipboardCheck,
   Cog, FileText, FolderKanban, History, Lock, MessageSquare, Network, Plus,
   RotateCcw, Save, Settings2, Shield, SlidersHorizontal, Trash2, Users, X,
 } from "lucide-react";
@@ -873,7 +873,54 @@ export default function ProjectSettingsPanel({ project, users, clients, members,
                  </CardContent>
                </Card>
               <Card className={!financeEnabled ? "opacity-60" : ""}><CardHeader><CardTitle className="text-base">Finance visibility</CardTitle><CardDescription>Finance being enabled does not automatically make every financial measure visible.</CardDescription></CardHeader><CardContent className="space-y-4">{([["budget", "Project Budget"], ["expenses", "Project Expenses"], ["resourceCost", "Resource Cost"], ["profitability", "Profitability / Margin"]] as const).map(([key, label]) => <div key={key}><Label className="mb-2 block text-sm">{label}</Label><RolePicker value={settings.finance.visibility[key]} disabled={!financeEnabled} onChange={(value) => updateSetting(`finance.visibility.${key}`, value)} /></div>)}</CardContent></Card>
-              <Card className={!financeEnabled ? "opacity-60" : ""}><CardHeader><div className="flex items-start justify-between gap-3"><div><CardTitle className="text-base">Finance Heads</CardTitle><CardDescription>Project-level categories used by future budgets and expense records.</CardDescription></div><Button size="sm" disabled={!financeEnabled} onClick={() => openFinanceHead()}><Plus className="mr-1.5 h-3.5 w-3.5" /> Add Finance Head</Button></div></CardHeader><CardContent>{financeHeads.length === 0 ? <p className="rounded-lg border border-dashed p-5 text-center text-sm text-gray-500">No finance heads configured.</p> : <div className="space-y-2">{financeHeads.map((head: any) => <div key={head.id} className="flex flex-wrap items-center gap-3 rounded-lg border p-3"><div className="min-w-0 flex-1"><div className="flex items-center gap-2"><span className="font-medium">{head.name}</span><Badge variant="outline" className="font-mono text-[10px]">{head.code}</Badge>{!head.is_active && <Badge variant="secondary">Inactive</Badge>}</div><p className="mt-1 text-xs text-gray-500">{head.description || "No description"} · {head.budget_allowed ? "Budget" : "No budget"} · {head.actual_expense_allowed ? "Expenses" : "No expenses"}</p></div><Button variant="ghost" size="sm" onClick={() => openFinanceHead(head)}><Cog className="mr-1 h-3.5 w-3.5" /> Edit</Button><Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700" onClick={() => deleteFinanceHeadMutation.mutate(head.id)} disabled={deleteFinanceHeadMutation.isPending}><Trash2 className="h-3.5 w-3.5" /></Button></div>)}</div>}</CardContent></Card>
+              <Card className={!financeEnabled ? "opacity-60" : ""}>
+                <CardHeader>
+                  <CardTitle className="text-base">Finance Heads</CardTitle>
+                  <CardDescription>Project-level categories used by future budgets and expense records. Add and edit them directly in the table.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {!financeEnabled ? (
+                    <p className="rounded-lg border border-dashed p-5 text-center text-sm text-gray-500">Enable Finance to manage finance heads.</p>
+                  ) : (
+                    <div className="overflow-x-auto rounded-lg border">
+                      <table className="w-full min-w-[1050px] text-left text-sm">
+                        <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500 dark:bg-gray-900/60 dark:text-gray-400">
+                          <tr>
+                            <th className="px-3 py-3 font-medium">Code</th>
+                            <th className="px-3 py-3 font-medium">Name</th>
+                            <th className="px-3 py-3 font-medium">Description</th>
+                            <th className="px-3 py-3 text-center font-medium">Active</th>
+                            <th className="px-3 py-3 text-center font-medium">Budget</th>
+                            <th className="px-3 py-3 text-center font-medium">Expenses</th>
+                            <th className="px-3 py-3 text-right font-medium">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {financeHeads.map((head: any) => (
+                            <FinanceHeadRow
+                              key={head.id}
+                              head={head}
+                              canEdit={financeEnabled}
+                              onSave={(payload) => financeHeadMutation.mutate(payload)}
+                              onDelete={(headId) => deleteFinanceHeadMutation.mutate(headId)}
+                              isSaving={financeHeadMutation.isPending}
+                              isDeleting={deleteFinanceHeadMutation.isPending}
+                            />
+                          ))}
+                          <FinanceHeadRow
+                            canEdit={financeEnabled}
+                            onSave={(payload) => financeHeadMutation.mutate(payload)}
+                            onDelete={() => undefined}
+                            isSaving={financeHeadMutation.isPending}
+                            isDeleting={deleteFinanceHeadMutation.isPending}
+                          />
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                  <p className="mt-3 text-xs text-gray-500">Use the blank row to add a finance head. Code and name are required; descriptions and checkbox values can be changed inline.</p>
+                </CardContent>
+              </Card>
             </>
           )}
 
@@ -926,17 +973,6 @@ export default function ProjectSettingsPanel({ project, users, clients, members,
         </DialogContent>
       </Dialog>
 
-      <Dialog open={financeHeadDialog} onOpenChange={setFinanceHeadDialog}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>{editingHead ? "Edit Finance Head" : "Add Finance Head"}</DialogTitle><DialogDescription>Finance heads are project-level categories, not accounting ledgers.</DialogDescription></DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="grid gap-4 sm:grid-cols-2"><div className="space-y-1.5"><Label>Name</Label><Input value={headForm.name} onChange={(e) => setHeadForm((current) => ({ ...current, name: e.target.value }))} /></div><div className="space-y-1.5"><Label>Code</Label><Input value={headForm.code} onChange={(e) => setHeadForm((current) => ({ ...current, code: e.target.value.toUpperCase() }))} /></div></div>
-            <div className="space-y-1.5"><Label>Description</Label><Textarea value={headForm.description} rows={3} onChange={(e) => setHeadForm((current) => ({ ...current, description: e.target.value }))} /></div>
-            <div className="grid gap-2 sm:grid-cols-3"><ToggleRow label="Active" description="Available for future entries." checked={headForm.is_active} onChange={(value) => setHeadForm((current) => ({ ...current, is_active: value }))} /><ToggleRow label="Budget allowed" description="May receive budget." checked={headForm.budget_allowed} onChange={(value) => setHeadForm((current) => ({ ...current, budget_allowed: value }))} /><ToggleRow label="Expenses allowed" description="May receive expenses." checked={headForm.actual_expense_allowed} onChange={(value) => setHeadForm((current) => ({ ...current, actual_expense_allowed: value }))} /></div>
-          </div>
-          <DialogFooter><Button variant="outline" onClick={() => setFinanceHeadDialog(false)}>Cancel</Button><Button onClick={() => financeHeadMutation.mutate()} disabled={financeHeadMutation.isPending || !headForm.name.trim() || !headForm.code.trim()}><Check className="mr-1.5 h-4 w-4" /> Save Finance Head</Button></DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
