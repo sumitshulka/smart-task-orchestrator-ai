@@ -439,6 +439,7 @@ function ResourceSalaryRecordRow({
 
 type FinanceHeadRowProps = {
   head?: any;
+  resetKey?: number;
   canEdit: boolean;
   onSave: (payload: {
     id?: string;
@@ -454,7 +455,7 @@ type FinanceHeadRowProps = {
   isDeleting: boolean;
 };
 
-function FinanceHeadRow({ head, canEdit, onSave, onDelete, isSaving, isDeleting }: FinanceHeadRowProps) {
+function FinanceHeadRow({ head, resetKey, canEdit, onSave, onDelete, isSaving, isDeleting }: FinanceHeadRowProps) {
   const [form, setForm] = useState({
     name: head?.name ?? "",
     code: head?.code ?? "",
@@ -474,6 +475,19 @@ function FinanceHeadRow({ head, canEdit, onSave, onDelete, isSaving, isDeleting 
       actual_expense_allowed: head?.actual_expense_allowed ?? true,
     });
   }, [head?.id, head?.name, head?.code, head?.description, head?.is_active, head?.budget_allowed, head?.actual_expense_allowed]);
+
+  useEffect(() => {
+    if (!head) {
+      setForm({
+        name: "",
+        code: "",
+        description: "",
+        is_active: true,
+        budget_allowed: true,
+        actual_expense_allowed: true,
+      });
+    }
+  }, [head, resetKey]);
 
   return (
     <tr className={`border-t align-top dark:border-gray-800 ${!head ? "bg-indigo-50/40 dark:bg-indigo-950/10" : ""}`}>
@@ -504,7 +518,8 @@ function FinanceHeadRow({ head, canEdit, onSave, onDelete, isSaving, isDeleting 
           onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
           placeholder="Optional description"
           rows={2}
-          className="min-w-[220px] resize-y"
+          className="min-w-[220px] resize-none overflow-y-auto"
+          style={{ height: "60px", minHeight: "60px", maxHeight: "60px" }}
           aria-label="Finance head description"
         />
       </td>
@@ -908,6 +923,8 @@ export default function ProjectSettingsPanel({ project, users, clients, members,
                             />
                           ))}
                           <FinanceHeadRow
+                            key="new-finance-head"
+                            resetKey={financeHeads.length}
                             canEdit={financeEnabled}
                             onSave={(payload) => financeHeadMutation.mutate(payload)}
                             onDelete={() => undefined}
