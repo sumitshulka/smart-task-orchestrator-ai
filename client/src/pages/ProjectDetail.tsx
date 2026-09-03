@@ -705,6 +705,7 @@ export default function ProjectDetail() {
   // ── Sidebar nav items ──────────────────────────────────────────────────────
   const navItems = [
     { id: "overview",    label: "Overview",    icon: LayoutDashboard },
+    { id: "workspace",   label: "Project Workspace", icon: MessageSquare },
     { id: "planning",    label: "Planning",    icon: Network },
     { id: "members",     label: "Members",     icon: Users,     count: members.length },
     { id: "milestones",  label: "Milestones",  icon: Milestone, count: milestones.length },
@@ -826,22 +827,8 @@ export default function ProjectDetail() {
             })}
           </nav>
 
-          {/* Bottom: Workspace + collapse toggle */}
+          {/* Bottom: collapse toggle */}
           <div className="border-t border-gray-100 dark:border-gray-800 p-2 space-y-1">
-            <button
-              title={sidebarCollapsed ? "Project Workspace" : undefined}
-              onClick={() => { setActiveSection("workspace"); setMobileSidebarOpen(false); }}
-              className={[
-                "w-full flex items-center gap-2.5 px-2 py-2 rounded-lg text-sm transition-colors",
-                activeSection === "workspace"
-                  ? "bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 font-medium"
-                  : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800",
-              ].join(" ")}
-            >
-              <MessageSquare className={`h-4 w-4 shrink-0 ${activeSection === "workspace" ? "text-indigo-600 dark:text-indigo-400" : "text-gray-400"}`} />
-              {!sidebarCollapsed && <span className="truncate">Project Workspace</span>}
-            </button>
-
             {/* Desktop collapse toggle */}
             <button
               className="hidden lg:flex w-full items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-xs text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
