@@ -87,6 +87,9 @@ export default function TaskTimer({ task, onTaskUpdated, compact = false }: Task
     return null;
   }
 
+  const finalStatuses = ['completed', 'review'];
+  const isTimerDisabled = finalStatuses.includes(task.status.toLowerCase());
+
   if (compact) {
     const estimatedMinutes = (task.estimated_hours || 0) * 60;
     const timeRemaining = Math.max(0, estimatedMinutes - currentTime);
@@ -124,6 +127,52 @@ export default function TaskTimer({ task, onTaskUpdated, compact = false }: Task
         {task.timer_state === 'running' && (
           <div className={`w-2 h-2 rounded-full animate-pulse ${isDelayed ? 'bg-red-500' : 'bg-green-500'}`} />
         )}
+        {!isTimerDisabled && (
+          <div className="flex items-center gap-0.5">
+            {task.timer_state !== 'running' && (
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                className="h-6 w-6"
+                onClick={() => handleTimerAction('start')}
+                disabled={isLoading}
+                aria-label="Start timer"
+                title="Start timer"
+              >
+                <Play className="h-3 w-3" />
+              </Button>
+            )}
+            {task.timer_state === 'running' && (
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                className="h-6 w-6"
+                onClick={() => handleTimerAction('pause')}
+                disabled={isLoading}
+                aria-label="Pause timer"
+                title="Pause timer"
+              >
+                <Pause className="h-3 w-3" />
+              </Button>
+            )}
+            {task.timer_state !== 'stopped' && (
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                className="h-6 w-6"
+                onClick={() => handleTimerAction('stop')}
+                disabled={isLoading}
+                aria-label="Stop timer"
+                title="Stop timer"
+              >
+                <Square className="h-3 w-3" />
+              </Button>
+            )}
+          </div>
+        )}
       </div>
     );
   }
@@ -136,9 +185,6 @@ export default function TaskTimer({ task, onTaskUpdated, compact = false }: Task
   const isTimeExceeded = task.estimated_hours && currentTime > estimatedMinutes;
   
   // Check if task is in final state where timer controls should be disabled
-  const finalStatuses = ['completed', 'review'];
-  const isTimerDisabled = finalStatuses.includes(task.status.toLowerCase());
-  
   return (
     <Card className={`w-full ${isDelayed ? 'border-red-500 bg-red-50' : ''}`}>
       <CardContent className="p-4">
