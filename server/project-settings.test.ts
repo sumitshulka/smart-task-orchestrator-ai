@@ -378,3 +378,34 @@ test("disabling modules keeps project data available when settings are re-enable
   assert.equal(restored.status, 200);
   assert.equal(restored.body.financeHeads[0].name, "Retained Finance Data");
 });
+
+test("release management stores repository configuration without connecting to it", async () => {
+  const repositorySettings = {
+    ...validSettings,
+    releaseManagement: {
+      enabled: true,
+      repository: {
+        type: "subversion",
+        location: "https://svn.example.test/project",
+        startingVersion: "2.4.0",
+      },
+    },
+  };
+  const saved = await request("PUT", `/api/projects/${projectId}/settings`, {
+    settings: repositorySettings,
+  });
+  assert.equal(saved.status, 200);
+  assert.deepEqual(saved.body.settings.releaseManagement, repositorySettings.releaseManagement);
+
+  const invalid = await request("PUT", `/api/projects/${projectId}/settings`, {
+    settings: {
+      ...repositorySettings,
+      releaseManagement: {
+        ...repositorySettings.releaseManagement,
+        repository: { ...repositorySettings.releaseManagement.repository, type: "github" },
+      },
+    },
+  });
+  assert.equal(invalid.status, 400);
+  assert.equal(invalid.body.error, "Unsupported repository type");
+});

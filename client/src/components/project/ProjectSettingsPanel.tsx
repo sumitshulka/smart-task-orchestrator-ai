@@ -984,6 +984,51 @@ export default function ProjectSettingsPanel({ project, users, clients, members,
                   />
                 </CardContent>
               </Card>
+              <Card className={!settings.releaseManagement.enabled ? "opacity-60" : ""}>
+                <CardHeader>
+                  <CardTitle className="text-base">Repository configuration</CardTitle>
+                  <CardDescription>Record the repository details that releases will use later. This does not connect to or sync with a repository.</CardDescription>
+                </CardHeader>
+                <CardContent className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label>Repository Type</Label>
+                    <Select
+                      value={settings.releaseManagement.repository.type}
+                      disabled={!settings.releaseManagement.enabled}
+                      onValueChange={(value) => updateSetting("releaseManagement.repository.type", value)}
+                    >
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="git">Git</SelectItem>
+                        <SelectItem value="subversion">Subversion</SelectItem>
+                        <SelectItem value="mercurial">Mercurial</SelectItem>
+                        <SelectItem value="other">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Repository Location</Label>
+                    <Input
+                      value={settings.releaseManagement.repository.location}
+                      disabled={!settings.releaseManagement.enabled}
+                      placeholder="Repository URL or path"
+                      onChange={(event) => updateSetting("releaseManagement.repository.location", event.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Starting Version</Label>
+                    <Input
+                      value={settings.releaseManagement.repository.startingVersion}
+                      disabled={!settings.releaseManagement.enabled}
+                      placeholder="1.0.0"
+                      onChange={(event) => updateSetting("releaseManagement.repository.startingVersion", event.target.value)}
+                    />
+                  </div>
+                  {!settings.releaseManagement.enabled && (
+                    <p className="text-xs text-gray-500 sm:col-span-2">Enable Release Management to configure repository details.</p>
+                  )}
+                </CardContent>
+              </Card>
             </>
           )}
 

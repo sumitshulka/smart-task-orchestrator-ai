@@ -240,7 +240,7 @@ function validateProjectSettings(input: unknown): { settings?: Record<string, an
   const booleanGroups = ["planning", "finance", "quality", "releaseManagement", "collaboration"] as const;
   for (const group of booleanGroups) {
     for (const [key, value] of Object.entries(settings[group])) {
-      if (key === "peopleCostVisibility" || key === "visibility" || key === "methodology" || key === "granularity") continue;
+      if (key === "peopleCostVisibility" || key === "visibility" || key === "methodology" || key === "granularity" || key === "repository") continue;
       if (typeof value !== "boolean") return { error: `${group}.${key} must be boolean` };
     }
   }
