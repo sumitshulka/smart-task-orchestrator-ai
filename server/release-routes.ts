@@ -112,6 +112,63 @@ async function releaseDependencies(scope: NonNullable<Awaited<ReturnType<typeof 
   return { selectedFeatureIds: featureIds, selectedStoryIds, includedTestCases, includedDefects };
 }
 
+function isOpenReleaseItem(status: unknown): boolean {
+  return !["done", "completed", "closed", "resolved", "verified", "cancelled"].includes(String(status ?? "").toLowerCase());
+}
+
+function releaseItemKey(itemType: string, itemId: string): string {
+  return `${itemType}:${itemId}`;
+}
+
+async function availableReleaseScope(projectId: string) {
+  const [milestones, featureGroups, rawFeatures, rawStories, rawTasks, attachedItems] = await Promise.all([
+    db.select().from(projectMilestones).where(eq(projectMilestones.project_id, projectId)),
+    db.select().from(projectFeatureGroups).where(eq(projectFeatureGroups.project_id, projectId)),
+    db.select().from(projectFeatures).where(eq(projectFeatures.project_id, projectId)),
+    db.select().from(userStories).where(eq(userStories.project_id, projectId)),
+    db.select().from(tasks).where(eq(tasks.project_id, projectId)),
+    db.select({ item_type: releaseItems.item_type, item_id: releaseItems.item_id }).from(releaseItems),
+  ]);
+  const attachedKeys = new Set(attachedItems.map((item) => releaseItemKey(item.item_type, item.item_id)));
+  const groupMilestoneById = new Map(featureGroups.map((group) => [group.id, group.milestone_id]));
+  const allFeatures = rawFeatures.map((feature) => ({
+    ...feature,
+    milestone_id: feature.feature_group_id ? groupMilestoneById.get(feature.feature_group_id) ?? null : null,
+  }));
+  const features = allFeatures.filter((feature) =>
+    Boolean(feature.milestone_id) &&
+    isOpenReleaseItem(feature.status) &&
+    !attachedKeys.has(releaseItemKey("feature", feature.id)),
+  );
+  const featureIds = new Set(features.map((feature) => feature.id));
+  const stories = rawStories.filter((story) =>
+    Boolean(story.feature_id) &&
+    featureIds.has(story.feature_id as string) &&
+    isOpenReleaseItem(story.status) &&
+    !attachedKeys.has(releaseItemKey("user_story", story.id)),
+  );
+  const featureMilestoneById = new Map(features.map((feature) => [feature.id, feature.milestone_id]));
+  const tasksForRelease = rawTasks.filter((task) =>
+    Boolean(task.feature_id) &&
+    featureIds.has(task.feature_id as string) &&
+    task.milestone_id === featureMilestoneById.get(task.feature_id as string) &&
+    isOpenReleaseItem(task.status) &&
+    !attachedKeys.has(releaseItemKey("task", task.id)),
+  );
+  const eligibleMilestoneIds = new Set([
+    ...features.map((feature) => feature.milestone_id).filter((id): id is string => Boolean(id)),
+    ...tasksForRelease.map((task) => task.milestone_id).filter((id): id is string => Boolean(id)),
+  ]);
+  return {
+    milestones: milestones.filter((milestone) => eligibleMilestoneIds.has(milestone.id)),
+    featureGroups,
+    features,
+    stories,
+    tasks: tasksForRelease,
+    attachedKeys,
+  };
+}
+
 async function readiness(releaseId: string) {
   const scope = await releaseScope(releaseId);
   if (!scope) return { ready: false, blockers: ["Release not found"] };
@@ -213,21 +270,12 @@ export function registerReleaseRoutes(app: Express) {
 
   app.get("/api/projects/:projectId/releases/options", ...releaseAccess, async (req: any, res) => {
     const projectId = req.params.projectId;
-    const [milestones, featureGroups, rawFeatures, stories, projectTasks, defectsForProject, cases] = await Promise.all([
-      db.select().from(projectMilestones).where(eq(projectMilestones.project_id, projectId)),
-      db.select().from(projectFeatureGroups).where(eq(projectFeatureGroups.project_id, projectId)),
-      db.select().from(projectFeatures).where(eq(projectFeatures.project_id, projectId)),
-      db.select().from(userStories).where(eq(userStories.project_id, projectId)),
-      db.select().from(tasks).where(eq(tasks.project_id, projectId)),
+    const [scope, defectsForProject, cases] = await Promise.all([
+      availableReleaseScope(projectId),
       db.select().from(defects).where(eq(defects.project_id, projectId)),
       db.select().from(testCases).where(eq(testCases.project_id, projectId)),
     ]);
-    const groupMilestoneById = new Map(featureGroups.map((group) => [group.id, group.milestone_id]));
-    const features = rawFeatures.map((feature) => ({
-      ...feature,
-      milestone_id: feature.feature_group_id ? groupMilestoneById.get(feature.feature_group_id) ?? null : null,
-    }));
-    res.json({ milestones, featureGroups, features, stories, tasks: projectTasks, defects: defectsForProject, testCases: cases });
+    res.json({ ...scope, defects: defectsForProject, testCases: cases });
   });
 
   app.get("/api/projects/:projectId/releases/:releaseId", ...releaseAccess, async (req: any, res) => {
