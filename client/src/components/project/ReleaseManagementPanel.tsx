@@ -26,7 +26,7 @@ export default function ReleaseManagementPanel({ projectId }: ReleaseManagementP
   const [milestoneIds, setMilestoneIds] = useState<string[]>([]);
   const [selections, setSelections] = useState<Selection[]>([]);
   const [documents, setDocuments] = useState([{ name: "", description: "" }]);
-  const [testCaseIds, setTestCaseIds] = useState<string[]>([]);
+  const [scopeSearch, setScopeSearch] = useState("");
   const [expandedRelease, setExpandedRelease] = useState<string | null>(null);
 
   const releasesQuery = useQuery<any[]>({
@@ -37,15 +37,32 @@ export default function ReleaseManagementPanel({ projectId }: ReleaseManagementP
     queryKey: ["/api/projects", projectId, "releases", "options"],
     queryFn: () => apiClient.get(`/projects/${projectId}/releases/options`),
   });
-  const testCasesQuery = useQuery<any[]>({
-    queryKey: ["/api/projects", projectId, "test-cases"],
-    queryFn: () => apiClient.get(`/projects/${projectId}/test-cases`),
-  });
-
-  const options = optionsQuery.data ?? { milestones: [], features: [], stories: [], tasks: [], testCases: [] };
+  const options = optionsQuery.data ?? { milestones: [], featureGroups: [], features: [], stories: [], tasks: [], defects: [], testCases: [] };
   const selectedMilestones = useMemo(
     () => options.milestones.filter((milestone: any) => milestoneIds.includes(milestone.id)),
     [milestoneIds, options.milestones],
+  );
+  const selectedStoryIds = useMemo(
+    () => selections.filter((item) => item.itemType === "user_story").map((item) => item.itemId),
+    [selections],
+  );
+  const selectedFeatureIds = useMemo(() => {
+    const directFeatureIds = selections.filter((item) => item.itemType === "feature").map((item) => item.itemId);
+    const storyFeatureIds = options.stories
+      .filter((story: any) => selectedStoryIds.includes(story.id) && story.feature_id)
+      .map((story: any) => story.feature_id);
+    return Array.from(new Set([...directFeatureIds, ...storyFeatureIds]));
+  }, [options.stories, selectedStoryIds, selections]);
+  const includedDefects = useMemo(
+    () => options.defects.filter((defect: any) => defect.feature_id && selectedFeatureIds.includes(defect.feature_id)),
+    [options.defects, selectedFeatureIds],
+  );
+  const includedTestCases = useMemo(
+    () => options.testCases.filter((testCase: any) =>
+      (testCase.feature_id && selectedFeatureIds.includes(testCase.feature_id)) ||
+      (testCase.user_story_id && selectedStoryIds.includes(testCase.user_story_id)),
+    ),
+    [options.testCases, selectedFeatureIds, selectedStoryIds],
   );
 
   const createRelease = useMutation({
@@ -54,7 +71,6 @@ export default function ReleaseManagementPanel({ projectId }: ReleaseManagementP
       milestoneIds,
       items: selections.map((item) => ({ milestoneId: item.milestoneId, itemType: item.itemType, itemId: item.itemId })),
       documents: documents.filter((document) => document.name.trim()),
-      testCaseIds,
     }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "releases"] });
@@ -64,7 +80,7 @@ export default function ReleaseManagementPanel({ projectId }: ReleaseManagementP
       setMilestoneIds([]);
       setSelections([]);
       setDocuments([{ name: "", description: "" }]);
-      setTestCaseIds([]);
+      setScopeSearch("");
     },
     onError: (error: Error) => toast({ title: "Could not create release", description: error.message, variant: "destructive" }),
   });
@@ -96,30 +112,72 @@ export default function ReleaseManagementPanel({ projectId }: ReleaseManagementP
       : [...current, selection]);
   };
 
+  const toggleMilestone = (milestoneId: string, checked: boolean) => {
+    setMilestoneIds((current) => checked
+      ? [...current, milestoneId]
+      : current.filter((id) => id !== milestoneId));
+    if (!checked) {
+      setSelections((current) => current.filter((item) => item.milestoneId !== milestoneId));
+    }
+  };
+
   const renderItems = (milestoneId: string) => {
-    const featureIds = new Set(options.features.filter((item: any) => item.milestone_id === milestoneId).map((item: any) => item.id));
-    const storyRows = options.stories.filter((item: any) => featureIds.has(item.feature_id));
-    const taskRows = options.tasks.filter((item: any) => item.milestone_id === milestoneId);
-    const featureRows = options.features.filter((item: any) => item.milestone_id === milestoneId);
-    const rows = [
-      ...featureRows.map((item: any) => ({ ...item, itemType: "feature" as const })),
-      ...storyRows.map((item: any) => ({ ...item, itemType: "user_story" as const })),
-      ...taskRows.map((item: any) => ({ ...item, itemType: "task" as const })),
-    ];
-    return rows.length ? (
-      <div className="grid gap-2 sm:grid-cols-2">
-        {rows.map((item: any) => {
-          const checked = selections.some((selected) => selected.itemType === item.itemType && selected.itemId === item.id);
+    const search = scopeSearch.trim().toLowerCase();
+    const featureRows = options.features.filter((feature: any) => {
+      if (feature.milestone_id !== milestoneId) return false;
+      if (!search) return true;
+      const featureMatches = `${feature.tracking_number} ${feature.name}`.toLowerCase().includes(search);
+      const storyMatches = options.stories.some((story: any) => story.feature_id === feature.id && `${story.tracking_number} ${story.title}`.toLowerCase().includes(search));
+      const taskMatches = options.tasks.some((task: any) => task.milestone_id === milestoneId && task.feature_id === feature.id && `${task.task_number} ${task.title}`.toLowerCase().includes(search));
+      return featureMatches || storyMatches || taskMatches;
+    });
+    return featureRows.length ? (
+      <div className="space-y-3">
+        {featureRows.map((feature: any) => {
+          const stories = options.stories.filter((story: any) => story.feature_id === feature.id && (
+            !search || `${story.tracking_number} ${story.title}`.toLowerCase().includes(search)
+          ));
+          const featureSelected = selectedFeatureIds.includes(feature.id);
+          const storySelected = selectedStoryIds.some((storyId) =>
+            options.stories.find((story: any) => story.id === storyId)?.feature_id === feature.id,
+          );
+          const tasks = options.tasks.filter((task: any) => task.milestone_id === milestoneId && task.feature_id === feature.id && (
+            !search || `${task.task_number} ${task.title}`.toLowerCase().includes(search)
+          ));
           return (
-            <label key={`${item.itemType}-${item.id}`} className="flex cursor-pointer items-center gap-2 rounded-md border p-2 text-sm">
-              <Checkbox checked={checked} onCheckedChange={() => toggleSelection({ milestoneId, itemType: item.itemType, itemId: item.id })} />
-              <span className="truncate">{item.tracking_number ? `${item.tracking_number} · ` : ""}{item.title ?? item.name}</span>
-              <Badge variant="outline" className="ml-auto text-[10px]">{statusLabel(item.status ?? "planned")}</Badge>
-            </label>
+            <div key={feature.id} className="rounded-lg border bg-background p-3">
+              <label className="flex cursor-pointer items-center gap-2 text-sm font-medium">
+                <Checkbox checked={featureSelected} onCheckedChange={() => toggleSelection({ milestoneId, itemType: "feature", itemId: feature.id })} />
+                <span className="truncate">{feature.tracking_number} · {feature.name}</span>
+                <Badge variant="outline" className="ml-auto text-[10px]">{statusLabel(feature.status ?? "planned")}</Badge>
+              </label>
+              <div className="ml-6 mt-3 space-y-2 border-l pl-3">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">User stories</p>
+                {stories.length ? stories.map((story: any) => (
+                  <label key={story.id} className="flex cursor-pointer items-center gap-2 text-sm">
+                    <Checkbox checked={selectedStoryIds.includes(story.id)} onCheckedChange={() => toggleSelection({ milestoneId, itemType: "user_story", itemId: story.id })} />
+                    <span className="truncate">{story.tracking_number} · {story.title}</span>
+                    <Badge variant="outline" className="ml-auto text-[10px]">{statusLabel(story.status ?? "planned")}</Badge>
+                  </label>
+                )) : <p className="text-xs text-muted-foreground">No user stories for this feature.</p>}
+                {(featureSelected || storySelected) && (
+                  <div className="pt-2">
+                    <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Related tasks</p>
+                    {tasks.length ? tasks.map((task: any) => (
+                      <label key={task.id} className="flex cursor-pointer items-center gap-2 py-1 text-sm">
+                        <Checkbox checked={selections.some((item) => item.itemType === "task" && item.itemId === task.id)} onCheckedChange={() => toggleSelection({ milestoneId, itemType: "task", itemId: task.id })} />
+                        <span className="truncate">{task.task_number ? `T-${task.task_number} · ` : ""}{task.title}</span>
+                        <Badge variant="outline" className="ml-auto text-[10px]">{statusLabel(task.status ?? "planned")}</Badge>
+                      </label>
+                    )) : <p className="text-xs text-muted-foreground">No tasks are linked to this feature.</p>}
+                  </div>
+                )}
+              </div>
+            </div>
           );
         })}
       </div>
-    ) : <p className="text-xs text-muted-foreground">No features, user stories, or tasks are assigned to this milestone.</p>;
+    ) : <p className="text-xs text-muted-foreground">No matching features are assigned to this milestone.</p>;
   };
 
   return (
@@ -147,7 +205,7 @@ export default function ReleaseManagementPanel({ projectId }: ReleaseManagementP
               <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                 {options.milestones.map((milestone: any) => (
                   <label key={milestone.id} className="flex cursor-pointer items-center gap-2 rounded-md border p-2 text-sm">
-                    <Checkbox checked={milestoneIds.includes(milestone.id)} onCheckedChange={(checked) => setMilestoneIds((current) => checked ? [...current, milestone.id] : current.filter((id) => id !== milestone.id))} />
+                    <Checkbox checked={milestoneIds.includes(milestone.id)} onCheckedChange={(checked) => toggleMilestone(milestone.id, checked === true)} />
                     <span className="truncate">{milestone.name}</span>
                   </label>
                 ))}
@@ -155,10 +213,30 @@ export default function ReleaseManagementPanel({ projectId }: ReleaseManagementP
             </div>
             {selectedMilestones.map((milestone: any) => (
               <div key={milestone.id} className="rounded-lg border p-3">
-                <p className="mb-2 text-sm font-medium">{milestone.name} · release items</p>
+                <p className="mb-2 text-sm font-medium">{milestone.name} · scope</p>
                 {renderItems(milestone.id)}
               </div>
             ))}
+            {selectedMilestones.length > 0 && (
+              <div className="rounded-lg border border-indigo-200 bg-indigo-50/60 p-3 dark:border-indigo-900 dark:bg-indigo-950/20">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <p className="text-sm font-medium">Included automatically</p>
+                    <p className="text-xs text-muted-foreground">Defects and test cases follow the selected features and user stories. They are not manually selectable.</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Badge variant="secondary">{includedDefects.length} defects</Badge>
+                    <Badge variant="secondary">{includedTestCases.length} test cases</Badge>
+                  </div>
+                </div>
+              </div>
+            )}
+            {selectedMilestones.length > 0 && (
+              <div className="rounded-lg border bg-muted/20 p-3">
+                <Label>Find scope items</Label>
+                <Input className="mt-2" value={scopeSearch} onChange={(event) => setScopeSearch(event.target.value)} placeholder="Search features, user stories, or tasks..." />
+              </div>
+            )}
             <div>
               <div className="mb-2 flex items-center justify-between"><Label>Required documents</Label><Button type="button" size="sm" variant="outline" onClick={() => setDocuments([...documents, { name: "", description: "" }])}>Add document</Button></div>
               <div className="space-y-2">
@@ -167,17 +245,6 @@ export default function ReleaseManagementPanel({ projectId }: ReleaseManagementP
                     <Input placeholder="Document name" value={document.name} onChange={(event) => setDocuments(documents.map((row, rowIndex) => rowIndex === index ? { ...row, name: event.target.value } : row))} />
                     <Input placeholder="Description or evidence expected" value={document.description} onChange={(event) => setDocuments(documents.map((row, rowIndex) => rowIndex === index ? { ...row, description: event.target.value } : row))} />
                   </div>
-                ))}
-              </div>
-            </div>
-            <div>
-              <Label>Test cases in this release</Label>
-              <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                {(testCasesQuery.data ?? []).map((testCase: any) => (
-                  <label key={testCase.id} className="flex cursor-pointer items-center gap-2 rounded-md border p-2 text-sm">
-                    <Checkbox checked={testCaseIds.includes(testCase.id)} onCheckedChange={(checked) => setTestCaseIds((current) => checked ? [...current, testCase.id] : current.filter((id) => id !== testCase.id))} />
-                    <span className="truncate">{testCase.title}</span><Badge variant="outline" className="ml-auto">{statusLabel(testCase.status)}</Badge>
-                  </label>
                 ))}
               </div>
             </div>
@@ -223,6 +290,18 @@ export default function ReleaseManagementPanel({ projectId }: ReleaseManagementP
                     </div>
                   ))}
                 </div>
+                {releaseDetailQuery.data.dependencies && (
+                  <div className="mt-4 rounded-md border bg-background p-3">
+                    <p className="text-sm font-medium">Scope-dependent evidence</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {releaseDetailQuery.data.dependencies.selectedFeatureIds?.length ?? 0} feature scope item(s),{" "}
+                      {releaseDetailQuery.data.dependencies.selectedStoryIds?.length ?? 0} user stor{(releaseDetailQuery.data.dependencies.selectedStoryIds?.length ?? 0) === 1 ? "y" : "ies"},{" "}
+                      {releaseDetailQuery.data.dependencies.includedDefects?.length ?? 0} included defect(s), and{" "}
+                      {releaseDetailQuery.data.dependencies.includedTestCases?.length ?? 0} included test case(s).
+                    </p>
+                    <p className="mt-1 text-[11px] text-muted-foreground">Defects and test cases are derived from the selected features and user stories and cannot be changed independently.</p>
+                  </div>
+                )}
                 {(releaseDetailQuery.data.readiness?.blockers ?? []).length > 0 && <ul className="mt-3 list-disc pl-5 text-xs text-muted-foreground">{releaseDetailQuery.data.readiness.blockers.map((blocker: string) => <li key={blocker}>{blocker}</li>)}</ul>}
               </CardContent>
             )}

@@ -1,11 +1,12 @@
 import type { Express } from "express";
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, or } from "drizzle-orm";
 import { db } from "./db";
 import { storage } from "./storage";
 import {
   defects,
   defectActivity,
   projectFeatures,
+  projectFeatureGroups,
   projectMilestones,
   projectTemplateRoles,
   projectReleases,
@@ -76,10 +77,45 @@ async function releaseScope(releaseId: string) {
   return { release, milestones, items, documents, testCases: testCaseLinks };
 }
 
+async function releaseDependencies(scope: NonNullable<Awaited<ReturnType<typeof releaseScope>>>) {
+  const selectedStoryIds = scope.items
+    .filter((item) => item.item_type === "user_story")
+    .map((item) => item.item_id);
+  const selectedFeatureIds = scope.items
+    .filter((item) => item.item_type === "feature")
+    .map((item) => item.item_id);
+  const selectedStories = selectedStoryIds.length
+    ? await db.select({ id: userStories.id, feature_id: userStories.feature_id })
+      .from(userStories)
+      .where(and(eq(userStories.project_id, scope.release.project_id), inArray(userStories.id, selectedStoryIds)))
+    : [];
+  const featureIds = Array.from(new Set([
+    ...selectedFeatureIds,
+    ...selectedStories.map((story) => story.feature_id).filter((id): id is string => Boolean(id)),
+  ]));
+  const testCasePredicates = [
+    ...(featureIds.length ? [inArray(testCases.feature_id, featureIds)] : []),
+    ...(selectedStoryIds.length ? [inArray(testCases.user_story_id, selectedStoryIds)] : []),
+  ];
+  const includedTestCases = testCasePredicates.length
+    ? await db.select().from(testCases).where(and(
+        eq(testCases.project_id, scope.release.project_id),
+        or(...testCasePredicates),
+      ))
+    : [];
+  const includedDefects = featureIds.length
+    ? await db.select().from(defects).where(and(
+        eq(defects.project_id, scope.release.project_id),
+        inArray(defects.feature_id, featureIds),
+      ))
+    : [];
+  return { selectedFeatureIds: featureIds, selectedStoryIds, includedTestCases, includedDefects };
+}
+
 async function readiness(releaseId: string) {
   const scope = await releaseScope(releaseId);
   if (!scope) return { ready: false, blockers: ["Release not found"] };
-  const milestoneIds = scope.milestones.map((row) => row.milestone_id);
+  const dependencies = await releaseDependencies(scope);
   const blockers: string[] = [];
 
   const taskIds = scope.items.filter((item) => item.item_type === "task").map((item) => item.item_id);
@@ -89,12 +125,7 @@ async function readiness(releaseId: string) {
   const incompleteTasks = scopedTasks.filter((task) => !isDone(task.status) || task.approval_status !== "approved");
   if (incompleteTasks.length) blockers.push(`${incompleteTasks.length} release task(s) must be completed and approved`);
 
-  const scopedCases = milestoneIds.length
-    ? await db.select().from(testCases).where(and(
-        eq(testCases.project_id, scope.release.project_id),
-        inArray(testCases.milestone_id, milestoneIds),
-      ))
-    : [];
+  const scopedCases = dependencies.includedTestCases;
   const failedCases = scopedCases.filter((testCase) =>
     testCase.status !== "passed" && testCase.approval_status !== "deferred" && testCase.approval_status !== "approved",
   );
@@ -105,12 +136,7 @@ async function readiness(releaseId: string) {
   );
   if (missingDocuments.length) blockers.push(`${missingDocuments.length} required document(s) must be approved and have a location`);
 
-  const scopedDefects = milestoneIds.length
-    ? await db.select().from(defects).where(and(
-        eq(defects.project_id, scope.release.project_id),
-        inArray(defects.milestone_id, milestoneIds),
-      ))
-    : [];
+  const scopedDefects = dependencies.includedDefects;
   const unresolvedDefects = scopedDefects.filter((defect) =>
     !["closed", "deferred"].includes(String(defect.status).toLowerCase()) ||
     (String(defect.status).toLowerCase() === "deferred" && !defect.approved_by),
@@ -187,20 +213,27 @@ export function registerReleaseRoutes(app: Express) {
 
   app.get("/api/projects/:projectId/releases/options", ...releaseAccess, async (req: any, res) => {
     const projectId = req.params.projectId;
-    const [milestones, features, stories, projectTasks, cases] = await Promise.all([
+    const [milestones, featureGroups, rawFeatures, stories, projectTasks, defectsForProject, cases] = await Promise.all([
       db.select().from(projectMilestones).where(eq(projectMilestones.project_id, projectId)),
+      db.select().from(projectFeatureGroups).where(eq(projectFeatureGroups.project_id, projectId)),
       db.select().from(projectFeatures).where(eq(projectFeatures.project_id, projectId)),
       db.select().from(userStories).where(eq(userStories.project_id, projectId)),
       db.select().from(tasks).where(eq(tasks.project_id, projectId)),
+      db.select().from(defects).where(eq(defects.project_id, projectId)),
       db.select().from(testCases).where(eq(testCases.project_id, projectId)),
     ]);
-    res.json({ milestones, features, stories, tasks: projectTasks, testCases: cases });
+    const groupMilestoneById = new Map(featureGroups.map((group) => [group.id, group.milestone_id]));
+    const features = rawFeatures.map((feature) => ({
+      ...feature,
+      milestone_id: feature.feature_group_id ? groupMilestoneById.get(feature.feature_group_id) ?? null : null,
+    }));
+    res.json({ milestones, featureGroups, features, stories, tasks: projectTasks, defects: defectsForProject, testCases: cases });
   });
 
   app.get("/api/projects/:projectId/releases/:releaseId", ...releaseAccess, async (req: any, res) => {
     const scope = await releaseScope(req.params.releaseId);
     if (!scope || scope.release.project_id !== req.params.projectId) return res.status(404).json({ error: "Release not found" });
-    res.json({ ...scope, readiness: await readiness(req.params.releaseId) });
+    res.json({ ...scope, dependencies: await releaseDependencies(scope), readiness: await readiness(req.params.releaseId) });
   });
 
   app.post("/api/projects/:projectId/releases", ...releaseAccess, async (req: any, res) => {
@@ -208,7 +241,7 @@ export function registerReleaseRoutes(app: Express) {
     if (!userId || !(await canManageRelease(req.params.projectId, userId))) {
       return res.status(403).json({ error: "Only the project manager or a system admin can create releases" });
     }
-    const { name, comment, milestoneIds = [], items = [], documents = [], testCaseIds = [] } = req.body ?? {};
+    const { name, comment, milestoneIds = [], items = [], documents = [] } = req.body ?? {};
     const savedSettings = await storage.getProjectSettings(req.params.projectId);
     const repositoryStartingVersion = mergeProjectSettings(savedSettings?.settings).releaseManagement.repository.startingVersion;
     const version = String(req.body?.version ?? "").trim() || repositoryStartingVersion;
@@ -237,7 +270,29 @@ export function registerReleaseRoutes(app: Express) {
     const normalizedItems = Array.isArray(items) ? items.filter((item: any) =>
       allowedTypes.has(item.itemType) && milestoneIds.includes(item.milestoneId) && item.itemId,
     ) : [];
-    const optionRows = await Promise.all(normalizedItems.map(async (item: any) => {
+    const selectedFeatureGroups = await db.select().from(projectFeatureGroups)
+      .where(eq(projectFeatureGroups.project_id, req.params.projectId));
+    const featureMilestoneById = new Map(selectedFeatureGroups.map((group) => [group.id, group.milestone_id]));
+    const projectFeatureRows = await db.select().from(projectFeatures).where(eq(projectFeatures.project_id, req.params.projectId));
+    const featureById = new Map(projectFeatureRows.map((feature) => [feature.id, feature]));
+    const projectStoryRows = await db.select().from(userStories).where(eq(userStories.project_id, req.params.projectId));
+    const storyById = new Map(projectStoryRows.map((story) => [story.id, story]));
+    const projectTaskRows = await db.select().from(tasks).where(eq(tasks.project_id, req.params.projectId));
+    const taskById = new Map(projectTaskRows.map((task) => [task.id, task]));
+    const validScopeItems = normalizedItems.filter((item: any) => {
+      if (item.itemType === "feature") {
+        const feature = featureById.get(item.itemId);
+        return Boolean(feature?.feature_group_id && featureMilestoneById.get(feature.feature_group_id) === item.milestoneId);
+      }
+      if (item.itemType === "user_story") {
+        const story = storyById.get(item.itemId);
+        const feature = story?.feature_id ? featureById.get(story.feature_id) : null;
+        return Boolean(story && feature?.feature_group_id && featureMilestoneById.get(feature.feature_group_id) === item.milestoneId);
+      }
+      const task = taskById.get(item.itemId);
+      return Boolean(task && task.milestone_id === item.milestoneId);
+    });
+    const optionRows = await Promise.all(validScopeItems.map(async (item: any) => {
       const source = item.itemType === "feature"
         ? await db.select().from(projectFeatures).where(eq(projectFeatures.id, item.itemId))
         : item.itemType === "user_story"
@@ -259,8 +314,16 @@ export function registerReleaseRoutes(app: Express) {
         required: document.required !== false,
       })));
     }
-    const validTestCaseIds = Array.isArray(testCaseIds) ? testCaseIds : [];
-    if (validTestCaseIds.length) await db.insert(releaseTestCases).values(validTestCaseIds.map((testCaseId: string) => ({ release_id: release.id, test_case_id: testCaseId })));
+    const createdScope = await releaseScope(release.id);
+    if (createdScope) {
+      const dependencies = await releaseDependencies(createdScope);
+      if (dependencies.includedTestCases.length) {
+        await db.insert(releaseTestCases).values(dependencies.includedTestCases.map((testCase) => ({
+          release_id: release.id,
+          test_case_id: testCase.id,
+        })));
+      }
+    }
     res.status(201).json(await releaseScope(release.id));
   });
 

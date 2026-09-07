@@ -9,6 +9,12 @@ Release approval is evaluated server-side against the release's selected milesto
 
 **How to apply:** Keep release scope immutable enough to audit, use explicit evidence records for documents and tests, and require a project manager/system admin for lifecycle approval plus an assigned Quality Analyst for QA approval.
 
+Release composition follows a dependency chain: milestone selection reveals feature groups/features, feature selection reveals user stories and related tasks, while defects and test cases are derived evidence from the selected features/user stories rather than independent release selections.
+
+**Why:** Allowing evidence to be selected independently can produce releases whose tests or defects do not match the delivered product scope.
+
+**How to apply:** Validate item ownership and milestone relationships server-side, derive included test cases/defects for readiness, and keep the UI's automatic evidence summary read-only.
+
 Quality Analyst eligibility is based on the configured project-specific title or recognized system QA roles; project template roles provide the controlled title vocabulary used by project members.
 
 **Why:** Projects need role-specific QA accountability without hard-coding one organization-wide title.
