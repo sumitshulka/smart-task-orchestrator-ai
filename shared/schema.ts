@@ -1061,6 +1061,153 @@ export const releaseTestCases = pgTable("release_test_cases", {
   releaseTestCaseUnique: unique("release_test_cases_unique").on(table.release_id, table.test_case_id),
 }));
 
+// ── Project Meetings ────────────────────────────────────────────────────────
+// Meetings are project-owned governance records. Calendar providers and files
+// are integrations around these records; they are not the source of truth.
+export const meetingTypes = pgTable("meeting_types", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  project_id: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  code: text("code").notNull(),
+  description: text("description"),
+  is_active: boolean("is_active").notNull().default(true),
+  created_by: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+  created_at: timestamp("created_at").defaultNow(),
+  updated_at: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  projectCodeUnique: unique("meeting_types_project_code_unique").on(table.project_id, table.code),
+}));
+
+export const meetings = pgTable("meetings", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  project_id: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  meeting_type_id: uuid("meeting_type_id").notNull().references(() => meetingTypes.id, { onDelete: "restrict" }),
+  category: text("category").notNull().default("internal"), // internal | client | mixed
+  organizer_id: uuid("organizer_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+  starts_at: timestamp("starts_at").notNull(),
+  ends_at: timestamp("ends_at").notNull(),
+  timezone: text("timezone").notNull().default("UTC"),
+  location: text("location"),
+  meeting_link: text("meeting_link"),
+  description: text("description"),
+  status: text("status").notNull().default("draft"), // draft | scheduled | in_progress | completed | cancelled
+  recurrence_rule: jsonb("recurrence_rule"),
+  recurrence_id: uuid("recurrence_id"),
+  minutes_summary: text("minutes_summary"),
+  additional_notes: text("additional_notes"),
+  minutes_status: text("minutes_status").notNull().default("draft"), // draft | published
+  published_by: uuid("published_by").references(() => users.id, { onDelete: "set null" }),
+  published_at: timestamp("published_at"),
+  created_by: uuid("created_by").notNull().references(() => users.id, { onDelete: "restrict" }),
+  created_at: timestamp("created_at").defaultNow(),
+  updated_at: timestamp("updated_at").defaultNow(),
+});
+
+export const meetingAttendees = pgTable("meeting_attendees", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  meeting_id: uuid("meeting_id").notNull().references(() => meetings.id, { onDelete: "cascade" }),
+  user_id: uuid("user_id").references(() => users.id, { onDelete: "cascade" }),
+  contact_id: uuid("contact_id").references(() => clientContacts.id, { onDelete: "cascade" }),
+  attendee_type: text("attendee_type").notNull().default("internal"), // internal | client
+  required: boolean("required").notNull().default(true),
+  attendance_status: text("attendance_status").notNull().default("no_response"), // present | absent | optional | declined | no_response
+  created_at: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  meetingUserUnique: unique("meeting_attendees_meeting_user_unique").on(table.meeting_id, table.user_id),
+  meetingContactUnique: unique("meeting_attendees_meeting_contact_unique").on(table.meeting_id, table.contact_id),
+}));
+
+export const meetingAgendaItems = pgTable("meeting_agenda_items", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  meeting_id: uuid("meeting_id").notNull().references(() => meetings.id, { onDelete: "cascade" }),
+  sequence: integer("sequence").notNull().default(0),
+  title: text("title").notNull(),
+  description: text("description"),
+  presenter_id: uuid("presenter_id").references(() => users.id, { onDelete: "set null" }),
+  expected_duration: integer("expected_duration"),
+  reference: text("reference"),
+  status: text("status").notNull().default("planned"),
+  linked_entity_type: text("linked_entity_type"),
+  linked_entity_id: uuid("linked_entity_id"),
+  created_at: timestamp("created_at").defaultNow(),
+  updated_at: timestamp("updated_at").defaultNow(),
+});
+
+export const meetingDiscussions = pgTable("meeting_discussions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  meeting_id: uuid("meeting_id").notNull().references(() => meetings.id, { onDelete: "cascade" }),
+  agenda_item_id: uuid("agenda_item_id").references(() => meetingAgendaItems.id, { onDelete: "set null" }),
+  topic: text("topic").notNull(),
+  discussion: text("discussion"),
+  decision: text("decision"),
+  reference: text("reference"),
+  visibility: text("visibility").notNull().default("internal"), // internal | client
+  created_by: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+  created_at: timestamp("created_at").defaultNow(),
+  updated_at: timestamp("updated_at").defaultNow(),
+});
+
+export const meetingDecisions = pgTable("meeting_decisions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  meeting_id: uuid("meeting_id").notNull().references(() => meetings.id, { onDelete: "cascade" }),
+  agenda_item_id: uuid("agenda_item_id").references(() => meetingAgendaItems.id, { onDelete: "set null" }),
+  title: text("title").notNull(),
+  description: text("description"),
+  decision_date: timestamp("decision_date").defaultNow(),
+  owner_id: uuid("owner_id").references(() => users.id, { onDelete: "set null" }),
+  status: text("status").notNull().default("proposed"), // proposed | approved | rejected | deferred
+  visibility: text("visibility").notNull().default("internal"),
+  linked_entity_type: text("linked_entity_type"),
+  linked_entity_id: uuid("linked_entity_id"),
+  created_by: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+  created_at: timestamp("created_at").defaultNow(),
+  updated_at: timestamp("updated_at").defaultNow(),
+});
+
+export const meetingActionItems = pgTable("meeting_action_items", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  meeting_id: uuid("meeting_id").notNull().references(() => meetings.id, { onDelete: "cascade" }),
+  agenda_item_id: uuid("agenda_item_id").references(() => meetingAgendaItems.id, { onDelete: "set null" }),
+  title: text("title").notNull(),
+  description: text("description"),
+  responsibility_level: text("responsibility_level").notNull().default("project_team"), // project_team | client | both
+  responsible_user_ids: jsonb("responsible_user_ids").notNull().default([]),
+  responsible_contact_ids: jsonb("responsible_contact_ids").notNull().default([]),
+  due_date: timestamp("due_date"),
+  priority: text("priority").notNull().default("medium"),
+  status: text("status").notNull().default("open"), // open | in_progress | completed | cancelled
+  linked_task_id: uuid("linked_task_id").references(() => tasks.id, { onDelete: "set null" }),
+  completed_by: uuid("completed_by").references(() => users.id, { onDelete: "set null" }),
+  completed_at: timestamp("completed_at"),
+  visibility: text("visibility").notNull().default("client"),
+  created_by: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+  created_at: timestamp("created_at").defaultNow(),
+  updated_at: timestamp("updated_at").defaultNow(),
+});
+
+export const meetingCalendarIntegrations = pgTable("meeting_calendar_integrations", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  meeting_id: uuid("meeting_id").notNull().references(() => meetings.id, { onDelete: "cascade" }),
+  provider: text("provider").notNull().default("ics"),
+  external_event_id: text("external_event_id"),
+  sync_status: text("sync_status").notNull().default("available"),
+  last_synced_at: timestamp("last_synced_at"),
+  created_at: timestamp("created_at").defaultNow(),
+  updated_at: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  meetingProviderUnique: unique("meeting_calendar_meeting_provider_unique").on(table.meeting_id, table.provider),
+}));
+
+export const meetingActivity = pgTable("meeting_activity", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  meeting_id: uuid("meeting_id").notNull().references(() => meetings.id, { onDelete: "cascade" }),
+  action_type: text("action_type").notNull(),
+  metadata: jsonb("metadata"),
+  acted_by: uuid("acted_by").references(() => users.id, { onDelete: "set null" }),
+  created_at: timestamp("created_at").defaultNow(),
+});
+
 // Defect ↔ Task junction — one defect can spawn multiple tasks
 export const defectTasks = pgTable("defect_tasks", {
   id: uuid("id").primaryKey().defaultRandom(),

@@ -25,6 +25,7 @@ type Settings = {
   finance: Record<string, any>;
   quality: Record<string, any>;
   releaseManagement: Record<string, any>;
+  meetings: Record<string, any>;
   collaboration: Record<string, any>;
   notifications: Record<string, { enabled: boolean; channels: string[] }>;
 };
@@ -82,6 +83,9 @@ const DEFAULT_SETTINGS: Settings = {
       startingVersion: "1.0.0",
     },
   },
+  meetings: {
+    enabled: true,
+  },
   collaboration: {
     workspaceEnabled: true,
     internalCollaboration: true,
@@ -131,6 +135,7 @@ const navItems = [
   { id: "finance", label: "Finance", icon: CircleDollarSign },
   { id: "quality", label: "Quality & Delivery", icon: ClipboardCheck },
   { id: "release-management", label: "Release Management", icon: PackageCheck },
+  { id: "meetings", label: "Meetings", icon: Calendar },
   { id: "collaboration", label: "Collaboration", icon: MessageSquare },
   { id: "access", label: "Access", icon: Shield },
   { id: "notifications", label: "Notifications", icon: Bell },
@@ -1027,6 +1032,26 @@ export default function ProjectSettingsPanel({ project, users, clients, members,
                   {!settings.releaseManagement.enabled && (
                     <p className="text-xs text-gray-500 sm:col-span-2">Enable Release Management to configure repository details.</p>
                   )}
+                </CardContent>
+              </Card>
+            </>
+          )}
+
+          {activeTab === "meetings" && (
+            <>
+              <SectionHeader eyebrow="Project collaboration" title="Meetings" description="Control the project meeting workspace. Existing meetings, minutes, decisions, and action items are retained when the module is disabled." />
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Meeting workspace</CardTitle>
+                  <CardDescription>When disabled, Meetings is hidden from project navigation and meeting workflow APIs are blocked.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ToggleRow
+                    label="Project Meetings"
+                    description="Show Meetings in the project menu."
+                    checked={settings.meetings.enabled !== false}
+                    onChange={(value) => toggleSetting("meetings.enabled", value, "Disable Project Meetings?", "Existing meeting records will be retained but the Meetings workspace will be hidden until enabled again.")}
+                  />
                 </CardContent>
               </Card>
             </>

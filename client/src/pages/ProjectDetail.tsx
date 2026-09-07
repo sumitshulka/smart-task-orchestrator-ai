@@ -31,6 +31,7 @@ import PlanningWorkspace from "@/components/planning/PlanningWorkspace";
 import ProjectSettingsPanel from "@/components/project/ProjectSettingsPanel";
 import ReleaseManagementPanel from "@/components/project/ReleaseManagementPanel";
 import TestCaseManagementPanel from "@/components/project/TestCaseManagementPanel";
+import ProjectMeetingsPanel from "@/components/project/ProjectMeetingsPanel";
 import { filterProjectNavigation } from "./projectNavigation";
 import { format, differenceInDays } from "date-fns";
 import type {
@@ -971,11 +972,7 @@ export default function ProjectDetail() {
               <ReleaseManagementPanel projectId={id!} />
             )}
             {activeSection === "meetings" && (
-              <LaunchingSoonSection
-                icon={Calendar}
-                title="Project Meetings"
-                description="This advanced module will store project meeting details, action plans, and related items so progress can be tracked from the project level."
-              />
+              <ProjectMeetingsPanel projectId={id!} />
             )}
             {activeSection === "documents" && (
               <LaunchingSoonSection

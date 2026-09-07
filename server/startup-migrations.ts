@@ -251,6 +251,158 @@ export async function runStartupMigrations(): Promise<void> {
         CONSTRAINT release_test_cases_unique UNIQUE (release_id, test_case_id)
       )
     `);
+    // Project Meetings — structured governance records. Files remain in the
+    // existing attachment system and calendar providers remain integrations.
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS meeting_types (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        project_id uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        name text NOT NULL,
+        code text NOT NULL,
+        description text,
+        is_active boolean NOT NULL DEFAULT true,
+        created_by uuid REFERENCES users(id) ON DELETE SET NULL,
+        created_at timestamp DEFAULT now(),
+        updated_at timestamp DEFAULT now(),
+        CONSTRAINT meeting_types_project_code_unique UNIQUE (project_id, code)
+      )
+    `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS meetings (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        project_id uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        title text NOT NULL,
+        meeting_type_id uuid NOT NULL REFERENCES meeting_types(id) ON DELETE RESTRICT,
+        category text NOT NULL DEFAULT 'internal',
+        organizer_id uuid NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+        starts_at timestamp NOT NULL,
+        ends_at timestamp NOT NULL,
+        timezone text NOT NULL DEFAULT 'UTC',
+        location text,
+        meeting_link text,
+        description text,
+        status text NOT NULL DEFAULT 'draft',
+        recurrence_rule jsonb,
+        recurrence_id uuid,
+        minutes_summary text,
+        additional_notes text,
+        minutes_status text NOT NULL DEFAULT 'draft',
+        published_by uuid REFERENCES users(id) ON DELETE SET NULL,
+        published_at timestamp,
+        created_by uuid NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+        created_at timestamp DEFAULT now(),
+        updated_at timestamp DEFAULT now()
+      )
+    `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS meeting_attendees (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        meeting_id uuid NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
+        user_id uuid REFERENCES users(id) ON DELETE CASCADE,
+        contact_id uuid REFERENCES client_contacts(id) ON DELETE CASCADE,
+        attendee_type text NOT NULL DEFAULT 'internal',
+        required boolean NOT NULL DEFAULT true,
+        attendance_status text NOT NULL DEFAULT 'no_response',
+        created_at timestamp DEFAULT now(),
+        CONSTRAINT meeting_attendees_meeting_user_unique UNIQUE (meeting_id, user_id),
+        CONSTRAINT meeting_attendees_meeting_contact_unique UNIQUE (meeting_id, contact_id)
+      )
+    `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS meeting_agenda_items (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        meeting_id uuid NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
+        sequence integer NOT NULL DEFAULT 0,
+        title text NOT NULL,
+        description text,
+        presenter_id uuid REFERENCES users(id) ON DELETE SET NULL,
+        expected_duration integer,
+        reference text,
+        status text NOT NULL DEFAULT 'planned',
+        linked_entity_type text,
+        linked_entity_id uuid,
+        created_at timestamp DEFAULT now(),
+        updated_at timestamp DEFAULT now()
+      )
+    `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS meeting_discussions (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        meeting_id uuid NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
+        agenda_item_id uuid REFERENCES meeting_agenda_items(id) ON DELETE SET NULL,
+        topic text NOT NULL,
+        discussion text,
+        decision text,
+        reference text,
+        visibility text NOT NULL DEFAULT 'internal',
+        created_by uuid REFERENCES users(id) ON DELETE SET NULL,
+        created_at timestamp DEFAULT now(),
+        updated_at timestamp DEFAULT now()
+      )
+    `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS meeting_decisions (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        meeting_id uuid NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
+        agenda_item_id uuid REFERENCES meeting_agenda_items(id) ON DELETE SET NULL,
+        title text NOT NULL,
+        description text,
+        decision_date timestamp DEFAULT now(),
+        owner_id uuid REFERENCES users(id) ON DELETE SET NULL,
+        status text NOT NULL DEFAULT 'proposed',
+        visibility text NOT NULL DEFAULT 'internal',
+        linked_entity_type text,
+        linked_entity_id uuid,
+        created_by uuid REFERENCES users(id) ON DELETE SET NULL,
+        created_at timestamp DEFAULT now(),
+        updated_at timestamp DEFAULT now()
+      )
+    `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS meeting_action_items (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        meeting_id uuid NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
+        agenda_item_id uuid REFERENCES meeting_agenda_items(id) ON DELETE SET NULL,
+        title text NOT NULL,
+        description text,
+        responsibility_level text NOT NULL DEFAULT 'project_team',
+        responsible_user_ids jsonb NOT NULL DEFAULT '[]'::jsonb,
+        responsible_contact_ids jsonb NOT NULL DEFAULT '[]'::jsonb,
+        due_date timestamp,
+        priority text NOT NULL DEFAULT 'medium',
+        status text NOT NULL DEFAULT 'open',
+        linked_task_id uuid REFERENCES tasks(id) ON DELETE SET NULL,
+        completed_by uuid REFERENCES users(id) ON DELETE SET NULL,
+        completed_at timestamp,
+        visibility text NOT NULL DEFAULT 'client',
+        created_by uuid REFERENCES users(id) ON DELETE SET NULL,
+        created_at timestamp DEFAULT now(),
+        updated_at timestamp DEFAULT now()
+      )
+    `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS meeting_calendar_integrations (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        meeting_id uuid NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
+        provider text NOT NULL DEFAULT 'ics',
+        external_event_id text,
+        sync_status text NOT NULL DEFAULT 'available',
+        last_synced_at timestamp,
+        created_at timestamp DEFAULT now(),
+        updated_at timestamp DEFAULT now(),
+        CONSTRAINT meeting_calendar_meeting_provider_unique UNIQUE (meeting_id, provider)
+      )
+    `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS meeting_activity (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        meeting_id uuid NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
+        action_type text NOT NULL,
+        metadata jsonb,
+        acted_by uuid REFERENCES users(id) ON DELETE SET NULL,
+        created_at timestamp DEFAULT now()
+      )
+    `);
   } finally {
     client.release();
   }

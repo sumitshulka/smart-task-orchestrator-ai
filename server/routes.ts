@@ -12,7 +12,8 @@ import {
 import { licenseManager, APP_ID } from "./license-manager";
 import { registerPlanningRoutes } from "./planning-routes";
 import { registerReleaseRoutes } from "./release-routes";
-import { insertUserSchema, insertTaskSchema, insertTeamSchema, insertTaskGroupSchema, insertRoleSchema, insertOfficeLocationSchema, userRoles, insertDefectSchema, insertClientSchema, insertClientContactSchema, insertClientProjectAccessSchema, insertCustomFieldGroupSchema, insertCustomFieldDefinitionSchema, insertCustomFieldValueSchema, tasks as tasksTable, projects as projectsTable, defects as defectsTable, users as usersTable, teams as teamsTable, workspaceDecisions, projectTemplateRoles } from "@shared/schema";
+import { registerMeetingRoutes } from "./meeting-routes";
+ import { insertUserSchema, insertTaskSchema, insertTeamSchema, insertTaskGroupSchema, insertRoleSchema, insertOfficeLocationSchema, userRoles, insertDefectSchema, insertClientSchema, insertClientContactSchema, insertClientProjectAccessSchema, insertCustomFieldGroupSchema, insertCustomFieldDefinitionSchema, insertCustomFieldValueSchema, tasks as tasksTable, projects as projectsTable, defects as defectsTable, users as usersTable, teams as teamsTable, workspaceDecisions, projectTemplateRoles, meetings as meetingsTable } from "@shared/schema";
 import { callAiProvider, encryptApiKey, decryptApiKey, DEFAULT_SYSTEM_PROMPT_HEADER, AI_PROVIDER_MODELS, DEFAULT_AI_MODEL } from "./ai-provider";
 import { db } from "./db";
 import { ilike, or, sql } from "drizzle-orm";
@@ -4577,19 +4578,19 @@ Output EXACTLY this JSON (no text outside it):
     try {
       const raw = ((req.query.q as string) ?? "").trim();
       if (!raw || raw.length < 1) {
-        return res.json({ tasks: [], projects: [], defects: [], users: [], teams: [], decisions: [] });
+         return res.json({ tasks: [], projects: [], defects: [], users: [], teams: [], decisions: [], meetings: [] });
       }
 
       // Support filter prefixes: task:login  project:lib  defect:pay  user:rahul
       let typeFilter: string | null = null;
       let q = raw;
-      const prefixMatch = raw.match(/^(task|project|defect|user|team|discussion|decision):(.+)/i);
+       const prefixMatch = raw.match(/^(task|project|defect|user|team|meeting|discussion|decision):(.+)/i);
       if (prefixMatch) { typeFilter = prefixMatch[1].toLowerCase(); q = prefixMatch[2].trim(); }
 
       const term = `%${q.toLowerCase()}%`;
       const want = (t: string) => !typeFilter || typeFilter.startsWith(t.slice(0, 4));
 
-      const [taskR, projR, defR, userR, teamR, decR] = await Promise.all([
+       const [taskR, projR, defR, userR, teamR, meetingR, decR] = await Promise.all([
         want("task") ? db.select({
           id: tasksTable.id, task_number: tasksTable.task_number, title: tasksTable.title,
           status: tasksTable.status, priority: tasksTable.priority,
@@ -4619,13 +4620,20 @@ Output EXACTLY this JSON (no text outside it):
         want("team") ? db.select({ id: teamsTable.id, name: teamsTable.name })
           .from(teamsTable).where(ilike(teamsTable.name, term)).limit(3) : Promise.resolve([]),
 
+         want("meet") ? db.select({
+           id: meetingsTable.id, title: meetingsTable.title, status: meetingsTable.status,
+           starts_at: meetingsTable.starts_at, project_id: meetingsTable.project_id,
+         }).from(meetingsTable).where(
+           or(ilike(meetingsTable.title, term), ilike(meetingsTable.description, term))
+         ).limit(5) : Promise.resolve([]),
+
         (want("disc") || want("deci")) ? db.select({
           id: workspaceDecisions.id, title: workspaceDecisions.title,
           status: workspaceDecisions.status, created_at: workspaceDecisions.created_at,
         }).from(workspaceDecisions).where(ilike(workspaceDecisions.title, term)).limit(5) : Promise.resolve([]),
       ]);
 
-      res.json({ tasks: taskR, projects: projR, defects: defR, users: userR, teams: teamR, decisions: decR });
+       res.json({ tasks: taskR, projects: projR, defects: defR, users: userR, teams: teamR, meetings: meetingR, decisions: decR });
     } catch (err: any) {
       console.error("Search error:", err);
       res.status(500).json({ error: "Search failed" });
@@ -4635,6 +4643,7 @@ Output EXACTLY this JSON (no text outside it):
   // Planning module routes
   registerPlanningRoutes(app);
   registerReleaseRoutes(app);
+  registerMeetingRoutes(app);
 
   const httpServer = createServer(app);
   return httpServer;

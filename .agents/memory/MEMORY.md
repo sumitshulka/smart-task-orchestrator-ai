@@ -3,3 +3,4 @@
 - [Project Settings Architecture](project-settings.md) — keep project configuration structured and reuse Project fields, memberships, Workspace, defects, finance, and Custom Fields systems.
 - [Release Management Workflow](release-management.md) — releases use milestone-scoped items and explicit server-side task, test, document, defect, and QA gates.
 - [Test Case Module](test-case-module.md) — requirement-linked cases preserve every audited execution and optionally create defects from failed QA runs.
+- [Project Meetings Module](meetings-module.md) — meeting records remain authoritative; calendars and file storage are integration layers with explicit visibility controls.

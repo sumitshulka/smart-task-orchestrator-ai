@@ -3,6 +3,7 @@ export type ProjectNavigationSettings = {
   finance?: { trackFinance?: boolean };
   quality?: { defectManagement?: boolean; testCaseManagement?: boolean };
   releaseManagement?: { enabled?: boolean };
+  meetings?: { enabled?: boolean };
   collaboration?: { workspaceEnabled?: boolean };
 };
 
@@ -23,6 +24,7 @@ export function filterProjectNavigation<T extends ProjectNavigationItem>(
     if (item.id === "defects" && settings.quality?.defectManagement === false) return false;
     if (item.id === "test-cases" && settings.quality?.testCaseManagement === false) return false;
     if (item.id === "release" && settings.releaseManagement?.enabled === false) return false;
+    if (item.id === "meetings" && settings.meetings?.enabled === false) return false;
     if (item.id === "finance" && settings.finance?.trackFinance === false) return false;
     return true;
   });

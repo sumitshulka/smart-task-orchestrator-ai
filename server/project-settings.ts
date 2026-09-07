@@ -46,6 +46,9 @@ export const DEFAULT_PROJECT_SETTINGS = {
       startingVersion: "1.0.0",
     },
   },
+  meetings: {
+    enabled: true,
+  },
   collaboration: {
     workspaceEnabled: true,
     internalCollaboration: true,
@@ -111,6 +114,7 @@ export function mergeProjectSettings(saved: any): Record<string, any> {
         ...(isRecord(source.releaseManagement?.repository) ? source.releaseManagement.repository : {}),
       },
     },
+    meetings: { ...DEFAULT_PROJECT_SETTINGS.meetings, ...(isRecord(source.meetings) ? source.meetings : {}) },
     collaboration: { ...DEFAULT_PROJECT_SETTINGS.collaboration, ...(isRecord(source.collaboration) ? source.collaboration : {}) },
     notifications: { ...DEFAULT_PROJECT_SETTINGS.notifications, ...(isRecord(source.notifications) ? source.notifications : {}) },
   };
@@ -160,7 +164,7 @@ export function validateProjectSettings(input: unknown): { settings?: Record<str
   return { settings };
 }
 
-export type ProjectModule = "planning" | "workspace" | "finance" | "defects" | "testCases" | "release";
+export type ProjectModule = "planning" | "workspace" | "finance" | "defects" | "testCases" | "release" | "meetings";
 export type PlanningCapability =
   | "allowAiPlanning"
   | "allowPlanningApproval"
@@ -241,6 +245,7 @@ export function requireProjectModule(module: ProjectModule, paramName = "id") {
         module === "finance" ? settings?.finance?.trackFinance !== false :
         module === "testCases" ? settings?.quality?.testCaseManagement !== false :
         module === "release" ? settings?.releaseManagement?.enabled !== false :
+        module === "meetings" ? settings?.meetings?.enabled !== false :
         settings?.quality?.defectManagement !== false;
       if (!enabled) return res.status(403).json({ error: `The ${module} module is disabled for this project` });
       next();
