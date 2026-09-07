@@ -143,6 +143,11 @@ const DEFAULT_PROJECT_SETTINGS = {
   },
   releaseManagement: {
     enabled: true,
+    repository: {
+      type: "git",
+      location: "",
+      startingVersion: "1.0.0",
+    },
   },
   collaboration: {
     workspaceEnabled: true,
@@ -204,6 +209,10 @@ function mergeProjectSettings(saved: any): Record<string, any> {
     releaseManagement: {
       ...DEFAULT_PROJECT_SETTINGS.releaseManagement,
       ...(isRecord(source.releaseManagement) ? source.releaseManagement : {}),
+      repository: {
+        ...DEFAULT_PROJECT_SETTINGS.releaseManagement.repository,
+        ...(isRecord(source.releaseManagement?.repository) ? source.releaseManagement.repository : {}),
+      },
     },
     collaboration: { ...DEFAULT_PROJECT_SETTINGS.collaboration, ...(isRecord(source.collaboration) ? source.collaboration : {}) },
     notifications: { ...DEFAULT_PROJECT_SETTINGS.notifications, ...(isRecord(source.notifications) ? source.notifications : {}) },
@@ -216,6 +225,17 @@ function validateProjectSettings(input: unknown): { settings?: Record<string, an
   if (!PROJECT_SETTING_ENUMS.visibility.includes(settings.visibility)) return { error: "Unsupported project visibility" };
   if (!PROJECT_SETTING_ENUMS.methodology.includes(settings.planning.methodology)) return { error: "Unsupported planning methodology" };
   if (!PROJECT_SETTING_ENUMS.granularity.includes(settings.planning.granularity)) return { error: "Unsupported planning granularity" };
+  if (!isRecord(settings.releaseManagement.repository) ||
+      !["git", "subversion", "mercurial", "other"].includes(settings.releaseManagement.repository.type)) {
+    return { error: "Unsupported repository type" };
+  }
+  if (typeof settings.releaseManagement.repository.location !== "string") {
+    return { error: "Repository location must be text" };
+  }
+  if (typeof settings.releaseManagement.repository.startingVersion !== "string" ||
+      !settings.releaseManagement.repository.startingVersion.trim()) {
+    return { error: "Starting version is required" };
+  }
 
   const booleanGroups = ["planning", "finance", "quality", "releaseManagement", "collaboration"] as const;
   for (const group of booleanGroups) {

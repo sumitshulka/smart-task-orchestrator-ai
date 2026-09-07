@@ -76,6 +76,11 @@ const DEFAULT_SETTINGS: Settings = {
   },
   releaseManagement: {
     enabled: true,
+    repository: {
+      type: "git",
+      location: "",
+      startingVersion: "1.0.0",
+    },
   },
   collaboration: {
     workspaceEnabled: true,
@@ -179,7 +184,14 @@ function mergeSettings(saved: any): Settings {
       visibility: { ...DEFAULT_SETTINGS.finance.visibility, ...(source.finance?.visibility ?? {}) },
     },
     quality: { ...DEFAULT_SETTINGS.quality, ...(source.quality ?? {}) },
-    releaseManagement: { ...DEFAULT_SETTINGS.releaseManagement, ...(source.releaseManagement ?? {}) },
+    releaseManagement: {
+      ...DEFAULT_SETTINGS.releaseManagement,
+      ...(source.releaseManagement ?? {}),
+      repository: {
+        ...DEFAULT_SETTINGS.releaseManagement.repository,
+        ...(source.releaseManagement?.repository ?? {}),
+      },
+    },
     collaboration: { ...DEFAULT_SETTINGS.collaboration, ...(source.collaboration ?? {}) },
     notifications: Object.fromEntries(
       NOTIFICATION_EVENTS.map(([key]) => [key, { ...NOTIFICATION_DEFAULT, ...(source.notifications?.[key] ?? {}) }]),
