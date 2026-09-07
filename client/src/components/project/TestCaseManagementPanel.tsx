@@ -11,7 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { CheckCircle2, ChevronDown, Edit3, FlaskConical, Plus, Search, Sparkles, X, XCircle } from "lucide-react";
@@ -257,10 +257,6 @@ export default function TestCaseManagementPanel({ projectId }: { projectId: stri
     setAuthoring(true);
   }
 
-  function toggleId(setter: (value: string[]) => void, current: string[], value: string, checked: boolean) {
-    setter(checked ? [...current, value] : current.filter((id) => id !== value));
-  }
-
   return (
     <div className="max-w-7xl space-y-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -285,17 +281,23 @@ export default function TestCaseManagementPanel({ projectId }: { projectId: stri
             <div className="grid gap-3 md:grid-cols-3">
               <div>
                 <Label>Feature</Label>
-                <Select value={form.featureId || "none"} onValueChange={(value) => setForm({ ...form, featureId: value === "none" ? "" : value, userStoryId: "" })}>
-                  <SelectTrigger><SelectValue placeholder="Select feature" /></SelectTrigger>
-                  <SelectContent><SelectItem value="none">No feature</SelectItem>{(options.features ?? []).map((feature: any) => <SelectItem key={feature.id} value={feature.id}>{feature.name}</SelectItem>)}</SelectContent>
-                </Select>
+                <SearchablePicker
+                  options={featureOptions}
+                  value={form.featureId}
+                  onChange={(value) => setForm({ ...form, featureId: value as string, userStoryId: "" })}
+                  placeholder="Select feature"
+                  emptyLabel="No matching features"
+                />
               </div>
               <div>
                 <Label>User Story</Label>
-                <Select value={form.userStoryId || "none"} onValueChange={(value) => setForm({ ...form, userStoryId: value === "none" ? "" : value })}>
-                  <SelectTrigger><SelectValue placeholder="Optional user story" /></SelectTrigger>
-                  <SelectContent><SelectItem value="none">No user story</SelectItem>{availableStories.map((story: any) => <SelectItem key={story.id} value={story.id}>{story.tracking_number} · {story.title}</SelectItem>)}</SelectContent>
-                </Select>
+                <SearchablePicker
+                  options={formStoryOptions}
+                  value={form.userStoryId}
+                  onChange={(value) => setForm({ ...form, userStoryId: value as string })}
+                  placeholder="Optional user story"
+                  emptyLabel={form.featureId ? "No stories for this feature" : "No matching user stories"}
+                />
               </div>
               <div>
                 <Label>Comment</Label>
@@ -316,24 +318,30 @@ export default function TestCaseManagementPanel({ projectId }: { projectId: stri
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">Select functionality, generate draft cases with AI, then edit them in the test-case table before running them.</p>
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div className="grid gap-3 lg:grid-cols-2">
             <div className="space-y-2">
-              <Label>Features</Label>
-              {(options.features ?? []).length === 0 ? <p className="text-xs text-muted-foreground">No features available.</p> : (options.features ?? []).map((feature: any) => (
-                <label key={feature.id} className="flex items-center gap-2 rounded-md border p-2 text-sm">
-                  <Checkbox checked={aiFeatureIds.includes(feature.id)} onCheckedChange={(checked) => toggleId(setAiFeatureIds, aiFeatureIds, feature.id, checked === true)} />
-                  <span>{feature.name}</span>
-                </label>
-              ))}
+              <Label>Features to cover</Label>
+              <SearchablePicker
+                multi
+                options={featureOptions}
+                value={aiFeatureIds}
+                onChange={(value) => setAiFeatureIds(value as string[])}
+                placeholder="Search and select features"
+                emptyLabel="No matching features"
+              />
+              <SelectionChips values={aiFeatureIds} options={featureOptions} onRemove={(id) => setAiFeatureIds((current) => current.filter((item) => item !== id))} />
             </div>
             <div className="space-y-2">
-              <Label>User Stories</Label>
-              {(options.stories ?? []).length === 0 ? <p className="text-xs text-muted-foreground">No user stories available.</p> : (options.stories ?? []).map((story: any) => (
-                <label key={story.id} className="flex items-center gap-2 rounded-md border p-2 text-sm">
-                  <Checkbox checked={aiStoryIds.includes(story.id)} onCheckedChange={(checked) => toggleId(setAiStoryIds, aiStoryIds, story.id, checked === true)} />
-                  <span>{story.tracking_number} · {story.title}</span>
-                </label>
-              ))}
+              <Label>User stories to cover</Label>
+              <SearchablePicker
+                multi
+                options={storyOptions}
+                value={aiStoryIds}
+                onChange={(value) => setAiStoryIds(value as string[])}
+                placeholder="Search and select user stories"
+                emptyLabel="No matching user stories"
+              />
+              <SelectionChips values={aiStoryIds} options={storyOptions} onRemove={(id) => setAiStoryIds((current) => current.filter((item) => item !== id))} />
             </div>
           </div>
           <Button variant="outline" disabled={(!aiFeatureIds.length && !aiStoryIds.length) || generateCases.isPending} onClick={() => generateCases.mutate()}>
@@ -343,16 +351,34 @@ export default function TestCaseManagementPanel({ projectId }: { projectId: stri
       </Card>
 
       <Card>
-        <CardHeader><CardTitle className="text-base">{cases.length} test case{cases.length === 1 ? "" : "s"}</CardTitle></CardHeader>
+        <CardHeader className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <CardTitle className="text-base">{filteredCases.length} of {cases.length} test case{cases.length === 1 ? "" : "s"}</CardTitle>
+            {(caseSearch || caseStatus !== "all" || caseFeature) && <Button variant="ghost" size="sm" onClick={() => { setCaseSearch(""); setCaseStatus("all"); setCaseFeature(""); }}>Clear filters</Button>}
+          </div>
+          <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_180px_260px]">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input className="pl-9" value={caseSearch} onChange={(event) => setCaseSearch(event.target.value)} placeholder="Search ID, requirement, feature, or story..." />
+            </div>
+            <Select value={caseStatus} onValueChange={setCaseStatus}>
+              <SelectTrigger><SelectValue placeholder="All results" /></SelectTrigger>
+              <SelectContent><SelectItem value="all">All results</SelectItem><SelectItem value="pending">Pending</SelectItem><SelectItem value="passed">Passed</SelectItem><SelectItem value="failed">Failed</SelectItem></SelectContent>
+            </Select>
+            <SearchablePicker options={featureOptions} value={caseFeature} onChange={(value) => setCaseFeature(value as string)} placeholder="Filter by feature" emptyLabel="No matching features" />
+          </div>
+        </CardHeader>
         <CardContent className="p-0">
           {cases.length === 0 ? (
             <div className="p-10 text-center text-sm text-muted-foreground">No test cases yet. Create one manually or generate cases from a feature or user story.</div>
+          ) : filteredCases.length === 0 ? (
+            <div className="p-10 text-center text-sm text-muted-foreground">No test cases match the current filters.</div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
                 <thead><tr className="border-b bg-muted/30 text-xs uppercase tracking-wide text-muted-foreground"><th className="p-3">Test Case ID</th><th className="p-3">Requirement</th><th className="p-3">Result</th><th className="p-3">Last tested</th><th className="p-3 text-right">Actions</th></tr></thead>
                 <tbody>
-                  {cases.map((testCase: any) => {
+                  {filteredCases.map((testCase: any) => {
                     const latest = testCase.results?.[0];
                     const feature = (options.features ?? []).find((item: any) => item.id === testCase.feature_id);
                     const story = (options.stories ?? []).find((item: any) => item.id === testCase.user_story_id);
@@ -368,7 +394,7 @@ export default function TestCaseManagementPanel({ projectId }: { projectId: stri
                   })}
                 </tbody>
               </table>
-              {cases.filter((testCase: any) => expandedId === testCase.id).map((testCase: any) => (
+              {filteredCases.filter((testCase: any) => expandedId === testCase.id).map((testCase: any) => (
                 <div key={`history-${testCase.id}`} className="border-t bg-muted/20 p-4">
                   <p className="mb-2 text-sm font-medium">{testCaseId(testCase)} execution history</p>
                   {testCase.results?.length ? <table className="w-full text-left text-xs"><thead><tr className="border-b"><th className="p-2">Run</th><th className="p-2">Result</th><th className="p-2">Comment</th><th className="p-2">Tested by</th><th className="p-2">Date</th><th className="p-2">Defect</th></tr></thead><tbody>{testCase.results.map((result: any) => <tr key={result.id} className="border-b"><td className="p-2">Pass {result.execution_number}</td><td className="p-2">{result.result === "passed" ? <CheckCircle2 className="h-4 w-4 text-green-600" /> : <XCircle className="h-4 w-4 text-red-600" />}</td><td className="p-2">{result.comment || "—"}</td><td className="p-2">{result.testedBy?.user_name || result.testedBy?.email || result.tested_by}</td><td className="p-2">{dateLabel(result.tested_at)}</td><td className="p-2">{result.defect_id ? "Created" : "—"}</td></tr>)}</tbody></table> : <p className="text-xs text-muted-foreground">No executions yet.</p>}
@@ -381,7 +407,10 @@ export default function TestCaseManagementPanel({ projectId }: { projectId: stri
 
       <Dialog open={!!executionCase} onOpenChange={(open) => !open && setExecutionCase(null)}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Record execution · {executionCase ? testCaseId(executionCase) : ""}</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>Record execution · {executionCase ? testCaseId(executionCase) : ""}</DialogTitle>
+            <DialogDescription>Save this run to the permanent execution history. Failed runs can create a draft defect for QA review.</DialogDescription>
+          </DialogHeader>
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">{executionCase?.requirement || executionCase?.title}</p>
             <div><Label>Result</Label><Select value={executionResult} onValueChange={setExecutionResult}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="passed">Passed</SelectItem><SelectItem value="failed">Failed</SelectItem></SelectContent></Select></div>
