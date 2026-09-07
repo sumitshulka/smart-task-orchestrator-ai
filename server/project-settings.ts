@@ -37,6 +37,9 @@ export const DEFAULT_PROJECT_SETTINGS = {
     requireTestCasesForMilestoneCompletion: false,
     requireDefectsResolvedForMilestoneClosure: false,
   },
+  releaseManagement: {
+    enabled: true,
+  },
   collaboration: {
     workspaceEnabled: true,
     internalCollaboration: true,

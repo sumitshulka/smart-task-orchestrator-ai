@@ -8,6 +8,7 @@ const projectNavigationFixture = [
   { id: "planning", label: "Planning" },
   { id: "members", label: "Members" },
   { id: "defects", label: "Defects" },
+  { id: "release", label: "Release" },
   { id: "finance", label: "Finance" },
   { id: "settings", label: "Settings" },
 ];
@@ -17,6 +18,7 @@ test("disabled project modules disappear from navigation", () => {
     planning: { enabled: false },
     finance: { trackFinance: false },
     quality: { defectManagement: false },
+    releaseManagement: { enabled: false },
     collaboration: { workspaceEnabled: false },
   });
 
@@ -39,12 +41,14 @@ test("re-enabling modules restores navigation without changing project data", ()
     planning: { enabled: false },
     finance: { trackFinance: false },
     quality: { defectManagement: false },
+    releaseManagement: { enabled: false },
     collaboration: { workspaceEnabled: false },
   };
   const reenabledSettings = {
     planning: { enabled: true },
     finance: { trackFinance: true },
     quality: { defectManagement: true },
+    releaseManagement: { enabled: true },
     collaboration: { workspaceEnabled: true },
   };
 

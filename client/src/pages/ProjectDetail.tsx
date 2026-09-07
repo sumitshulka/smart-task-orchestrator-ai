@@ -25,7 +25,7 @@ import {
   Calendar, Clock, DollarSign, History, UserCircle, Tag, Grip, ChevronDown, ChevronUp,
   Search, ListTodo, ExternalLink, Flag, Bug, Building2, MessageSquare,
   LayoutDashboard, Menu, X, ChevronLeft, ChevronRight, TrendingUp,
-  BarChart3, FileText, FolderOpen, ArrowRight, Target, Network, Settings2,
+  BarChart3, FileText, FolderOpen, ArrowRight, Target, Network, Settings2, PackageCheck,
 } from "lucide-react";
 import PlanningWorkspace from "@/components/planning/PlanningWorkspace";
 import ProjectSettingsPanel from "@/components/project/ProjectSettingsPanel";
@@ -717,6 +717,7 @@ export default function ProjectDetail() {
     { id: "tasks",       label: "Tasks",       icon: ListTodo,  count: projectTasks.length },
     { id: "test-cases",  label: "Test Cases",  icon: ClipboardCheck, comingSoon: true },
     { id: "defects",     label: "Defects",     icon: Bug,       count: projectDefects.length, badge: projectDefects.length > 0 },
+    { id: "release",     label: "Release",     icon: PackageCheck },
     { id: "meetings",    label: "Meetings",    icon: Calendar },
     { id: "finance",     label: "Finance",     icon: DollarSign },
     { id: "documents",   label: "Documents",   icon: FileText },
@@ -953,6 +954,13 @@ export default function ProjectDetail() {
                 icon={ClipboardCheck}
                 title="Test Cases"
                 description="Test case authoring, execution, coverage, and delivery quality reporting are coming soon."
+              />
+            )}
+            {activeSection === "release" && (
+              <LaunchingSoonSection
+                icon={PackageCheck}
+                title="Release Management"
+                description="Release planning, readiness, approvals, and deployment tracking will be managed here."
               />
             )}
             {activeSection === "meetings" && (

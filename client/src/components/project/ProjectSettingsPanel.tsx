@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
-  Bell, BookOpen, Calendar, ChevronRight, CircleDollarSign, ClipboardCheck,
+  Bell, BookOpen, Calendar, ChevronRight, CircleDollarSign, ClipboardCheck, PackageCheck,
   Cog, FileText, FolderKanban, History, Lock, MessageSquare, Network, Plus,
   RotateCcw, Save, Settings2, Shield, SlidersHorizontal, Trash2, Users, X,
 } from "lucide-react";
@@ -24,6 +24,7 @@ type Settings = {
   planning: Record<string, any>;
   finance: Record<string, any>;
   quality: Record<string, any>;
+  releaseManagement: Record<string, any>;
   collaboration: Record<string, any>;
   notifications: Record<string, { enabled: boolean; channels: string[] }>;
 };
@@ -73,6 +74,9 @@ const DEFAULT_SETTINGS: Settings = {
     requireTestCasesForMilestoneCompletion: false,
     requireDefectsResolvedForMilestoneClosure: false,
   },
+  releaseManagement: {
+    enabled: true,
+  },
   collaboration: {
     workspaceEnabled: true,
     internalCollaboration: true,
@@ -121,6 +125,7 @@ const navItems = [
   { id: "planning", label: "Planning", icon: Network },
   { id: "finance", label: "Finance", icon: CircleDollarSign },
   { id: "quality", label: "Quality & Delivery", icon: ClipboardCheck },
+  { id: "release-management", label: "Release Management", icon: PackageCheck },
   { id: "collaboration", label: "Collaboration", icon: MessageSquare },
   { id: "access", label: "Access", icon: Shield },
   { id: "notifications", label: "Notifications", icon: Bell },
@@ -174,6 +179,7 @@ function mergeSettings(saved: any): Settings {
       visibility: { ...DEFAULT_SETTINGS.finance.visibility, ...(source.finance?.visibility ?? {}) },
     },
     quality: { ...DEFAULT_SETTINGS.quality, ...(source.quality ?? {}) },
+    releaseManagement: { ...DEFAULT_SETTINGS.releaseManagement, ...(source.releaseManagement ?? {}) },
     collaboration: { ...DEFAULT_SETTINGS.collaboration, ...(source.collaboration ?? {}) },
     notifications: Object.fromEntries(
       NOTIFICATION_EVENTS.map(([key]) => [key, { ...NOTIFICATION_DEFAULT, ...(source.notifications?.[key] ?? {}) }]),
@@ -946,6 +952,26 @@ export default function ProjectSettingsPanel({ project, users, clients, members,
               <SectionHeader eyebrow="Delivery controls" title="Quality & Delivery" description="Choose which quality workflows are available for this project. Existing defects and test cases are retained when a module is disabled." />
               <Card><CardHeader><CardTitle className="text-base">Quality modules</CardTitle></CardHeader><CardContent className="grid gap-3 sm:grid-cols-2"><ToggleRow label="Defect Management" description="Show the project Defects area." checked={defectsEnabled} onChange={(value) => toggleSetting("quality.defectManagement", value, "Disable Defect Management?", "Existing defects will be retained, but the Defects area will be hidden until enabled again.")} /><ToggleRow label="Test Case Management" description="Reserve this project for test-case workflows when available." checked={settings.quality.testCaseManagement} onChange={(value) => toggleSetting("quality.testCaseManagement", value, "Disable Test Case Management?", "Existing test cases will be retained, but test-case workflows will be hidden until enabled again.")} /><ToggleRow label="Allow Client Defect Creation" description="Allow client users to report defects for this project." checked={settings.quality.allowClientDefectCreation} disabled={!defectsEnabled} disabledReason="Enable Defect Management first." onChange={(value) => updateSetting("quality.allowClientDefectCreation", value)} /><ToggleRow label="Allow Client Test Case Visibility" description="Allow clients to view project test cases." checked={settings.quality.allowClientTestCaseVisibility} disabled={!settings.quality.testCaseManagement} disabledReason="Enable Test Case Management first." onChange={(value) => updateSetting("quality.allowClientTestCaseVisibility", value)} /><ToggleRow label="Allow Client Test Execution" description="Allow clients to execute visible test cases." checked={settings.quality.allowClientTestExecution} disabled={!settings.quality.testCaseManagement} disabledReason="Enable Test Case Management first." onChange={(value) => updateSetting("quality.allowClientTestExecution", value)} /></CardContent></Card>
               <Card><CardHeader><CardTitle className="text-base">Delivery gates</CardTitle><CardDescription>Stored as project configuration for enforcement as delivery workflows mature.</CardDescription></CardHeader><CardContent className="grid gap-3 sm:grid-cols-2"><ToggleRow label="Require Test Cases for Feature Completion" description="Mark a feature complete only after its test cases are satisfied." checked={settings.quality.requireTestCasesForFeatureCompletion} onChange={(value) => updateSetting("quality.requireTestCasesForFeatureCompletion", value)} /><ToggleRow label="Require Test Cases for Milestone Completion" description="Mark a milestone complete only after its test cases are satisfied." checked={settings.quality.requireTestCasesForMilestoneCompletion} onChange={(value) => updateSetting("quality.requireTestCasesForMilestoneCompletion", value)} /><ToggleRow label="Require Resolved Defects before Milestone Closure" description="Prevent milestone closure while linked defects remain unresolved." checked={settings.quality.requireDefectsResolvedForMilestoneClosure} disabled={!defectsEnabled} disabledReason="Enable Defect Management first." onChange={(value) => updateSetting("quality.requireDefectsResolvedForMilestoneClosure", value)} /></CardContent></Card>
+            </>
+          )}
+
+          {activeTab === "release-management" && (
+            <>
+              <SectionHeader eyebrow="Delivery operations" title="Release Management" description="Control whether this project exposes the Release workspace in its project menu." />
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Release workflow</CardTitle>
+                  <CardDescription>Release data and workflows remain project-scoped and are retained if access is later disabled.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ToggleRow
+                    label="Release Management"
+                    description="Show Release in the project menu."
+                    checked={settings.releaseManagement.enabled}
+                    onChange={(value) => toggleSetting("releaseManagement.enabled", value, "Disable Release Management?", "Release will be hidden from the project menu until enabled again.")}
+                  />
+                </CardContent>
+              </Card>
             </>
           )}
 
