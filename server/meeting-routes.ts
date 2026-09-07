@@ -472,19 +472,55 @@ export function registerMeetingRoutes(app: Express) {
     if (!(await canManageMeeting(req.params.projectId, currentUserId))) return res.status(403).json({ error: "Only project managers or administrators can manage attendees" });
     const detail = await meetingDetail(req.params.projectId, req.params.meetingId);
     if (!detail) return res.status(404).json({ error: "Meeting not found" });
-    const type = req.body?.attendeeType === "client" ? "client" : "internal";
-    if (detail.meeting.category === "internal" && type === "client") {
+    const requested = Array.isArray(req.body?.attendees) ? req.body.attendees : [req.body];
+    const attendeeRequests = requested.filter(Boolean).map((item: any) => ({
+      id: typeof item.id === "string" ? item.id : "",
+      attendeeType: item.attendeeType === "client" || item.attendeeType === "external" ? item.attendeeType : "internal",
+      externalName: String(item.externalName ?? item.name ?? "").trim(),
+      externalRole: String(item.externalRole ?? item.role ?? "").trim(),
+      required: item.required !== false,
+    }));
+    if (!attendeeRequests.length) return res.status(400).json({ error: "At least one attendee is required" });
+    if (detail.meeting.category === "internal" && attendeeRequests.some((item: any) => item.attendeeType === "client")) {
       return res.status(400).json({ error: "Internal meetings cannot include client members" });
     }
     const participants = await participantOptions(req.params.projectId);
-    const source = type === "client" ? participants.clientMembers : participants.projectMembers;
-    if (!source.some((participant) => participant.id === req.body?.id)) return res.status(400).json({ error: "Attendee is not a member of this project" });
-    const [created] = await db.insert(meetingAttendees).values({
-      meeting_id: req.params.meetingId, ...(type === "client" ? { contact_id: req.body.id } : { user_id: req.body.id }),
-      attendee_type: type, required: req.body?.required !== false,
-    }).onConflictDoNothing().returning();
-    await recordActivity(req.params.meetingId, "attendee_added", currentUserId);
-    res.status(201).json(created ?? { ok: true });
+    const internalIds = new Set(participants.projectMembers.map((participant) => participant.id));
+    const clientIds = new Set(participants.clientMembers.map((participant) => participant.id));
+    const existingExternal = await db.select().from(meetingAttendees).where(and(
+      eq(meetingAttendees.meeting_id, req.params.meetingId),
+      eq(meetingAttendees.attendee_type, "external"),
+    ));
+    const externalKeys = new Set(existingExternal.map((attendee) => `${attendee.external_name?.trim().toLowerCase()}::${attendee.external_role?.trim().toLowerCase()}`));
+    const rows: any[] = [];
+    for (const item of attendeeRequests) {
+      if (item.attendeeType === "external") {
+        if (!item.externalName) return res.status(400).json({ error: "External attendee name is required" });
+        if (!item.externalRole) return res.status(400).json({ error: "External attendee role is required" });
+        const key = `${item.externalName.toLowerCase()}::${item.externalRole.toLowerCase()}`;
+        if (externalKeys.has(key)) continue;
+        externalKeys.add(key);
+        rows.push({
+          meeting_id: req.params.meetingId,
+          external_name: item.externalName,
+          external_role: item.externalRole || null,
+          attendee_type: "external",
+          required: item.required,
+        });
+        continue;
+      }
+      const sourceIds = item.attendeeType === "client" ? clientIds : internalIds;
+      if (!item.id || !sourceIds.has(item.id)) return res.status(400).json({ error: "Attendee is not a member of this project" });
+      rows.push({
+        meeting_id: req.params.meetingId,
+        ...(item.attendeeType === "client" ? { contact_id: item.id } : { user_id: item.id }),
+        attendee_type: item.attendeeType,
+        required: item.required,
+      });
+    }
+    const created = rows.length ? await db.insert(meetingAttendees).values(rows).onConflictDoNothing().returning() : [];
+    if (created.length) await recordActivity(req.params.meetingId, "attendee_added", currentUserId, { count: created.length });
+    res.status(201).json(created.length === 1 ? created[0] : { attendees: created });
   });
 
   app.patch("/api/projects/:projectId/meetings/:meetingId/attendees/:attendeeId", access, async (req: any, res) => {
@@ -658,7 +694,9 @@ export function registerMeetingRoutes(app: Express) {
     const attendees = detail.attendees.map((attendee) => {
       const person = attendee.attendee_type === "client"
         ? participantData.clientMembers.find((candidate) => candidate.id === attendee.contact_id)
-        : participantData.projectMembers.find((candidate) => candidate.id === attendee.user_id);
+        : attendee.attendee_type === "internal"
+          ? participantData.projectMembers.find((candidate) => candidate.id === attendee.user_id)
+          : null;
       return person?.email ? `ATTENDEE;CN=${icsEscape(person.name)}:mailto:${person.email}` : "";
     }).filter(Boolean);
     const ics = [
@@ -690,7 +728,12 @@ export function registerMeetingRoutes(app: Express) {
     doc.fontSize(10).fillColor("#4b5563").text(`${new Date(detail.meeting.starts_at).toLocaleString()} – ${new Date(detail.meeting.ends_at).toLocaleTimeString()}`);
     doc.text(`Category: ${detail.meeting.category}   Status: ${detail.meeting.status}`);
     doc.moveDown().fillColor("#111827").fontSize(13).text("ATTENDEES");
-    detail.attendees.forEach((attendee) => doc.fontSize(10).text(`${attendee.attendee_type === "client" ? "Client" : "Project"} · ${attendee.attendance_status}${attendee.required ? " · Required" : " · Optional"}`));
+    detail.attendees.forEach((attendee) => {
+      const label = attendee.attendee_type === "external"
+        ? `External · ${attendee.external_name || "Participant"}${attendee.external_role ? ` · ${attendee.external_role}` : ""}`
+        : attendee.attendee_type === "client" ? "Client" : "Project";
+      doc.fontSize(10).text(`${label} · ${attendee.attendance_status}${attendee.required ? " · Required" : " · Optional"}`);
+    });
     doc.moveDown().fontSize(13).text("AGENDA");
     detail.agenda.forEach((item, index) => doc.fontSize(10).text(`${index + 1}. ${item.title}${item.description ? ` — ${item.description}` : ""}`));
     doc.moveDown().fontSize(13).text("DISCUSSION");
@@ -752,7 +795,7 @@ export function registerMeetingRoutes(app: Express) {
       discussions: published ? detail.discussions.filter((item) => item.visibility === "client") : [],
       decisions: published ? detail.decisions.filter((item) => item.visibility === "client") : [],
       actions: published ? detail.actions.filter((item) => item.visibility === "client") : [],
-      attendees: detail.attendees.filter((item) => item.attendee_type === "client" || item.attendance_status === "present"),
+      attendees: detail.attendees.filter((item) => item.attendee_type !== "external" && (item.attendee_type === "client" || item.attendance_status === "present")),
     });
   });
 

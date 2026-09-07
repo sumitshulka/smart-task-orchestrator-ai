@@ -254,8 +254,10 @@ function MeetingWorkspace({ projectId, detail, options, onRefresh, onStatus }: {
   const [decisionTitle, setDecisionTitle] = useState("");
   const [showMinutes, setShowMinutes] = useState(meeting.minutes_status === "published" || meeting.status === "completed");
   const [showAttendeePicker, setShowAttendeePicker] = useState(false);
-  const [attendeeType, setAttendeeType] = useState<"internal" | "client">("internal");
-  const [attendeeId, setAttendeeId] = useState("");
+  const [attendeeType, setAttendeeType] = useState<"internal" | "client" | "external">("internal");
+  const [selectedAttendeeIds, setSelectedAttendeeIds] = useState<string[]>([]);
+  const [externalName, setExternalName] = useState("");
+  const [externalRole, setExternalRole] = useState("");
   const save = useMutation({
     mutationFn: (data: any) => apiClient.patch(`/projects/${projectId}/meetings/${meeting.id}/minutes`, data),
     onSuccess: () => { onRefresh(); toast({ title: "Minutes saved" }); },
@@ -271,12 +273,16 @@ function MeetingWorkspace({ projectId, detail, options, onRefresh, onStatus }: {
     onSuccess: onRefresh,
   });
   const addAttendee = useMutation({
-    mutationFn: () => apiClient.post(`/projects/${projectId}/meetings/${meeting.id}/attendees`, { id: attendeeId, attendeeType, required: true }),
+    mutationFn: () => apiClient.post(`/projects/${projectId}/meetings/${meeting.id}/attendees`, attendeeType === "external"
+      ? { attendeeType, externalName, externalRole, required: true }
+      : { attendees: selectedAttendeeIds.map((id) => ({ id, attendeeType, required: true })) }),
     onSuccess: () => {
-      setAttendeeId("");
+      setSelectedAttendeeIds([]);
+      setExternalName("");
+      setExternalRole("");
       setShowAttendeePicker(false);
       onRefresh();
-      toast({ title: "Attendee attached", description: "This participant can now be linked to meeting discussions and actions." });
+      toast({ title: "Attendees attached", description: "These participants can now be linked to meeting discussions and actions." });
     },
     onError: (error: Error) => toast({ title: "Could not attach attendee", description: error.message, variant: "destructive" }),
   });
@@ -286,18 +292,23 @@ function MeetingWorkspace({ projectId, detail, options, onRefresh, onStatus }: {
   const visibleActions = detail.actions.filter((action: any) => action.visibility !== "internal");
   const internalMembers = options.projectMembers ?? [];
   const clientMembers = options.clientMembers ?? [];
-  const attendeeChoices = attendeeType === "client" ? clientMembers : internalMembers;
+  const attendeeChoices = attendeeType === "client" ? clientMembers : attendeeType === "internal" ? internalMembers : [];
   const existingAttendeeKeys = new Set(detail.attendees.map((attendee: any) => `${attendee.attendee_type}:${attendee.user_id || attendee.contact_id}`));
   const availableAttendeeChoices = attendeeChoices.filter((person: any) => !existingAttendeeKeys.has(`${attendeeType}:${person.id}`));
   const attendeeName = (attendee: any) => {
+    if (attendee.attendee_type === "external") return attendee.external_name || "External participant";
     const members = attendee.attendee_type === "client" ? clientMembers : internalMembers;
     const participant = members.find((person: any) => person.id === (attendee.user_id || attendee.contact_id));
     return participant?.name || (attendee.attendee_type === "client" ? "Client attendee" : "Project attendee");
   };
   const attendeeRole = (attendee: any) => {
+    if (attendee.attendee_type === "external") return attendee.external_role || "External participant";
     const members = attendee.attendee_type === "client" ? clientMembers : internalMembers;
     const participant = members.find((person: any) => person.id === (attendee.user_id || attendee.contact_id));
     return participant?.role || (attendee.attendee_type === "client" ? "Client contact" : "Project member");
+  };
+  const toggleAttendee = (id: string) => {
+    setSelectedAttendeeIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
   };
 
   return (
@@ -324,22 +335,43 @@ function MeetingWorkspace({ projectId, detail, options, onRefresh, onStatus }: {
                   <p className="text-sm font-semibold">Attach someone after scheduling</p>
                   <p className="mt-1 text-xs text-gray-500">Use this when the meeting happened outside Tazq but its minutes, discussions, and actions are being recorded here.</p>
                 </div>
-                <div className="grid gap-2 sm:grid-cols-[180px_minmax(220px,1fr)_auto]">
-                  {meeting.category !== "internal" ? (
-                    <Select value={attendeeType} onValueChange={(value: "internal" | "client") => { setAttendeeType(value); setAttendeeId(""); }}>
+                <div className="space-y-3">
+                  <div className="max-w-[220px]">
+                    <Select value={attendeeType} onValueChange={(value: "internal" | "client" | "external") => { setAttendeeType(value); setSelectedAttendeeIds([]); setExternalName(""); setExternalRole(""); }}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent><SelectItem value="internal">Internal member</SelectItem><SelectItem value="client">Client member</SelectItem></SelectContent>
+                      <SelectContent>
+                        <SelectItem value="internal">Internal members</SelectItem>
+                        {meeting.category !== "internal" && <SelectItem value="client">Client members</SelectItem>}
+                        <SelectItem value="external">External participant</SelectItem>
+                      </SelectContent>
                     </Select>
+                  </div>
+                  {attendeeType !== "external" ? (
+                    <div className="rounded-lg border bg-white/70 p-2 dark:bg-gray-950/50">
+                      <p className="mb-2 text-xs text-gray-500">Select one or more participants.</p>
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        {availableAttendeeChoices.map((person: any) => {
+                          const selected = selectedAttendeeIds.includes(person.id);
+                          return <button type="button" key={person.id} onClick={() => toggleAttendee(person.id)} className={`flex items-center gap-2 rounded-lg border p-2 text-left text-sm transition ${selected ? "border-indigo-400 bg-indigo-50 dark:bg-indigo-950/30" : "border-gray-200 dark:border-gray-800"}`}>
+                            <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${selected ? "border-indigo-600 bg-indigo-600 text-white" : "border-gray-300"}`}>{selected && <Check className="h-3 w-3" />}</span>
+                            <span className="min-w-0 flex-1 truncate">{person.name}</span><span className="text-[10px] text-gray-400">{person.role || (attendeeType === "client" ? "Client contact" : "Project member")}</span>
+                          </button>;
+                        })}
+                      </div>
+                      {!availableAttendeeChoices.length && <p className="py-2 text-xs text-gray-500">All eligible {attendeeType === "client" ? "client members" : "internal members"} are already attached.</p>}
+                    </div>
                   ) : (
-                    <div className="flex items-center rounded-md border bg-white px-3 text-sm text-gray-600 dark:bg-gray-950 dark:text-gray-300">Internal member</div>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <Input value={externalName} onChange={(event) => setExternalName(event.target.value)} placeholder="Participant name" />
+                      <Input value={externalRole} onChange={(event) => setExternalRole(event.target.value)} placeholder="Role, e.g. Client architect" />
+                    </div>
                   )}
-                  <Select value={attendeeId} onValueChange={setAttendeeId}>
-                    <SelectTrigger><SelectValue placeholder={availableAttendeeChoices.length ? "Choose a participant" : "No eligible participants"} /></SelectTrigger>
-                    <SelectContent>{availableAttendeeChoices.map((person: any) => <SelectItem key={person.id} value={person.id}>{person.name}{person.role ? ` · ${person.role}` : ""}</SelectItem>)}</SelectContent>
-                  </Select>
-                  <Button onClick={() => addAttendee.mutate()} disabled={!attendeeId || addAttendee.isPending}>{addAttendee.isPending ? "Attaching..." : "Attach"}</Button>
+                  <div className="flex justify-end">
+                    <Button onClick={() => addAttendee.mutate()} disabled={addAttendee.isPending || (attendeeType === "external" ? !externalName.trim() || !externalRole.trim() : !selectedAttendeeIds.length)}>
+                      {addAttendee.isPending ? "Attaching..." : attendeeType === "external" ? "Attach participant" : `Attach ${selectedAttendeeIds.length || ""} ${selectedAttendeeIds.length === 1 ? "member" : "members"}`}
+                    </Button>
+                  </div>
                 </div>
-                {!availableAttendeeChoices.length && <p className="mt-2 text-xs text-gray-500">All eligible {attendeeType === "client" ? "client members" : "internal members"} are already attached.</p>}
               </div>
             )}
             {!detail.attendees.length && <div className="mb-3 rounded-xl border border-dashed p-4 text-sm text-gray-500">No attendees were added when this meeting was scheduled. You can attach the people who participated now.</div>}

@@ -321,6 +321,8 @@ export async function runStartupMigrations(): Promise<void> {
         meeting_id uuid NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
         user_id uuid REFERENCES users(id) ON DELETE CASCADE,
         contact_id uuid REFERENCES client_contacts(id) ON DELETE CASCADE,
+        external_name text,
+        external_role text,
         attendee_type text NOT NULL DEFAULT 'internal',
         required boolean NOT NULL DEFAULT true,
         attendance_status text NOT NULL DEFAULT 'no_response',
@@ -329,6 +331,8 @@ export async function runStartupMigrations(): Promise<void> {
         CONSTRAINT meeting_attendees_meeting_contact_unique UNIQUE (meeting_id, contact_id)
       )
     `);
+    await client.query(`ALTER TABLE meeting_attendees ADD COLUMN IF NOT EXISTS external_name text`);
+    await client.query(`ALTER TABLE meeting_attendees ADD COLUMN IF NOT EXISTS external_role text`);
     await client.query(`
       CREATE TABLE IF NOT EXISTS meeting_agenda_items (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),

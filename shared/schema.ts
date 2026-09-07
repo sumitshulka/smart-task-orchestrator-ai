@@ -1109,7 +1109,9 @@ export const meetingAttendees = pgTable("meeting_attendees", {
   meeting_id: uuid("meeting_id").notNull().references(() => meetings.id, { onDelete: "cascade" }),
   user_id: uuid("user_id").references(() => users.id, { onDelete: "cascade" }),
   contact_id: uuid("contact_id").references(() => clientContacts.id, { onDelete: "cascade" }),
-  attendee_type: text("attendee_type").notNull().default("internal"), // internal | client
+  external_name: text("external_name"),
+  external_role: text("external_role"),
+  attendee_type: text("attendee_type").notNull().default("internal"), // internal | client | external
   required: boolean("required").notNull().default(true),
   attendance_status: text("attendance_status").notNull().default("no_response"), // present | absent | optional | declined | no_response
   created_at: timestamp("created_at").defaultNow(),
