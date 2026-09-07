@@ -94,6 +94,10 @@ export function mergeProjectSettings(saved: any): Record<string, any> {
       },
     },
     quality: { ...DEFAULT_PROJECT_SETTINGS.quality, ...(isRecord(source.quality) ? source.quality : {}) },
+    releaseManagement: {
+      ...DEFAULT_PROJECT_SETTINGS.releaseManagement,
+      ...(isRecord(source.releaseManagement) ? source.releaseManagement : {}),
+    },
     collaboration: { ...DEFAULT_PROJECT_SETTINGS.collaboration, ...(isRecord(source.collaboration) ? source.collaboration : {}) },
     notifications: { ...DEFAULT_PROJECT_SETTINGS.notifications, ...(isRecord(source.notifications) ? source.notifications : {}) },
   };
@@ -106,7 +110,7 @@ export function validateProjectSettings(input: unknown): { settings?: Record<str
   if (!PROJECT_SETTING_ENUMS.methodology.includes(settings.planning.methodology)) return { error: "Unsupported planning methodology" };
   if (!PROJECT_SETTING_ENUMS.granularity.includes(settings.planning.granularity)) return { error: "Unsupported planning granularity" };
 
-  const booleanGroups = ["planning", "finance", "quality", "collaboration"] as const;
+  const booleanGroups = ["planning", "finance", "quality", "releaseManagement", "collaboration"] as const;
   for (const group of booleanGroups) {
     for (const [key, value] of Object.entries(settings[group])) {
       if (key === "peopleCostVisibility" || key === "visibility" || key === "methodology" || key === "granularity") continue;
