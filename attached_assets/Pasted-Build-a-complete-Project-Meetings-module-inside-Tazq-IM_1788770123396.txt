@@ -1,0 +1,1634 @@
+Build a complete “Project Meetings” module inside Tazq.
+
+IMPORTANT:
+- First inspect the existing Tazq application, database schema, project module, users, teams, clients, client members, tasks, workspace, notifications, permissions, file handling and PDF generation.
+- Reuse existing entities wherever possible.
+- DO NOT create duplicate User, Client, Client Member, Project Member, Task, Workspace or Notification entities.
+- Do not break any existing functionality.
+- Follow the existing Tazq UI/design system.
+- The module should feel like an enterprise project meeting management system, NOT simply a calendar page.
+
+========================================================
+1. PURPOSE
+========================================================
+
+Project Meetings is a project-level module where the Project Manager can:
+
+- Create project meetings
+- Schedule internal or client meetings
+- Define meeting type
+- Select attendees
+- Create calendar invitations
+- Integrate with external calendars
+- Define agenda
+- Record meeting minutes
+- Record discussion items
+- Record decisions
+- Create action items
+- Assign responsibility
+- Set due dates
+- Track action item status
+- Link action items to Tazq Tasks where appropriate
+- Generate professionally formatted Meeting Minutes PDF
+- Maintain a complete meeting history for the project
+
+The module should answer:
+
+“What meetings have happened on this project, what was discussed, what was decided, and who needs to do what?”
+
+========================================================
+2. PROJECT NAVIGATION
+========================================================
+
+Add:
+
+Meetings
+
+to the existing Project sub-navigation.
+
+Example:
+
+Overview
+Planning
+Tasks
+Quality
+Meetings
+Workspace
+Finance
+Reports
+Settings
+
+Do not modify the global Tazq sidebar.
+
+Meetings should be a first-class project module.
+
+========================================================
+3. MEETING LIST
+========================================================
+
+Create a Project Meetings landing page.
+
+Header:
+
+Meetings
+
+Subtitle:
+
+“Plan, conduct and track project meetings, decisions and actions.”
+
+Primary button:
+
++ New Meeting
+
+Top controls:
+
+Search meetings
+Filter
+Sort
+Calendar/List view
+
+Filters:
+
+Meeting Type
+Meeting Status
+Internal / Client
+Organizer
+Date Range
+Attendee
+Action Items Pending
+Action Items Overdue
+
+Meeting list should display:
+
+Date
+Time
+Meeting Title
+Meeting Type
+Meeting Category
+Organizer
+Attendees
+Status
+Open Action Items
+Meeting Status
+
+Example:
+
+15 Sep 2026
+10:00 AM – 11:00 AM
+
+Weekly Project Review
+
+Weekly Meeting
+Client Meeting
+
+PM: Rahul Sharma
+
+8 Attendees
+
+3 Open Actions
+
+Completed
+
+========================================================
+4. MEETING TYPES
+========================================================
+
+Meeting Type should be configurable by the PM/project administrator.
+
+Initial examples:
+
+Weekly Meeting
+Daily Stand-up
+Stakeholder Meeting
+Client Review
+Project Review
+Requirement Discussion
+Technical Discussion
+Sprint Review
+Sprint Planning
+Demo
+Retrospective
+Steering Committee
+Issue Resolution
+Ad-hoc Meeting
+Other
+
+Do NOT hardcode these permanently.
+
+Create a project-level Meeting Type configuration.
+
+Each type should have:
+
+Name
+Code
+Description
+Active / Inactive
+
+Allow:
+
+Create
+Edit
+Activate/Deactivate
+
+Prevent deletion if the type is already used by meetings.
+
+Use deactivate instead.
+
+========================================================
+5. INTERNAL VS CLIENT MEETING
+========================================================
+
+Every meeting should have:
+
+Meeting Category
+
+Options:
+
+Internal
+Client
+Mixed
+
+Internal:
+Only project organization members.
+
+Client:
+Client members/stakeholders can be invited.
+
+Mixed:
+Project team + client stakeholders.
+
+Do NOT create a separate Stakeholder entity unless one does not already exist and the existing Client Member architecture cannot support it.
+
+Client stakeholders should be selectable from existing Client Members.
+
+The meeting should clearly display:
+
+Internal Meeting
+or
+Client Meeting
+or
+Mixed Meeting
+
+========================================================
+6. CREATE MEETING
+========================================================
+
+Create a proper “New Meeting” form.
+
+Fields:
+
+Meeting Title *
+Meeting Type *
+Meeting Category *
+Project *
+Organizer *
+Date *
+Start Time *
+End Time *
+Time Zone
+Location / Meeting Link
+Description
+Attendees
+Agenda
+Meeting Recurrence
+Calendar Integration
+
+Project should automatically be populated because the meeting is created inside a project.
+
+Organizer should default to current user.
+
+Meeting Type should come from configurable Meeting Types.
+
+Meeting Category:
+
+Internal
+Client
+Mixed
+
+========================================================
+7. ATTENDEES
+========================================================
+
+Attendees should be divided into:
+
+Project Members
+
+and, when applicable:
+
+Client Members / Stakeholders
+
+Provide search.
+
+Each attendee should display:
+
+Name
+Organization
+Role
+Email
+
+Allow:
+
+Add
+Remove
+Mark Required / Optional
+
+Meeting creator should automatically be an attendee/organizer.
+
+Do not duplicate users.
+
+Use existing project membership and client membership.
+
+========================================================
+8. CALENDAR INVITATION
+========================================================
+
+Creating a meeting should create an internal Tazq meeting record first.
+
+Then allow:
+
+“Create Calendar Invite”
+
+The PM should be able to send invitations to selected attendees.
+
+Calendar support should use standard calendar formats/protocols rather than building separate calendar systems.
+
+Support:
+
+Google Calendar
+Microsoft Outlook / Microsoft 365
+Apple Calendar
+Other standards-compliant calendars
+
+Where direct API integration is available, support OAuth/API integration.
+
+For interoperability, support:
+
+iCalendar / ICS
+
+The meeting should be able to generate an .ics calendar invitation.
+
+The invitation should contain:
+
+Meeting Title
+Date
+Start Time
+End Time
+Time Zone
+Organizer
+Attendees
+Description
+Agenda
+Location
+Meeting Link
+Project reference
+
+The PM should have an action:
+
+“Add to Calendar”
+
+and/or:
+
+“Send Calendar Invite”
+
+Depending on available integrations.
+
+========================================================
+9. CALENDAR INTEGRATION ARCHITECTURE
+========================================================
+
+DO NOT hardcode the application to only Google Calendar.
+
+Create a Calendar Provider abstraction.
+
+Conceptually:
+
+CalendarProvider
+
+Methods:
+
+createEvent()
+updateEvent()
+deleteEvent()
+sendInvitation()
+generateICS()
+
+Implement providers/adapters such as:
+
+Google Calendar
+Microsoft Outlook / Microsoft Graph
+ICS / iCalendar
+Future providers
+
+The project meeting should remain owned by Tazq.
+
+External calendar records should be treated as synchronized representations.
+
+Store external event identifiers where applicable.
+
+Example:
+
+Meeting
+  Tazq Meeting ID
+  Google Event ID
+  Microsoft Event ID
+  ICS availability
+
+Do not make the external calendar the source of truth for meeting minutes.
+
+Tazq remains the source of truth for:
+
+Agenda
+Minutes
+Discussion
+Decisions
+Action Items
+
+========================================================
+10. MEETING LINK
+========================================================
+
+Support:
+
+Physical Location
+
+and/or
+
+Virtual Meeting Link
+
+Examples:
+
+Microsoft Teams
+Google Meet
+Zoom
+Other URL
+
+Do not build a video conferencing system.
+
+The system should simply store/display the meeting link.
+
+If calendar provider automatically supplies a meeting link, store it.
+
+========================================================
+11. AGENDA
+========================================================
+
+Every meeting should support an Agenda.
+
+Agenda should be structured, not just one large text box.
+
+Agenda Item fields:
+
+Sequence
+Topic
+Description
+Presenter / Owner
+Expected Duration
+Reference
+Status
+
+Example:
+
+1
+Project Status
+Review current project progress
+Rahul
+15 min
+
+2
+Open Defects
+Review critical defects
+Amit
+15 min
+
+3
+Upcoming Release
+Discuss release readiness
+Priya
+20 min
+
+Allow:
+
+Add Agenda Item
+Edit
+Delete
+Reorder
+
+Allow agenda items to be created before the meeting.
+
+========================================================
+12. AGENDA SOURCES
+========================================================
+
+Future-ready architecture should allow agenda items to reference Tazq objects.
+
+Potential references:
+
+Project
+Milestone
+Feature
+User Story
+Task
+Defect
+Requirement
+Previous Meeting Action
+
+If existing entities support this, provide a “Link to Tazq Item” option.
+
+Example:
+
+Agenda:
+“Discuss API integration delay”
+
+Linked Task:
+TASK-1042
+
+Do not create duplicate records.
+
+========================================================
+13. MEETING DETAIL PAGE
+========================================================
+
+Create a detailed Meeting Workspace.
+
+Header:
+
+Weekly Project Review
+
+Project:
+Student Portal
+
+Date:
+15 September 2026
+
+10:00 AM – 11:00 AM
+
+Client Meeting
+
+Status:
+Scheduled / In Progress / Completed / Cancelled
+
+Actions:
+
+Edit Meeting
+Add Agenda
+Start Meeting
+Record Minutes
+Calendar
+Download Minutes
+More
+
+Main sections/tabs:
+
+Overview
+Agenda
+Minutes
+Action Items
+Decisions
+Attachments
+Activity
+
+Use existing Workspace/activity architecture where appropriate.
+
+========================================================
+14. MEETING STATUS
+========================================================
+
+Statuses:
+
+Draft
+Scheduled
+In Progress
+Completed
+Cancelled
+
+Lifecycle:
+
+Draft
+→ Scheduled
+→ In Progress
+→ Completed
+
+Cancelled can occur from Scheduled/In Progress.
+
+Do not allow completed meetings to be accidentally reverted without confirmation.
+
+========================================================
+15. START MEETING
+========================================================
+
+Provide:
+
+“Start Meeting”
+
+When clicked:
+
+Meeting Status → In Progress
+
+Show meeting interface with:
+
+Meeting Information
+Agenda
+Attendees
+Minutes workspace
+Action Items
+Decisions
+
+This is not intended to be a video meeting interface.
+
+It is a structured meeting execution workspace.
+
+========================================================
+16. MEETING MINUTES
+========================================================
+
+After the meeting, PM should be able to create structured Minutes.
+
+Minutes should contain:
+
+Meeting Summary
+Attendees
+Absentees / Optional Attendees
+Agenda Items
+Items Discussed
+Decisions
+Action Items
+Additional Notes
+
+Do NOT make Minutes just one large rich-text editor.
+
+The structured information must be stored as records.
+
+========================================================
+17. ATTENDANCE
+========================================================
+
+Minutes should capture attendance.
+
+For every invited attendee:
+
+Name
+Organization
+Role
+Attendance Status
+
+Attendance statuses:
+
+Present
+Absent
+Optional
+Declined
+No Response
+
+Allow PM to update attendance.
+
+Organizer should be marked present by default unless changed.
+
+========================================================
+18. ITEMS DISCUSSED
+========================================================
+
+Create structured Discussion Items.
+
+Each discussion item should contain:
+
+Agenda Item
+Topic
+Discussion / Notes
+Decision
+Reference
+
+Example:
+
+Topic:
+API Integration
+
+Discussion:
+The client confirmed that API credentials will be provided by Friday.
+
+Decision:
+Development can proceed once credentials are received.
+
+Allow multiple discussion items.
+
+========================================================
+19. DECISIONS
+========================================================
+
+Create a separate Decisions section.
+
+Decision fields:
+
+Decision Title
+Decision Description
+Decision Date
+Decision Owner / Responsible Person
+Related Agenda Item
+Related Tazq Item
+Status
+
+Decision statuses:
+
+Proposed
+Approved
+Rejected
+Deferred
+
+Where appropriate, allow decision to be linked to:
+
+Task
+Feature
+User Story
+Defect
+Milestone
+
+Do not create duplicate work records.
+
+========================================================
+20. ACTION ITEMS
+========================================================
+
+This is one of the most important parts of the module.
+
+Every action item should contain:
+
+Action Item
+Description
+Responsibility Level
+Responsible Person(s)
+Due Date
+Priority
+Status
+Related Agenda Item
+Related Tazq Item
+Created From Meeting
+
+Responsibility Level:
+
+Project Team
+Client
+Both
+
+If:
+
+Project Team
+→ Responsible person must be project member(s)
+
+Client
+→ Responsible person must be client member(s)
+
+Both
+→ Allow both project members and client members.
+
+Example:
+
+Action:
+Provide API credentials
+
+Responsibility:
+Client
+
+Responsible:
+John Smith
+
+Due:
+18 September 2026
+
+Status:
+Open
+
+========================================================
+21. ACTION ITEM STATUS
+========================================================
+
+Statuses:
+
+Open
+In Progress
+Completed
+Overdue
+Cancelled
+
+Overdue should preferably be calculated based on due date rather than manually entered.
+
+If an action item is completed, capture:
+
+Completed Date
+Completed By
+
+========================================================
+22. LINK ACTION ITEM TO TASK
+========================================================
+
+Very important:
+
+Do not turn every meeting action into a separate Tazq Task automatically.
+
+Provide:
+
+“Create Tazq Task”
+
+or
+
+“Link Existing Task”
+
+for an action item.
+
+If creating a task:
+
+Pre-fill:
+
+Task Title
+Description
+Assignee
+Due Date
+Priority
+Project
+Meeting Reference
+
+Once linked:
+
+Action Item:
+“Provide API credentials”
+
+Tazq Task:
+TASK-1042
+
+The action item should show task status.
+
+If the linked Tazq Task is completed, optionally reflect completion in the action item.
+
+Do not create two independent sources of truth for execution.
+
+========================================================
+23. MEETING ACTION DASHBOARD
+========================================================
+
+Inside the meeting page show:
+
+Action Items
+
+Total: 7
+Open: 4
+Completed: 2
+Overdue: 1
+
+Table:
+
+Action
+Responsibility
+Owner
+Due Date
+Status
+Linked Task
+
+Use visual status indicators.
+
+Also allow:
+
+Filter by:
+Project Team
+Client
+Both
+Open
+Overdue
+Completed
+
+========================================================
+24. MEETING MINUTES EDITOR
+========================================================
+
+Create a clean structured editor.
+
+Suggested layout:
+
+MEETING MINUTES
+
+Meeting:
+Weekly Project Review
+
+Date:
+15 September 2026
+
+Attendees:
+...
+
+AGENDA
+
+1. Project Status
+2. Open Defects
+3. Release Readiness
+
+DISCUSSION
+
+1. Project Status
+Notes...
+
+2. Open Defects
+Notes...
+
+DECISIONS
+
+D1. Release moved to 25 September.
+
+ACTION ITEMS
+
+A1. Provide API credentials
+Responsibility: Client
+Owner: John Smith
+Due: 18 Sep 2026
+
+A2. Fix authentication defect
+Responsibility: Project Team
+Owner: Amit
+Due: 20 Sep 2026
+
+Use rich text only where free-form notes are genuinely required.
+
+========================================================
+25. MEETING MINUTES PDF
+========================================================
+
+Provide:
+
+“Download Meeting Minutes”
+
+Generate a professional PDF.
+
+The PDF should look like a formal enterprise meeting document.
+
+PDF structure:
+
+------------------------------------------------
+Tazq
+
+PROJECT MEETING MINUTES
+
+Project:
+Student Portal
+
+Meeting:
+Weekly Project Review
+
+Meeting Type:
+Weekly Meeting
+
+Meeting Category:
+Client Meeting
+
+Date:
+15 September 2026
+
+Time:
+10:00 AM – 11:00 AM
+
+Organizer:
+Rahul Sharma
+
+------------------------------------------------
+
+1. ATTENDEES
+
+Name | Organization | Role | Attendance
+
+------------------------------------------------
+
+2. AGENDA
+
+1. Project Status
+2. Open Defects
+3. Release Readiness
+
+------------------------------------------------
+
+3. ITEMS DISCUSSED
+
+Topic
+Discussion
+Decision
+
+------------------------------------------------
+
+4. DECISIONS
+
+Decision
+Description
+Owner
+
+------------------------------------------------
+
+5. ACTION ITEMS
+
+Action | Responsibility | Responsible Person | Due Date | Status
+
+------------------------------------------------
+
+6. ADDITIONAL NOTES
+
+...
+
+------------------------------------------------
+
+Generated from Tazq
+Generated Date/Time
+
+------------------------------------------------
+
+PDF requirements:
+
+- Professional typography
+- Proper page margins
+- Header/footer
+- Page numbering
+- Project name
+- Meeting title
+- Date
+- Clean tables
+- Automatic page breaks
+- No database IDs exposed unnecessarily
+- Handle long discussion text
+- Handle long action item lists
+- Handle multi-page documents
+
+Use the existing PDF generation architecture if Tazq already has one.
+
+========================================================
+26. MEETING ATTACHMENTS
+========================================================
+
+Allow meeting-related files:
+
+Presentation
+Reference documents
+Previous minutes
+Screenshots
+Reports
+Other documents
+
+Use existing Tazq file/attachment architecture.
+
+Attachments should belong to the Meeting.
+
+Do not create a separate file management system.
+
+========================================================
+27. MEETING HISTORY / ACTIVITY
+========================================================
+
+Track important events:
+
+Meeting Created
+Meeting Updated
+Invite Sent
+Attendee Added
+Attendee Removed
+Agenda Updated
+Meeting Started
+Minutes Updated
+Decision Added
+Action Item Created
+Action Item Completed
+Meeting Completed
+Minutes PDF Generated
+
+Use existing Activity/Audit infrastructure if available.
+
+========================================================
+28. PREVIOUS MEETING
+========================================================
+
+A very useful feature:
+
+Allow PM to see action items carried forward from previous meetings.
+
+When creating a new meeting, show:
+
+“Open Actions from Previous Meetings”
+
+Example:
+
+3 open actions
+
+[+ Add to Agenda]
+[+ Add as Action Item]
+
+Do not automatically duplicate action items.
+
+Maintain reference to the original meeting.
+
+========================================================
+29. MEETING RECURRING SUPPORT
+========================================================
+
+Support recurring meetings.
+
+Options:
+
+Does not repeat
+Daily
+Weekly
+Monthly
+Custom
+
+For weekly meetings:
+
+Every Monday
+
+Allow:
+
+End date
+Number of occurrences
+
+Important:
+
+Do not necessarily create hundreds of independent records immediately.
+
+Use a recurrence model where appropriate.
+
+Each actual occurrence should eventually have its own:
+
+Agenda
+Attendees
+Minutes
+Action Items
+Decisions
+
+A recurring series should be distinguishable from individual meeting instances.
+
+========================================================
+30. NOTIFICATIONS
+========================================================
+
+Integrate with existing Tazq notification system.
+
+Potential notifications:
+
+Meeting invitation
+Meeting updated
+Meeting cancelled
+Meeting reminder
+Agenda updated
+Minutes published
+Action item assigned
+Action item due soon
+Action item overdue
+
+Do not build a new notification engine.
+
+Allow future project-level notification controls through Project Settings.
+
+========================================================
+31. MINUTES PUBLISHING
+========================================================
+
+Minutes should have a simple lifecycle:
+
+Draft
+Published
+
+Only authorized users can publish Minutes.
+
+Before publishing:
+
+“Publish Meeting Minutes”
+
+Confirmation:
+
+“Once published, attendees will be able to view the final meeting minutes according to project access permissions.”
+
+After publishing:
+
+Show:
+
+Published
+Published by
+Published Date
+
+Allow authorized PM/admin users to edit after publication, but record the change in activity/audit history.
+
+========================================================
+32. CLIENT ACCESS
+========================================================
+
+Client users should only see meetings they are permitted to access.
+
+For Client Meetings:
+
+Client attendees can see:
+
+Meeting details
+Agenda
+Published Minutes
+Relevant action items assigned to them
+Relevant decisions
+Permitted attachments
+
+They should NOT automatically see:
+
+Internal-only notes
+Internal project discussions
+Internal financial information
+Internal cost information
+Other private project meetings
+
+Use existing project/client permission architecture.
+
+========================================================
+33. INTERNAL VS CLIENT NOTES
+========================================================
+
+This is important for real-world client meetings.
+
+Support visibility for meeting content:
+
+Internal
+Client Visible
+
+For discussion notes and additional notes, allow PM to mark content as:
+
+Internal Only
+Client Visible
+
+For client meetings, default to Client Visible only for information intended for the client.
+
+Never expose internal notes simply because the meeting is a client meeting.
+
+========================================================
+34. SEARCH
+========================================================
+
+Integrate Meetings into the existing Tazq Search Console.
+
+Search should find:
+
+Meeting title
+Meeting type
+Project
+Organizer
+Attendee
+Agenda item
+Discussion
+Decision
+Action item
+
+Example searches:
+
+“Find meetings with ABC client”
+
+“Show last month's stakeholder meetings”
+
+“Find meetings where API delay was discussed”
+
+“Show open actions from client meetings”
+
+Do not create a separate search engine.
+
+Use the existing enhanced Search Console architecture.
+
+========================================================
+35. REPORTS / PROJECT OVERVIEW
+========================================================
+
+Meetings should eventually provide useful project-level metrics.
+
+Do not build a large dashboard initially.
+
+Expose basic metrics to existing Reports:
+
+Total Meetings
+Internal Meetings
+Client Meetings
+Completed Meetings
+Upcoming Meetings
+Open Meeting Actions
+Overdue Meeting Actions
+
+Future-ready metrics:
+
+Meeting Action Closure Rate
+Client Meeting Frequency
+Decision Turnaround
+Repeated Open Issues
+Meeting Effectiveness
+
+========================================================
+36. DATA MODEL
+========================================================
+
+Inspect existing schema before creating anything.
+
+Conceptually the model should contain:
+
+Meeting
+- id
+- projectId
+- title
+- meetingTypeId
+- category
+- organizerId
+- date
+- startTime
+- endTime
+- timezone
+- location
+- meetingLink
+- description
+- status
+- recurrenceId if applicable
+- external calendar references
+- createdBy
+- createdAt
+- updatedAt
+
+MeetingAttendee
+- meetingId
+- userId OR clientMemberId
+- attendeeType
+- required
+- attendanceStatus
+
+MeetingAgendaItem
+- meetingId
+- sequence
+- title
+- description
+- presenterId
+- duration
+- linkedEntity
+- linkedEntityId
+- status
+
+MeetingDiscussion
+- meetingId
+- agendaItemId
+- topic
+- discussion
+- decision
+- visibility
+
+MeetingDecision
+- meetingId
+- agendaItemId
+- title
+- description
+- owner
+- status
+- visibility
+- linkedEntity
+
+MeetingActionItem
+- meetingId
+- agendaItemId
+- title
+- description
+- responsibilityLevel
+- dueDate
+- status
+- priority
+- linkedTaskId
+- completedBy
+- completedAt
+
+MeetingAttachment
+- meetingId
+- file reference
+
+MeetingType
+- projectId / organizationId depending on existing architecture
+- name
+- code
+- description
+- active
+
+CalendarIntegration
+- meetingId
+- provider
+- externalEventId
+- syncStatus
+- lastSyncedAt
+
+IMPORTANT:
+
+These are conceptual structures.
+
+Adapt them to the existing Tazq database architecture.
+
+Do not duplicate existing Task/User/Client/File/Notification structures.
+
+========================================================
+37. PERMISSIONS
+========================================================
+
+Create/use permissions such as:
+
+View Meetings
+Create Meetings
+Edit Meetings
+Delete Meetings
+Manage Agenda
+Record Minutes
+Publish Minutes
+Manage Action Items
+View Internal Notes
+Manage Meeting Types
+Manage Calendar Integration
+
+Client users should receive only appropriate client permissions.
+
+Reuse existing RBAC.
+
+========================================================
+38. MEETING DELETION
+========================================================
+
+Deleting a meeting should require confirmation.
+
+If the meeting has:
+
+Minutes
+Decisions
+Action Items
+Calendar Event
+
+show a warning.
+
+Prefer:
+
+Cancel Meeting
+
+over deleting completed historical meetings.
+
+Completed meetings should generally remain as project records.
+
+========================================================
+39. CALENDAR SYNC EDGE CASES
+========================================================
+
+Handle:
+
+Calendar integration unavailable
+OAuth expired
+External event deleted
+Meeting date changed
+Attendee changed
+Meeting cancelled
+Timezone changes
+
+Show clear status:
+
+Calendar:
+Connected
+Synced
+Needs Attention
+Not Connected
+
+Do not allow calendar synchronization errors to destroy the Tazq meeting record.
+
+========================================================
+40. UI DESIGN
+========================================================
+
+The module should feel like:
+
+Linear + Notion + enterprise project governance.
+
+Avoid making it look like:
+
+Google Calendar clone
+Outlook clone
+Generic CRM meeting module
+
+Tazq owns the meeting's:
+
+Context
+Agenda
+Discussion
+Decisions
+Actions
+Accountability
+Project traceability
+
+Calendar is simply the scheduling/invitation layer.
+
+========================================================
+41. FUTURE AI READINESS
+========================================================
+
+Design the architecture so AI can later support:
+
+Generate Agenda from Project Context
+Suggest Agenda from Previous Meeting Actions
+Summarize Meeting
+Extract Decisions
+Extract Action Items
+Suggest Responsible Person
+Suggest Due Date
+Identify Risks
+Identify Repeated Issues
+Compare Current Meeting with Previous Meetings
+Generate Client-ready Minutes
+Convert Action Items into Tazq Tasks
+
+DO NOT implement AI in this first version unless an existing AI framework is already available.
+
+Prepare clean interfaces for future AI integration.
+
+========================================================
+42. FUTURE TRANSCRIPTION READINESS
+========================================================
+
+Architect Meeting so future integrations can attach:
+
+Audio Recording
+Video Recording
+Transcript
+
+The future AI workflow could be:
+
+Meeting Recording
+→ Transcript
+→ Summary
+→ Discussion Items
+→ Decisions
+→ Action Items
+→ Tazq Tasks
+
+Do not implement recording/video conferencing now.
+
+========================================================
+43. IMPLEMENTATION ORDER
+========================================================
+
+Implement in this order:
+
+Phase 1:
+Meeting Types
+Meeting database model
+Meeting list
+Create/Edit Meeting
+
+Phase 2:
+Attendees
+Internal/Client/Mixed meetings
+Project/Client member integration
+
+Phase 3:
+Agenda
+Meeting detail page
+Meeting lifecycle
+
+Phase 4:
+Minutes
+Attendance
+Discussion
+Decisions
+Action Items
+
+Phase 5:
+Task linking / Task creation
+
+Phase 6:
+Calendar abstraction
+ICS generation
+Google Calendar
+Microsoft/Outlook integration architecture
+
+Phase 7:
+Notifications
+
+Phase 8:
+Client visibility/security
+
+Phase 9:
+Meeting PDF
+
+Phase 10:
+Recurring meetings
+Previous meeting actions
+Search integration
+Reports
+
+========================================================
+44. TESTING
+========================================================
+
+Test at minimum:
+
+1. Create internal meeting.
+2. Create client meeting.
+3. Create mixed meeting.
+4. Select project members.
+5. Select client members.
+6. Create agenda.
+7. Reorder agenda.
+8. Schedule meeting.
+9. Generate calendar invite.
+10. Generate ICS.
+11. Meeting status lifecycle.
+12. Start meeting.
+13. Record attendance.
+14. Add discussion items.
+15. Add decisions.
+16. Add action items.
+17. Assign action to project member.
+18. Assign action to client member.
+19. Assign action to both.
+20. Set due dates.
+21. Detect overdue actions.
+22. Link action to existing Task.
+23. Create Task from action.
+24. Complete linked Task.
+25. Publish minutes.
+26. Download PDF.
+27. Multi-page PDF.
+28. Client can only see permitted information.
+29. Internal notes remain private.
+30. Calendar integration failure does not affect Tazq meeting.
+31. Recurring meeting creates proper instances.
+32. Previous meeting open actions can be carried forward.
+33. Search can find meetings.
+34. Permissions prevent unauthorized access.
+35. Completed meetings remain available historically.
+
+========================================================
+45. FINAL PRINCIPLE
+========================================================
+
+Do not build “another calendar.”
+
+Build:
+
+PROJECT MEETING MANAGEMENT
+
+The core relationship is:
+
+Project
+  ↓
+Meeting
+  ↓
+Agenda
+  ↓
+Discussion
+  ↓
+Decision
+  ↓
+Action Item
+  ↓
+Tazq Task
+  ↓
+Execution
+
+And:
+
+Meeting
+  ↔
+Client / Project Members
+
+Meeting
+  ↔
+External Calendar
+
+Meeting
+  ↓
+Published Meeting Minutes
+
+This should make Meetings a project governance and accountability capability inside Tazq, not merely an appointment scheduler.
