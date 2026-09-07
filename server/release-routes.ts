@@ -149,8 +149,14 @@ export function registerReleaseRoutes(app: Express) {
       title,
       system_role: String(req.body?.systemRole ?? "project_member"),
       is_quality_analyst: Boolean(req.body?.isQualityAnalyst),
-    }).returning()).at(0);
-    res.status(201).json(created);
+    }).onConflictDoNothing().returning()).at(0);
+    if (created) return res.status(201).json(created);
+    const existing = (await db.select().from(projectTemplateRoles).where(and(
+      eq(projectTemplateRoles.template_id, req.params.templateId),
+      eq(projectTemplateRoles.title, title),
+    ))).at(0);
+    if (!existing) return res.status(500).json({ error: "Could not create template role" });
+    res.json(existing);
   });
 
   app.patch("/api/project-templates/:templateId/roles/:roleId", async (req: any, res) => {
