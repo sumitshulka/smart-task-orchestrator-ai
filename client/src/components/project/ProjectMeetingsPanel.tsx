@@ -118,6 +118,15 @@ export default function ProjectMeetingsPanel({ projectId }: { projectId: string 
       };
     });
   };
+  const changeCategory = (category: string) => {
+    setForm((current) => ({
+      ...current,
+      category,
+      attendees: category === "internal"
+        ? current.attendees.filter((attendee) => attendee.attendeeType !== "client")
+        : current.attendees,
+    }));
+  };
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
@@ -165,7 +174,7 @@ export default function ProjectMeetingsPanel({ projectId }: { projectId: string 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5 sm:col-span-2"><Label>Meeting title</Label><Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Weekly delivery review" /></div>
             <div className="space-y-1.5"><Label>Meeting type</Label><Select value={form.meetingTypeId} onValueChange={(value) => setForm({ ...form, meetingTypeId: value })}><SelectTrigger><SelectValue placeholder="Choose a type" /></SelectTrigger><SelectContent>{options.meetingTypes.map((type: any) => <SelectItem key={type.id} value={type.id}>{type.name}</SelectItem>)}</SelectContent></Select></div>
-            <div className="space-y-1.5"><Label>Audience</Label><Select value={form.category} onValueChange={(value) => setForm({ ...form, category: value })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="internal">Internal</SelectItem><SelectItem value="client">Client</SelectItem><SelectItem value="mixed">Mixed</SelectItem></SelectContent></Select></div>
+            <div className="space-y-1.5"><Label>Audience</Label><Select value={form.category} onValueChange={changeCategory}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="internal">Internal</SelectItem><SelectItem value="client">Client</SelectItem><SelectItem value="mixed">Mixed</SelectItem></SelectContent></Select></div>
             <div className="space-y-1.5"><Label>Starts</Label><Input type="datetime-local" value={form.startsAt} onChange={(e) => setForm({ ...form, startsAt: e.target.value })} /></div>
             <div className="space-y-1.5"><Label>Ends</Label><Input type="datetime-local" value={form.endsAt} onChange={(e) => setForm({ ...form, endsAt: e.target.value })} /></div>
             <div className="space-y-1.5"><Label>Timezone</Label><Input value={form.timezone} onChange={(e) => setForm({ ...form, timezone: e.target.value })} /></div>
@@ -174,7 +183,22 @@ export default function ProjectMeetingsPanel({ projectId }: { projectId: string 
             <div className="space-y-1.5 sm:col-span-2"><Label>Purpose / description</Label><Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="What should this meeting accomplish?" /></div>
             <div className="space-y-1.5"><Label>Recurrence</Label><Select value={form.recurrenceRule || "none"} onValueChange={(value) => setForm({ ...form, recurrenceRule: value === "none" ? "" : value })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">One-time meeting</SelectItem><SelectItem value="weekly">Repeat weekly</SelectItem><SelectItem value="monthly">Repeat monthly</SelectItem></SelectContent></Select></div>
             <label className="flex items-center gap-2 self-end pb-2 text-sm text-gray-600 dark:text-gray-300"><input type="checkbox" checked={form.carryForwardActions} onChange={(e) => setForm({ ...form, carryForwardActions: e.target.checked })} />Carry forward open actions from the previous meeting</label>
-            <div className="space-y-2 sm:col-span-2"><Label>Attendees</Label><div className="grid gap-2 sm:grid-cols-2">{[...options.projectMembers, ...options.clientMembers].map((person: any) => { const selected = form.attendees.some((item) => item.id === person.id && item.attendeeType === person.attendeeType); return <button type="button" key={`${person.attendeeType}-${person.id}`} onClick={() => toggleAttendee(person)} className={`flex items-center gap-2 rounded-lg border p-2 text-left text-sm ${selected ? "border-indigo-400 bg-indigo-50 dark:bg-indigo-950/30" : "border-gray-200 dark:border-gray-800"}`}><span className={`flex h-5 w-5 items-center justify-center rounded-full border ${selected ? "border-indigo-600 bg-indigo-600 text-white" : "border-gray-300"}`}>{selected && <Check className="h-3 w-3" />}</span><span className="min-w-0 flex-1 truncate">{person.name}</span><span className="text-[10px] uppercase text-gray-400">{person.attendeeType}</span></button>; })}</div></div>
+            <div className="space-y-3 sm:col-span-2">
+              <Label>Attendees</Label>
+              <p className="text-xs text-gray-500">Choose people by membership type. Internal meetings cannot include client members.</p>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2 rounded-xl border border-indigo-100 bg-indigo-50/40 p-3 dark:border-indigo-900/50 dark:bg-indigo-950/20">
+                  <div className="flex items-center justify-between"><p className="text-xs font-semibold uppercase tracking-wide text-indigo-700 dark:text-indigo-300">Internal members</p><Badge variant="outline" className="text-[10px]">{options.projectMembers.length}</Badge></div>
+                  <div className="space-y-2">{options.projectMembers.length ? options.projectMembers.map((person: any) => { const selected = form.attendees.some((item) => item.id === person.id && item.attendeeType === person.attendeeType); return <button type="button" key={`internal-${person.id}`} onClick={() => toggleAttendee(person)} className={`flex w-full items-center gap-2 rounded-lg border p-2 text-left text-sm ${selected ? "border-indigo-400 bg-indigo-50 dark:bg-indigo-950/30" : "border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900"}`}><span className={`flex h-5 w-5 items-center justify-center rounded-full border ${selected ? "border-indigo-600 bg-indigo-600 text-white" : "border-gray-300"}`}>{selected && <Check className="h-3 w-3" />}</span><span className="min-w-0 flex-1 truncate">{person.name}</span><span className="text-[10px] text-gray-400">{person.role || "Project member"}</span></button>; }) : <p className="text-xs text-gray-500">No internal members available.</p>}</div>
+                </div>
+                {form.category !== "internal" && (
+                  <div className="space-y-2 rounded-xl border border-emerald-100 bg-emerald-50/40 p-3 dark:border-emerald-900/50 dark:bg-emerald-950/20">
+                    <div className="flex items-center justify-between"><p className="text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">Client members</p><Badge variant="outline" className="text-[10px]">{options.clientMembers.length}</Badge></div>
+                    <div className="space-y-2">{options.clientMembers.length ? options.clientMembers.map((person: any) => { const selected = form.attendees.some((item) => item.id === person.id && item.attendeeType === person.attendeeType); return <button type="button" key={`client-${person.id}`} onClick={() => toggleAttendee(person)} className={`flex w-full items-center gap-2 rounded-lg border p-2 text-left text-sm ${selected ? "border-emerald-400 bg-emerald-50 dark:bg-emerald-950/30" : "border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900"}`}><span className={`flex h-5 w-5 items-center justify-center rounded-full border ${selected ? "border-emerald-600 bg-emerald-600 text-white" : "border-gray-300"}`}>{selected && <Check className="h-3 w-3" />}</span><span className="min-w-0 flex-1 truncate">{person.name}</span><span className="text-[10px] text-gray-400">{person.role || "Client contact"}</span></button>; }) : <p className="text-xs text-gray-500">No client members available.</p>}</div>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
           <DialogFooter><Button variant="outline" onClick={() => setShowCreate(false)}>Cancel</Button><Button disabled={createMeeting.isPending || !form.title || !form.meetingTypeId} onClick={() => createMeeting.mutate(form)}>{createMeeting.isPending ? "Creating..." : "Create meeting"}</Button></DialogFooter>
         </DialogContent>
