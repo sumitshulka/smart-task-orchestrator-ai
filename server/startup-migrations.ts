@@ -170,16 +170,76 @@ export async function runStartupMigrations(): Promise<void> {
     await client.query(`
       CREATE TABLE IF NOT EXISTS test_cases (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        test_case_number serial UNIQUE,
         project_id uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
         milestone_id uuid REFERENCES project_milestones(id) ON DELETE SET NULL,
         title text NOT NULL,
+        requirement text NOT NULL DEFAULT '',
+        feature_id uuid REFERENCES project_features(id) ON DELETE SET NULL,
+        user_story_id uuid REFERENCES user_stories(id) ON DELETE SET NULL,
         status text NOT NULL DEFAULT 'pending',
+        comment text,
+        source text NOT NULL DEFAULT 'manual',
+        last_tested_by uuid REFERENCES users(id) ON DELETE SET NULL,
+        last_tested_at timestamp,
+        closed_by uuid REFERENCES users(id) ON DELETE SET NULL,
+        closed_at timestamp,
         approval_status text NOT NULL DEFAULT 'pending',
         approved_by uuid REFERENCES users(id) ON DELETE SET NULL,
         approved_at timestamp,
         created_by uuid NOT NULL REFERENCES users(id),
         created_at timestamp DEFAULT now(),
         updated_at timestamp DEFAULT now()
+      )
+    `);
+    await client.query(`
+      ALTER TABLE test_cases
+        ADD COLUMN IF NOT EXISTS test_case_number integer,
+        ADD COLUMN IF NOT EXISTS requirement text NOT NULL DEFAULT '',
+        ADD COLUMN IF NOT EXISTS feature_id uuid REFERENCES project_features(id) ON DELETE SET NULL,
+        ADD COLUMN IF NOT EXISTS user_story_id uuid REFERENCES user_stories(id) ON DELETE SET NULL,
+        ADD COLUMN IF NOT EXISTS comment text,
+        ADD COLUMN IF NOT EXISTS source text NOT NULL DEFAULT 'manual',
+        ADD COLUMN IF NOT EXISTS last_tested_by uuid REFERENCES users(id) ON DELETE SET NULL,
+        ADD COLUMN IF NOT EXISTS last_tested_at timestamp,
+        ADD COLUMN IF NOT EXISTS closed_by uuid REFERENCES users(id) ON DELETE SET NULL,
+        ADD COLUMN IF NOT EXISTS closed_at timestamp
+    `);
+    await client.query(`
+      CREATE SEQUENCE IF NOT EXISTS test_cases_test_case_number_seq
+    `);
+    await client.query(`
+      ALTER TABLE test_cases
+        ALTER COLUMN test_case_number SET DEFAULT nextval('test_cases_test_case_number_seq')
+    `);
+    await client.query(`
+      UPDATE test_cases
+      SET test_case_number = nextval('test_cases_test_case_number_seq')
+      WHERE test_case_number IS NULL
+    `);
+    await client.query(`
+      SELECT setval(
+        'test_cases_test_case_number_seq',
+        GREATEST(COALESCE((SELECT MAX(test_case_number) FROM test_cases), 0), 1),
+        true
+      )
+    `);
+    await client.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS test_cases_test_case_number_unique
+        ON test_cases(test_case_number)
+    `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS test_case_results (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        test_case_id uuid NOT NULL REFERENCES test_cases(id) ON DELETE CASCADE,
+        execution_number integer NOT NULL,
+        result text NOT NULL,
+        comment text,
+        tested_by uuid NOT NULL REFERENCES users(id),
+        tested_at timestamp NOT NULL DEFAULT now(),
+        defect_id uuid REFERENCES defects(id) ON DELETE SET NULL,
+        created_at timestamp DEFAULT now(),
+        CONSTRAINT test_case_results_execution_unique UNIQUE (test_case_id, execution_number)
       )
     `);
     await client.query(`

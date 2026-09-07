@@ -908,6 +908,7 @@ export type ReleaseMilestone = typeof releaseMilestones.$inferSelect;
 export type ReleaseItem = typeof releaseItems.$inferSelect;
 export type ReleaseDocument = typeof releaseDocuments.$inferSelect;
 export type TestCase = typeof testCases.$inferSelect;
+export type TestCaseResult = typeof testCaseResults.$inferSelect;
 export type ReleaseTestCase = typeof releaseTestCases.$inferSelect;
 
 export const insertAiSettingsSchema = createInsertSchema(aiSettings).omit({
@@ -1015,10 +1016,20 @@ export const releaseDocuments = pgTable("release_documents", {
 
 export const testCases = pgTable("test_cases", {
   id: uuid("id").primaryKey().defaultRandom(),
+  test_case_number: serial("test_case_number").unique(),
   project_id: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
   milestone_id: uuid("milestone_id").references(() => projectMilestones.id, { onDelete: "set null" }),
   title: text("title").notNull(),
+  requirement: text("requirement").notNull().default(""),
+  feature_id: uuid("feature_id").references(() => projectFeatures.id, { onDelete: "set null" }),
+  user_story_id: uuid("user_story_id").references(() => userStories.id, { onDelete: "set null" }),
   status: text("status").notNull().default("pending"), // pending | passed | failed
+  comment: text("comment"),
+  source: text("source").notNull().default("manual"), // manual | ai
+  last_tested_by: uuid("last_tested_by").references(() => users.id, { onDelete: "set null" }),
+  last_tested_at: timestamp("last_tested_at"),
+  closed_by: uuid("closed_by").references(() => users.id, { onDelete: "set null" }),
+  closed_at: timestamp("closed_at"),
   approval_status: text("approval_status").notNull().default("pending"), // pending | approved | deferred | rejected
   approved_by: uuid("approved_by").references(() => users.id, { onDelete: "set null" }),
   approved_at: timestamp("approved_at"),
@@ -1026,6 +1037,20 @@ export const testCases = pgTable("test_cases", {
   created_at: timestamp("created_at").defaultNow(),
   updated_at: timestamp("updated_at").defaultNow(),
 });
+
+export const testCaseResults = pgTable("test_case_results", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  test_case_id: uuid("test_case_id").notNull().references(() => testCases.id, { onDelete: "cascade" }),
+  execution_number: integer("execution_number").notNull(),
+  result: text("result").notNull(), // passed | failed
+  comment: text("comment"),
+  tested_by: uuid("tested_by").notNull().references(() => users.id),
+  tested_at: timestamp("tested_at").notNull().defaultNow(),
+  defect_id: uuid("defect_id").references(() => defects.id, { onDelete: "set null" }),
+  created_at: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  testCaseExecutionUnique: unique("test_case_results_execution_unique").on(table.test_case_id, table.execution_number),
+}));
 
 export const releaseTestCases = pgTable("release_test_cases", {
   id: uuid("id").primaryKey().defaultRandom(),

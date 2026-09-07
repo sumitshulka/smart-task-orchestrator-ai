@@ -30,6 +30,7 @@ import {
 import PlanningWorkspace from "@/components/planning/PlanningWorkspace";
 import ProjectSettingsPanel from "@/components/project/ProjectSettingsPanel";
 import ReleaseManagementPanel from "@/components/project/ReleaseManagementPanel";
+import TestCaseManagementPanel from "@/components/project/TestCaseManagementPanel";
 import { filterProjectNavigation } from "./projectNavigation";
 import { format, differenceInDays } from "date-fns";
 import type {
@@ -415,6 +416,11 @@ export default function ProjectDetail() {
     queryFn: () => apiClient.get(`/projects/${id}/defects`),
     enabled: !!id,
   });
+  const { data: projectTestCases = [] } = useQuery<any[]>({
+    queryKey: ["/api/projects", id, "test-cases"],
+    queryFn: () => apiClient.get(`/projects/${id}/test-cases`),
+    enabled: !!id && projectSettingsData?.settings?.quality?.testCaseManagement !== false,
+  });
 
   const filteredDefects = projectDefects.filter((d: any) => {
     const q = defectSearch.toLowerCase();
@@ -724,7 +730,7 @@ export default function ProjectDetail() {
     { id: "milestones",  label: "Milestones",  icon: Milestone, count: milestones.length },
     { id: "features",    label: "Features",    icon: Layers,    count: features.length },
     { id: "tasks",       label: "Tasks",       icon: ListTodo,  count: projectTasks.length },
-    { id: "test-cases",  label: "Test Cases",  icon: ClipboardCheck, comingSoon: true },
+    { id: "test-cases",  label: "Test Cases",  icon: ClipboardCheck, count: projectTestCases.length, badge: projectTestCases.length > 0 },
     { id: "defects",     label: "Defects",     icon: Bug,       count: projectDefects.length, badge: projectDefects.length > 0 },
     { id: "release",     label: "Release",     icon: PackageCheck },
     { id: "meetings",    label: "Meetings",    icon: Calendar },
@@ -959,11 +965,7 @@ export default function ProjectDetail() {
               />
             )}
             {activeSection === "test-cases" && (
-              <LaunchingSoonSection
-                icon={ClipboardCheck}
-                title="Test Cases"
-                description="Test case authoring, execution, coverage, and delivery quality reporting are coming soon."
-              />
+              <TestCaseManagementPanel projectId={id!} />
             )}
             {activeSection === "release" && (
               <ReleaseManagementPanel projectId={id!} />

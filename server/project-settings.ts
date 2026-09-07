@@ -160,7 +160,7 @@ export function validateProjectSettings(input: unknown): { settings?: Record<str
   return { settings };
 }
 
-export type ProjectModule = "planning" | "workspace" | "finance" | "defects" | "release";
+export type ProjectModule = "planning" | "workspace" | "finance" | "defects" | "testCases" | "release";
 export type PlanningCapability =
   | "allowAiPlanning"
   | "allowPlanningApproval"
@@ -239,6 +239,7 @@ export function requireProjectModule(module: ProjectModule, paramName = "id") {
         module === "planning" ? settings?.planning?.enabled !== false :
         module === "workspace" ? settings?.collaboration?.workspaceEnabled !== false :
         module === "finance" ? settings?.finance?.trackFinance !== false :
+        module === "testCases" ? settings?.quality?.testCaseManagement !== false :
         module === "release" ? settings?.releaseManagement?.enabled !== false :
         settings?.quality?.defectManagement !== false;
       if (!enabled) return res.status(403).json({ error: `The ${module} module is disabled for this project` });

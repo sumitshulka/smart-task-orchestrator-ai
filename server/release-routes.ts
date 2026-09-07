@@ -1,9 +1,10 @@
 import type { Express } from "express";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "./db";
 import { storage } from "./storage";
 import {
   defects,
+  defectActivity,
   projectFeatures,
   projectMilestones,
   projectTemplateRoles,
@@ -14,8 +15,11 @@ import {
   releaseTestCases,
   tasks,
   testCases,
+  testCaseResults,
   userStories,
+  users,
 } from "@shared/schema";
+import { callAiProvider, decryptApiKey, DEFAULT_AI_MODEL } from "./ai-provider";
 import {
   getProjectAccess,
   mergeProjectSettings,
@@ -129,6 +133,9 @@ async function readiness(releaseId: string) {
 export function registerReleaseRoutes(app: Express) {
   const releaseAccess = [
     requireProjectModule("release", "projectId"),
+  ];
+  const testCaseAccess = [
+    requireProjectModule("testCases", "projectId"),
   ];
 
   app.get("/api/project-templates/:templateId/roles", async (req: any, res) => {
@@ -314,35 +321,286 @@ export function registerReleaseRoutes(app: Express) {
     res.json(updated);
   });
 
-  app.get("/api/projects/:projectId/test-cases", ...releaseAccess, async (req: any, res) => {
-    res.json(await db.select().from(testCases).where(eq(testCases.project_id, req.params.projectId)));
+  app.get("/api/projects/:projectId/test-cases", ...testCaseAccess, async (req: any, res) => {
+    const cases = await db.select().from(testCases)
+      .where(eq(testCases.project_id, req.params.projectId))
+      .orderBy(desc(testCases.test_case_number));
+    const allResults = cases.length
+      ? await db.select().from(testCaseResults).where(inArray(testCaseResults.test_case_id, cases.map((testCase) => testCase.id))).orderBy(desc(testCaseResults.execution_number))
+      : [];
+    const testerIds = Array.from(new Set(allResults.map((result) => result.tested_by)));
+    const testers = testerIds.length
+      ? await db.select({ id: users.id, user_name: users.user_name, email: users.email }).from(users).where(inArray(users.id, testerIds))
+      : [];
+    const testerById = new Map(testers.map((tester) => [tester.id, tester]));
+    const withResults = cases.map((testCase) => ({
+      ...testCase,
+      results: allResults.filter((result) => result.test_case_id === testCase.id).map((result) => ({
+        ...result,
+        testedBy: testerById.get(result.tested_by) ?? null,
+      })),
+    }));
+    res.json(withResults);
   });
 
-  app.post("/api/projects/:projectId/test-cases", ...releaseAccess, async (req: any, res) => {
+  app.get("/api/projects/:projectId/test-cases/options", ...testCaseAccess, async (req: any, res) => {
+    const projectId = req.params.projectId;
+    const [milestones, features, stories] = await Promise.all([
+      db.select().from(projectMilestones).where(eq(projectMilestones.project_id, projectId)),
+      db.select().from(projectFeatures).where(eq(projectFeatures.project_id, projectId)),
+      db.select().from(userStories).where(eq(userStories.project_id, projectId)),
+    ]);
+    res.json({ milestones, features, stories });
+  });
+
+  app.get("/api/projects/:projectId/test-cases/:testCaseId/results", ...testCaseAccess, async (req: any, res) => {
+    const testCase = (await db.select().from(testCases).where(and(
+      eq(testCases.id, req.params.testCaseId),
+      eq(testCases.project_id, req.params.projectId),
+    ))).at(0);
+    if (!testCase) return res.status(404).json({ error: "Test case not found" });
+    const results = await db.select().from(testCaseResults)
+      .where(eq(testCaseResults.test_case_id, testCase.id))
+      .orderBy(desc(testCaseResults.execution_number));
+    const testerIds = Array.from(new Set(results.map((result) => result.tested_by)));
+    const testers = testerIds.length
+      ? await db.select({ id: users.id, user_name: users.user_name, email: users.email }).from(users).where(inArray(users.id, testerIds))
+      : [];
+    const testerById = new Map(testers.map((tester) => [tester.id, tester]));
+    res.json(results.map((result) => ({ ...result, testedBy: testerById.get(result.tested_by) ?? null })));
+  });
+
+  app.post("/api/projects/:projectId/test-cases", ...testCaseAccess, async (req: any, res) => {
     const userId = requestUserId(req);
     if (!userId) return res.status(401).json({ error: "Authentication required" });
-    const title = String(req.body?.title ?? "").trim();
-    if (!title) return res.status(400).json({ error: "Test case title is required" });
+    const requirement = String(req.body?.requirement ?? req.body?.title ?? "").trim();
+    if (!requirement) return res.status(400).json({ error: "Requirement is required" });
+    const linked = await validateTestCaseLinks(req.params.projectId, req.body);
+    if (linked.error) return res.status(400).json({ error: linked.error });
     const created = (await db.insert(testCases).values({
       project_id: req.params.projectId,
-      milestone_id: req.body?.milestoneId ?? null,
-      title,
+      milestone_id: linked.milestoneId,
+      title: String(req.body?.title ?? requirement.slice(0, 120)).trim(),
+      requirement,
+      feature_id: linked.featureId,
+      user_story_id: linked.userStoryId,
+      comment: req.body?.comment ? String(req.body.comment).trim() : null,
+      source: req.body?.source === "ai" ? "ai" : "manual",
       created_by: userId,
     }).returning()).at(0);
     res.status(201).json(created);
   });
 
-  app.patch("/api/projects/:projectId/test-cases/:testCaseId", ...releaseAccess, async (req: any, res) => {
+  app.post("/api/projects/:projectId/test-cases/ai-generate", ...testCaseAccess, async (req: any, res) => {
     const userId = requestUserId(req);
     if (!userId) return res.status(401).json({ error: "Authentication required" });
-    const status = req.body?.status;
-    const approvalStatus = req.body?.approvalStatus;
+    const featureIds = Array.isArray(req.body?.featureIds) ? req.body.featureIds.map(String) : [];
+    const userStoryIds = Array.isArray(req.body?.userStoryIds) ? req.body.userStoryIds.map(String) : [];
+    if (!featureIds.length && !userStoryIds.length) {
+      return res.status(400).json({ error: "Select at least one feature or user story for AI generation" });
+    }
+    const [features, stories, aiSettings] = await Promise.all([
+      db.select().from(projectFeatures).where(and(eq(projectFeatures.project_id, req.params.projectId), inArray(projectFeatures.id, featureIds))),
+      db.select().from(userStories).where(and(eq(userStories.project_id, req.params.projectId), inArray(userStories.id, userStoryIds))),
+      storage.getAiSettings(),
+    ]);
+    if (!aiSettings?.is_enabled || !aiSettings.api_key) {
+      return res.status(503).json({ error: "AI is not enabled or configured for this workspace" });
+    }
+    const featureContext = features.map((feature) => ({ id: feature.id, title: feature.name, description: feature.description }));
+    const storyContext = stories.map((story) => ({ id: story.id, title: story.title, description: story.description, acceptanceCriteria: story.acceptance_criteria, featureId: story.feature_id }));
+    try {
+      const raw = await callAiProvider(
+        {
+          provider: aiSettings.provider || "openai",
+          apiKey: decryptApiKey(aiSettings.api_key),
+          model: aiSettings.model || DEFAULT_AI_MODEL,
+          baseUrl: aiSettings.base_url,
+        },
+        [
+          {
+            role: "system",
+            content: "You create concise, testable software test cases. Return only a JSON array. Each item must have requirement, title, featureId, userStoryId, and comment. Use only IDs supplied by the user.",
+          },
+          {
+            role: "user",
+            content: JSON.stringify({ features: featureContext, userStories: storyContext, requestedCount: req.body?.count ?? 5 }),
+          },
+        ],
+      );
+      const parsed = parseAiTestCases(raw);
+      if (!parsed.length) return res.status(422).json({ error: "AI did not return usable test cases" });
+      const featureIdSet = new Set(features.map((feature) => feature.id));
+      const storyMap = new Map(stories.map((story) => [story.id, story]));
+      const created = [];
+      for (const item of parsed.slice(0, 25)) {
+        const featureId = featureIdSet.has(String(item.featureId)) ? String(item.featureId) : null;
+        const story = storyMap.get(String(item.userStoryId));
+        const row = (await db.insert(testCases).values({
+          project_id: req.params.projectId,
+          milestone_id: null,
+          title: String(item.title ?? item.requirement ?? "AI generated test case").trim(),
+          requirement: String(item.requirement ?? item.title ?? "").trim(),
+          feature_id: featureId ?? story?.feature_id ?? null,
+          user_story_id: story?.id ?? null,
+          comment: item.comment ? String(item.comment).trim() : null,
+          source: "ai",
+          created_by: userId,
+        }).returning()).at(0);
+        if (row) created.push(row);
+      }
+      return res.status(201).json(created);
+    } catch (error: any) {
+      console.error("AI test case generation failed:", error);
+      return res.status(500).json({ error: "Failed to generate AI test cases" });
+    }
+  });
+
+  app.patch("/api/projects/:projectId/test-cases/:testCaseId", ...testCaseAccess, async (req: any, res) => {
+    const userId = requestUserId(req);
+    if (!userId) return res.status(401).json({ error: "Authentication required" });
+    const existing = (await db.select().from(testCases).where(and(
+      eq(testCases.id, req.params.testCaseId),
+      eq(testCases.project_id, req.params.projectId),
+    ))).at(0);
+    if (!existing) return res.status(404).json({ error: "Test case not found" });
+    const linked = await validateTestCaseLinks(req.params.projectId, req.body);
+    if (linked.error) return res.status(400).json({ error: linked.error });
     const updated = (await db.update(testCases).set({
-      ...(status ? { status } : {}),
-      ...(approvalStatus ? { approval_status: approvalStatus, approved_by: ["approved", "deferred"].includes(approvalStatus) ? userId : null, approved_at: ["approved", "deferred"].includes(approvalStatus) ? new Date() : null } : {}),
+      ...(req.body?.title !== undefined ? { title: String(req.body.title).trim() } : {}),
+      ...(req.body?.requirement !== undefined ? { requirement: String(req.body.requirement).trim() } : {}),
+      ...(req.body?.comment !== undefined ? { comment: req.body.comment ? String(req.body.comment).trim() : null } : {}),
+      ...(req.body?.featureId !== undefined ? { feature_id: linked.featureId } : {}),
+      ...(req.body?.userStoryId !== undefined ? { user_story_id: linked.userStoryId } : {}),
+      ...(req.body?.milestoneId !== undefined ? { milestone_id: linked.milestoneId } : {}),
       updated_at: new Date(),
-    }).where(and(eq(testCases.id, req.params.testCaseId), eq(testCases.project_id, req.params.projectId))).returning()).at(0);
-    if (!updated) return res.status(404).json({ error: "Test case not found" });
+    }).where(eq(testCases.id, existing.id)).returning()).at(0);
     res.json(updated);
   });
+
+  app.post("/api/projects/:projectId/test-cases/:testCaseId/results", ...testCaseAccess, async (req: any, res) => {
+    const userId = requestUserId(req);
+    if (!userId) return res.status(401).json({ error: "Authentication required" });
+    const testCase = (await db.select().from(testCases).where(and(
+      eq(testCases.id, req.params.testCaseId),
+      eq(testCases.project_id, req.params.projectId),
+    ))).at(0);
+    if (!testCase) return res.status(404).json({ error: "Test case not found" });
+    if (testCase.closed_at) return res.status(400).json({ error: "Closed test cases cannot be executed" });
+    const result = String(req.body?.result ?? "").toLowerCase();
+    if (!["passed", "failed"].includes(result)) return res.status(400).json({ error: "Result must be passed or failed" });
+    const latest = (await db.select({ execution_number: testCaseResults.execution_number })
+      .from(testCaseResults)
+      .where(eq(testCaseResults.test_case_id, testCase.id))
+      .orderBy(desc(testCaseResults.execution_number))
+      .limit(1)).at(0);
+    const executionNumber = (latest?.execution_number ?? 0) + 1;
+    let defectId: string | null = null;
+    if (result === "failed" && req.body?.createDefect === true) {
+      const defect = (await db.insert(defects).values({
+        title: `Failed test: ${testCase.title}`,
+        description: `Test Case ${formatTestCaseId(testCase)} failed during execution ${executionNumber}.`,
+        actual_behavior: req.body?.comment ? String(req.body.comment) : null,
+        expected_behavior: testCase.requirement,
+        severity: "medium",
+        priority: 3,
+        status: "draft",
+        type: "bug",
+        environment: "qa",
+        reported_by: userId,
+        project_id: testCase.project_id,
+        milestone_id: testCase.milestone_id,
+        feature_id: testCase.feature_id,
+      }).returning()).at(0);
+      if (defect) {
+        defectId = defect.id;
+        await db.insert(defectActivity).values({
+          defect_id: defect.id,
+          action_type: "created",
+          old_value: null,
+          new_value: defect.title,
+          acted_by: userId,
+        });
+      }
+    }
+    const execution = (await db.insert(testCaseResults).values({
+      test_case_id: testCase.id,
+      execution_number: executionNumber,
+      result,
+      comment: req.body?.comment ? String(req.body.comment).trim() : null,
+      tested_by: userId,
+      defect_id: defectId,
+    }).returning()).at(0);
+    const updated = (await db.update(testCases).set({
+      status: result,
+      comment: req.body?.comment ? String(req.body.comment).trim() : null,
+      last_tested_by: userId,
+      last_tested_at: new Date(),
+      approval_status: result === "passed" ? "approved" : "pending",
+      approved_by: result === "passed" ? userId : null,
+      approved_at: result === "passed" ? new Date() : null,
+      updated_at: new Date(),
+    }).where(eq(testCases.id, testCase.id)).returning()).at(0);
+    res.status(201).json({ execution, testCase: updated, defectId });
+  });
+
+  app.post("/api/projects/:projectId/test-cases/:testCaseId/close", ...testCaseAccess, async (req: any, res) => {
+    const userId = requestUserId(req);
+    if (!userId) return res.status(401).json({ error: "Authentication required" });
+    const existing = (await db.select().from(testCases).where(and(
+      eq(testCases.id, req.params.testCaseId),
+      eq(testCases.project_id, req.params.projectId),
+    ))).at(0);
+    if (!existing) return res.status(404).json({ error: "Test case not found" });
+    if (existing.status !== "passed") return res.status(400).json({ error: "Only passed test cases can be closed" });
+    const updated = (await db.update(testCases).set({ closed_by: userId, closed_at: new Date(), updated_at: new Date() })
+      .where(eq(testCases.id, existing.id)).returning()).at(0);
+    res.json(updated);
+  });
+}
+
+function formatTestCaseId(testCase: { test_case_number: number | null; id: string }): string {
+  return testCase.test_case_number ? `TC-${String(testCase.test_case_number).padStart(5, "0")}` : `TC-${testCase.id.slice(0, 8).toUpperCase()}`;
+}
+
+function parseAiTestCases(raw: string): Array<Record<string, unknown>> {
+  const cleaned = raw.replace(/^```(?:json)?/i, "").replace(/```$/i, "").trim();
+  try {
+    const parsed = JSON.parse(cleaned);
+    return Array.isArray(parsed) ? parsed.filter((item) => item && typeof item === "object") as Array<Record<string, unknown>> : [];
+  } catch {
+    const match = cleaned.match(/\[[\s\S]*\]/);
+    if (!match) return [];
+    try {
+      const parsed = JSON.parse(match[0]);
+      return Array.isArray(parsed) ? parsed.filter((item) => item && typeof item === "object") as Array<Record<string, unknown>> : [];
+    } catch {
+      return [];
+    }
+  }
+}
+
+async function validateTestCaseLinks(projectId: string, body: any): Promise<{
+  error?: string;
+  milestoneId: string | null;
+  featureId: string | null;
+  userStoryId: string | null;
+}> {
+  const milestoneId = body?.milestoneId ? String(body.milestoneId) : null;
+  const featureId = body?.featureId ? String(body.featureId) : null;
+  const userStoryId = body?.userStoryId ? String(body.userStoryId) : null;
+  if (milestoneId) {
+    const milestone = (await db.select().from(projectMilestones).where(and(eq(projectMilestones.id, milestoneId), eq(projectMilestones.project_id, projectId)))).at(0);
+    if (!milestone) return { error: "Milestone does not belong to this project", milestoneId: null, featureId: null, userStoryId: null };
+  }
+  if (featureId) {
+    const feature = (await db.select().from(projectFeatures).where(and(eq(projectFeatures.id, featureId), eq(projectFeatures.project_id, projectId)))).at(0);
+    if (!feature) return { error: "Feature does not belong to this project", milestoneId, featureId: null, userStoryId: null };
+  }
+  if (userStoryId) {
+    const story = (await db.select().from(userStories).where(and(eq(userStories.id, userStoryId), eq(userStories.project_id, projectId)))).at(0);
+    if (!story) return { error: "User story does not belong to this project", milestoneId, featureId, userStoryId: null };
+    if (featureId && story.feature_id && story.feature_id !== featureId) return { error: "User story does not belong to the selected feature", milestoneId, featureId, userStoryId };
+  }
+  return { milestoneId, featureId, userStoryId };
 }
