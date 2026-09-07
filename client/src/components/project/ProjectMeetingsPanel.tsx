@@ -252,6 +252,9 @@ function MeetingWorkspace({ projectId, detail, options, onRefresh, onStatus }: {
   const [agendaTitle, setAgendaTitle] = useState("");
   const [actionTitle, setActionTitle] = useState("");
   const [actionDueDate, setActionDueDate] = useState("");
+  const [actionResponsible, setActionResponsible] = useState("project_team");
+  const [actionProjectOwnerId, setActionProjectOwnerId] = useState("");
+  const [actionClientOwnerId, setActionClientOwnerId] = useState("");
   const [discussionTopic, setDiscussionTopic] = useState("");
   const [decisionTitle, setDecisionTitle] = useState("");
   const [showMinutes, setShowMinutes] = useState(meeting.minutes_status === "published" || meeting.status === "completed");
@@ -319,11 +322,19 @@ function MeetingWorkspace({ projectId, detail, options, onRefresh, onStatus }: {
     return "Project Team";
   };
   const addActionItem = () => {
-    const owner = options.projectMembers[0]?.id;
-    if (!actionTitle.trim() || !owner) return;
-    add.mutate({ endpoint: "actions", data: { title: actionTitle.trim(), responsibleUserIds: [owner], dueDate: actionDueDate || null } });
+    const responsibleUserIds = actionResponsible !== "client" && actionProjectOwnerId ? [actionProjectOwnerId] : [];
+    const responsibleContactIds = actionResponsible !== "project_team" && actionClientOwnerId ? [actionClientOwnerId] : [];
+    const ownersComplete = actionResponsible === "project_team" ? responsibleUserIds.length > 0 : actionResponsible === "client" ? responsibleContactIds.length > 0 : responsibleUserIds.length > 0 && responsibleContactIds.length > 0;
+    if (!actionTitle.trim() || !ownersComplete) return;
+    add.mutate({ endpoint: "actions", data: { title: actionTitle.trim(), responsibilityLevel: actionResponsible, responsibleUserIds, responsibleContactIds, dueDate: actionDueDate || null } });
     setActionTitle("");
     setActionDueDate("");
+    setActionProjectOwnerId("");
+    setActionClientOwnerId("");
+  };
+  const ownerSelect = (kind: "project" | "client", value: string, onChange: (value: string) => void) => {
+    const members = kind === "project" ? internalMembers : clientMembers;
+    return <Select value={value} onValueChange={onChange}><SelectTrigger className="h-9 min-w-[150px] bg-white text-xs dark:bg-gray-950"><SelectValue placeholder={kind === "project" ? "Choose project owner" : "Choose client owner"} /></SelectTrigger><SelectContent>{members.map((person: any) => <SelectItem key={person.id} value={person.id}>{person.name}</SelectItem>)}</SelectContent></Select>;
   };
   const toggleAttendee = (id: string) => {
     setSelectedAttendeeIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
@@ -459,7 +470,13 @@ function MeetingWorkspace({ projectId, detail, options, onRefresh, onStatus }: {
                 </tbody>
               </table>
             </div>
-            <div className="mt-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_180px_auto]"><Input value={actionTitle} onChange={(e) => setActionTitle(e.target.value)} placeholder="Add an action item (project owner required)" onKeyDown={(event) => { if (event.key === "Enter") addActionItem(); }} /><Input type="date" value={actionDueDate} onChange={(e) => setActionDueDate(e.target.value)} aria-label="Action due date" title="Optional action due date" /><Button variant="outline" onClick={addActionItem}><Plus className="mr-1.5 h-4 w-4" />Add</Button></div>
+                <tr className="bg-indigo-50/45 dark:bg-indigo-950/15">
+                  <td className="py-3 pr-5 align-top"><Input value={actionTitle} onChange={(e) => setActionTitle(e.target.value)} placeholder="New action..." onKeyDown={(event) => { if (event.key === "Enter") addActionItem(); }} aria-label="Action" /></td>
+                  <td className="py-3 pr-5 align-top"><Select value={actionResponsible} onValueChange={(value) => { setActionResponsible(value); setActionProjectOwnerId(""); setActionClientOwnerId(""); }}><SelectTrigger className="h-9 min-w-[150px] bg-white text-xs dark:bg-gray-950"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="project_team">Project Team</SelectItem><SelectItem value="client">Client</SelectItem><SelectItem value="both">Project Team + Client</SelectItem></SelectContent></Select></td>
+                  <td className="py-3 pr-5 align-top">{actionResponsible === "both" ? <div className="space-y-1.5"><div><span className="mb-1 block text-[10px] font-medium uppercase tracking-wide text-gray-500">Project</span>{ownerSelect("project", actionProjectOwnerId, setActionProjectOwnerId)}</div><div><span className="mb-1 block text-[10px] font-medium uppercase tracking-wide text-gray-500">Client</span>{ownerSelect("client", actionClientOwnerId, setActionClientOwnerId)}</div></div> : ownerSelect(actionResponsible === "client" ? "client" : "project", actionResponsible === "client" ? actionClientOwnerId : actionProjectOwnerId, actionResponsible === "client" ? setActionClientOwnerId : setActionProjectOwnerId)}</td>
+                  <td className="py-3 pr-5 align-top"><Input type="date" value={actionDueDate} onChange={(e) => setActionDueDate(e.target.value)} aria-label="Action due date" title="Optional action due date" className="h-9 min-w-[145px] bg-white text-xs dark:bg-gray-950" /></td>
+                  <td className="py-3 align-top text-right"><Button variant="outline" onClick={addActionItem} disabled={!actionTitle.trim()}><Plus className="mr-1.5 h-4 w-4" />Add</Button></td>
+                </tr>
           </section>
           <MinutesSection
             showMinutes={showMinutes}
