@@ -12,7 +12,9 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { CheckCircle2, Edit3, FlaskConical, Plus, Sparkles, XCircle } from "lucide-react";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { CheckCircle2, ChevronDown, Edit3, FlaskConical, Plus, Search, Sparkles, X, XCircle } from "lucide-react";
 
 type TestCaseForm = {
   requirement: string;
@@ -33,6 +35,98 @@ function dateLabel(value: string | null | undefined) {
   return value ? new Date(value).toLocaleString() : "Not tested";
 }
 
+type PickerOption = { id: string; label: string; description?: string };
+
+function SearchablePicker({
+  options,
+  value,
+  onChange,
+  placeholder,
+  emptyLabel,
+  multi = false,
+}: {
+  options: PickerOption[];
+  value: string | string[];
+  onChange: (value: string | string[]) => void;
+  placeholder: string;
+  emptyLabel: string;
+  multi?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const selected = Array.isArray(value) ? value : value ? [value] : [];
+  const selectedOptions = options.filter((option) => selected.includes(option.id));
+  const triggerLabel = multi
+    ? selected.length ? `${selected.length} selected` : placeholder
+    : selectedOptions[0]?.label || placeholder;
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button variant="outline" role="combobox" aria-expanded={open} className="w-full justify-between font-normal">
+          <span className="truncate">{triggerLabel}</span>
+          <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-[--radix-popover-trigger-width] min-w-[280px] p-0">
+        <Command>
+          <CommandInput placeholder={`Search ${placeholder.toLowerCase()}...`} />
+          <CommandList className="max-h-72">
+            <CommandEmpty>{emptyLabel}</CommandEmpty>
+            <CommandGroup>
+              {!multi && (
+                <CommandItem value="__none__" onSelect={() => { onChange(""); setOpen(false); }}>
+                  <span className="text-muted-foreground">No selection</span>
+                </CommandItem>
+              )}
+              {options.map((option) => {
+                const isSelected = selected.includes(option.id);
+                return (
+                  <CommandItem
+                    key={option.id}
+                    value={`${option.label} ${option.description || ""}`}
+                    onSelect={() => {
+                      if (multi) {
+                        onChange(isSelected ? selected.filter((id) => id !== option.id) : [...selected, option.id]);
+                      } else {
+                        onChange(option.id);
+                        setOpen(false);
+                      }
+                    }}
+                  >
+                    <CheckCircle2 className={`mr-2 h-4 w-4 ${isSelected ? "text-indigo-600 opacity-100" : "opacity-0"}`} />
+                    <span className="min-w-0">
+                      <span className="block truncate">{option.label}</span>
+                      {option.description && <span className="block truncate text-xs text-muted-foreground">{option.description}</span>}
+                    </span>
+                  </CommandItem>
+                );
+              })}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function SelectionChips({ values, options, onRemove }: { values: string[]; options: PickerOption[]; onRemove: (id: string) => void }) {
+  if (!values.length) return null;
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {values.map((id) => {
+        const option = options.find((item) => item.id === id);
+        if (!option) return null;
+        return (
+          <Badge key={id} variant="secondary" className="max-w-full gap-1 font-normal">
+            <span className="truncate">{option.label}</span>
+            <button type="button" aria-label={`Remove ${option.label}`} onClick={() => onRemove(id)}><X className="h-3 w-3" /></button>
+          </Badge>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function TestCaseManagementPanel({ projectId }: { projectId: string }) {
   const { toast } = useToast();
   const [authoring, setAuthoring] = useState(false);
@@ -45,6 +139,9 @@ export default function TestCaseManagementPanel({ projectId }: { projectId: stri
   const [executionComment, setExecutionComment] = useState("");
   const [createDefect, setCreateDefect] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [caseSearch, setCaseSearch] = useState("");
+  const [caseStatus, setCaseStatus] = useState("all");
+  const [caseFeature, setCaseFeature] = useState("");
 
   const casesQuery = useQuery<any[]>({
     queryKey: ["/api/projects", projectId, "test-cases"],
@@ -56,10 +153,29 @@ export default function TestCaseManagementPanel({ projectId }: { projectId: stri
   });
   const cases = casesQuery.data ?? [];
   const options = optionsQuery.data ?? { features: [], stories: [], milestones: [] };
-  const availableStories = useMemo(
-    () => (options.stories ?? []).filter((story: any) => !form.featureId || !story.feature_id || story.feature_id === form.featureId),
-    [form.featureId, options.stories],
+  const featureOptions = useMemo<PickerOption[]>(
+    () => (options.features ?? []).map((feature: any) => ({ id: feature.id, label: feature.name, description: feature.description || undefined })),
+    [options.features],
   );
+  const storyOptions = useMemo<PickerOption[]>(
+    () => (options.stories ?? []).map((story: any) => ({ id: story.id, label: `${story.tracking_number} · ${story.title}`, description: story.description || undefined })),
+    [options.stories],
+  );
+  const formStoryOptions = useMemo(
+    () => storyOptions.filter((story) => !form.featureId || (options.stories ?? []).find((item: any) => item.id === story.id)?.feature_id === form.featureId),
+    [form.featureId, options.stories, storyOptions],
+  );
+  const filteredCases = useMemo(() => {
+    const search = caseSearch.trim().toLowerCase();
+    return cases.filter((testCase: any) => {
+      const feature = (options.features ?? []).find((item: any) => item.id === testCase.feature_id);
+      const story = (options.stories ?? []).find((item: any) => item.id === testCase.user_story_id);
+      const searchable = [testCase.test_case_number, testCase.requirement, testCase.title, feature?.name, story?.title, story?.tracking_number].filter(Boolean).join(" ").toLowerCase();
+      return (!search || searchable.includes(search)) &&
+        (caseStatus === "all" || testCase.status === caseStatus) &&
+        (!caseFeature || testCase.feature_id === caseFeature);
+    });
+  }, [caseFeature, caseSearch, caseStatus, cases, options.features, options.stories]);
 
   const invalidateCases = () => queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "test-cases"] });
 
