@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import PlanningWorkspace from "@/components/planning/PlanningWorkspace";
 import ProjectSettingsPanel from "@/components/project/ProjectSettingsPanel";
+import ReleaseManagementPanel from "@/components/project/ReleaseManagementPanel";
 import { filterProjectNavigation } from "./projectNavigation";
 import { format, differenceInDays } from "date-fns";
 import type {
@@ -323,6 +324,12 @@ export default function ProjectDetail() {
   const { data: templates = [] } = useQuery<ProjectTemplate[]>({
     queryKey: ["/api/project-templates"],
     queryFn: () => apiClient.get("/project-templates"),
+  });
+
+  const { data: templateRoles = [] } = useQuery<any[]>({
+    queryKey: ["/api/project-templates", project?.template_id, "roles"],
+    queryFn: () => apiClient.get(`/project-templates/${project?.template_id}/roles`),
+    enabled: !!project?.template_id,
   });
 
   const { data: clients = [] } = useQuery<any[]>({
@@ -957,11 +964,7 @@ export default function ProjectDetail() {
               />
             )}
             {activeSection === "release" && (
-              <LaunchingSoonSection
-                icon={PackageCheck}
-                title="Release Management"
-                description="Release planning, readiness, approvals, and deployment tracking will be managed here."
-              />
+              <ReleaseManagementPanel projectId={id!} />
             )}
             {activeSection === "meetings" && (
               <LaunchingSoonSection
@@ -1949,8 +1952,20 @@ export default function ProjectDetail() {
             </div>
             <div className="space-y-1">
               <Label className="text-xs font-semibold">Project-Specific Title</Label>
-              <Input placeholder="e.g. Project Sponsor, Reviewer..." value={memberForm.project_role}
-                onChange={(e) => setMemberForm(p => ({ ...p, project_role: e.target.value }))} />
+              {templateRoles.length > 0 ? (
+                <Select value={memberForm.project_role || "none"} onValueChange={(v) => setMemberForm(p => ({ ...p, project_role: v === "none" ? "" : v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select a template role" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No project title</SelectItem>
+                    {templateRoles.filter((role: any) => role.is_active !== false).map((role: any) => (
+                      <SelectItem key={role.id} value={role.title}>{role.title}{role.is_quality_analyst ? " · QA" : ""}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input placeholder="Configure roles in the selected project template" value={memberForm.project_role}
+                  onChange={(e) => setMemberForm(p => ({ ...p, project_role: e.target.value }))} />
+              )}
             </div>
             <div className="space-y-1">
               <Label className="text-xs font-semibold">Allocation % (0–100)</Label>

@@ -242,6 +242,20 @@ export const projectTemplates = pgTable("project_templates", {
   updated_at: timestamp("updated_at").defaultNow(),
 });
 
+// Project-specific roles inherited by projects using a template.
+export const projectTemplateRoles = pgTable("project_template_roles", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  template_id: uuid("template_id").notNull().references(() => projectTemplates.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  system_role: text("system_role").notNull().default("project_member"),
+  is_quality_analyst: boolean("is_quality_analyst").notNull().default(false),
+  is_active: boolean("is_active").notNull().default(true),
+  created_at: timestamp("created_at").defaultNow(),
+  updated_at: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  templateRoleTitleUnique: unique("project_template_roles_title_unique").on(table.template_id, table.title),
+}));
+
 // Project Template Stages table
 export const projectTemplateStages = pgTable("project_template_stages", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -406,6 +420,9 @@ export const tasks = pgTable("tasks", {
   start_date: timestamp("start_date"),
   estimated_hours: integer("estimated_hours"),
   status: text("status").notNull().default("pending"),
+  approval_status: text("approval_status").notNull().default("pending"), // pending | approved | rejected
+  approved_by: uuid("approved_by").references(() => users.id, { onDelete: "set null" }),
+  approved_at: timestamp("approved_at"),
   type: text("type").notNull(),
   created_by: uuid("created_by").notNull().references(() => users.id),
   assigned_to: uuid("assigned_to").references(() => users.id),
@@ -865,6 +882,7 @@ export type InsertLicense = z.infer<typeof insertLicenseSchema>;
 export type License = typeof licenses.$inferSelect;
 export type InsertProjectTemplate = z.infer<typeof insertProjectTemplateSchema>;
 export type ProjectTemplate = typeof projectTemplates.$inferSelect;
+export type ProjectTemplateRole = typeof projectTemplateRoles.$inferSelect;
 export type InsertProjectTemplateStage = z.infer<typeof insertProjectTemplateStageSchema>;
 export type ProjectTemplateStage = typeof projectTemplateStages.$inferSelect;
 export type InsertProject = z.infer<typeof insertProjectSchema>;
@@ -885,6 +903,12 @@ export type InsertProjectFeatureGroup = z.infer<typeof insertProjectFeatureGroup
 export type ProjectFeatureGroup = typeof projectFeatureGroups.$inferSelect;
 export type InsertProjectFeature = z.infer<typeof insertProjectFeatureSchema>;
 export type ProjectFeature = typeof projectFeatures.$inferSelect;
+export type ProjectRelease = typeof projectReleases.$inferSelect;
+export type ReleaseMilestone = typeof releaseMilestones.$inferSelect;
+export type ReleaseItem = typeof releaseItems.$inferSelect;
+export type ReleaseDocument = typeof releaseDocuments.$inferSelect;
+export type TestCase = typeof testCases.$inferSelect;
+export type ReleaseTestCase = typeof releaseTestCases.$inferSelect;
 
 export const insertAiSettingsSchema = createInsertSchema(aiSettings).omit({
   id: true,
@@ -935,6 +959,82 @@ export const defects = pgTable("defects", {
   created_at: timestamp("created_at").defaultNow(),
   updated_at: timestamp("updated_at").defaultNow(),
 });
+
+// Release Management
+export const projectReleases = pgTable("project_releases", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  project_id: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  version: text("version").notNull(),
+  comment: text("comment").notNull(),
+  status: text("status").notNull().default("draft"), // draft | pending_approval | qa_approved | approved | rejected
+  created_by: uuid("created_by").notNull().references(() => users.id),
+  qa_approved_by: uuid("qa_approved_by").references(() => users.id, { onDelete: "set null" }),
+  qa_approved_at: timestamp("qa_approved_at"),
+  approved_by: uuid("approved_by").references(() => users.id, { onDelete: "set null" }),
+  approved_at: timestamp("approved_at"),
+  rejection_reason: text("rejection_reason"),
+  created_at: timestamp("created_at").defaultNow(),
+  updated_at: timestamp("updated_at").defaultNow(),
+});
+
+export const releaseMilestones = pgTable("release_milestones", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  release_id: uuid("release_id").notNull().references(() => projectReleases.id, { onDelete: "cascade" }),
+  milestone_id: uuid("milestone_id").notNull().references(() => projectMilestones.id, { onDelete: "cascade" }),
+  created_at: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  releaseMilestoneUnique: unique("release_milestones_unique").on(table.release_id, table.milestone_id),
+}));
+
+export const releaseItems = pgTable("release_items", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  release_id: uuid("release_id").notNull().references(() => projectReleases.id, { onDelete: "cascade" }),
+  milestone_id: uuid("milestone_id").notNull().references(() => projectMilestones.id, { onDelete: "cascade" }),
+  item_type: text("item_type").notNull(), // feature | user_story | task
+  item_id: uuid("item_id").notNull(),
+  title_snapshot: text("title_snapshot").notNull(),
+  created_at: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  releaseItemUnique: unique("release_items_unique").on(table.release_id, table.item_type, table.item_id),
+}));
+
+export const releaseDocuments = pgTable("release_documents", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  release_id: uuid("release_id").notNull().references(() => projectReleases.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  description: text("description"),
+  required: boolean("required").notNull().default(true),
+  status: text("status").notNull().default("pending"), // pending | approved | rejected | deferred
+  location: text("location"),
+  approved_by: uuid("approved_by").references(() => users.id, { onDelete: "set null" }),
+  approved_at: timestamp("approved_at"),
+  created_at: timestamp("created_at").defaultNow(),
+  updated_at: timestamp("updated_at").defaultNow(),
+});
+
+export const testCases = pgTable("test_cases", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  project_id: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  milestone_id: uuid("milestone_id").references(() => projectMilestones.id, { onDelete: "set null" }),
+  title: text("title").notNull(),
+  status: text("status").notNull().default("pending"), // pending | passed | failed
+  approval_status: text("approval_status").notNull().default("pending"), // pending | approved | deferred | rejected
+  approved_by: uuid("approved_by").references(() => users.id, { onDelete: "set null" }),
+  approved_at: timestamp("approved_at"),
+  created_by: uuid("created_by").notNull().references(() => users.id),
+  created_at: timestamp("created_at").defaultNow(),
+  updated_at: timestamp("updated_at").defaultNow(),
+});
+
+export const releaseTestCases = pgTable("release_test_cases", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  release_id: uuid("release_id").notNull().references(() => projectReleases.id, { onDelete: "cascade" }),
+  test_case_id: uuid("test_case_id").notNull().references(() => testCases.id, { onDelete: "cascade" }),
+  created_at: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  releaseTestCaseUnique: unique("release_test_cases_unique").on(table.release_id, table.test_case_id),
+}));
 
 // Defect ↔ Task junction — one defect can spawn multiple tasks
 export const defectTasks = pgTable("defect_tasks", {
@@ -1004,7 +1104,7 @@ export const insertDefectSchema = createInsertSchema(defects).omit({
 }).extend({
   severity:    z.enum(["critical", "high", "medium", "low"]).default("medium"),
   priority:    z.number().min(1).max(5).default(3).optional(),
-  status:      z.enum(["draft", "submitted", "approved", "rejected", "in_progress", "resolved", "verified", "closed", "reopened"]).default("draft"),
+  status:      z.enum(["draft", "submitted", "approved", "rejected", "in_progress", "resolved", "verified", "closed", "reopened", "deferred"]).default("draft"),
   type:        z.enum(["bug", "regression", "performance", "ui", "security", "data"]).default("bug"),
   environment: z.enum(["production", "staging", "qa", "development"]).default("production").optional(),
   due_date:    z.union([z.date(), z.string().transform((s) => s ? new Date(s) : null)]).nullable().optional(),

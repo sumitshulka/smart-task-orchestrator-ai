@@ -2,11 +2,13 @@ import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -34,6 +36,46 @@ type ProjectTemplateStage = {
   created_at: string;
   updated_at: string;
 };
+
+function TemplateRolesPanel({ templateId }: { templateId: string }) {
+  const queryClient = useQueryClient();
+  const [title, setTitle] = useState("");
+  const [isQualityAnalyst, setIsQualityAnalyst] = useState(false);
+  const { data: roles = [] } = useQuery<any[]>({
+    queryKey: ["/api/project-templates", templateId, "roles"],
+    queryFn: () => apiClient.get(`/project-templates/${templateId}/roles`),
+  });
+  const createRole = useMutation({
+    mutationFn: () => apiClient.post(`/project-templates/${templateId}/roles`, { title, isQualityAnalyst }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/project-templates", templateId, "roles"] });
+      setTitle("");
+      setIsQualityAnalyst(false);
+      toast({ title: "Template role added" });
+    },
+    onError: (error: Error) => toast({ title: "Could not add template role", description: error.message, variant: "destructive" }),
+  });
+
+  return (
+    <CardContent className="pt-0">
+      <Separator className="mb-4" />
+      <div className="flex items-center gap-2 mb-3">
+        <Settings2 className="w-4 h-4 text-muted-foreground" />
+        <span className="text-sm font-medium">Project-specific roles</span>
+        <span className="text-xs text-muted-foreground">(Quality Analyst roles can approve releases)</span>
+      </div>
+      <div className="flex flex-wrap items-center gap-2 mb-3">
+        <Input className="max-w-xs" placeholder="Role title, e.g. Quality Analyst" value={title} onChange={(event) => setTitle(event.target.value)} />
+        <label className="flex items-center gap-2 text-sm">
+          <Checkbox checked={isQualityAnalyst} onCheckedChange={(checked) => setIsQualityAnalyst(checked === true)} />
+          Quality Analyst
+        </label>
+        <Button size="sm" onClick={() => createRole.mutate()} disabled={!title.trim() || createRole.isPending}>Add role</Button>
+      </div>
+      {roles.length > 0 && <div className="flex flex-wrap gap-2">{roles.map((role: any) => <Badge key={role.id} variant={role.is_quality_analyst ? "default" : "outline"}>{role.title}{role.is_quality_analyst ? " · QA" : ""}</Badge>)}</div>}
+    </CardContent>
+  );
+}
 
 const PROJECT_TYPES = [
   {
@@ -124,7 +166,7 @@ function TemplateStagesPanel({
 }) {
   const { data: stages = [] } = useQuery<ProjectTemplateStage[]>({
     queryKey: ["/api/project-templates", template.id, "stages"],
-    queryFn: () => apiClient.get(`/project-templates/${template.id}/stages`, { headers: { "x-user-id": userId } }),
+    queryFn: () => apiClient.get(`/project-templates/${template.id}/stages`),
   });
 
   return (
@@ -193,11 +235,11 @@ export default function ProjectTemplates() {
 
   const { data: templates = [], isLoading } = useQuery<ProjectTemplate[]>({
     queryKey: ["/api/project-templates"],
-    queryFn: () => apiClient.get("/project-templates", { headers: { "x-user-id": userId } }),
+    queryFn: () => apiClient.get("/project-templates"),
   });
 
   const createTemplateMutation = useMutation({
-    mutationFn: (data: any) => apiClient.post("/project-templates", data, { headers: { "x-user-id": userId } }),
+    mutationFn: (data: any) => apiClient.post("/project-templates", data),
     onSuccess: async (newTemplate: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/project-templates"] });
       toast({ title: "Success", description: "Project template created with default stages" });
@@ -206,7 +248,7 @@ export default function ProjectTemplates() {
       for (let i = 0; i < defaults.length; i++) {
         await apiClient.post(`/project-templates/${newTemplate.id}/stages`, {
           name: defaults[i].name, color: defaults[i].color, stage_order: i + 1, description: ""
-        }, { headers: { "x-user-id": userId } });
+        });
       }
       queryClient.invalidateQueries({ queryKey: ["/api/project-templates", newTemplate.id, "stages"] });
     },
@@ -215,7 +257,7 @@ export default function ProjectTemplates() {
 
   const updateTemplateMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: any }) =>
-      apiClient.put(`/project-templates/${id}`, data, { headers: { "x-user-id": userId } }),
+      apiClient.put(`/project-templates/${id}`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/project-templates"] });
       toast({ title: "Success", description: "Template updated" });
@@ -225,7 +267,7 @@ export default function ProjectTemplates() {
   });
 
   const deleteTemplateMutation = useMutation({
-    mutationFn: (id: string) => apiClient.delete(`/project-templates/${id}`, { headers: { "x-user-id": userId } }),
+    mutationFn: (id: string) => apiClient.delete(`/project-templates/${id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/project-templates"] });
       toast({ title: "Success", description: "Template deleted" });
@@ -236,7 +278,7 @@ export default function ProjectTemplates() {
 
   const createStageMutation = useMutation({
     mutationFn: ({ templateId, data }: { templateId: string; data: any }) =>
-      apiClient.post(`/project-templates/${templateId}/stages`, data, { headers: { "x-user-id": userId } }),
+      apiClient.post(`/project-templates/${templateId}/stages`, data),
     onSuccess: (_, vars) => {
       queryClient.invalidateQueries({ queryKey: ["/api/project-templates", vars.templateId, "stages"] });
       toast({ title: "Success", description: "Stage added" });
@@ -247,7 +289,7 @@ export default function ProjectTemplates() {
 
   const updateStageMutation = useMutation({
     mutationFn: ({ templateId, stageId, data }: { templateId: string; stageId: string; data: any }) =>
-      apiClient.put(`/project-templates/${templateId}/stages/${stageId}`, data, { headers: { "x-user-id": userId } }),
+      apiClient.put(`/project-templates/${templateId}/stages/${stageId}`, data),
     onSuccess: (_, vars) => {
       queryClient.invalidateQueries({ queryKey: ["/api/project-templates", vars.templateId, "stages"] });
       toast({ title: "Success", description: "Stage updated" });
@@ -258,7 +300,7 @@ export default function ProjectTemplates() {
 
   const deleteStageMutation = useMutation({
     mutationFn: ({ templateId, stageId }: { templateId: string; stageId: string }) =>
-      apiClient.delete(`/project-templates/${templateId}/stages/${stageId}`, { headers: { "x-user-id": userId } }),
+      apiClient.delete(`/project-templates/${templateId}/stages/${stageId}`),
     onSuccess: (_, vars) => {
       queryClient.invalidateQueries({ queryKey: ["/api/project-templates", vars.templateId, "stages"] });
       toast({ title: "Success", description: "Stage deleted" });
@@ -415,13 +457,16 @@ export default function ProjectTemplates() {
                 </CardHeader>
 
                 {isExpanded && (
-                  <TemplateStagesPanel
-                    template={template}
-                    userId={userId}
-                    onAddStage={handleAddStage}
-                    onEditStage={handleEditStage}
-                    onDeleteStage={handleDeleteStage}
-                  />
+                  <>
+                    <TemplateStagesPanel
+                      template={template}
+                      userId={userId}
+                      onAddStage={handleAddStage}
+                      onEditStage={handleEditStage}
+                      onDeleteStage={handleDeleteStage}
+                    />
+                    <TemplateRolesPanel templateId={template.id} />
+                  </>
                 )}
               </Card>
             );

@@ -80,6 +80,105 @@ export async function runStartupMigrations(): Promise<void> {
           UNIQUE (project_id, user_id, effective_month)
       )
     `);
+
+    // Release Management — explicit release scope, readiness evidence, and approvals.
+    await client.query(`
+      ALTER TABLE tasks
+        ADD COLUMN IF NOT EXISTS approval_status text NOT NULL DEFAULT 'pending',
+        ADD COLUMN IF NOT EXISTS approved_by uuid REFERENCES users(id) ON DELETE SET NULL,
+        ADD COLUMN IF NOT EXISTS approved_at timestamp
+    `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS project_template_roles (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        template_id uuid NOT NULL REFERENCES project_templates(id) ON DELETE CASCADE,
+        title text NOT NULL,
+        system_role text NOT NULL DEFAULT 'project_member',
+        is_quality_analyst boolean NOT NULL DEFAULT false,
+        is_active boolean NOT NULL DEFAULT true,
+        created_at timestamp DEFAULT now(),
+        updated_at timestamp DEFAULT now(),
+        CONSTRAINT project_template_roles_title_unique UNIQUE (template_id, title)
+      )
+    `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS project_releases (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        project_id uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        name text NOT NULL,
+        version text NOT NULL,
+        comment text NOT NULL,
+        status text NOT NULL DEFAULT 'draft',
+        created_by uuid NOT NULL REFERENCES users(id),
+        qa_approved_by uuid REFERENCES users(id) ON DELETE SET NULL,
+        qa_approved_at timestamp,
+        approved_by uuid REFERENCES users(id) ON DELETE SET NULL,
+        approved_at timestamp,
+        rejection_reason text,
+        created_at timestamp DEFAULT now(),
+        updated_at timestamp DEFAULT now()
+      )
+    `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS release_milestones (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        release_id uuid NOT NULL REFERENCES project_releases(id) ON DELETE CASCADE,
+        milestone_id uuid NOT NULL REFERENCES project_milestones(id) ON DELETE CASCADE,
+        created_at timestamp DEFAULT now(),
+        CONSTRAINT release_milestones_unique UNIQUE (release_id, milestone_id)
+      )
+    `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS release_items (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        release_id uuid NOT NULL REFERENCES project_releases(id) ON DELETE CASCADE,
+        milestone_id uuid NOT NULL REFERENCES project_milestones(id) ON DELETE CASCADE,
+        item_type text NOT NULL,
+        item_id uuid NOT NULL,
+        title_snapshot text NOT NULL,
+        created_at timestamp DEFAULT now(),
+        CONSTRAINT release_items_unique UNIQUE (release_id, item_type, item_id)
+      )
+    `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS release_documents (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        release_id uuid NOT NULL REFERENCES project_releases(id) ON DELETE CASCADE,
+        name text NOT NULL,
+        description text,
+        required boolean NOT NULL DEFAULT true,
+        status text NOT NULL DEFAULT 'pending',
+        location text,
+        approved_by uuid REFERENCES users(id) ON DELETE SET NULL,
+        approved_at timestamp,
+        created_at timestamp DEFAULT now(),
+        updated_at timestamp DEFAULT now()
+      )
+    `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS test_cases (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        project_id uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        milestone_id uuid REFERENCES project_milestones(id) ON DELETE SET NULL,
+        title text NOT NULL,
+        status text NOT NULL DEFAULT 'pending',
+        approval_status text NOT NULL DEFAULT 'pending',
+        approved_by uuid REFERENCES users(id) ON DELETE SET NULL,
+        approved_at timestamp,
+        created_by uuid NOT NULL REFERENCES users(id),
+        created_at timestamp DEFAULT now(),
+        updated_at timestamp DEFAULT now()
+      )
+    `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS release_test_cases (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        release_id uuid NOT NULL REFERENCES project_releases(id) ON DELETE CASCADE,
+        test_case_id uuid NOT NULL REFERENCES test_cases(id) ON DELETE CASCADE,
+        created_at timestamp DEFAULT now(),
+        CONSTRAINT release_test_cases_unique UNIQUE (release_id, test_case_id)
+      )
+    `);
   } finally {
     client.release();
   }
