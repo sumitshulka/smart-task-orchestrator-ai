@@ -153,7 +153,19 @@ async function meetingDetail(projectId: string, meetingId: string) {
     db.select().from(meetingCalendarIntegrations).where(eq(meetingCalendarIntegrations.meeting_id, meetingId)),
     db.select().from(meetingActivity).where(eq(meetingActivity.meeting_id, meetingId)).orderBy(desc(meetingActivity.created_at)),
   ]);
-  return { meeting, type, attendees, agenda, discussions, decisions, actions, calendar, activity };
+  return {
+    meeting,
+    type,
+    attendees: meeting.category === "internal"
+      ? attendees.filter((attendee) => attendee.attendee_type !== "client")
+      : attendees,
+    agenda,
+    discussions,
+    decisions,
+    actions,
+    calendar,
+    activity,
+  };
 }
 
 function checkDateRange(startsAt: Date | null, endsAt: Date | null): string | null {
@@ -306,6 +318,9 @@ export function registerMeetingRoutes(app: Express) {
       recurrence_rule: req.body?.recurrenceRule || null, created_by: currentUserId,
     }).returning();
     const attendees = Array.isArray(req.body?.attendees) ? req.body.attendees : [];
+    if (category === "internal" && attendees.some((item: any) => item?.attendeeType === "client")) {
+      return res.status(400).json({ error: "Internal meetings cannot include client members" });
+    }
     const validParticipants = await participantOptions(req.params.projectId);
     const internalIds = new Set(validParticipants.projectMembers.map((member) => member.id));
     const clientIds = new Set(validParticipants.clientMembers.map((member) => member.id));
@@ -412,6 +427,12 @@ export function registerMeetingRoutes(app: Express) {
       ...(req.body?.category !== undefined ? { category: req.body.category } : {}),
       updated_at: new Date(),
     }).where(eq(meetings.id, req.params.meetingId)).returning();
+    if (req.body?.category === "internal") {
+      await db.delete(meetingAttendees).where(and(
+        eq(meetingAttendees.meeting_id, req.params.meetingId),
+        eq(meetingAttendees.attendee_type, "client"),
+      ));
+    }
     await recordActivity(updated.id, "meeting_updated", currentUserId);
     if (req.body?.startsAt !== undefined || req.body?.endsAt !== undefined) {
       await notifyMeetingAudience(req.params.projectId, updated.id, "meetingRescheduled", "Meeting rescheduled", `${updated.title} is now scheduled for ${new Date(updated.starts_at).toLocaleString()}.`);
@@ -451,6 +472,9 @@ export function registerMeetingRoutes(app: Express) {
     const detail = await meetingDetail(req.params.projectId, req.params.meetingId);
     if (!detail) return res.status(404).json({ error: "Meeting not found" });
     const type = req.body?.attendeeType === "client" ? "client" : "internal";
+    if (detail.meeting.category === "internal" && type === "client") {
+      return res.status(400).json({ error: "Internal meetings cannot include client members" });
+    }
     const participants = await participantOptions(req.params.projectId);
     const source = type === "client" ? participants.clientMembers : participants.projectMembers;
     if (!source.some((participant) => participant.id === req.body?.id)) return res.status(400).json({ error: "Attendee is not a member of this project" });
