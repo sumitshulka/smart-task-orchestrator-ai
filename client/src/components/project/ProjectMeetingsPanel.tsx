@@ -369,12 +369,12 @@ function MeetingWorkspace({ projectId, detail, options, onRefresh, onStatus }: {
                     </Select>
                   </div>
                   {attendeeType !== "external" ? (
-                    <div className="rounded-lg border bg-white/70 p-2 dark:bg-gray-950/50">
+                    <div className="rounded-lg bg-white/70 p-2 dark:bg-gray-950/50">
                       <p className="mb-2 text-xs text-gray-500">Select one or more participants.</p>
                       <div className="grid gap-2 sm:grid-cols-2">
                         {availableAttendeeChoices.map((person: any) => {
                           const selected = selectedAttendeeIds.includes(person.id);
-                          return <button type="button" key={person.id} onClick={() => toggleAttendee(person.id)} className={`flex items-center gap-2 rounded-lg border p-2 text-left text-sm transition ${selected ? "border-indigo-400 bg-indigo-50 dark:bg-indigo-950/30" : "border-gray-200 dark:border-gray-800"}`}>
+                            return <button type="button" key={person.id} onClick={() => toggleAttendee(person.id)} className={`flex items-center gap-2 rounded-lg p-2 text-left text-sm transition ${selected ? "bg-indigo-100 dark:bg-indigo-950/50" : "bg-gray-50/80 hover:bg-gray-100 dark:bg-gray-900/60 dark:hover:bg-gray-900"}`}>
                             <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${selected ? "border-indigo-600 bg-indigo-600 text-white" : "border-gray-300"}`}>{selected && <Check className="h-3 w-3" />}</span>
                             <span className="min-w-0 flex-1 truncate">{person.name}</span><span className="text-[10px] text-gray-400">{person.role || (attendeeType === "client" ? "Client contact" : "Project member")}</span>
                           </button>;
@@ -416,7 +416,7 @@ function MeetingWorkspace({ projectId, detail, options, onRefresh, onStatus }: {
             <SectionHeading icon={<ListChecks className="h-4 w-4" />} title="Agenda" count={detail.agenda.length} description="Topics planned for the session." />
             <div className="space-y-2">
               {detail.agenda.map((item: any, index: number) => (
-                <div key={item.id} className="flex gap-3 rounded-lg border p-3">
+                <div key={item.id} className="flex gap-3 rounded-lg bg-gray-50/70 p-3 dark:bg-gray-900/50">
                   <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-xs font-semibold text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300">{index + 1}</span>
                   <div><p className="font-medium">{item.title}</p>{item.description && <p className="mt-1 text-sm text-gray-500">{item.description}</p>}{item.expected_duration && <p className="mt-1 text-xs text-gray-400">{item.expected_duration} minutes</p>}</div>
                 </div>
@@ -450,9 +450,76 @@ function MeetingWorkspace({ projectId, detail, options, onRefresh, onStatus }: {
 }
 
 function MeetingMeta({ icon, label, children }: { icon: ReactNode; label: string; children: ReactNode }) {
-  return <div className="flex min-w-0 items-start gap-3 rounded-xl border border-white/70 bg-white/70 p-3 shadow-sm dark:border-gray-800/70 dark:bg-gray-900/50"><span className="mt-0.5 rounded-lg bg-indigo-100 p-2 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300">{icon}</span><div className="min-w-0"><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-500">{label}</p><div className="mt-1 flex min-w-0 flex-col truncate text-sm font-medium text-gray-800 dark:text-gray-200">{children}</div></div></div>;
+  return <div className="flex min-w-0 items-start gap-3 rounded-xl bg-white/60 p-3 shadow-sm dark:bg-gray-900/50"><span className="mt-0.5 rounded-lg bg-indigo-100 p-2 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300">{icon}</span><div className="min-w-0"><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-500">{label}</p><div className="mt-1 flex min-w-0 flex-col truncate text-sm font-medium text-gray-800 dark:text-gray-200">{children}</div></div></div>;
 }
 
 function SectionHeading({ icon, title, count, description }: { icon: ReactNode; title: string; count: number; description?: string }) {
-  return <div className="mb-4 flex items-start justify-between gap-3"><div className="flex items-start gap-3"><span className="rounded-lg bg-indigo-50 p-2 text-indigo-600 dark:bg-indigo-950/50 dark:text-indigo-300">{icon}</span><div><h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">{title}</h3>{description && <p className="mt-1 text-xs text-gray-500">{description}</p>}</div></div><span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-600 dark:bg-gray-800 dark:text-gray-300">{count}</span></div>;
+  return <div className="mb-4 flex items-start justify-between gap-3"><div className="flex items-start gap-3"><span className="mt-1 text-indigo-600 dark:text-indigo-300">{icon}</span><div><h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">{title}</h3>{description && <p className="mt-1 text-xs text-gray-500">{description}</p>}</div></div><span className="text-xs font-semibold text-gray-400 dark:text-gray-500">{count}</span></div>;
+}
+
+function MinutesSection({
+  showMinutes,
+  setShowMinutes,
+  summary,
+  notes,
+  setSummary,
+  setNotes,
+  meeting,
+  save,
+  projectId,
+  onRefresh,
+  downloadPdf,
+}: {
+  showMinutes: boolean;
+  setShowMinutes: (value: boolean) => void;
+  summary: string;
+  notes: string;
+  setSummary: (value: string) => void;
+  setNotes: (value: string) => void;
+  meeting: any;
+  save: any;
+  projectId: string;
+  onRefresh: () => void;
+  downloadPdf: () => void;
+}) {
+  const isPublished = meeting.minutes_status === "published";
+  const hasContent = Boolean(summary.trim() || notes.trim());
+
+  return (
+    <section className="border-b border-indigo-200/80 bg-indigo-50/55 py-6 dark:border-indigo-900/60 dark:bg-indigo-950/20">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex items-start gap-3">
+          <span className="mt-1 rounded-lg bg-indigo-600 p-2 text-white shadow-sm"><FileText className="h-5 w-5" /></span>
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-indigo-600 dark:text-indigo-300">Meeting record</p>
+            <h3 className="mt-1 text-xl font-semibold tracking-tight text-gray-950 dark:text-white">Minutes summary</h3>
+            <p className="mt-1 max-w-2xl text-sm text-gray-600 dark:text-gray-300">Shape the final record of what happened, what was agreed, and what needs to happen next.</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <Badge className={isPublished ? "border-0 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300" : "border-0 bg-white/80 text-indigo-700 dark:bg-gray-900/70 dark:text-indigo-300"}>{isPublished ? "Published" : hasContent ? "Draft saved" : "Not started"}</Badge>
+          <Button variant="outline" size="sm" onClick={() => setShowMinutes(!showMinutes)}>{showMinutes ? "Close editor" : "Open editor"}</Button>
+        </div>
+      </div>
+      {!showMinutes && (
+        <div className="mt-5 flex flex-wrap items-center justify-between gap-4 bg-white/70 px-4 py-3 dark:bg-gray-950/40">
+          <p className="max-w-3xl whitespace-pre-wrap text-sm leading-6 text-gray-700 dark:text-gray-300">{summary || "No summary has been added yet. Open the editor to capture the meeting record."}</p>
+          {notes && <span className="text-xs font-medium text-gray-500">Additional notes saved</span>}
+        </div>
+      )}
+      {showMinutes && (
+        <div className="mt-5 space-y-4 bg-white/75 p-4 dark:bg-gray-950/45">
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div className="space-y-1.5"><Label>Summary</Label><Textarea value={summary} onChange={(e) => setSummary(e.target.value)} placeholder="What happened in this meeting?" className="min-h-[130px] bg-white dark:bg-gray-950" /></div>
+            <div className="space-y-1.5"><Label>Additional notes</Label><Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Supporting notes, context, or follow-up details..." className="min-h-[130px] bg-white dark:bg-gray-950" /></div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={() => save.mutate({ summary, additionalNotes: notes })} disabled={save.isPending}><FileText className="mr-1.5 h-4 w-4" />Save draft</Button>
+            <Button variant="outline" onClick={() => apiClient.post(`/projects/${projectId}/meetings/${meeting.id}/publish-minutes`).then(onRefresh)}><Send className="mr-1.5 h-4 w-4" />Publish minutes</Button>
+            <Button variant="ghost" onClick={downloadPdf}><Download className="mr-1.5 h-4 w-4" />Export PDF</Button>
+          </div>
+        </div>
+      )}
+    </section>
+  );
 }
