@@ -295,6 +295,10 @@ export function registerMeetingRoutes(app: Express) {
       attendeeCount: attendees.filter((attendee) => attendee.meeting_id === meeting.id).length,
       openActionCount: actions.filter((action) => action.meeting_id === meeting.id && !["completed", "cancelled"].includes(action.status)).length,
       overdueActionCount: actions.filter((action) => action.meeting_id === meeting.id && action.due_date && new Date(action.due_date) < new Date() && !["completed", "cancelled"].includes(action.status)).length,
+      nextActionDueDate: actions
+        .filter((action) => action.meeting_id === meeting.id && action.due_date && !["completed", "cancelled"].includes(action.status))
+        .sort((a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime())
+        .at(0)?.due_date ?? null,
     }));
     res.json(result);
   });
