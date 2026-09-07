@@ -45,7 +45,7 @@ export default function AppSidebar({
 
       {/* ── Logo / brand header ── */}
       <div
-        className={`hidden lg:flex items-center flex-shrink-0 ${collapsed ? "justify-center px-2" : "px-5"}`}
+        className={`hidden lg:flex items-center flex-shrink-0 ${collapsed ? "justify-center gap-1 px-1" : "px-5"}`}
         style={{ height: "56px", minHeight: "56px", background: "#0f172a", borderBottom: "1px solid rgba(255,255,255,0.08)" }}
       >
         <div className={`flex items-center ${collapsed ? "" : "gap-3"}`} title={collapsed ? "TaskRep" : undefined}>
@@ -57,6 +57,18 @@ export default function AppSidebar({
             <p className="text-slate-500 text-[10px] leading-none mt-0.5">Task Management</p>
           </div>}
         </div>
+        {canCollapse && onToggleCollapse && (
+          <button
+            type="button"
+            onClick={onToggleCollapse}
+            aria-label={collapsed ? "Expand main menu" : "Collapse main menu"}
+            title={collapsed ? "Expand main menu" : "Collapse main menu"}
+            className={`flex items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-white/[0.07] hover:text-white ${collapsed ? "h-8 w-6" : "ml-auto gap-1.5 px-2 py-2"}`}
+          >
+            {collapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+            {!collapsed && <span className="text-xs">Collapse</span>}
+          </button>
+        )}
       </div>
 
       {/* ── Scrollable nav ── */}
@@ -73,20 +85,6 @@ export default function AppSidebar({
         <ReportsMenu isUserOnly={isUserOnly} collapsed={collapsed} />
       </div>
 
-      {canCollapse && onToggleCollapse && (
-        <div className="hidden lg:block border-t border-white/[0.08] p-2">
-          <button
-            type="button"
-            onClick={onToggleCollapse}
-            aria-label={collapsed ? "Expand main menu" : "Collapse main menu"}
-            title={collapsed ? "Expand main menu" : "Collapse main menu"}
-            className="flex w-full items-center justify-center rounded-lg px-2 py-2 text-slate-400 transition-colors hover:bg-white/[0.07] hover:text-white"
-          >
-            {collapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
-            {!collapsed && <span className="ml-2 text-xs">Collapse menu</span>}
-          </button>
-        </div>
-      )}
     </div>
   );
 }
