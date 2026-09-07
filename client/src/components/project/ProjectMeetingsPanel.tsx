@@ -104,7 +104,7 @@ export default function ProjectMeetingsPanel({ projectId }: { projectId: string 
   });
 
   const displayedMeetings = meetingsQuery.data ?? [];
-  const options = optionsQuery.data ?? { meetingTypes: [], projectMembers: [], clientMembers: [] };
+  const options = optionsQuery.data ?? { meetingTypes: [], projectMembers: [], clientMembers: [], canManage: false };
   const detail = detailQuery.data;
   const upcomingCount = displayedMeetings.filter((meeting) => !["completed", "cancelled"].includes(meeting.status) && new Date(meeting.starts_at) >= new Date()).length;
   const openActionTotal = displayedMeetings.reduce((total, meeting) => total + (meeting.openActionCount || 0), 0);
@@ -314,11 +314,11 @@ function MeetingWorkspace({ projectId, detail, options, onRefresh, onStatus }: {
           <section>
             <div className="flex items-start justify-between gap-3">
               <SectionHeading icon={<Users className="h-4 w-4" />} title="Attendance" count={detail.attendees.length} />
-              <Button size="sm" variant="outline" onClick={() => setShowAttendeePicker((current) => !current)}>
+              {options.canManage && <Button size="sm" variant="outline" onClick={() => setShowAttendeePicker((current) => !current)}>
                 <UserPlus className="mr-1.5 h-4 w-4" />{showAttendeePicker ? "Close" : "Attach attendee"}
-              </Button>
+              </Button>}
             </div>
-            {showAttendeePicker && (
+            {showAttendeePicker && options.canManage && (
               <div className="mb-3 rounded-xl border border-indigo-100 bg-indigo-50/40 p-4 dark:border-indigo-900/50 dark:bg-indigo-950/20">
                 <div className="mb-3">
                   <p className="text-sm font-semibold">Attach someone after scheduling</p>

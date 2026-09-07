@@ -230,11 +230,12 @@ export function registerMeetingRoutes(app: Express) {
 
   app.get("/api/projects/:projectId/meetings/options", access, async (req: any, res) => {
     const currentUserId = userId(req)!;
-    const [types, participants] = await Promise.all([
+    const [types, participants, canManage] = await Promise.all([
       ensureMeetingTypes(req.params.projectId, currentUserId),
       participantOptions(req.params.projectId),
+      canManageMeeting(req.params.projectId, currentUserId),
     ]);
-    res.json({ meetingTypes: types.filter((type) => type.is_active), ...participants });
+    res.json({ meetingTypes: types.filter((type) => type.is_active), ...participants, canManage });
   });
 
   app.get("/api/projects/:projectId/meeting-types", access, async (req: any, res) => {
