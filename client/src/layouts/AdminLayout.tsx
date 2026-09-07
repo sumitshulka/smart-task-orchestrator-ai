@@ -16,6 +16,7 @@ import { AlertCircle, Plus } from "lucide-react";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [mainSidebarCollapsed, setMainSidebarCollapsed] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [createDefectOpen, setCreateDefectOpen] = useState(false);
   const [location] = useLocation();
@@ -53,6 +54,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   const isDefectManagementRoute =
     location === "/defects" || location.startsWith("/defects/");
+  const isProjectBrowserRoute = /^\/projects\/[^/]+/.test(location);
+
+  useEffect(() => {
+    if (!isProjectBrowserRoute) {
+      setMainSidebarCollapsed(false);
+    }
+  }, [isProjectBrowserRoute]);
 
   // Show license acquisition screen if no valid license exists for admin users
   if (currentUser && isAdmin && !licenseLoading && licenseStatus) {
@@ -101,10 +109,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       
       {/* Sidebar */}
       <div className={`
-        fixed inset-y-0 left-0 z-50 w-64 transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0
+        fixed inset-y-0 left-0 z-50 w-64 transform transition-[width,transform] duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0
+        ${mainSidebarCollapsed ? 'lg:w-16' : 'lg:w-64'}
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
-        <AppSidebar />
+        <AppSidebar
+          collapsed={mainSidebarCollapsed}
+          canCollapse={isProjectBrowserRoute}
+          onToggleCollapse={() => setMainSidebarCollapsed((collapsed) => !collapsed)}
+        />
       </div>
       
       {/* Main content */}
