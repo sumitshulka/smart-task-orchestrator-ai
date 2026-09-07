@@ -26,3 +26,9 @@ Role creation must tolerate retries and seeded-role collisions by treating `(tem
 **Why:** The standard catalog is seeded before administrators interact with the template, so a quick-add action can legitimately target an existing role.
 
 **How to apply:** Use conflict-safe inserts in both seed and interactive paths; never let a duplicate role request terminate the application process.
+
+Template role configuration and project-member role assignment are separate actions: the template screen manages the available role catalog, while the project Members form assigns an active title to a person.
+
+**Why:** A template can include many roles before any specific user is assigned to them.
+
+**How to apply:** Keep the standard-role selector usable even when roles are already included, and direct users to the project Members form for assignment.

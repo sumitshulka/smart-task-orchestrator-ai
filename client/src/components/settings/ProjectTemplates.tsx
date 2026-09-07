@@ -93,25 +93,35 @@ function TemplateRolesPanel({ templateId }: { templateId: string }) {
           value=""
           onValueChange={(value) => {
             const role = STANDARD_PROJECT_ROLES.find((candidate) => candidate.title === value);
-            if (role) addStandardRole.mutate(role);
+            if (!role) return;
+            if (roleTitles.has(role.title.toLowerCase())) {
+              toast({ title: `${role.title} is already included`, description: "Assign it to a person from the project member form." });
+              return;
+            }
+            addStandardRole.mutate(role);
           }}
-          disabled={availableStandardRoles.length === 0 || addStandardRole.isPending}
+          disabled={addStandardRole.isPending}
         >
           <SelectTrigger className="w-64">
-            <SelectValue placeholder="Add standard industry role" />
+            <SelectValue placeholder="Select a standard industry role" />
           </SelectTrigger>
           <SelectContent>
-            {availableStandardRoles.map((role) => (
+            {STANDARD_PROJECT_ROLES.map((role) => (
               <SelectItem key={role.title} value={role.title}>
-                {role.title}{role.isQualityAnalyst ? " · QA approval" : ""}
+                {role.title}{role.isQualityAnalyst ? " · QA approval" : ""}{roleTitles.has(role.title.toLowerCase()) ? " · Included" : ""}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
         <span className="text-xs text-muted-foreground">
-          Standard roles are preloaded on new templates and can be customized.
+          {availableStandardRoles.length > 0
+            ? "Choose a role to add it. Included roles are marked in the list."
+            : "All standard roles are included. Choose one to confirm it or add a custom role above."}
         </span>
       </div>
+      <p className="text-xs text-muted-foreground mb-3">
+        To assign one of these roles to a person, open the project’s Members section and select the role from Project-Specific Title.
+      </p>
       {roles.length > 0 && <div className="flex flex-wrap gap-2">{roles.map((role: any) => <Badge key={role.id} variant={role.is_quality_analyst ? "default" : "outline"}>{role.title}{role.is_quality_analyst ? " · QA" : ""}</Badge>)}</div>}
     </CardContent>
   );
