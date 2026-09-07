@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
-  Calendar, Check, ChevronRight, Clock3, Download, FileText, Link2, ListChecks, MessageSquare,
+  ArrowLeft, Calendar, Check, ChevronRight, Clock3, Download, FileText, Link2, ListChecks, MessageSquare,
   Paperclip, Plus, RefreshCw, Send, Users, X,
 } from "lucide-react";
 import { apiClient } from "@/integrations/supabase/client";
@@ -106,6 +106,9 @@ export default function ProjectMeetingsPanel({ projectId }: { projectId: string 
   const displayedMeetings = meetingsQuery.data ?? [];
   const options = optionsQuery.data ?? { meetingTypes: [], projectMembers: [], clientMembers: [] };
   const detail = detailQuery.data;
+  const upcomingCount = displayedMeetings.filter((meeting) => !["completed", "cancelled"].includes(meeting.status) && new Date(meeting.starts_at) >= new Date()).length;
+  const openActionTotal = displayedMeetings.reduce((total, meeting) => total + (meeting.openActionCount || 0), 0);
+  const completedCount = displayedMeetings.filter((meeting) => meeting.status === "completed").length;
 
   const toggleAttendee = (person: any) => {
     setForm((current) => {
@@ -130,43 +133,76 @@ export default function ProjectMeetingsPanel({ projectId }: { projectId: string 
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-indigo-600 dark:text-indigo-400">Project collaboration</p>
-          <h2 className="mt-1 text-2xl font-semibold text-gray-950 dark:text-white">Meetings</h2>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Plan agendas, capture decisions, and keep actions connected to delivery.</p>
-        </div>
-        <Button onClick={() => setShowCreate(true)}><Plus className="mr-2 h-4 w-4" />Schedule meeting</Button>
-      </div>
-
-      <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[minmax(290px,360px)_1fr]">
-        <Card className="min-h-0 overflow-hidden">
-          <CardHeader className="border-b pb-3">
-            <div className="flex items-center justify-between gap-2">
-              <CardTitle className="text-base">Meeting register</CardTitle>
-              <Button variant="ghost" size="icon" onClick={() => meetingsQuery.refetch()}><RefreshCw className="h-4 w-4" /></Button>
+      {selectedId ? (
+        <>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <Button variant="ghost" className="-ml-3 text-gray-600 dark:text-gray-300" onClick={() => setSelectedId(null)}>
+                <ArrowLeft className="mr-2 h-4 w-4" />Back to meetings
+              </Button>
+              <p className="ml-1 mt-1 text-xs text-gray-500">Meeting description</p>
             </div>
-            <div className="space-y-2">
-              <Input placeholder="Search meetings..." value={search} onChange={(event) => setSearch(event.target.value)} />
-              <Select value={statusFilter} onValueChange={setStatusFilter}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">All statuses</SelectItem>{Object.entries(STATUS_META).map(([value, meta]) => <SelectItem key={value} value={value}>{meta.label}</SelectItem>)}</SelectContent></Select>
+            {detail?.meeting?.title && <p className="max-w-[min(50vw,520px)] truncate text-sm font-medium text-gray-500">{detail.meeting.title}</p>}
+          </div>
+          {detailQuery.isLoading && <Card className="flex min-h-[420px] flex-1 items-center justify-center"><CardContent className="text-center text-sm text-gray-500">Loading meeting details...</CardContent></Card>}
+          {detail && <MeetingWorkspace projectId={projectId} detail={detail} options={options} onRefresh={invalidateMeetings} onStatus={(status) => updateMeeting.mutate({ path: `/projects/${projectId}/meetings/${detail.meeting.id}/status`, data: { status } })} />}
+        </>
+      ) : (
+        <>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-indigo-600 dark:text-indigo-400">Project collaboration</p>
+              <h2 className="mt-1 text-2xl font-semibold text-gray-950 dark:text-white">Meetings</h2>
+              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Plan agendas, capture decisions, and keep actions connected to delivery.</p>
             </div>
-          </CardHeader>
-          <CardContent className="max-h-[calc(100vh-290px)] space-y-2 overflow-y-auto p-3">
-            {meetingsQuery.isLoading && <p className="p-4 text-sm text-gray-500">Loading meetings...</p>}
-            {!meetingsQuery.isLoading && !displayedMeetings.length && <div className="rounded-xl border border-dashed p-6 text-center"><Calendar className="mx-auto mb-3 h-8 w-8 text-gray-300" /><p className="text-sm font-medium">No meetings yet</p><p className="mt-1 text-xs text-gray-500">Schedule the first project meeting.</p></div>}
-            {displayedMeetings.map((meeting) => (
-              <button key={meeting.id} onClick={() => setSelectedId(meeting.id)} className={`w-full rounded-xl border p-3 text-left transition hover:border-indigo-300 hover:bg-indigo-50/40 dark:hover:bg-indigo-950/20 ${selectedId === meeting.id ? "border-indigo-400 bg-indigo-50/70 dark:border-indigo-700 dark:bg-indigo-950/30" : "border-gray-200 dark:border-gray-800"}`}>
-                <div className="flex items-start justify-between gap-2"><span className="line-clamp-2 text-sm font-semibold">{meeting.title}</span>{statusBadge(meeting.status)}</div>
-                <p className="mt-2 text-xs text-gray-500"><Clock3 className="mr-1 inline h-3 w-3" />{prettyDate(meeting.starts_at)}</p>
-                <div className="mt-2 flex gap-3 text-[11px] text-gray-500"><span><Users className="mr-1 inline h-3 w-3" />{meeting.attendeeCount}</span><span><ListChecks className="mr-1 inline h-3 w-3" />{meeting.openActionCount} open</span>{meeting.overdueActionCount > 0 && <span className="font-medium text-red-600">{meeting.overdueActionCount} overdue</span>}</div>
-              </button>
-            ))}
-          </CardContent>
-        </Card>
+            <Button onClick={() => setShowCreate(true)}><Plus className="mr-2 h-4 w-4" />Schedule meeting</Button>
+          </div>
 
-        {!detail && <Card className="flex min-h-[420px] items-center justify-center border-dashed"><CardContent className="text-center"><Calendar className="mx-auto mb-4 h-10 w-10 text-gray-300" /><p className="font-medium">Choose a meeting</p><p className="mt-1 text-sm text-gray-500">Meeting agendas, notes, decisions, and actions will appear here.</p></CardContent></Card>}
-        {detail && <MeetingWorkspace projectId={projectId} detail={detail} options={options} onRefresh={invalidateMeetings} onStatus={(status) => updateMeeting.mutate({ path: `/projects/${projectId}/meetings/${detail.meeting.id}/status`, data: { status } })} />}
-      </div>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <Card><CardContent className="p-4"><p className="text-xs font-medium uppercase tracking-wide text-gray-500">Upcoming</p><p className="mt-1 text-2xl font-semibold">{upcomingCount}</p><p className="mt-1 text-xs text-gray-500">Meetings still to come</p></CardContent></Card>
+            <Card><CardContent className="p-4"><p className="text-xs font-medium uppercase tracking-wide text-gray-500">Open actions</p><p className="mt-1 text-2xl font-semibold">{openActionTotal}</p><p className="mt-1 text-xs text-gray-500">Across this register</p></CardContent></Card>
+            <Card><CardContent className="p-4"><p className="text-xs font-medium uppercase tracking-wide text-gray-500">Completed</p><p className="mt-1 text-2xl font-semibold">{completedCount}</p><p className="mt-1 text-xs text-gray-500">Meetings with captured history</p></CardContent></Card>
+          </div>
+
+          <Card className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <CardHeader className="border-b pb-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <CardTitle className="text-base">Meeting register</CardTitle>
+                  <CardDescription className="mt-1">{displayedMeetings.length} {displayedMeetings.length === 1 ? "meeting" : "meetings"} in this view</CardDescription>
+                </div>
+                <Button variant="ghost" size="icon" onClick={() => meetingsQuery.refetch()} aria-label="Refresh meetings"><RefreshCw className="h-4 w-4" /></Button>
+              </div>
+              <div className="flex flex-wrap gap-2 pt-1">
+                <Input className="min-w-[240px] flex-1" placeholder="Search by title or description..." value={search} onChange={(event) => setSearch(event.target.value)} />
+                <Select value={statusFilter} onValueChange={setStatusFilter}><SelectTrigger className="w-full sm:w-[180px]"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">All statuses</SelectItem>{Object.entries(STATUS_META).map(([value, meta]) => <SelectItem key={value} value={value}>{meta.label}</SelectItem>)}</SelectContent></Select>
+              </div>
+            </CardHeader>
+            <CardContent className="min-h-0 flex-1 overflow-auto p-0">
+              {meetingsQuery.isLoading && <p className="p-6 text-sm text-gray-500">Loading meetings...</p>}
+              {!meetingsQuery.isLoading && !displayedMeetings.length && <div className="m-6 rounded-xl border border-dashed p-10 text-center"><Calendar className="mx-auto mb-3 h-8 w-8 text-gray-300" /><p className="text-sm font-medium">No meetings yet</p><p className="mt-1 text-xs text-gray-500">Schedule the first project meeting.</p></div>}
+              {!!displayedMeetings.length && (
+                <div className="min-w-[920px]">
+                  <div className="grid grid-cols-[minmax(240px,2.1fr)_minmax(180px,1.35fr)_140px_110px_110px_120px_24px] items-center gap-4 border-b bg-gray-50/70 px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-500 dark:bg-gray-900/40">
+                    <span>Meeting</span><span>Date & time</span><span>Status</span><span>Audience</span><span>Attendees</span><span>Actions</span><span />
+                  </div>
+                  {displayedMeetings.map((meeting) => (
+                    <button key={meeting.id} onClick={() => setSelectedId(meeting.id)} className="group grid w-full grid-cols-[minmax(240px,2.1fr)_minmax(180px,1.35fr)_140px_110px_110px_120px_24px] items-center gap-4 border-b px-5 py-4 text-left transition last:border-b-0 hover:bg-indigo-50/50 dark:border-gray-800 dark:hover:bg-indigo-950/20">
+                      <span className="min-w-0"><span className="block truncate text-sm font-semibold text-gray-900 dark:text-white">{meeting.title}</span><span className="mt-1 block truncate text-xs text-gray-500">{meeting.meetingType?.name || "Meeting"} · {meeting.location || "No location set"}</span></span>
+                      <span className="text-xs text-gray-600 dark:text-gray-300"><span className="block font-medium">{new Date(meeting.starts_at).toLocaleDateString([], { dateStyle: "medium" })}</span><span className="mt-1 block text-gray-500">{new Date(meeting.starts_at).toLocaleTimeString([], { timeStyle: "short" })} – {new Date(meeting.ends_at).toLocaleTimeString([], { timeStyle: "short" })}</span></span>
+                      <span>{statusBadge(meeting.status)}</span>
+                      <span className="text-xs capitalize text-gray-600 dark:text-gray-300">{meeting.category}</span>
+                      <span className="text-xs text-gray-600 dark:text-gray-300"><Users className="mr-1 inline h-3.5 w-3.5" />{meeting.attendeeCount}</span>
+                      <span className="text-xs text-gray-600 dark:text-gray-300"><ListChecks className="mr-1 inline h-3.5 w-3.5" />{meeting.openActionCount} open{meeting.overdueActionCount > 0 && <span className="mt-1 block font-medium text-red-600">{meeting.overdueActionCount} overdue</span>}</span>
+                      <ChevronRight className="h-4 w-4 text-gray-300 transition group-hover:translate-x-0.5 group-hover:text-indigo-500" />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </>
+      )}
 
       <Dialog open={showCreate} onOpenChange={setShowCreate}>
         <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
@@ -237,8 +273,8 @@ function MeetingWorkspace({ projectId, detail, options, onRefresh, onStatus }: {
   const visibleActions = detail.actions.filter((action: any) => action.visibility !== "internal");
 
   return (
-    <div className="min-h-0 overflow-y-auto pr-1">
-      <Card>
+    <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+      <Card className="w-full">
         <CardHeader className="border-b">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div><div className="mb-2 flex flex-wrap items-center gap-2">{statusBadge(meeting.status)}<Badge variant="outline">{detail.type?.name || "Meeting"}</Badge><Badge variant="outline">{meeting.category}</Badge></div><CardTitle className="text-2xl">{meeting.title}</CardTitle><CardDescription className="mt-2 flex flex-wrap gap-x-4 gap-y-1"><span><Clock3 className="mr-1 inline h-3.5 w-3.5" />{prettyDate(meeting.starts_at)} – {new Date(meeting.ends_at).toLocaleTimeString([], { timeStyle: "short" })}</span>{meeting.location && <span>{meeting.location}</span>}</CardDescription></div>
