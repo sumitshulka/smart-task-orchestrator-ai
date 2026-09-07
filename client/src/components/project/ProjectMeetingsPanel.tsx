@@ -309,6 +309,15 @@ function MeetingWorkspace({ projectId, detail, options, onRefresh, onStatus }: {
     const participant = members.find((person: any) => person.id === (attendee.user_id || attendee.contact_id));
     return participant?.role || (attendee.attendee_type === "client" ? "Client contact" : "Project member");
   };
+  const actionOwnerNames = (ids: unknown, members: any[]) => {
+    if (!Array.isArray(ids)) return [];
+    return ids.map((id) => members.find((person) => person.id === id)?.name).filter(Boolean);
+  };
+  const actionResponsibility = (action: any) => {
+    if (action.responsibility_level === "client") return "Client";
+    if (action.responsibility_level === "both") return "Project Team + Client";
+    return "Project Team";
+  };
   const addActionItem = () => {
     const owner = options.projectMembers[0]?.id;
     if (!actionTitle.trim() || !owner) return;
@@ -428,7 +437,30 @@ function MeetingWorkspace({ projectId, detail, options, onRefresh, onStatus }: {
             </div>
           </section>
           <section className="border-b border-gray-200/80 py-6 dark:border-gray-800"><SectionHeading icon={<MessageSquare className="h-4 w-4" />} title="Discussion & decisions" count={detail.discussions.length + detail.decisions.length} description="Capture what was discussed and what was agreed." /><div className="grid gap-5 lg:grid-cols-2"><div className="space-y-2">{detail.discussions.map((item: any) => <div key={item.id} className="border-l-2 border-indigo-200 bg-indigo-50/30 px-4 py-3 dark:border-indigo-900/70 dark:bg-indigo-950/15"><p className="font-medium">{item.topic}</p><p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-gray-600 dark:text-gray-300">{item.discussion || "No notes recorded."}</p>{item.decision && <p className="mt-2 text-sm font-medium text-indigo-700 dark:text-indigo-300">Decision: {item.decision}</p>}</div>)}<div className="flex gap-2"><Input value={discussionTopic} onChange={(e) => setDiscussionTopic(e.target.value)} placeholder="Capture a discussion topic..." /><Button variant="outline" onClick={() => { if (discussionTopic.trim()) { add.mutate({ endpoint: "discussions", data: { topic: discussionTopic } }); setDiscussionTopic(""); } }}><Plus className="h-4 w-4" /></Button></div></div><div className="space-y-2">{detail.decisions.map((item: any) => <div key={item.id} className="bg-gray-50/80 px-4 py-3 dark:bg-gray-900/50"><div className="flex items-start justify-between gap-2"><p className="font-medium">{item.title}</p><Badge variant="outline">{item.status}</Badge></div>{item.description && <p className="mt-1 text-sm text-gray-600">{item.description}</p>}</div>)}<div className="flex gap-2"><Input value={decisionTitle} onChange={(e) => setDecisionTitle(e.target.value)} placeholder="Record a decision..." /><Button variant="outline" onClick={() => { if (decisionTitle.trim()) { add.mutate({ endpoint: "decisions", data: { title: decisionTitle, status: "approved" } }); setDecisionTitle(""); } }}><Plus className="h-4 w-4" /></Button></div></div></div></section>
-          <section className="border-b border-gray-200/80 py-6 dark:border-gray-800"><SectionHeading icon={<Check className="h-4 w-4" />} title="Action items" count={detail.actions.length} description="Turn meeting outcomes into clear ownership and follow-through." /><div className="space-y-2">{detail.actions.map((action: any) => { const overdue = action.due_date && new Date(action.due_date) < new Date() && !["completed", "cancelled"].includes(action.status); return <div key={action.id} className={`flex flex-wrap items-center justify-between gap-3 px-4 py-3 ${overdue ? "border-l-2 border-red-400 bg-red-50/60 dark:bg-red-950/20" : "bg-gray-50/70 dark:bg-gray-900/50"}`}><div className="min-w-0"><p className="font-medium">{action.title}</p><p className={`mt-1 text-xs ${overdue ? "font-semibold text-red-600" : "text-gray-500"}`}>{action.due_date ? `Due ${new Date(action.due_date).toLocaleDateString()}` : "No due date"} · {action.priority} priority{action.linked_task_id ? " · Task linked" : ""}</p></div><div className="flex items-center gap-2"><Select value={action.status} onValueChange={(value) => updateAction.mutate({ actionId: action.id, data: { status: value } })}><SelectTrigger className="h-8 w-[125px] text-xs"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="open">Open</SelectItem><SelectItem value="in_progress">In progress</SelectItem><SelectItem value="completed">Completed</SelectItem><SelectItem value="cancelled">Cancelled</SelectItem></SelectContent></Select>{!action.linked_task_id && <Button size="sm" variant="outline" onClick={() => apiClient.post(`/projects/${projectId}/meetings/${meeting.id}/actions/${action.id}/create-task`).then(onRefresh)}><Link2 className="mr-1 h-3.5 w-3.5" />Task</Button>}</div></div>; })}</div><div className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_180px_auto]"><Input value={actionTitle} onChange={(e) => setActionTitle(e.target.value)} placeholder="Add an action item (project owner required)" onKeyDown={(event) => { if (event.key === "Enter") addActionItem(); }} /><Input type="date" value={actionDueDate} onChange={(e) => setActionDueDate(e.target.value)} aria-label="Action due date" title="Optional action due date" /><Button variant="outline" onClick={addActionItem}><Plus className="mr-1.5 h-4 w-4" />Add</Button></div></section>
+          <section className="border-b border-gray-200/80 py-6 dark:border-gray-800">
+            <SectionHeading icon={<Check className="h-4 w-4" />} title="Action items" count={detail.actions.length} description="Turn meeting outcomes into clear ownership and follow-through." />
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[860px] text-left">
+                <thead className="border-b border-gray-200/80 text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-500 dark:border-gray-800">
+                  <tr><th className="pb-3 pr-5">Action</th><th className="pb-3 pr-5">Responsible</th><th className="pb-3 pr-5">Task owners</th><th className="pb-3 pr-5">Due date</th><th className="pb-3 text-right">Progress</th></tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-900">
+                  {detail.actions.map((action: any) => {
+                    const overdue = action.due_date && new Date(action.due_date) < new Date() && !["completed", "cancelled"].includes(action.status);
+                    const owners = [...actionOwnerNames(action.responsible_user_ids, internalMembers), ...actionOwnerNames(action.responsible_contact_ids, clientMembers)];
+                    return <tr key={action.id} className={overdue ? "bg-red-50/50 dark:bg-red-950/15" : ""}>
+                      <td className="py-3 pr-5 align-top"><p className="font-medium text-gray-900 dark:text-gray-100">{action.title}</p><p className="mt-1 text-xs text-gray-500">{action.priority} priority{action.linked_task_id ? " · Task linked" : ""}</p></td>
+                      <td className="py-3 pr-5 align-top"><Badge variant="outline" className="whitespace-nowrap">{actionResponsibility(action)}</Badge></td>
+                      <td className="py-3 pr-5 align-top"><div className="flex max-w-[240px] flex-wrap gap-1.5">{owners.length ? owners.map((owner: string) => <span key={owner} className="rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-700 dark:bg-gray-800 dark:text-gray-300">{owner}</span>) : <span className="text-xs text-gray-500">Unassigned</span>}</div></td>
+                      <td className={`py-3 pr-5 align-top text-sm ${overdue ? "font-semibold text-red-600" : "text-gray-600 dark:text-gray-300"}`}>{action.due_date ? new Date(action.due_date).toLocaleDateString([], { dateStyle: "medium" }) : "Not set"}{overdue && <span className="mt-1 block text-[11px]">Overdue</span>}</td>
+                      <td className="py-3 align-top"><div className="flex items-center justify-end gap-2"><Select value={action.status} onValueChange={(value) => updateAction.mutate({ actionId: action.id, data: { status: value } })}><SelectTrigger className="h-8 w-[125px] text-xs"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="open">Open</SelectItem><SelectItem value="in_progress">In progress</SelectItem><SelectItem value="completed">Completed</SelectItem><SelectItem value="cancelled">Cancelled</SelectItem></SelectContent></Select>{!action.linked_task_id && <Button size="sm" variant="ghost" onClick={() => apiClient.post(`/projects/${projectId}/meetings/${meeting.id}/actions/${action.id}/create-task`).then(onRefresh)} aria-label={`Create task for ${action.title}`}><Link2 className="h-3.5 w-3.5" /></Button>}</div></td>
+                    </tr>;
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <div className="mt-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_180px_auto]"><Input value={actionTitle} onChange={(e) => setActionTitle(e.target.value)} placeholder="Add an action item (project owner required)" onKeyDown={(event) => { if (event.key === "Enter") addActionItem(); }} /><Input type="date" value={actionDueDate} onChange={(e) => setActionDueDate(e.target.value)} aria-label="Action due date" title="Optional action due date" /><Button variant="outline" onClick={addActionItem}><Plus className="mr-1.5 h-4 w-4" />Add</Button></div>
+          </section>
           <MinutesSection
             showMinutes={showMinutes}
             setShowMinutes={setShowMinutes}
