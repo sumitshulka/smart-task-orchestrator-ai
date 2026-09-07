@@ -4,6 +4,7 @@
  * Add new schema additions here in chronological order.
  */
 import { pool } from "./db";
+import { STANDARD_PROJECT_ROLES } from "@shared/project-roles";
 
 export async function runStartupMigrations(): Promise<void> {
   const client = await pool.connect();
@@ -101,6 +102,17 @@ export async function runStartupMigrations(): Promise<void> {
         CONSTRAINT project_template_roles_title_unique UNIQUE (template_id, title)
       )
     `);
+    const templates = await client.query<{ id: string }>(`SELECT id FROM project_templates`);
+    for (const template of templates.rows) {
+      for (const role of STANDARD_PROJECT_ROLES) {
+        await client.query(
+          `INSERT INTO project_template_roles (template_id, title, system_role, is_quality_analyst)
+           VALUES ($1, $2, $3, $4)
+           ON CONFLICT (template_id, title) DO NOTHING`,
+          [template.id, role.title, role.systemRole, role.isQualityAnalyst === true],
+        );
+      }
+    }
     await client.query(`
       CREATE TABLE IF NOT EXISTS project_releases (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),

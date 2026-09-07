@@ -15,6 +15,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { toast } from "@/hooks/use-toast";
 import { Plus, Pencil, Trash2, ChevronDown, ChevronUp, GripVertical, Layers, Settings2 } from "lucide-react";
 import { apiClient } from "@/lib/api";
+import { STANDARD_PROJECT_ROLES } from "@shared/project-roles";
 
 type ProjectTemplate = {
   id: string;
@@ -55,6 +56,21 @@ function TemplateRolesPanel({ templateId }: { templateId: string }) {
     },
     onError: (error: Error) => toast({ title: "Could not add template role", description: error.message, variant: "destructive" }),
   });
+  const addStandardRole = useMutation({
+    mutationFn: (role: typeof STANDARD_PROJECT_ROLES[number]) =>
+      apiClient.post(`/project-templates/${templateId}/roles`, {
+        title: role.title,
+        systemRole: role.systemRole,
+        isQualityAnalyst: role.isQualityAnalyst === true,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/project-templates", templateId, "roles"] });
+      toast({ title: "Standard role added" });
+    },
+    onError: (error: Error) => toast({ title: "Could not add standard role", description: error.message, variant: "destructive" }),
+  });
+  const roleTitles = new Set(roles.map((role: any) => String(role.title).toLowerCase()));
+  const availableStandardRoles = STANDARD_PROJECT_ROLES.filter((role) => !roleTitles.has(role.title.toLowerCase()));
 
   return (
     <CardContent className="pt-0">
@@ -71,6 +87,30 @@ function TemplateRolesPanel({ templateId }: { templateId: string }) {
           Quality Analyst
         </label>
         <Button size="sm" onClick={() => createRole.mutate()} disabled={!title.trim() || createRole.isPending}>Add role</Button>
+      </div>
+      <div className="flex flex-wrap items-center gap-2 mb-4">
+        <Select
+          value=""
+          onValueChange={(value) => {
+            const role = STANDARD_PROJECT_ROLES.find((candidate) => candidate.title === value);
+            if (role) addStandardRole.mutate(role);
+          }}
+          disabled={availableStandardRoles.length === 0 || addStandardRole.isPending}
+        >
+          <SelectTrigger className="w-64">
+            <SelectValue placeholder="Add standard industry role" />
+          </SelectTrigger>
+          <SelectContent>
+            {availableStandardRoles.map((role) => (
+              <SelectItem key={role.title} value={role.title}>
+                {role.title}{role.isQualityAnalyst ? " · QA approval" : ""}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <span className="text-xs text-muted-foreground">
+          Standard roles are preloaded on new templates and can be customized.
+        </span>
       </div>
       {roles.length > 0 && <div className="flex flex-wrap gap-2">{roles.map((role: any) => <Badge key={role.id} variant={role.is_quality_analyst ? "default" : "outline"}>{role.title}{role.is_quality_analyst ? " · QA" : ""}</Badge>)}</div>}
     </CardContent>

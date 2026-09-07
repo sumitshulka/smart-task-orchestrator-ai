@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import { STANDARD_PROJECT_ROLES } from "@shared/project-roles";
 import {
   applyTaskVisibilityScope,
   getTaskQueryFilters,
@@ -11,7 +12,7 @@ import {
 import { licenseManager, APP_ID } from "./license-manager";
 import { registerPlanningRoutes } from "./planning-routes";
 import { registerReleaseRoutes } from "./release-routes";
-import { insertUserSchema, insertTaskSchema, insertTeamSchema, insertTaskGroupSchema, insertRoleSchema, insertOfficeLocationSchema, userRoles, insertDefectSchema, insertClientSchema, insertClientContactSchema, insertClientProjectAccessSchema, insertCustomFieldGroupSchema, insertCustomFieldDefinitionSchema, insertCustomFieldValueSchema, tasks as tasksTable, projects as projectsTable, defects as defectsTable, users as usersTable, teams as teamsTable, workspaceDecisions } from "@shared/schema";
+import { insertUserSchema, insertTaskSchema, insertTeamSchema, insertTaskGroupSchema, insertRoleSchema, insertOfficeLocationSchema, userRoles, insertDefectSchema, insertClientSchema, insertClientContactSchema, insertClientProjectAccessSchema, insertCustomFieldGroupSchema, insertCustomFieldDefinitionSchema, insertCustomFieldValueSchema, tasks as tasksTable, projects as projectsTable, defects as defectsTable, users as usersTable, teams as teamsTable, workspaceDecisions, projectTemplateRoles } from "@shared/schema";
 import { callAiProvider, encryptApiKey, decryptApiKey, DEFAULT_SYSTEM_PROMPT_HEADER, AI_PROVIDER_MODELS, DEFAULT_AI_MODEL } from "./ai-provider";
 import { db } from "./db";
 import { ilike, or, sql } from "drizzle-orm";
@@ -2061,6 +2062,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.headers['x-user-id'] as string;
       const template = await storage.createProjectTemplate({ ...req.body, created_by: userId });
+      for (const role of STANDARD_PROJECT_ROLES) {
+        await db.insert(projectTemplateRoles).values({
+          template_id: template.id,
+          title: role.title,
+          system_role: role.systemRole,
+          is_quality_analyst: role.isQualityAnalyst === true,
+        }).onConflictDoNothing();
+      }
       res.status(201).json(template);
     } catch (error) {
       res.status(400).json({ error: "Failed to create project template" });
