@@ -180,6 +180,10 @@ const DEFAULT_PROJECT_SETTINGS = {
     financeEntryAdded: { enabled: true, channels: ["in_app"] },
     budgetThresholdReached: { enabled: true, channels: ["in_app"] },
     clientActivity: { enabled: false, channels: ["in_app"] },
+    meetingScheduled: { enabled: true, channels: ["in_app"] },
+    meetingRescheduled: { enabled: true, channels: ["in_app"] },
+    meetingMinutesPublished: { enabled: true, channels: ["in_app"] },
+    meetingActionDue: { enabled: true, channels: ["in_app"] },
   },
 };
 

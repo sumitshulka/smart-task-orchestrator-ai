@@ -117,6 +117,10 @@ const NOTIFICATION_EVENTS = [
   ["financeEntryAdded", "Finance entry added"],
   ["budgetThresholdReached", "Budget threshold reached"],
   ["clientActivity", "Client activity"],
+  ["meetingScheduled", "Meeting scheduled"],
+  ["meetingRescheduled", "Meeting rescheduled"],
+  ["meetingMinutesPublished", "Meeting minutes published"],
+  ["meetingActionDue", "Meeting action due"],
 ] as const;
 
 const NOTIFICATION_DEFAULT = { enabled: true, channels: ["in_app"] };

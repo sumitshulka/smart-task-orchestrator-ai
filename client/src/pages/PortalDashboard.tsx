@@ -4,9 +4,10 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
+import { formatDistanceToNow } from "date-fns";
 import {
   Shield, LogOut, FolderKanban, Eye, MessageSquare, CheckCircle2,
-  Milestone, Bug, ListTodo, ChevronRight, Building2,
+  Milestone, Bug, ListTodo, ChevronRight, Building2, BellDot, CalendarDays,
 } from "lucide-react";
 
 const ACCESS_LEVEL_CONFIG: Record<string, { label: string; color: string; icon: React.ElementType }> = {
@@ -28,6 +29,7 @@ export default function PortalDashboard() {
   const { toast } = useToast();
   const [me, setMe] = useState<any>(null);
   const [projects, setProjects] = useState<any[]>([]);
+  const [notifications, setNotifications] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -38,10 +40,14 @@ export default function PortalDashboard() {
         const meData = await meRes.json();
         setMe(meData);
 
-        const projRes = await fetch("/api/portal/projects", { credentials: "include" });
-        if (projRes.ok) {
-          const data = await projRes.json();
-          setProjects(data);
+        const [projRes, notificationRes] = await Promise.all([
+          fetch("/api/portal/projects", { credentials: "include" }),
+          fetch("/api/portal/notifications", { credentials: "include" }),
+        ]);
+        if (projRes.ok) setProjects(await projRes.json());
+        if (notificationRes.ok) {
+          const data = await notificationRes.json();
+          setNotifications(data.notifications ?? []);
         }
       } catch {
         navigate("/portal/login");
@@ -139,6 +145,34 @@ export default function PortalDashboard() {
             </Card>
           ))}
         </div>
+
+        {notifications.length > 0 && (
+          <Card className="mb-8 border-blue-100 dark:border-blue-900/50">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="h-7 w-7 rounded-lg bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center">
+                  <BellDot className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white">Recent updates</p>
+                  <p className="text-xs text-gray-500">Meeting changes and shared minutes</p>
+                </div>
+              </div>
+              <div className="space-y-2">
+                {notifications.slice(0, 5).map((notification: any) => (
+                  <div key={notification.id} className={`flex items-start gap-3 rounded-lg p-3 ${notification.is_read ? "bg-gray-50 dark:bg-gray-800/40" : "bg-blue-50/70 dark:bg-blue-950/20"}`}>
+                    {notification.entity_type === "meeting" ? <CalendarDays className="h-4 w-4 mt-0.5 text-blue-600 shrink-0" /> : <BellDot className="h-4 w-4 mt-0.5 text-blue-600 shrink-0" />}
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-gray-800 dark:text-gray-100">{notification.title}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">{notification.message}</p>
+                      <p className="text-[10px] text-gray-400 mt-1">{formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Projects grid */}
         {projects.length === 0 ? (

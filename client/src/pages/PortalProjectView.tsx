@@ -13,7 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import {
   ArrowLeft, Shield, FolderKanban, Milestone, Bug, ListTodo,
-  Clock, DollarSign, Users, Plus, CheckCircle, AlertTriangle,
+  Clock, DollarSign, Users, Plus, CheckCircle, AlertTriangle, CalendarDays,
   Circle, PauseCircle, XCircle, LogOut,
 } from "lucide-react";
 
@@ -51,6 +51,9 @@ export default function PortalProjectView() {
   const [milestones, setMilestones] = useState<any[]>([]);
   const [defects, setDefects] = useState<any[]>([]);
   const [tasks, setTasks] = useState<any[]>([]);
+  const [meetings, setMeetings] = useState<any[]>([]);
+  const [selectedMeeting, setSelectedMeeting] = useState<any>(null);
+  const [meetingDetailLoading, setMeetingDetailLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [defectDialog, setDefectDialog] = useState(false);
   const [defectForm, setDefectForm] = useState({ title: "", description: "", severity: "medium", type: "bug", environment: "production" });
@@ -71,15 +74,18 @@ export default function PortalProjectView() {
         setAccess(acc);
         setProjectSettings(settings);
         const canViewDefects = acc.can_view_defects && settings?.quality?.defectManagement !== false;
+        const canViewMeetings = settings?.meetings?.enabled !== false;
 
-        const [msRes, defRes, taskRes] = await Promise.all([
+        const [msRes, defRes, taskRes, meetingRes] = await Promise.all([
           fetch(`/api/portal/projects/${id}/milestones`, { credentials: "include" }),
           canViewDefects ? fetch(`/api/portal/projects/${id}/defects`, { credentials: "include" }) : Promise.resolve(null),
           acc.can_view_tasks ? fetch(`/api/portal/projects/${id}/tasks`, { credentials: "include" }) : Promise.resolve(null),
+          canViewMeetings ? fetch(`/api/portal/projects/${id}/meetings`, { credentials: "include" }) : Promise.resolve(null),
         ]);
         if (msRes.ok) setMilestones(await msRes.json());
         if (defRes?.ok) setDefects(await defRes.json());
         if (taskRes?.ok) setTasks(await taskRes.json());
+        if (meetingRes?.ok) setMeetings(await meetingRes.json());
       } catch {
         navigate("/portal/login");
       } finally {
@@ -131,7 +137,21 @@ export default function PortalProjectView() {
     access?.can_create_defects &&
     projectSettings?.quality?.allowClientDefectCreation === true &&
     projectSettings?.collaboration?.clientDefectCreation === true;
-  const tabCount = 1 + (canViewDefects ? 1 : 0) + (access?.can_view_tasks ? 1 : 0);
+  const canViewMeetings = projectSettings?.meetings?.enabled !== false;
+  const tabCount = 2 + (canViewDefects ? 1 : 0) + (access?.can_view_tasks ? 1 : 0) + (canViewMeetings ? 1 : 0);
+
+  const openMeeting = async (meetingId: string) => {
+    setMeetingDetailLoading(true);
+    try {
+      const response = await fetch(`/api/portal/projects/${id}/meetings/${meetingId}`, { credentials: "include" });
+      if (!response.ok) throw new Error("Unable to load meeting");
+      setSelectedMeeting(await response.json());
+    } catch {
+      toast({ title: "Unable to load meeting", description: "Please try again.", variant: "destructive" });
+    } finally {
+      setMeetingDetailLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
@@ -179,11 +199,16 @@ export default function PortalProjectView() {
 
         {/* Tabs */}
         <Tabs defaultValue="overview">
-          <TabsList className={`grid w-full grid-cols-${1 + (access?.can_view_defects ? 1 : 0) + (access?.can_view_tasks ? 1 : 0) + 1}`}>
+          <TabsList className="grid w-full" style={{ gridTemplateColumns: `repeat(${tabCount}, minmax(0, 1fr))` }}>
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="milestones">
               <Milestone className="h-3.5 w-3.5 mr-1" /> Milestones ({milestones.length})
             </TabsTrigger>
+            {canViewMeetings && (
+              <TabsTrigger value="meetings">
+                <CalendarDays className="h-3.5 w-3.5 mr-1" /> Meetings ({meetings.length})
+              </TabsTrigger>
+            )}
             {canViewDefects && (
               <TabsTrigger value="defects">
                 <Bug className="h-3.5 w-3.5 mr-1" /> Defects ({defects.length})
@@ -286,6 +311,94 @@ export default function PortalProjectView() {
               );
             })}
           </TabsContent>
+
+          {/* ── Meetings ── */}
+          {canViewMeetings && (
+            <TabsContent value="meetings" className="mt-4 space-y-3">
+              {selectedMeeting ? (
+                <div className="space-y-4">
+                  <Button variant="ghost" size="sm" className="px-0" onClick={() => setSelectedMeeting(null)}>
+                    <ArrowLeft className="h-3.5 w-3.5 mr-1" /> All meetings
+                  </Button>
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <CardTitle className="text-base">{selectedMeeting.meeting.title}</CardTitle>
+                          <p className="text-xs text-gray-500 mt-1">
+                            {format(new Date(selectedMeeting.meeting.starts_at), "MMM d, yyyy · h:mm a")}
+                            {" · "}
+                            {selectedMeeting.meeting.category === "mixed" ? "Mixed meeting" : "Client meeting"}
+                          </p>
+                        </div>
+                        <Badge variant="outline" className="capitalize text-[10px]">{selectedMeeting.meeting.status.replace("_", " ")}</Badge>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      {(selectedMeeting.meeting.location || selectedMeeting.meeting.meeting_link) && (
+                        <div className="rounded-lg bg-blue-50 dark:bg-blue-950/30 p-3 text-sm">
+                          <p className="text-xs font-semibold text-blue-700 dark:text-blue-300 mb-1">Joining details</p>
+                          {selectedMeeting.meeting.location && <p>{selectedMeeting.meeting.location}</p>}
+                          {selectedMeeting.meeting.meeting_link && <a className="text-blue-600 hover:underline break-all" href={selectedMeeting.meeting.meeting_link} target="_blank" rel="noreferrer">{selectedMeeting.meeting.meeting_link}</a>}
+                        </div>
+                      )}
+                      {selectedMeeting.meeting.description && <p className="text-sm text-gray-600 dark:text-gray-300">{selectedMeeting.meeting.description}</p>}
+                      {selectedMeeting.agenda?.length > 0 && (
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Agenda</p>
+                          <div className="space-y-2">{selectedMeeting.agenda.map((item: any, index: number) => <div key={item.id} className="flex gap-2 text-sm"><span className="text-gray-400">{index + 1}.</span><span>{item.title}</span></div>)}</div>
+                        </div>
+                      )}
+                      {selectedMeeting.meeting.minutes_summary && (
+                        <div className="border-t dark:border-gray-700 pt-4">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Minutes</p>
+                          <p className="text-sm whitespace-pre-wrap">{selectedMeeting.meeting.minutes_summary}</p>
+                        </div>
+                      )}
+                      {selectedMeeting.discussions?.length > 0 && (
+                        <div className="border-t dark:border-gray-700 pt-4">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Discussion</p>
+                          <div className="space-y-3">{selectedMeeting.discussions.map((item: any) => <div key={item.id}><p className="text-sm font-medium">{item.topic}</p>{item.discussion && <p className="text-sm text-gray-500 mt-0.5">{item.discussion}</p>}</div>)}</div>
+                        </div>
+                      )}
+                      {selectedMeeting.decisions?.length > 0 && (
+                        <div className="border-t dark:border-gray-700 pt-4">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Decisions</p>
+                          <div className="space-y-2">{selectedMeeting.decisions.map((item: any) => <div key={item.id} className="text-sm"><span className="font-medium">{item.title}</span>{item.description && <span className="text-gray-500"> — {item.description}</span>}</div>)}</div>
+                        </div>
+                      )}
+                      {selectedMeeting.actions?.length > 0 && (
+                        <div className="border-t dark:border-gray-700 pt-4">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Action items</p>
+                          <div className="space-y-2">{selectedMeeting.actions.map((item: any) => <div key={item.id} className="flex items-start justify-between gap-3 text-sm"><span>{item.title}</span><Badge variant="outline" className="text-[10px] capitalize shrink-0">{item.status.replace("_", " ")}{item.due_date ? ` · ${format(new Date(item.due_date), "MMM d")}` : ""}</Badge></div>)}</div>
+                        </div>
+                      )}
+                      {selectedMeeting.meeting.additional_notes && <p className="text-sm text-gray-500 whitespace-pre-wrap border-t dark:border-gray-700 pt-4">{selectedMeeting.meeting.additional_notes}</p>}
+                    </CardContent>
+                  </Card>
+                </div>
+              ) : meetings.length === 0 ? (
+                <div className="text-center py-12 text-gray-400">
+                  <CalendarDays className="h-10 w-10 mx-auto mb-2 opacity-30" />
+                  <p>No client meetings have been shared yet.</p>
+                </div>
+              ) : (
+                meetings.map((meeting: any) => (
+                  <Card key={meeting.id} className="cursor-pointer hover:border-blue-300 transition-colors" onClick={() => openMeeting(meeting.id)}>
+                    <CardContent className="p-4 flex items-start gap-3">
+                      <div className="h-9 w-9 rounded-lg bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center shrink-0"><CalendarDays className="h-4 w-4 text-blue-600" /></div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap"><p className="font-medium text-sm">{meeting.title}</p><Badge variant="outline" className="text-[10px] capitalize">{meeting.status.replace("_", " ")}</Badge>{meeting.minutes_status === "published" && <Badge className="text-[10px] bg-green-50 text-green-700 border-green-200">Minutes available</Badge>}</div>
+                        <p className="text-xs text-gray-500 mt-1">{format(new Date(meeting.starts_at), "EEE, MMM d, yyyy · h:mm a")} · {meeting.category === "mixed" ? "Mixed" : "Client"} meeting</p>
+                        {meeting.location && <p className="text-xs text-gray-400 mt-1">{meeting.location}</p>}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))
+              )}
+              {meetingDetailLoading && <p className="text-center text-xs text-gray-400">Loading meeting details…</p>}
+            </TabsContent>
+          )}
 
           {/* ── Defects ── */}
           {canViewDefects && (

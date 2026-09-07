@@ -1,5 +1,5 @@
 import type { Express } from "express";
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, lt } from "drizzle-orm";
 import { db } from "./db";
 import { storage } from "./storage";
 import {
@@ -13,13 +13,14 @@ import {
   meetingDiscussions,
   meetingTypes,
   meetings,
+  appNotifications,
   projectMembers,
   tasks,
   users,
   workspaceAttachments,
   clientProjectAccess,
 } from "@shared/schema";
-import { getProjectAccess, requireProjectModule } from "./project-settings";
+import { getProjectAccess, mergeProjectSettings, requireProjectModule } from "./project-settings";
 
 const DEFAULT_MEETING_TYPES = [
   ["weekly", "Weekly Meeting"], ["standup", "Daily Stand-up"], ["stakeholder", "Stakeholder Meeting"],
@@ -89,6 +90,56 @@ async function recordActivity(meetingId: string, actionType: string, actedBy: st
   await db.insert(meetingActivity).values({ meeting_id: meetingId, action_type: actionType, acted_by: actedBy, metadata });
 }
 
+async function notifyMeetingAudience(
+  projectId: string,
+  meetingId: string,
+  eventType: string,
+  title: string,
+  message: string,
+  dedupeKey?: string,
+) {
+  const savedSettings = await storage.getProjectSettings(projectId);
+  const settings = mergeProjectSettings(savedSettings?.settings);
+  if (settings.notifications?.[eventType]?.enabled === false) return;
+
+  const meeting = (await db.select().from(meetings).where(and(eq(meetings.id, meetingId), eq(meetings.project_id, projectId)))).at(0);
+  if (!meeting) return;
+  const attendees = await db.select().from(meetingAttendees).where(eq(meetingAttendees.meeting_id, meetingId));
+  const rows = [
+    ...Array.from(new Set(attendees.filter((attendee) => attendee.attendee_type === "internal" && attendee.user_id).map((attendee) => attendee.user_id!)))
+      .map((recipientId) => ({ recipient_user_id: recipientId, project_id: projectId, event_type: eventType, title, message, entity_type: "meeting", entity_id: meetingId, dedupe_key: dedupeKey ? `${dedupeKey}:user:${recipientId}` : undefined })),
+    ...(meeting.category !== "internal" && settings.collaboration?.clientCollaboration !== false
+      ? Array.from(new Set(attendees.filter((attendee) => attendee.attendee_type === "client" && attendee.contact_id).map((attendee) => attendee.contact_id!)))
+        .map((recipientId) => ({ recipient_contact_id: recipientId, project_id: projectId, event_type: eventType, title, message, entity_type: "meeting", entity_id: meetingId, dedupe_key: dedupeKey ? `${dedupeKey}:contact:${recipientId}` : undefined }))
+      : []),
+  ];
+  if (rows.length) await db.insert(appNotifications).values(rows as any).onConflictDoNothing();
+}
+
+async function ensureOverdueMeetingNotifications(userIdValue: string) {
+  const overdueActions = await db.select({
+    action: meetingActionItems,
+    meeting: meetings,
+  }).from(meetingActionItems).innerJoin(meetings, eq(meetingActionItems.meeting_id, meetings.id))
+    .where(lt(meetingActionItems.due_date, new Date()));
+  for (const { action, meeting } of overdueActions) {
+    if (["completed", "cancelled"].includes(action.status) || !normalizeIds(action.responsible_user_ids).includes(userIdValue)) continue;
+    const settings = mergeProjectSettings((await storage.getProjectSettings(meeting.project_id))?.settings);
+    if (settings.notifications?.meetingActionDue?.enabled === false) continue;
+    const dueDate = new Date(action.due_date!).toISOString().slice(0, 10);
+    await db.insert(appNotifications).values({
+      recipient_user_id: userIdValue,
+      project_id: meeting.project_id,
+      event_type: "meetingActionDue",
+      title: "Meeting action is overdue",
+      message: `${action.title} from “${meeting.title}” was due on ${new Date(action.due_date!).toLocaleDateString()}.`,
+      entity_type: "meeting",
+      entity_id: meeting.id,
+      dedupe_key: `meeting-action-due:${action.id}:${dueDate}:user:${userIdValue}`,
+    }).onConflictDoNothing();
+  }
+}
+
 async function meetingDetail(projectId: string, meetingId: string) {
   const meeting = (await db.select().from(meetings).where(and(eq(meetings.id, meetingId), eq(meetings.project_id, projectId)))).at(0);
   if (!meeting) return null;
@@ -121,7 +172,10 @@ async function clientCanViewProject(contactId: string, projectId: string) {
     eq(clientProjectAccess.contact_id, contactId),
     eq(clientProjectAccess.project_id, projectId),
   ));
-  return access.length > 0;
+  if (!access.length) return false;
+  const project = await storage.getProject(projectId);
+  const settings = mergeProjectSettings((await storage.getProjectSettings(projectId))?.settings);
+  return Boolean(project && settings.visibility === "client" && settings.meetings?.enabled !== false);
 }
 
 function icsEscape(value: string): string {
@@ -134,6 +188,33 @@ function icsDate(date: Date): string {
 
 export function registerMeetingRoutes(app: Express) {
   const access = requireProjectModule("meetings", "projectId");
+
+  app.get("/api/notifications", async (req: any, res) => {
+    const currentUserId = userId(req);
+    if (!currentUserId) return res.status(401).json({ error: "Authentication required" });
+    await ensureOverdueMeetingNotifications(currentUserId);
+    const notifications = await db.select().from(appNotifications)
+      .where(eq(appNotifications.recipient_user_id, currentUserId))
+      .orderBy(desc(appNotifications.created_at))
+      .limit(50);
+    res.json({ notifications, unreadCount: notifications.filter((notification) => !notification.is_read).length });
+  });
+
+  app.patch("/api/notifications/:notificationId/read", async (req: any, res) => {
+    const currentUserId = userId(req);
+    if (!currentUserId) return res.status(401).json({ error: "Authentication required" });
+    const [updated] = await db.update(appNotifications).set({ is_read: true })
+      .where(and(eq(appNotifications.id, req.params.notificationId), eq(appNotifications.recipient_user_id, currentUserId))).returning();
+    if (!updated) return res.status(404).json({ error: "Notification not found" });
+    res.json(updated);
+  });
+
+  app.post("/api/notifications/read-all", async (req: any, res) => {
+    const currentUserId = userId(req);
+    if (!currentUserId) return res.status(401).json({ error: "Authentication required" });
+    await db.update(appNotifications).set({ is_read: true }).where(eq(appNotifications.recipient_user_id, currentUserId));
+    res.json({ ok: true });
+  });
 
   app.get("/api/projects/:projectId/meetings/options", access, async (req: any, res) => {
     const currentUserId = userId(req)!;
@@ -263,6 +344,9 @@ export function registerMeetingRoutes(app: Express) {
       }
     }
     await recordActivity(meeting.id, "meeting_created", currentUserId);
+    if (meeting.status === "scheduled") {
+      await notifyMeetingAudience(req.params.projectId, meeting.id, "meetingScheduled", "Meeting scheduled", `${meeting.title} is scheduled for ${new Date(meeting.starts_at).toLocaleString()}.`);
+    }
     res.status(201).json(await meetingDetail(req.params.projectId, meeting.id));
   });
 
@@ -329,6 +413,9 @@ export function registerMeetingRoutes(app: Express) {
       updated_at: new Date(),
     }).where(eq(meetings.id, req.params.meetingId)).returning();
     await recordActivity(updated.id, "meeting_updated", currentUserId);
+    if (req.body?.startsAt !== undefined || req.body?.endsAt !== undefined) {
+      await notifyMeetingAudience(req.params.projectId, updated.id, "meetingRescheduled", "Meeting rescheduled", `${updated.title} is now scheduled for ${new Date(updated.starts_at).toLocaleString()}.`);
+    }
     res.json(await meetingDetail(req.params.projectId, updated.id));
   });
 
@@ -342,6 +429,9 @@ export function registerMeetingRoutes(app: Express) {
     if (current.status === "completed" && status !== "completed") return res.status(409).json({ error: "Completed meetings remain historical records and cannot be reverted" });
     const [updated] = await db.update(meetings).set({ status, updated_at: new Date() }).where(eq(meetings.id, current.id)).returning();
     await recordActivity(updated.id, `meeting_${status}`, currentUserId);
+    if (status === "scheduled") {
+      await notifyMeetingAudience(req.params.projectId, updated.id, "meetingScheduled", "Meeting scheduled", `${updated.title} is scheduled for ${new Date(updated.starts_at).toLocaleString()}.`);
+    }
     res.json(updated);
   });
 
@@ -441,6 +531,7 @@ export function registerMeetingRoutes(app: Express) {
     const [updated] = await db.update(meetings).set({ minutes_status: "published", published_by: currentUserId, published_at: new Date(), updated_at: new Date() }).where(and(eq(meetings.id, req.params.meetingId), eq(meetings.project_id, req.params.projectId))).returning();
     if (!updated) return res.status(404).json({ error: "Meeting not found" });
     await recordActivity(updated.id, "minutes_published", currentUserId);
+    await notifyMeetingAudience(req.params.projectId, updated.id, "meetingMinutesPublished", "Meeting minutes published", `Minutes for “${updated.title}” are now available.`);
     res.json(updated);
   });
 
@@ -597,7 +688,9 @@ export function registerMeetingRoutes(app: Express) {
     const contactId = String(req.session.clientContactId);
     if (!(await clientCanViewProject(contactId, req.params.projectId))) return res.status(403).json({ error: "You do not have access to this project" });
     const rows = await db.select().from(meetings).where(eq(meetings.project_id, req.params.projectId)).orderBy(desc(meetings.starts_at));
-    res.json(rows.filter((meeting) => meeting.category !== "internal").map((meeting) => ({
+    res.json(rows.filter((meeting) => meeting.category !== "internal" &&
+      meeting.status !== "draft" && meeting.status !== "cancelled" &&
+      (meeting.status !== "completed" || meeting.minutes_status === "published")).map((meeting) => ({
       id: meeting.id, title: meeting.title, category: meeting.category, starts_at: meeting.starts_at,
       ends_at: meeting.ends_at, timezone: meeting.timezone, location: meeting.location, meeting_link: meeting.meeting_link,
       status: meeting.status, minutes_status: meeting.minutes_status,
@@ -608,18 +701,46 @@ export function registerMeetingRoutes(app: Express) {
     const contactId = String(req.session.clientContactId);
     if (!(await clientCanViewProject(contactId, req.params.projectId))) return res.status(403).json({ error: "You do not have access to this project" });
     const detail = await meetingDetail(req.params.projectId, req.params.meetingId);
-    if (!detail || detail.meeting.category === "internal") return res.status(404).json({ error: "Meeting not found" });
+    if (!detail || detail.meeting.category === "internal" || detail.meeting.status === "draft" || detail.meeting.status === "cancelled" ||
+        (detail.meeting.status === "completed" && detail.meeting.minutes_status !== "published")) {
+      return res.status(404).json({ error: "Meeting not found" });
+    }
+    const published = detail.meeting.minutes_status === "published";
     res.json({
       meeting: {
-        ...detail.meeting,
-        description: detail.meeting.minutes_status === "published" ? detail.meeting.description : null,
-        additional_notes: detail.meeting.minutes_status === "published" ? detail.meeting.additional_notes : null,
+        id: detail.meeting.id,
+        project_id: detail.meeting.project_id,
+        title: detail.meeting.title,
+        category: detail.meeting.category,
+        starts_at: detail.meeting.starts_at,
+        ends_at: detail.meeting.ends_at,
+        timezone: detail.meeting.timezone,
+        location: detail.meeting.location,
+        meeting_link: detail.meeting.meeting_link,
+        status: detail.meeting.status,
+        minutes_status: detail.meeting.minutes_status,
+        description: published ? detail.meeting.description : null,
+        minutes_summary: published ? detail.meeting.minutes_summary : null,
+        additional_notes: published ? detail.meeting.additional_notes : null,
       },
       agenda: detail.agenda,
-      discussions: detail.discussions.filter((item) => item.visibility === "client"),
-      decisions: detail.decisions.filter((item) => item.visibility === "client"),
-      actions: detail.actions.filter((item) => item.visibility === "client"),
+      discussions: published ? detail.discussions.filter((item) => item.visibility === "client") : [],
+      decisions: published ? detail.decisions.filter((item) => item.visibility === "client") : [],
+      actions: published ? detail.actions.filter((item) => item.visibility === "client") : [],
       attendees: detail.attendees.filter((item) => item.attendee_type === "client" || item.attendance_status === "present"),
     });
+  });
+
+  app.get("/api/portal/notifications", requireMeetingPortalAuth, async (req: any, res) => {
+    const contactId = String(req.session.clientContactId);
+    const projectId = typeof req.query.projectId === "string" ? req.query.projectId : null;
+    if (projectId && !(await clientCanViewProject(contactId, projectId))) return res.status(403).json({ error: "Access denied" });
+    const conditions = [eq(appNotifications.recipient_contact_id, contactId)];
+    if (projectId) conditions.push(eq(appNotifications.project_id, projectId));
+    const notifications = await db.select().from(appNotifications)
+      .where(and(...conditions))
+      .orderBy(desc(appNotifications.created_at))
+      .limit(50);
+    res.json({ notifications, unreadCount: notifications.filter((notification) => !notification.is_read).length });
   });
 }

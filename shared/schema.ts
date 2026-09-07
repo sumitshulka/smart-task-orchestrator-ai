@@ -1614,6 +1614,22 @@ export const workspaceAttachments = pgTable("workspace_attachments", {
   created_at: timestamp("created_at").defaultNow(),
 });
 
+export const appNotifications = pgTable("app_notifications", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  recipient_user_id: uuid("recipient_user_id").references(() => users.id, { onDelete: "cascade" }),
+  recipient_contact_id: uuid("recipient_contact_id").references(() => clientContacts.id, { onDelete: "cascade" }),
+  project_id: uuid("project_id").references(() => projects.id, { onDelete: "cascade" }),
+  event_type: text("event_type").notNull(),
+  title: text("title").notNull(),
+  message: text("message").notNull(),
+  entity_type: text("entity_type"),
+  entity_id: uuid("entity_id"),
+  metadata: jsonb("metadata"),
+  dedupe_key: text("dedupe_key").unique(),
+  is_read: boolean("is_read").notNull().default(false),
+  created_at: timestamp("created_at").defaultNow(),
+});
+
 // ── Planning Module Tables ─────────────────────────────────────────────────
 
 // Planning Phases (optional top-level grouping)

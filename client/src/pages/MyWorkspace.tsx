@@ -251,6 +251,15 @@ export default function MyWorkspace() {
   const { data: aiAccess } = useQuery<{ can_use: boolean }>({
     queryKey: ["/api/ai/access"], queryFn: () => apiRequest("/api/ai/access"),
   });
+  const { data: notificationData } = useQuery<{ notifications: any[]; unreadCount: number }>({
+    queryKey: ["/api/notifications"], queryFn: () => apiRequest("/api/notifications"),
+    refetchInterval: 60_000,
+  });
+  const appNotifications = notificationData?.notifications ?? [];
+  const markNotificationRead = useMutation({
+    mutationFn: (id: string) => apiRequest(`/api/notifications/${id}/read`, { method: "PATCH" }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/notifications"] }),
+  });
 
   // ── AI brief ─────────────────────────────────────────────────────────────────
   const generateBrief = useMutation({
@@ -665,9 +674,25 @@ export default function MyWorkspace() {
         </div>
 
         {/* ══ NOTIFICATIONS ═══════════════════════════════════════════════════ */}
-        {notifGroups.length > 0 && (
+        {(notifGroups.length > 0 || appNotifications.length > 0) && (
           <Section icon={BellDot} title="Notifications" accent="bg-gradient-to-r from-sky-500 to-cyan-500">
             <div className="p-4 space-y-2">
+              {appNotifications.slice(0, 8).map((item: any) => (
+                <button key={item.id} onClick={() => markNotificationRead.mutate(item.id)}
+                  className={`w-full text-left rounded-xl border p-3 transition-colors ${item.is_read ? "border-slate-100 bg-white dark:border-slate-800 dark:bg-slate-900" : "border-indigo-200 bg-indigo-50/60 dark:border-indigo-800 dark:bg-indigo-950/20"}`}>
+                  <div className="flex items-start gap-3">
+                    <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-indigo-50 dark:bg-indigo-950/50">
+                      {item.entity_type === "meeting" ? <CalendarDays className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" /> : <BellDot className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">{item.title}</p>
+                      <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{item.message}</p>
+                      <p className="mt-1 text-[10px] text-slate-400">{formatDistanceToNow(new Date(item.created_at), { addSuffix: true })}</p>
+                    </div>
+                    {!item.is_read && <span className="mt-1 h-2 w-2 rounded-full bg-indigo-500 shrink-0" />}
+                  </div>
+                </button>
+              ))}
               {notifGroups.slice(0, 5).map(group => (
                 <div key={group.key} className="rounded-xl overflow-hidden border border-slate-100 dark:border-slate-800">
                   <button onClick={() => setExpandedNotif(expandedNotif === group.key ? null : group.key)}

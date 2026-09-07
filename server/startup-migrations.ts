@@ -268,6 +268,27 @@ export async function runStartupMigrations(): Promise<void> {
       )
     `);
     await client.query(`
+      CREATE TABLE IF NOT EXISTS app_notifications (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        recipient_user_id uuid REFERENCES users(id) ON DELETE CASCADE,
+        recipient_contact_id uuid REFERENCES client_contacts(id) ON DELETE CASCADE,
+        project_id uuid REFERENCES projects(id) ON DELETE CASCADE,
+        event_type text NOT NULL,
+        title text NOT NULL,
+        message text NOT NULL,
+        entity_type text,
+        entity_id uuid,
+        metadata jsonb,
+        dedupe_key text UNIQUE,
+        is_read boolean NOT NULL DEFAULT false,
+        created_at timestamp DEFAULT now(),
+        CONSTRAINT app_notifications_recipient_check CHECK (
+          (recipient_user_id IS NOT NULL AND recipient_contact_id IS NULL)
+          OR (recipient_user_id IS NULL AND recipient_contact_id IS NOT NULL)
+        )
+      )
+    `);
+    await client.query(`
       CREATE TABLE IF NOT EXISTS meetings (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
         project_id uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
