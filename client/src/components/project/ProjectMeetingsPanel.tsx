@@ -2,7 +2,7 @@ import { useState, type ReactNode } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   ArrowLeft, Calendar, Check, ChevronRight, Clock3, Download, FileText, Link2, ListChecks, MessageSquare,
-  Paperclip, Plus, RefreshCw, Send, Users, X,
+  Paperclip, Plus, RefreshCw, Send, UserPlus, Users, X,
 } from "lucide-react";
 import { apiClient } from "@/integrations/supabase/client";
 import { queryClient } from "@/lib/queryClient";
@@ -253,6 +253,9 @@ function MeetingWorkspace({ projectId, detail, options, onRefresh, onStatus }: {
   const [discussionTopic, setDiscussionTopic] = useState("");
   const [decisionTitle, setDecisionTitle] = useState("");
   const [showMinutes, setShowMinutes] = useState(meeting.minutes_status === "published" || meeting.status === "completed");
+  const [showAttendeePicker, setShowAttendeePicker] = useState(false);
+  const [attendeeType, setAttendeeType] = useState<"internal" | "client">("internal");
+  const [attendeeId, setAttendeeId] = useState("");
   const save = useMutation({
     mutationFn: (data: any) => apiClient.patch(`/projects/${projectId}/meetings/${meeting.id}/minutes`, data),
     onSuccess: () => { onRefresh(); toast({ title: "Minutes saved" }); },
@@ -267,10 +270,35 @@ function MeetingWorkspace({ projectId, detail, options, onRefresh, onStatus }: {
     mutationFn: ({ actionId, data }: { actionId: string; data: any }) => apiClient.patch(`/projects/${projectId}/meetings/${meeting.id}/actions/${actionId}`, data),
     onSuccess: onRefresh,
   });
+  const addAttendee = useMutation({
+    mutationFn: () => apiClient.post(`/projects/${projectId}/meetings/${meeting.id}/attendees`, { id: attendeeId, attendeeType, required: true }),
+    onSuccess: () => {
+      setAttendeeId("");
+      setShowAttendeePicker(false);
+      onRefresh();
+      toast({ title: "Attendee attached", description: "This participant can now be linked to meeting discussions and actions." });
+    },
+    onError: (error: Error) => toast({ title: "Could not attach attendee", description: error.message, variant: "destructive" }),
+  });
 
   const headlineAction = meeting.status === "draft" ? "scheduled" : meeting.status === "scheduled" ? "in_progress" : meeting.status === "in_progress" ? "completed" : null;
   const headlineLabel = headlineAction === "scheduled" ? "Schedule" : headlineAction === "in_progress" ? "Start meeting" : "Complete";
   const visibleActions = detail.actions.filter((action: any) => action.visibility !== "internal");
+  const internalMembers = options.projectMembers ?? [];
+  const clientMembers = options.clientMembers ?? [];
+  const attendeeChoices = attendeeType === "client" ? clientMembers : internalMembers;
+  const existingAttendeeKeys = new Set(detail.attendees.map((attendee: any) => `${attendee.attendee_type}:${attendee.user_id || attendee.contact_id}`));
+  const availableAttendeeChoices = attendeeChoices.filter((person: any) => !existingAttendeeKeys.has(`${attendeeType}:${person.id}`));
+  const attendeeName = (attendee: any) => {
+    const members = attendee.attendee_type === "client" ? clientMembers : internalMembers;
+    const participant = members.find((person: any) => person.id === (attendee.user_id || attendee.contact_id));
+    return participant?.name || (attendee.attendee_type === "client" ? "Client attendee" : "Project attendee");
+  };
+  const attendeeRole = (attendee: any) => {
+    const members = attendee.attendee_type === "client" ? clientMembers : internalMembers;
+    const participant = members.find((person: any) => person.id === (attendee.user_id || attendee.contact_id));
+    return participant?.role || (attendee.attendee_type === "client" ? "Client contact" : "Project member");
+  };
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto pr-1">
@@ -284,13 +312,43 @@ function MeetingWorkspace({ projectId, detail, options, onRefresh, onStatus }: {
         <CardContent className="space-y-6 p-5">
           {meeting.description && <div className="rounded-xl bg-gray-50 p-4 text-sm text-gray-600 dark:bg-gray-900/50 dark:text-gray-300">{meeting.description}</div>}
           <section>
-            <SectionHeading icon={<Users className="h-4 w-4" />} title="Attendance" count={detail.attendees.length} />
+            <div className="flex items-start justify-between gap-3">
+              <SectionHeading icon={<Users className="h-4 w-4" />} title="Attendance" count={detail.attendees.length} />
+              <Button size="sm" variant="outline" onClick={() => setShowAttendeePicker((current) => !current)}>
+                <UserPlus className="mr-1.5 h-4 w-4" />{showAttendeePicker ? "Close" : "Attach attendee"}
+              </Button>
+            </div>
+            {showAttendeePicker && (
+              <div className="mb-3 rounded-xl border border-indigo-100 bg-indigo-50/40 p-4 dark:border-indigo-900/50 dark:bg-indigo-950/20">
+                <div className="mb-3">
+                  <p className="text-sm font-semibold">Attach someone after scheduling</p>
+                  <p className="mt-1 text-xs text-gray-500">Use this when the meeting happened outside Tazq but its minutes, discussions, and actions are being recorded here.</p>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-[180px_minmax(220px,1fr)_auto]">
+                  {meeting.category !== "internal" ? (
+                    <Select value={attendeeType} onValueChange={(value: "internal" | "client") => { setAttendeeType(value); setAttendeeId(""); }}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent><SelectItem value="internal">Internal member</SelectItem><SelectItem value="client">Client member</SelectItem></SelectContent>
+                    </Select>
+                  ) : (
+                    <div className="flex items-center rounded-md border bg-white px-3 text-sm text-gray-600 dark:bg-gray-950 dark:text-gray-300">Internal member</div>
+                  )}
+                  <Select value={attendeeId} onValueChange={setAttendeeId}>
+                    <SelectTrigger><SelectValue placeholder={availableAttendeeChoices.length ? "Choose a participant" : "No eligible participants"} /></SelectTrigger>
+                    <SelectContent>{availableAttendeeChoices.map((person: any) => <SelectItem key={person.id} value={person.id}>{person.name}{person.role ? ` · ${person.role}` : ""}</SelectItem>)}</SelectContent>
+                  </Select>
+                  <Button onClick={() => addAttendee.mutate()} disabled={!attendeeId || addAttendee.isPending}>{addAttendee.isPending ? "Attaching..." : "Attach"}</Button>
+                </div>
+                {!availableAttendeeChoices.length && <p className="mt-2 text-xs text-gray-500">All eligible {attendeeType === "client" ? "client members" : "internal members"} are already attached.</p>}
+              </div>
+            )}
+            {!detail.attendees.length && <div className="mb-3 rounded-xl border border-dashed p-4 text-sm text-gray-500">No attendees were added when this meeting was scheduled. You can attach the people who participated now.</div>}
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
               {detail.attendees.map((attendee: any) => (
                 <div key={attendee.id} className="flex items-center justify-between rounded-lg border p-2.5 text-sm">
                   <div>
-                    <p className="font-medium">{attendee.attendee_type === "client" ? "Client attendee" : "Project attendee"}</p>
-                    <p className="text-[11px] text-gray-500">{attendee.required ? "Required" : "Optional"} · {attendee.attendance_status.replace("_", " ")}</p>
+                    <p className="font-medium">{attendeeName(attendee)}</p>
+                    <p className="text-[11px] text-gray-500">{attendeeRole(attendee)} · {attendee.required ? "Required" : "Optional"} · {attendee.attendance_status.replace("_", " ")}</p>
                   </div>
                   <Select value={attendee.attendance_status} onValueChange={(value) => apiClient.patch(`/projects/${projectId}/meetings/${meeting.id}/attendees/${attendee.id}`, { attendanceStatus: value }).then(onRefresh)}>
                     <SelectTrigger className="h-8 w-[120px] text-xs"><SelectValue /></SelectTrigger>
