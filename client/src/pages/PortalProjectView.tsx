@@ -47,6 +47,7 @@ export default function PortalProjectView() {
   const [me, setMe] = useState<any>(null);
   const [project, setProject] = useState<any>(null);
   const [access, setAccess] = useState<any>(null);
+  const [projectSettings, setProjectSettings] = useState<any>(null);
   const [milestones, setMilestones] = useState<any[]>([]);
   const [defects, setDefects] = useState<any[]>([]);
   const [tasks, setTasks] = useState<any[]>([]);
@@ -65,13 +66,15 @@ export default function PortalProjectView() {
 
         const projRes = await fetch(`/api/portal/projects/${id}`, { credentials: "include" });
         if (!projRes.ok) { navigate("/portal/dashboard"); return; }
-        const { project: proj, access: acc } = await projRes.json();
+        const { project: proj, access: acc, settings } = await projRes.json();
         setProject(proj);
         setAccess(acc);
+        setProjectSettings(settings);
+        const canViewDefects = acc.can_view_defects && settings?.quality?.defectManagement !== false;
 
         const [msRes, defRes, taskRes] = await Promise.all([
           fetch(`/api/portal/projects/${id}/milestones`, { credentials: "include" }),
-          acc.can_view_defects ? fetch(`/api/portal/projects/${id}/defects`, { credentials: "include" }) : Promise.resolve(null),
+          canViewDefects ? fetch(`/api/portal/projects/${id}/defects`, { credentials: "include" }) : Promise.resolve(null),
           acc.can_view_tasks ? fetch(`/api/portal/projects/${id}/tasks`, { credentials: "include" }) : Promise.resolve(null),
         ]);
         if (msRes.ok) setMilestones(await msRes.json());
@@ -123,7 +126,12 @@ export default function PortalProjectView() {
 
   if (!project) return null;
 
-  const tabCount = 1 + (access?.can_view_defects ? 1 : 0) + (access?.can_view_tasks ? 1 : 0);
+  const canViewDefects = access?.can_view_defects && projectSettings?.quality?.defectManagement !== false;
+  const canCreateDefects = canViewDefects &&
+    access?.can_create_defects &&
+    projectSettings?.quality?.allowClientDefectCreation === true &&
+    projectSettings?.collaboration?.clientDefectCreation === true;
+  const tabCount = 1 + (canViewDefects ? 1 : 0) + (access?.can_view_tasks ? 1 : 0);
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
@@ -176,7 +184,7 @@ export default function PortalProjectView() {
             <TabsTrigger value="milestones">
               <Milestone className="h-3.5 w-3.5 mr-1" /> Milestones ({milestones.length})
             </TabsTrigger>
-            {access?.can_view_defects && (
+            {canViewDefects && (
               <TabsTrigger value="defects">
                 <Bug className="h-3.5 w-3.5 mr-1" /> Defects ({defects.length})
               </TabsTrigger>
@@ -221,7 +229,7 @@ export default function PortalProjectView() {
               <div className="space-y-3">
                 {[
                   { label: "Milestones", value: milestones.length, icon: Milestone, color: "text-purple-600", bg: "bg-purple-50" },
-                  ...(access?.can_view_defects ? [{ label: "Defects", value: defects.length, icon: Bug, color: "text-orange-600", bg: "bg-orange-50" }] : []),
+                  ...(canViewDefects ? [{ label: "Defects", value: defects.length, icon: Bug, color: "text-orange-600", bg: "bg-orange-50" }] : []),
                   ...(access?.can_view_tasks ? [{ label: "Tasks", value: tasks.length, icon: ListTodo, color: "text-blue-600", bg: "bg-blue-50" }] : []),
                 ].map(({ label, value, icon: Icon, color, bg }) => (
                   <Card key={label}>
@@ -280,11 +288,11 @@ export default function PortalProjectView() {
           </TabsContent>
 
           {/* ── Defects ── */}
-          {access?.can_view_defects && (
+          {canViewDefects && (
             <TabsContent value="defects" className="mt-4 space-y-4">
               <div className="flex items-center justify-between">
                 <p className="text-sm text-gray-500">{defects.length} defect{defects.length !== 1 ? "s" : ""} reported</p>
-                {access.can_create_defects && (
+                {canCreateDefects && (
                   <Button size="sm" onClick={() => setDefectDialog(true)}>
                     <Plus className="h-3.5 w-3.5 mr-1" /> Report Defect
                   </Button>

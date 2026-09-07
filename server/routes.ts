@@ -15,6 +15,17 @@ import { callAiProvider, encryptApiKey, decryptApiKey, DEFAULT_SYSTEM_PROMPT_HEA
 import { db } from "./db";
 import { ilike, or, sql } from "drizzle-orm";
 import bcrypt from "bcrypt";
+import {
+  financeVisibilityAllows,
+  getCompletionGateError,
+  getProjectAccess,
+  requireEntityProjectModule,
+  requirePlanningCapability,
+  requireFinanceVisibility,
+  requireProjectAccess,
+  requireProjectModule,
+  requireWorkspaceAccess,
+} from "./project-settings";
 
 // Role-based access control middleware
 // Cache roles and user roles to avoid repeated database calls
@@ -1451,7 +1462,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Project tasks
-  app.get("/api/projects/:id/tasks", requireAnyAuthenticated, async (req, res) => {
+  app.get("/api/projects/:id/tasks", requireProjectAccess(), async (req, res) => {
     try {
       const projectTasks = await storage.getTasksByProject(req.params.id);
       res.json(projectTasks);
@@ -2104,15 +2115,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/projects", requireAnyAuthenticated, async (req, res) => {
     try {
       const allProjects = await storage.getAllProjects();
-      res.json(allProjects);
+      const userId = String(req.headers["x-user-id"] ?? "");
+      if (!userId) return res.status(401).json({ error: "Authentication required" });
+      const visibleProjects = await Promise.all(
+        allProjects.map(async (project) => (await getProjectAccess(project.id, userId)).allowed ? project : null),
+      );
+      res.json(visibleProjects.filter(Boolean));
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch projects" });
     }
   });
 
-  app.get("/api/projects/:id", requireAnyAuthenticated, async (req, res) => {
+  app.get("/api/projects/:id", requireProjectAccess(), async (req, res) => {
     try {
-      const project = await storage.getProject(req.params.id);
+      const project = (req as any).projectContext?.project ?? await storage.getProject(req.params.id);
       if (!project) return res.status(404).json({ error: "Project not found" });
       res.json(project);
     } catch (error) {
@@ -2123,14 +2139,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ========== PROJECT SETTINGS ==========
   // The Settings tab uses this structured configuration alongside existing
   // project fields. Missing rows resolve to safe defaults for older projects.
-  app.get("/api/projects/:id/settings", requireAnyAuthenticated, async (req, res) => {
+  app.get("/api/projects/:id/settings", requireProjectAccess(), async (req, res) => {
     try {
       const project = await storage.getProject(req.params.id);
       if (!project) return res.status(404).json({ error: "Project not found" });
       const saved = await storage.getProjectSettings(req.params.id);
       const financeHeads = await storage.getProjectFinanceHeads(req.params.id);
       const audit = await storage.getProjectSettingAudit(req.params.id);
-      const resourceCosts = await storage.getProjectResourceCostHistory(req.params.id);
+      const canSeeResourceCost = financeVisibilityAllows((req as any).projectContext, "peopleCost") &&
+        financeVisibilityAllows((req as any).projectContext, "resourceCost");
+      const resourceCosts = canSeeResourceCost &&
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(req.params.id)
+        ? await storage.getProjectResourceCostHistory(req.params.id)
+        : [];
       const organizationSettings = await storage.getOrganizationSettings();
       res.json({
         project,
@@ -2271,7 +2292,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/projects/:id/settings/finance-heads", requireAnyAuthenticated, async (req, res) => {
+  app.get("/api/projects/:id/settings/finance-heads", requireProjectModule("finance"), async (req, res) => {
     try {
       res.json(await storage.getProjectFinanceHeads(req.params.id));
     } catch (error) {
@@ -2356,7 +2377,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     };
   };
 
-  app.get("/api/projects/:id/settings/resource-costs", requireAnyAuthenticated, async (req, res) => {
+  app.get("/api/projects/:id/settings/resource-costs", requireFinanceVisibility("peopleCost"), requireFinanceVisibility("resourceCost"), async (req, res) => {
     try {
       const project = await storage.getProject(req.params.id);
       if (!project) return res.status(404).json({ error: "Project not found" });
@@ -2371,7 +2392,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/projects/:id/settings/resource-costs/effective", requireAnyAuthenticated, async (req, res) => {
+  app.get("/api/projects/:id/settings/resource-costs/effective", requireFinanceVisibility("peopleCost"), requireFinanceVisibility("resourceCost"), async (req, res) => {
     try {
       const effectiveMonth = normalizeEffectiveMonth(req.query.month);
       if (!effectiveMonth) return res.status(400).json({ error: "month must use YYYY-MM format" });
@@ -2387,7 +2408,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/projects/:id/settings/resource-costs", requireManagerOrAdmin, async (req, res) => {
+  app.post("/api/projects/:id/settings/resource-costs", requireProjectModule("finance"), requireManagerOrAdmin, async (req, res) => {
     try {
       const userId = req.headers["x-user-id"] as string;
       const { settings, organizationCurrency } = await getResourceCostContext(req.params.id);
@@ -2425,7 +2446,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/projects/:id/settings/resource-costs/:costId", requireManagerOrAdmin, async (req, res) => {
+  app.put("/api/projects/:id/settings/resource-costs/:costId", requireProjectModule("finance"), requireManagerOrAdmin, async (req, res) => {
     try {
       const userId = req.headers["x-user-id"] as string;
       const { settings, organizationCurrency } = await getResourceCostContext(req.params.id);
@@ -2468,7 +2489,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/projects/:id/settings/resource-costs/:costId", requireManagerOrAdmin, async (req, res) => {
+  app.delete("/api/projects/:id/settings/resource-costs/:costId", requireProjectModule("finance"), requireManagerOrAdmin, async (req, res) => {
     try {
       const existing = (await storage.getProjectResourceCostHistory(req.params.id))
         .find((entry) => entry.id === req.params.costId);
@@ -2491,7 +2512,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/projects/:id", requireAnyAuthenticated, async (req, res) => {
+  app.put("/api/projects/:id", requireProjectAccess(), async (req, res) => {
     try {
       const existing = await storage.getProject(req.params.id);
       if (!existing) return res.status(404).json({ error: "Project not found" });
@@ -2505,7 +2526,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/projects/:id/confirm", requireAnyAuthenticated, async (req, res) => {
+  app.post("/api/projects/:id/confirm", requireProjectAccess(), async (req, res) => {
     try {
       const project = await storage.confirmProject(req.params.id);
       res.json(project);
@@ -2514,7 +2535,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/projects/:id", requireAnyAuthenticated, async (req, res) => {
+  app.delete("/api/projects/:id", requireProjectAccess(), async (req, res) => {
     try {
       await storage.deleteProject(req.params.id);
       res.status(204).send();
@@ -2524,7 +2545,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ========== PROJECT MEMBERS ==========
-  app.get("/api/projects/:id/members", requireAnyAuthenticated, async (req, res) => {
+  app.get("/api/projects/:id/members", requireProjectAccess(), async (req, res) => {
     try {
       const members = await storage.getProjectMembers(req.params.id);
       res.json(members);
@@ -2533,7 +2554,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/projects/:id/members/history", requireAnyAuthenticated, async (req, res) => {
+  app.get("/api/projects/:id/members/history", requireProjectAccess(), async (req, res) => {
     try {
       const history = await storage.getProjectMemberHistory(req.params.id);
       res.json(history);
@@ -2542,7 +2563,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/projects/:id/members", requireAnyAuthenticated, async (req, res) => {
+  app.post("/api/projects/:id/members", requireProjectAccess(), async (req, res) => {
     try {
       const userId = (req as any).user?.id;
       const member = await storage.addProjectMember({
@@ -2556,7 +2577,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/projects/:projectId/members/:memberId", requireAnyAuthenticated, async (req, res) => {
+  app.put("/api/projects/:projectId/members/:memberId", requireProjectAccess("projectId"), async (req, res) => {
     try {
       const member = await storage.updateProjectMember(req.params.memberId, req.body);
       res.json(member);
@@ -2565,7 +2586,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/projects/:projectId/members/:memberId", requireAnyAuthenticated, async (req, res) => {
+  app.delete("/api/projects/:projectId/members/:memberId", requireProjectAccess("projectId"), async (req, res) => {
     try {
       const userId = (req as any).user?.id;
       const { notes } = req.body;
@@ -2577,7 +2598,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ========== MILESTONES ==========
-  app.get("/api/projects/:id/milestones", requireAnyAuthenticated, async (req, res) => {
+  app.get("/api/projects/:id/milestones", requireProjectModule("planning"), requirePlanningCapability("allowMilestones"), async (req, res) => {
     try {
       const milestoneList = await storage.getProjectMilestones(req.params.id);
       res.json(milestoneList);
@@ -2586,7 +2607,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/projects/:id/milestones", requireAnyAuthenticated, async (req, res) => {
+  app.post("/api/projects/:id/milestones", requireProjectModule("planning"), requirePlanningCapability("allowMilestones"), async (req, res) => {
     try {
       const existing = await storage.getProjectMilestones(req.params.id);
       const milestone = await storage.createMilestone({
@@ -2605,8 +2626,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/projects/:projectId/milestones/:milestoneId", requireAnyAuthenticated, async (req, res) => {
+  app.put("/api/projects/:projectId/milestones/:milestoneId", requireProjectModule("planning", "projectId"), requirePlanningCapability("allowMilestones"), async (req, res) => {
     try {
+      const gateError = await getCompletionGateError(
+        (req as any).projectContext,
+        req.params.projectId,
+        "milestone",
+        req.body?.status,
+      );
+      if (gateError) return res.status(409).json({ error: gateError });
       const milestone = await storage.updateMilestone(req.params.milestoneId, req.body);
       res.json(milestone);
     } catch (error) {
@@ -2614,7 +2642,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/projects/:projectId/milestones/:milestoneId", requireAnyAuthenticated, async (req, res) => {
+  app.delete("/api/projects/:projectId/milestones/:milestoneId", requireProjectModule("planning", "projectId"), requirePlanningCapability("allowMilestones"), async (req, res) => {
     try {
       await storage.deleteMilestone(req.params.milestoneId);
       res.status(204).send();
@@ -2685,7 +2713,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ========== FEATURE GROUPS ==========
-  app.get("/api/projects/:id/feature-groups", requireAnyAuthenticated, async (req, res) => {
+  app.get("/api/projects/:id/feature-groups", requireProjectModule("planning"), requirePlanningCapability("allowFeatureGroups"), async (req, res) => {
     try {
       const groups = await storage.getProjectFeatureGroups(req.params.id);
       res.json(groups);
@@ -2694,7 +2722,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/projects/:id/feature-groups", requireAnyAuthenticated, async (req, res) => {
+  app.post("/api/projects/:id/feature-groups", requireProjectModule("planning"), requirePlanningCapability("allowFeatureGroups"), async (req, res) => {
     try {
       const group = await storage.createFeatureGroup({ ...req.body, project_id: req.params.id });
       res.status(201).json(group);
@@ -2703,7 +2731,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/projects/:projectId/feature-groups/:groupId", requireAnyAuthenticated, async (req, res) => {
+  app.put("/api/projects/:projectId/feature-groups/:groupId", requireProjectModule("planning", "projectId"), requirePlanningCapability("allowFeatureGroups"), async (req, res) => {
     try {
       const group = await storage.updateFeatureGroup(req.params.groupId, req.body);
       res.json(group);
@@ -2712,7 +2740,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/projects/:projectId/feature-groups/:groupId", requireAnyAuthenticated, async (req, res) => {
+  app.delete("/api/projects/:projectId/feature-groups/:groupId", requireProjectModule("planning", "projectId"), requirePlanningCapability("allowFeatureGroups"), async (req, res) => {
     try {
       await storage.deleteFeatureGroup(req.params.groupId);
       res.status(204).send();
@@ -2722,7 +2750,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ========== FEATURES ==========
-  app.get("/api/projects/:id/features", requireAnyAuthenticated, async (req, res) => {
+  app.get("/api/projects/:id/features", requireProjectModule("planning"), async (req, res) => {
     try {
       const featuresList = await storage.getProjectFeatures(req.params.id);
       res.json(featuresList);
@@ -2731,7 +2759,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/projects/:id/features", requireAnyAuthenticated, async (req, res) => {
+  app.post("/api/projects/:id/features", requireProjectModule("planning"), async (req, res) => {
     try {
       const feature = await storage.createFeature({ ...req.body, project_id: req.params.id });
       res.status(201).json(feature);
@@ -2740,8 +2768,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/projects/:projectId/features/:featureId", requireAnyAuthenticated, async (req, res) => {
+  app.put("/api/projects/:projectId/features/:featureId", requireProjectModule("planning", "projectId"), async (req, res) => {
     try {
+      const gateError = await getCompletionGateError(
+        (req as any).projectContext,
+        req.params.projectId,
+        "feature",
+        req.body?.status,
+      );
+      if (gateError) return res.status(409).json({ error: gateError });
       const feature = await storage.updateFeature(req.params.featureId, req.body);
       res.json(feature);
     } catch (error) {
@@ -2749,7 +2784,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/projects/:projectId/features/:featureId", requireAnyAuthenticated, async (req, res) => {
+  app.delete("/api/projects/:projectId/features/:featureId", requireProjectModule("planning", "projectId"), async (req, res) => {
     try {
       await storage.deleteFeature(req.params.featureId);
       res.status(204).send();
@@ -3467,7 +3502,7 @@ Output EXACTLY this JSON (no text outside it):
   });
 
   // GET /api/projects/:id/defects — defects scoped to a project
-  app.get("/api/projects/:id/defects", requireAnyAuthenticated, async (req: any, res: any) => {
+  app.get("/api/projects/:id/defects", requireProjectModule("defects"), async (req: any, res: any) => {
     try {
       const list = await storage.getDefectsByProject(req.params.id);
       return res.json(list);
@@ -3479,15 +3514,21 @@ Output EXACTLY this JSON (no text outside it):
   // GET /api/defects — list all defects
   app.get("/api/defects", requireAnyAuthenticated, async (req: any, res: any) => {
     try {
+      const userId = String(req.headers["x-user-id"] ?? "");
+      if (!userId) return res.status(401).json({ error: "Authentication required" });
       const defects = await storage.getAllDefects();
-      return res.json(defects);
+      const visible = await Promise.all(defects.map(async (defect: any) => {
+        const context = await getProjectAccess(defect.project_id, userId);
+        return context.allowed && context.settings.quality.defectManagement !== false ? defect : null;
+      }));
+      return res.json(visible.filter(Boolean));
     } catch (err: any) {
       return res.status(500).json({ error: "Failed to fetch defects" });
     }
   });
 
   // GET /api/defects/:id — get single defect
-  app.get("/api/defects/:id", requireAnyAuthenticated, async (req: any, res: any) => {
+  app.get("/api/defects/:id", requireEntityProjectModule("defects", "defect"), async (req: any, res: any) => {
     try {
       const defect = await storage.getDefect(req.params.id);
       if (!defect) return res.status(404).json({ error: "Defect not found" });
@@ -3501,6 +3542,11 @@ Output EXACTLY this JSON (no text outside it):
   app.post("/api/defects", requireAnyAuthenticated, async (req: any, res: any) => {
     try {
       const userId = req.headers['x-user-id'];
+      const projectId = String(req.body?.project_id ?? "");
+      const context = projectId ? await getProjectAccess(projectId, String(userId ?? "")) : null;
+      if (!context?.allowed || context.settings.quality.defectManagement === false) {
+        return res.status(403).json({ error: "Defect Management is disabled or you do not have access to this project" });
+      }
       const rawBody = { ...req.body, reported_by: req.body.reported_by || userId };
       // Parse through insertDefectSchema so date strings are converted to Date objects
       const body = insertDefectSchema.parse(rawBody);
@@ -3521,7 +3567,7 @@ Output EXACTLY this JSON (no text outside it):
   });
 
   // PATCH /api/defects/:id — update defect
-  app.patch("/api/defects/:id", requireAnyAuthenticated, async (req: any, res: any) => {
+  app.patch("/api/defects/:id", requireEntityProjectModule("defects", "defect"), async (req: any, res: any) => {
     try {
       const userId = req.headers['x-user-id'];
       const existing = await storage.getDefect(req.params.id);
@@ -3583,7 +3629,7 @@ Output EXACTLY this JSON (no text outside it):
   });
 
   // DELETE /api/defects/:id — admin / manager only
-  app.delete("/api/defects/:id", requireRole(["admin", "manager", "team_manager"]), async (req: any, res: any) => {
+  app.delete("/api/defects/:id", requireEntityProjectModule("defects", "defect"), requireRole(["admin", "manager", "team_manager"]), async (req: any, res: any) => {
     try {
       await storage.deleteDefect(req.params.id);
       return res.json({ success: true });
@@ -3593,7 +3639,7 @@ Output EXACTLY this JSON (no text outside it):
   });
 
   // GET /api/defects/:id/comments
-  app.get("/api/defects/:id/comments", requireAnyAuthenticated, async (req: any, res: any) => {
+  app.get("/api/defects/:id/comments", requireEntityProjectModule("defects", "defect"), async (req: any, res: any) => {
     try {
       const comments = await storage.getDefectComments(req.params.id);
       return res.json(comments);
@@ -3603,7 +3649,7 @@ Output EXACTLY this JSON (no text outside it):
   });
 
   // POST /api/defects/:id/comments
-  app.post("/api/defects/:id/comments", requireAnyAuthenticated, async (req: any, res: any) => {
+  app.post("/api/defects/:id/comments", requireEntityProjectModule("defects", "defect"), async (req: any, res: any) => {
     try {
       const userId = req.headers['x-user-id'];
       const comment = await storage.createDefectComment({
@@ -3628,7 +3674,7 @@ Output EXACTLY this JSON (no text outside it):
   });
 
   // GET /api/defects/:id/activity
-  app.get("/api/defects/:id/activity", requireAnyAuthenticated, async (req: any, res: any) => {
+  app.get("/api/defects/:id/activity", requireEntityProjectModule("defects", "defect"), async (req: any, res: any) => {
     try {
       const activity = await storage.getDefectActivity(req.params.id);
       return res.json(activity);
@@ -3638,7 +3684,7 @@ Output EXACTLY this JSON (no text outside it):
   });
 
   // POST /api/defects/:id/submit — reporter submits for approval
-  app.post("/api/defects/:id/submit", requireAnyAuthenticated, async (req: any, res: any) => {
+  app.post("/api/defects/:id/submit", requireEntityProjectModule("defects", "defect"), async (req: any, res: any) => {
     try {
       const userId = req.headers['x-user-id'];
       const defect = await storage.getDefect(req.params.id);
@@ -3655,7 +3701,7 @@ Output EXACTLY this JSON (no text outside it):
   });
 
   // POST /api/defects/:id/approve — manager/admin approves
-  app.post("/api/defects/:id/approve", requireRole(["admin", "manager", "team_manager"]), async (req: any, res: any) => {
+  app.post("/api/defects/:id/approve", requireEntityProjectModule("defects", "defect"), requireRole(["admin", "manager", "team_manager"]), async (req: any, res: any) => {
     try {
       const userId = req.headers['x-user-id'];
       const defect = await storage.getDefect(req.params.id);
@@ -3677,7 +3723,7 @@ Output EXACTLY this JSON (no text outside it):
   });
 
   // POST /api/defects/:id/reject — manager/admin rejects
-  app.post("/api/defects/:id/reject", requireRole(["admin", "manager", "team_manager"]), async (req: any, res: any) => {
+  app.post("/api/defects/:id/reject", requireEntityProjectModule("defects", "defect"), requireRole(["admin", "manager", "team_manager"]), async (req: any, res: any) => {
     try {
       const userId = req.headers['x-user-id'];
       const defect = await storage.getDefect(req.params.id);
@@ -3699,7 +3745,7 @@ Output EXACTLY this JSON (no text outside it):
   });
 
   // GET /api/defects/:id/tasks — list tasks linked to this defect
-  app.get("/api/defects/:id/tasks", requireAnyAuthenticated, async (req: any, res: any) => {
+  app.get("/api/defects/:id/tasks", requireEntityProjectModule("defects", "defect"), async (req: any, res: any) => {
     try {
       const linked = await storage.getDefectTasks(req.params.id);
       return res.json(linked);
@@ -3709,7 +3755,7 @@ Output EXACTLY this JSON (no text outside it):
   });
 
   // POST /api/defects/:id/tasks — link an existing task to a defect
-  app.post("/api/defects/:id/tasks", requireRole(["admin", "manager", "team_manager"]), async (req: any, res: any) => {
+  app.post("/api/defects/:id/tasks", requireEntityProjectModule("defects", "defect"), requireRole(["admin", "manager", "team_manager"]), async (req: any, res: any) => {
     try {
       const userId = req.headers['x-user-id'];
       const { task_id } = req.body;
@@ -3723,7 +3769,7 @@ Output EXACTLY this JSON (no text outside it):
   });
 
   // DELETE /api/defects/:id/tasks/:taskId — unlink a task
-  app.delete("/api/defects/:id/tasks/:taskId", requireRole(["admin", "manager", "team_manager"]), async (req: any, res: any) => {
+  app.delete("/api/defects/:id/tasks/:taskId", requireEntityProjectModule("defects", "defect"), requireRole(["admin", "manager", "team_manager"]), async (req: any, res: any) => {
     try {
       const userId = req.headers['x-user-id'];
       await storage.unlinkDefectTask(req.params.id, req.params.taskId);
@@ -3735,7 +3781,7 @@ Output EXACTLY this JSON (no text outside it):
   });
 
   // POST /api/defects/:id/convert-to-task — create a new task from this defect and link it
-  app.post("/api/defects/:id/convert-to-task", requireRole(["admin", "manager", "team_manager"]), async (req: any, res: any) => {
+  app.post("/api/defects/:id/convert-to-task", requireEntityProjectModule("defects", "defect"), requireRole(["admin", "manager", "team_manager"]), async (req: any, res: any) => {
     try {
       const userId = req.headers['x-user-id'];
       const defect = await storage.getDefect(req.params.id);
@@ -3785,7 +3831,7 @@ Output EXACTLY this JSON (no text outside it):
   });
 
   // GET /api/projects/:id/feature-groups/:groupId/features — features within a group
-  app.get("/api/projects/:id/feature-groups/:groupId/features", requireAnyAuthenticated, async (req: any, res: any) => {
+  app.get("/api/projects/:id/feature-groups/:groupId/features", requireProjectModule("planning"), async (req: any, res: any) => {
     try {
       const all = await storage.getProjectFeatures(req.params.id);
       const filtered = all.filter((f: any) => f.feature_group_id === req.params.groupId);
@@ -3994,49 +4040,65 @@ Output EXACTLY this JSON (no text outside it):
     res.json({ success: true });
   });
 
+  const getPortalProjectContext = async (contactId: string, projectId: string) => {
+    const access = await storage.getClientContactProjectAccess(contactId, projectId);
+    if (!access) return null;
+    const project = await storage.getProject(projectId);
+    if (!project) return { access, project: null, settings: null };
+    const saved = await storage.getProjectSettings(projectId);
+    return { access, project, settings: mergeProjectSettings(saved?.settings) };
+  };
+
   app.get("/api/portal/projects", requirePortalAuth, async (req: any, res) => {
     try {
       const accessList = await storage.getClientProjectAccess(req.session.clientContactId);
       const results = await Promise.all(
-        accessList.map(async (access) => ({
-          access,
-          project: await storage.getProject(access.project_id),
-        }))
+        accessList.map(async (access) => {
+          const context = await getPortalProjectContext(req.session.clientContactId, access.project_id);
+          return context?.settings?.visibility === "client" ? context : null;
+        }),
       );
-      res.json(results.filter(r => r.project));
+      res.json(results.filter((r): r is NonNullable<typeof r> => Boolean(r?.project)));
     } catch (err: any) { res.status(500).json({ error: "Failed to fetch projects" }); }
   });
 
   app.get("/api/portal/projects/:id", requirePortalAuth, async (req: any, res) => {
     try {
-      const access = await storage.getClientContactProjectAccess(req.session.clientContactId, req.params.id);
-      if (!access) return res.status(403).json({ error: "Access denied" });
-      const project = await storage.getProject(req.params.id);
-      if (!project) return res.status(404).json({ error: "Not found" });
-      res.json({ project, access });
+      const context = await getPortalProjectContext(req.session.clientContactId, req.params.id);
+      if (!context || context.settings?.visibility !== "client") return res.status(403).json({ error: "Access denied" });
+      res.json(context);
     } catch (err: any) { res.status(500).json({ error: "Failed" }); }
   });
 
   app.get("/api/portal/projects/:id/milestones", requirePortalAuth, async (req: any, res) => {
     try {
-      const access = await storage.getClientContactProjectAccess(req.session.clientContactId, req.params.id);
-      if (!access) return res.status(403).json({ error: "Access denied" });
+      const context = await getPortalProjectContext(req.session.clientContactId, req.params.id);
+      if (!context || context.settings?.visibility !== "client") return res.status(403).json({ error: "Access denied" });
       res.json(await storage.getProjectMilestones(req.params.id));
     } catch (err: any) { res.status(500).json({ error: "Failed" }); }
   });
 
   app.get("/api/portal/projects/:id/defects", requirePortalAuth, async (req: any, res) => {
     try {
-      const access = await storage.getClientContactProjectAccess(req.session.clientContactId, req.params.id);
-      if (!access || !access.can_view_defects) return res.status(403).json({ error: "Access denied" });
+      const context = await getPortalProjectContext(req.session.clientContactId, req.params.id);
+      if (!context || context.settings?.visibility !== "client" ||
+          !context.access.can_view_defects || context.settings.quality.defectManagement === false) {
+        return res.status(403).json({ error: "Access denied" });
+      }
       res.json(await storage.getDefectsByProject(req.params.id));
     } catch (err: any) { res.status(500).json({ error: "Failed" }); }
   });
 
   app.post("/api/portal/projects/:id/defects", requirePortalAuth, async (req: any, res) => {
     try {
-      const access = await storage.getClientContactProjectAccess(req.session.clientContactId, req.params.id);
-      if (!access || !access.can_create_defects) return res.status(403).json({ error: "Access denied" });
+      const context = await getPortalProjectContext(req.session.clientContactId, req.params.id);
+      if (!context || context.settings?.visibility !== "client" ||
+          !context.access.can_create_defects ||
+          context.settings.quality.defectManagement === false ||
+          context.settings.quality.allowClientDefectCreation === false ||
+          context.settings.collaboration.clientDefectCreation === false) {
+        return res.status(403).json({ error: "Access denied" });
+      }
       const contact = await storage.getClientContact(req.session.clientContactId);
       const parsed = insertDefectSchema.safeParse({
         ...req.body,
@@ -4051,8 +4113,10 @@ Output EXACTLY this JSON (no text outside it):
 
   app.get("/api/portal/projects/:id/tasks", requirePortalAuth, async (req: any, res) => {
     try {
-      const access = await storage.getClientContactProjectAccess(req.session.clientContactId, req.params.id);
-      if (!access || !access.can_view_tasks) return res.status(403).json({ error: "Access denied" });
+      const context = await getPortalProjectContext(req.session.clientContactId, req.params.id);
+      if (!context || context.settings?.visibility !== "client" || !context.access.can_view_tasks) {
+        return res.status(403).json({ error: "Access denied" });
+      }
       res.json(await storage.getTasksByProject(req.params.id));
     } catch (err: any) { res.status(500).json({ error: "Failed" }); }
   });
@@ -4308,7 +4372,7 @@ Output EXACTLY this JSON (no text outside it):
   // ── Workspace API ─────────────────────────────────────────────────────────────
 
   // GET /api/workspace/:entityType/:entityId/mentionable — scoped @mention members
-  app.get("/api/workspace/:entityType/:entityId/mentionable", requireAnyAuthenticated, async (req: any, res) => {
+  app.get("/api/workspace/:entityType/:entityId/mentionable", requireWorkspaceAccess(), async (req: any, res) => {
     try {
       const { entityType, entityId } = req.params;
       const result = await storage.getWorkspaceMentionableMembers(entityType, entityId);
@@ -4350,7 +4414,7 @@ Output EXACTLY this JSON (no text outside it):
   });
 
   // GET /api/workspace/:entityType/:entityId  — full timeline
-  app.get("/api/workspace/:entityType/:entityId", requireAnyAuthenticated, async (req: any, res) => {
+  app.get("/api/workspace/:entityType/:entityId", requireWorkspaceAccess(), async (req: any, res) => {
     try {
       const { entityType, entityId } = req.params;
       const data = await storage.getWorkspaceTimeline(entityType, entityId);
@@ -4359,7 +4423,7 @@ Output EXACTLY this JSON (no text outside it):
   });
 
   // POST /api/workspace/:entityType/:entityId/messages
-  app.post("/api/workspace/:entityType/:entityId/messages", requireAnyAuthenticated, async (req: any, res) => {
+  app.post("/api/workspace/:entityType/:entityId/messages", requireWorkspaceAccess(), async (req: any, res) => {
     try {
       const { entityType, entityId } = req.params;
       const { content } = req.body;
@@ -4405,7 +4469,7 @@ Output EXACTLY this JSON (no text outside it):
   });
 
   // POST /api/workspace/:entityType/:entityId/decisions
-  app.post("/api/workspace/:entityType/:entityId/decisions", requireAnyAuthenticated, async (req: any, res) => {
+  app.post("/api/workspace/:entityType/:entityId/decisions", requireWorkspaceAccess(), async (req: any, res) => {
     try {
       const { entityType, entityId } = req.params;
       const { title, description, status, approved_by } = req.body;
@@ -4444,7 +4508,7 @@ Output EXACTLY this JSON (no text outside it):
   });
 
   // POST /api/workspace/:entityType/:entityId/attachments
-  app.post("/api/workspace/:entityType/:entityId/attachments", requireAnyAuthenticated, async (req: any, res) => {
+  app.post("/api/workspace/:entityType/:entityId/attachments", requireWorkspaceAccess(), async (req: any, res) => {
     try {
       const { entityType, entityId } = req.params;
       const { file_name, file_type, file_size, file_url, message_id } = req.body;

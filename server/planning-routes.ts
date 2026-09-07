@@ -21,6 +21,14 @@ import {
 } from "@shared/schema";
 import { callAiProvider, decryptApiKey, DEFAULT_AI_MODEL } from "./ai-provider";
 import { storage } from "./storage";
+import {
+  getCompletionGateError,
+  mergeProjectSettings,
+  requirePlanningCapability,
+  requirePlanningEntityCapability,
+  requireProjectModule,
+  validateProjectSettings,
+} from "./project-settings";
 
 /**
  * Extract the current application's user identity. The existing internal API
@@ -172,7 +180,7 @@ export function registerPlanningRoutes(app: Express) {
   // All routes in this router require application auth + project membership.
   // Typed as `any` so TypeScript doesn't complain about merged params shape.
   const router: any = Router({ mergeParams: true });
-  router.use(requireAuth, requireProjectMember);
+  router.use(requireAuth, requireProjectMember, requireProjectModule("planning", "projectId"));
 
   // ── Planning Tree (single call fetches entire hierarchy) ──────────────────
   router.get("/tree", async (req: any, res: any) => {
@@ -190,7 +198,18 @@ export function registerPlanningRoutes(app: Express) {
           db.select().from(planningDependencies).where(eq(planningDependencies.project_id, projectId)).orderBy(asc((planningDependencies as any).sort_order), asc(planningDependencies.created_at)),
           db.select().from(planningMethodologyConfigs).where(eq(planningMethodologyConfigs.project_id, projectId)).limit(1),
         ]);
-      res.json({ phases, stages, milestones, featureGroups, features, stories, dependencies: deps, config: config[0] ?? null });
+      const savedSettings = await storage.getProjectSettings(projectId);
+      const settings = mergeProjectSettings(savedSettings?.settings);
+      const effectiveConfig = config[0]
+        ? { ...config[0], methodology: settings.planning.methodology }
+        : {
+            project_id: projectId,
+            methodology: settings.planning.methodology,
+            methodology_version: "1.0",
+            config_snapshot: null,
+            notes: null,
+          };
+      res.json({ phases, stages, milestones, featureGroups, features, stories, dependencies: deps, config: effectiveConfig });
     } catch (err: any) {
       console.error("Planning tree error:", err);
       res.status(500).json({ error: "Failed to load planning tree" });
@@ -246,7 +265,17 @@ export function registerPlanningRoutes(app: Express) {
     try {
       const { projectId } = req.params;
       const rows = await db.select().from(planningMethodologyConfigs).where(eq(planningMethodologyConfigs.project_id, projectId)).limit(1);
-      res.json(rows[0] ?? null);
+      const savedSettings = await storage.getProjectSettings(projectId);
+      const settings = mergeProjectSettings(savedSettings?.settings);
+      res.json(rows[0]
+        ? { ...rows[0], methodology: settings.planning.methodology }
+        : {
+            project_id: projectId,
+            methodology: settings.planning.methodology,
+            methodology_version: "1.0",
+            config_snapshot: null,
+            notes: null,
+          });
     } catch (err: any) {
       res.status(500).json({ error: "Failed to load config" });
     }
@@ -257,6 +286,18 @@ export function registerPlanningRoutes(app: Express) {
       const { projectId } = req.params;
       const userId = getAuthenticatedUserId(req);
       const { methodology, methodology_version, config_snapshot, notes } = req.body;
+      const savedSettings = await storage.getProjectSettings(projectId);
+      const currentSettings = mergeProjectSettings(savedSettings?.settings);
+      const nextSettings = mergeProjectSettings({
+        ...currentSettings,
+        planning: {
+          ...currentSettings.planning,
+          methodology: methodology ?? "manual",
+        },
+      });
+      const validation = validateProjectSettings(nextSettings);
+      if (validation.error) return res.status(400).json({ error: validation.error });
+      await storage.saveProjectSettings(projectId, nextSettings, userId ?? "system");
       const existing = await db.select().from(planningMethodologyConfigs).where(eq(planningMethodologyConfigs.project_id, projectId)).limit(1);
       if (existing.length) {
         const updated = await db.update(planningMethodologyConfigs).set({
@@ -286,7 +327,7 @@ export function registerPlanningRoutes(app: Express) {
     } catch (err: any) { res.status(500).json({ error: "Failed to load phases" }); }
   });
 
-  router.post("/phases", async (req: any, res: any) => {
+  router.post("/phases", requirePlanningCapability("allowPhases"), async (req: any, res: any) => {
     try {
       const { projectId } = req.params;
       const maxOrder = await db.select({ max: sql<number>`coalesce(max(sort_order),0)` }).from(planningPhases).where(eq(planningPhases.project_id, projectId));
@@ -305,7 +346,7 @@ export function registerPlanningRoutes(app: Express) {
     } catch (err: any) { res.status(500).json({ error: "Failed to create phase" }); }
   });
 
-  router.put("/phases/:id", async (req: any, res: any) => {
+  router.put("/phases/:id", requirePlanningCapability("allowPhases"), async (req: any, res: any) => {
     try {
       const row = await db.update(planningPhases).set({
         name: req.body.name,
@@ -323,7 +364,7 @@ export function registerPlanningRoutes(app: Express) {
     } catch (err: any) { res.status(500).json({ error: "Failed to update phase" }); }
   });
 
-  router.delete("/phases/:id", async (req: any, res: any) => {
+  router.delete("/phases/:id", requirePlanningCapability("allowPhases"), async (req: any, res: any) => {
     try {
       await db.delete(planningPhases).where(and(eq(planningPhases.id, req.params.id), eq(planningPhases.project_id, req.params.projectId)));
       res.json({ ok: true });
@@ -338,7 +379,7 @@ export function registerPlanningRoutes(app: Express) {
     } catch (err: any) { res.status(500).json({ error: "Failed to load stages" }); }
   });
 
-  router.post("/stages", async (req: any, res: any) => {
+  router.post("/stages", requirePlanningCapability("allowStages"), async (req: any, res: any) => {
     try {
       const { projectId } = req.params;
       const maxOrder = await db.select({ max: sql<number>`coalesce(max(sort_order),0)` }).from(planningStages).where(eq(planningStages.project_id, projectId));
@@ -358,7 +399,7 @@ export function registerPlanningRoutes(app: Express) {
     } catch (err: any) { res.status(500).json({ error: "Failed to create stage" }); }
   });
 
-  router.put("/stages/:id", async (req: any, res: any) => {
+  router.put("/stages/:id", requirePlanningCapability("allowStages"), async (req: any, res: any) => {
     try {
       const row = await db.update(planningStages).set({
         name: req.body.name,
@@ -377,7 +418,7 @@ export function registerPlanningRoutes(app: Express) {
     } catch (err: any) { res.status(500).json({ error: "Failed to update stage" }); }
   });
 
-  router.delete("/stages/:id", async (req: any, res: any) => {
+  router.delete("/stages/:id", requirePlanningCapability("allowStages"), async (req: any, res: any) => {
     try {
       await db.delete(planningStages).where(and(eq(planningStages.id, req.params.id), eq(planningStages.project_id, req.params.projectId)));
       res.json({ ok: true });
@@ -392,7 +433,7 @@ export function registerPlanningRoutes(app: Express) {
     } catch (err: any) { res.status(500).json({ error: "Failed to load user stories" }); }
   });
 
-  router.post("/user-stories", async (req: any, res: any) => {
+  router.post("/user-stories", requirePlanningCapability("allowUserStories"), async (req: any, res: any) => {
     try {
       const { projectId } = req.params;
       const count = await db.select({ cnt: sql<number>`count(*)` }).from(userStories).where(eq(userStories.project_id, projectId));
@@ -418,7 +459,7 @@ export function registerPlanningRoutes(app: Express) {
     } catch (err: any) { res.status(500).json({ error: "Failed to create user story" }); }
   });
 
-  router.put("/user-stories/:id", async (req: any, res: any) => {
+  router.put("/user-stories/:id", requirePlanningCapability("allowUserStories"), async (req: any, res: any) => {
     try {
       const row = await db.update(userStories).set({
         title: req.body.title,
@@ -440,7 +481,7 @@ export function registerPlanningRoutes(app: Express) {
     } catch (err: any) { res.status(500).json({ error: "Failed to update user story" }); }
   });
 
-  router.delete("/user-stories/:id", async (req: any, res: any) => {
+  router.delete("/user-stories/:id", requirePlanningCapability("allowUserStories"), async (req: any, res: any) => {
     try {
       await db.delete(userStories).where(and(eq(userStories.id, req.params.id), eq(userStories.project_id, req.params.projectId)));
       res.json({ ok: true });
@@ -448,7 +489,7 @@ export function registerPlanningRoutes(app: Express) {
   });
 
   // ── Dependencies CRUD ─────────────────────────────────────────────────────
-  router.get("/dependencies", async (req: any, res: any) => {
+  router.get("/dependencies", requirePlanningCapability("allowDependencies"), async (req: any, res: any) => {
     try {
       const rows = await db.select().from(planningDependencies)
         .where(eq(planningDependencies.project_id, req.params.projectId))
@@ -457,7 +498,7 @@ export function registerPlanningRoutes(app: Express) {
     } catch (err: any) { res.status(500).json({ error: "Failed to load dependencies" }); }
   });
 
-  router.post("/dependencies", async (req: any, res: any) => {
+  router.post("/dependencies", requirePlanningCapability("allowDependencies"), async (req: any, res: any) => {
     try {
       const { projectId } = req.params;
       const { source_id, source_type, target_id, target_type, dependency_type } = req.body;
@@ -612,7 +653,7 @@ export function registerPlanningRoutes(app: Express) {
     } catch (err: any) { res.status(500).json({ error: "Failed to create dependency" }); }
   });
 
-  router.delete("/dependencies/:id", async (req: any, res: any) => {
+  router.delete("/dependencies/:id", requirePlanningCapability("allowDependencies"), async (req: any, res: any) => {
     try {
       await db.delete(planningDependencies).where(and(eq(planningDependencies.id, req.params.id), eq(planningDependencies.project_id, req.params.projectId)));
       res.json({ ok: true });
@@ -620,7 +661,7 @@ export function registerPlanningRoutes(app: Express) {
   });
 
   /** PATCH /dependencies/:id — update dependency_type inline without deleting the row */
-  router.patch("/dependencies/:id", async (req: any, res: any) => {
+  router.patch("/dependencies/:id", requirePlanningCapability("allowDependencies"), async (req: any, res: any) => {
     try {
       const { projectId, id } = req.params;
       const { dependency_type } = req.body;
@@ -639,7 +680,7 @@ export function registerPlanningRoutes(app: Express) {
   });
 
   /** PUT /dependencies/reorder — persist display sort_order from the Dependencies panel */
-  router.put("/dependencies/reorder", async (req: any, res: any) => {
+  router.put("/dependencies/reorder", requirePlanningCapability("allowDependencies"), async (req: any, res: any) => {
     try {
       const { projectId } = req.params;
       const { order } = req.body; // [{ id: string, sort_order: number }]
@@ -670,10 +711,19 @@ export function registerPlanningRoutes(app: Express) {
   });
 
   // ── Unified quick-edit PATCH ──────────────────────────────────────────────
-  router.patch("/quick-edit/:entityType/:id", async (req: any, res: any) => {
+  router.patch("/quick-edit/:entityType/:id", requirePlanningEntityCapability(), async (req: any, res: any) => {
     try {
       const { projectId, entityType, id } = req.params;
       const body = req.body;
+      if (entityType === "milestone" || entityType === "feature") {
+        const gateError = await getCompletionGateError(
+          req.projectContext,
+          projectId,
+          entityType,
+          body?.status,
+        );
+        if (gateError) return res.status(409).json({ error: gateError });
+      }
 
       const dateField = (v: any) => (v === null || v === "" ? null : new Date(v));
       const merge = (allowed: string[]) => {
@@ -727,8 +777,15 @@ export function registerPlanningRoutes(app: Express) {
   });
 
   // ── Planning entity patches (legacy — kept for NodeSheet compatibility) ────
-  router.patch("/milestones/:id", async (req: any, res: any) => {
+  router.patch("/milestones/:id", requirePlanningCapability("allowMilestones"), async (req: any, res: any) => {
     try {
+      const gateError = await getCompletionGateError(
+        req.projectContext,
+        req.params.projectId,
+        "milestone",
+        req.body?.status,
+      );
+      if (gateError) return res.status(409).json({ error: gateError });
       const update: Record<string, any> = { updated_at: new Date() };
       const fields = ["phase_id", "stage_id", "planning_status", "estimated_hours", "owner_id",
                       "date_mode", "start_date", "end_date"];
@@ -744,7 +801,7 @@ export function registerPlanningRoutes(app: Express) {
     } catch (err: any) { res.status(500).json({ error: "Failed to update milestone planning" }); }
   });
 
-  router.patch("/feature-groups/:id", async (req: any, res: any) => {
+  router.patch("/feature-groups/:id", requirePlanningCapability("allowFeatureGroups"), async (req: any, res: any) => {
     try {
       const update: Record<string, any> = { updated_at: new Date() };
       const fields = ["phase_id", "stage_id", "milestone_id", "planning_status", "estimated_hours", "owner_id", "sort_order", "start_date", "end_date"];
@@ -777,7 +834,7 @@ export function registerPlanningRoutes(app: Express) {
   });
 
   // ── AI Proposals ──────────────────────────────────────────────────────────
-  router.post("/ai-propose", handleAiDocumentUpload, async (req: any, res: any) => {
+  router.post("/ai-propose", requirePlanningCapability("allowAiPlanning"), handleAiDocumentUpload, async (req: any, res: any) => {
     try {
       const { projectId } = req.params;
       const userId = getAuthenticatedUserId(req);
@@ -895,7 +952,7 @@ Only propose items that do not already exist. Be precise and professional.`;
     } catch (err: any) { res.status(500).json({ error: "Failed to load proposal" }); }
   });
 
-  router.put("/ai-proposals/:id/review", async (req: any, res: any) => {
+  router.put("/ai-proposals/:id/review", requirePlanningCapability("allowPlanningApproval"), async (req: any, res: any) => {
     try {
       const { projectId } = req.params;
       const { accepted_item_ids, action } = req.body;
@@ -945,7 +1002,7 @@ Only propose items that do not already exist. Be precise and professional.`;
     }
   });
 
-  router.patch("/ai-proposals/:proposalId/items/:itemId", async (req: any, res: any) => {
+  router.patch("/ai-proposals/:proposalId/items/:itemId", requirePlanningCapability("allowPlanningApproval"), async (req: any, res: any) => {
     try {
       const { itemId, proposalId, projectId } = req.params;
       // Verify proposal belongs to project
