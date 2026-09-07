@@ -37,6 +37,7 @@ import type {
   ProjectMilestone, MilestoneStage, ProjectTemplateStage,
   ProjectFeatureGroup, ProjectFeature, User, Task, TaskStatus,
 } from "@shared/schema";
+import { STANDARD_PROJECT_ROLES } from "@shared/project-roles";
 
 const STATUS_COLORS: Record<string, string> = {
   planning: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
@@ -331,6 +332,7 @@ export default function ProjectDetail() {
     queryFn: () => apiClient.get(`/project-templates/${project?.template_id}/roles`),
     enabled: !!project?.template_id,
   });
+  const activeTemplateRoles = templateRoles.filter((role: any) => role.is_active !== false);
 
   const { data: clients = [] } = useQuery<any[]>({
     queryKey: ["/api/clients"],
@@ -1952,19 +1954,36 @@ export default function ProjectDetail() {
             </div>
             <div className="space-y-1">
               <Label className="text-xs font-semibold">Project-Specific Title</Label>
-              {templateRoles.length > 0 ? (
+              {activeTemplateRoles.length > 0 ? (
                 <Select value={memberForm.project_role || "none"} onValueChange={(v) => setMemberForm(p => ({ ...p, project_role: v === "none" ? "" : v }))}>
                   <SelectTrigger><SelectValue placeholder="Select a template role" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">No project title</SelectItem>
-                    {templateRoles.filter((role: any) => role.is_active !== false).map((role: any) => (
+                    {activeTemplateRoles.map((role: any) => (
                       <SelectItem key={role.id} value={role.title}>{role.title}{role.is_quality_analyst ? " · QA" : ""}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               ) : (
-                <Input placeholder="Configure roles in the selected project template" value={memberForm.project_role}
-                  onChange={(e) => setMemberForm(p => ({ ...p, project_role: e.target.value }))} />
+                <>
+                  <Input
+                    list="project-role-suggestions"
+                    placeholder="Type or choose a project title"
+                    value={memberForm.project_role}
+                    onChange={(e) => setMemberForm(p => ({ ...p, project_role: e.target.value }))}
+                  />
+                  <datalist id="project-role-suggestions">
+                    {STANDARD_PROJECT_ROLES.map((role) => <option key={role.title} value={role.title} />)}
+                  </datalist>
+                  <p className="text-[10px] text-muted-foreground">
+                    No active template roles are configured. Choose a standard title suggestion or type a custom project title.
+                  </p>
+                </>
+              )}
+              {activeTemplateRoles.length > 0 && (
+                <p className="text-[10px] text-muted-foreground">
+                  Select an active role from the project template. Quality Analyst titles can approve release QA.
+                </p>
               )}
             </div>
             <div className="space-y-1">
