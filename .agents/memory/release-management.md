@@ -20,3 +20,9 @@ Project templates start with a broad industry-standard delivery-role catalog, wh
 **Why:** Projects need a useful baseline without restricting organizations that use different delivery structures.
 
 **How to apply:** Seed standard roles idempotently for existing and new templates; use the template role records as the source of truth for member title selection.
+
+Role creation must tolerate retries and seeded-role collisions by treating `(template, title)` as an idempotent key and returning the existing role when it is already present.
+
+**Why:** The standard catalog is seeded before administrators interact with the template, so a quick-add action can legitimately target an existing role.
+
+**How to apply:** Use conflict-safe inserts in both seed and interactive paths; never let a duplicate role request terminate the application process.
