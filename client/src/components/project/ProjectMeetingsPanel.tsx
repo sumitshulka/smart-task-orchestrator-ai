@@ -159,17 +159,17 @@ export default function ProjectMeetingsPanel({ projectId }: { projectId: string 
           </div>
 
           <div className="grid gap-3 sm:grid-cols-3">
-            <Card><CardContent className="p-4"><p className="text-xs font-medium uppercase tracking-wide text-gray-500">Upcoming</p><p className="mt-1 text-2xl font-semibold">{upcomingCount}</p><p className="mt-1 text-xs text-gray-500">Meetings still to come</p></CardContent></Card>
-            <Card><CardContent className="p-4"><p className="text-xs font-medium uppercase tracking-wide text-gray-500">Open actions</p><p className="mt-1 text-2xl font-semibold">{openActionTotal}</p><p className="mt-1 text-xs text-gray-500">Across this register</p></CardContent></Card>
-            <Card><CardContent className="p-4"><p className="text-xs font-medium uppercase tracking-wide text-gray-500">Completed</p><p className="mt-1 text-2xl font-semibold">{completedCount}</p><p className="mt-1 text-xs text-gray-500">Meetings with captured history</p></CardContent></Card>
+            <div className="rounded-2xl bg-indigo-50/80 p-4 dark:bg-indigo-950/25"><div className="flex items-center gap-2 text-indigo-700 dark:text-indigo-300"><Calendar className="h-4 w-4" /><p className="text-xs font-semibold uppercase tracking-wide">Upcoming</p></div><p className="mt-2 text-2xl font-semibold text-gray-950 dark:text-white">{upcomingCount}</p><p className="mt-1 text-xs text-gray-500">Meetings still to come</p></div>
+            <div className="rounded-2xl bg-amber-50/80 p-4 dark:bg-amber-950/25"><div className="flex items-center gap-2 text-amber-700 dark:text-amber-300"><ListChecks className="h-4 w-4" /><p className="text-xs font-semibold uppercase tracking-wide">Open actions</p></div><p className="mt-2 text-2xl font-semibold text-gray-950 dark:text-white">{openActionTotal}</p><p className="mt-1 text-xs text-gray-500">Across this register</p></div>
+            <div className="rounded-2xl bg-emerald-50/80 p-4 dark:bg-emerald-950/25"><div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-300"><Check className="h-4 w-4" /><p className="text-xs font-semibold uppercase tracking-wide">Completed</p></div><p className="mt-2 text-2xl font-semibold text-gray-950 dark:text-white">{completedCount}</p><p className="mt-1 text-xs text-gray-500">Meetings with captured history</p></div>
           </div>
 
-          <Card className="flex min-h-0 flex-1 flex-col overflow-hidden">
-            <CardHeader className="border-b pb-4">
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl bg-white/80 shadow-sm dark:bg-gray-950/60">
+            <div className="px-5 pb-4 pt-5">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <CardTitle className="text-base">Meeting register</CardTitle>
-                  <CardDescription className="mt-1">{displayedMeetings.length} {displayedMeetings.length === 1 ? "meeting" : "meetings"} in this view</CardDescription>
+                  <h3 className="text-lg font-semibold text-gray-950 dark:text-white">Meeting register</h3>
+                  <p className="mt-1 text-sm text-gray-500">{displayedMeetings.length} {displayedMeetings.length === 1 ? "meeting" : "meetings"} in this view</p>
                 </div>
                 <Button variant="ghost" size="icon" onClick={() => meetingsQuery.refetch()} aria-label="Refresh meetings"><RefreshCw className="h-4 w-4" /></Button>
               </div>
@@ -177,8 +177,8 @@ export default function ProjectMeetingsPanel({ projectId }: { projectId: string 
                 <Input className="min-w-[240px] flex-1" placeholder="Search by title or description..." value={search} onChange={(event) => setSearch(event.target.value)} />
                 <Select value={statusFilter} onValueChange={setStatusFilter}><SelectTrigger className="w-full sm:w-[180px]"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">All statuses</SelectItem>{Object.entries(STATUS_META).map(([value, meta]) => <SelectItem key={value} value={value}>{meta.label}</SelectItem>)}</SelectContent></Select>
               </div>
-            </CardHeader>
-            <CardContent className="min-h-0 flex-1 overflow-auto p-0">
+            </div>
+            <div className="min-h-0 flex-1 overflow-auto">
               {meetingsQuery.isLoading && <p className="p-6 text-sm text-gray-500">Loading meetings...</p>}
               {!meetingsQuery.isLoading && !displayedMeetings.length && <div className="m-6 rounded-xl border border-dashed p-10 text-center"><Calendar className="mx-auto mb-3 h-8 w-8 text-gray-300" /><p className="text-sm font-medium">No meetings yet</p><p className="mt-1 text-xs text-gray-500">Schedule the first project meeting.</p></div>}
               {!!displayedMeetings.length && (
@@ -200,8 +200,8 @@ export default function ProjectMeetingsPanel({ projectId }: { projectId: string 
                   ))}
                 </div>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </>
       )}
 
@@ -322,7 +322,7 @@ function MeetingWorkspace({ projectId, detail, options, onRefresh, onStatus }: {
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto pr-1">
-      <Card className="w-full">
+      <Card className="w-full border-0 shadow-none">
         <CardHeader className="relative overflow-hidden border-b bg-gradient-to-br from-indigo-50 via-white to-cyan-50 p-5 dark:from-indigo-950/40 dark:via-gray-950 dark:to-cyan-950/30 sm:p-7">
           <div className="pointer-events-none absolute -right-20 -top-24 h-64 w-64 rounded-full bg-indigo-200/30 blur-3xl dark:bg-indigo-500/10" />
           <div className="relative">
@@ -342,9 +342,9 @@ function MeetingWorkspace({ projectId, detail, options, onRefresh, onStatus }: {
             </div>
           </div>
         </CardHeader>
-        <CardContent className="space-y-4 bg-gray-50/50 p-4 dark:bg-gray-950/20 sm:p-6">
-          {meeting.description && <div className="rounded-2xl border bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-950"><p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-indigo-600 dark:text-indigo-400">Purpose & context</p><p className="whitespace-pre-wrap text-sm leading-6 text-gray-700 dark:text-gray-300">{meeting.description}</p></div>}
-          <section className="rounded-2xl border bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-950/70 sm:p-5">
+        <CardContent className="space-y-0 bg-white p-4 dark:bg-gray-950 sm:p-6">
+          {meeting.description && <div className="mb-1 border-l-4 border-indigo-400 bg-indigo-50/60 px-5 py-4 dark:bg-indigo-950/20"><p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-indigo-600 dark:text-indigo-400">Purpose & context</p><p className="whitespace-pre-wrap text-sm leading-6 text-gray-700 dark:text-gray-300">{meeting.description}</p></div>}
+          <section className="border-b border-gray-200/80 py-6 dark:border-gray-800">
             <div className="flex items-start justify-between gap-3">
               <SectionHeading icon={<Users className="h-4 w-4" />} title="Attendance" count={detail.attendees.length} description="Track who participated and how they attended." />
               {options.canManage && <Button size="sm" variant="outline" onClick={() => setShowAttendeePicker((current) => !current)}>
@@ -412,7 +412,7 @@ function MeetingWorkspace({ projectId, detail, options, onRefresh, onStatus }: {
               ))}
             </div>
           </section>
-          <section className="rounded-2xl border bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-950/70 sm:p-5">
+          <section className="border-b border-gray-200/80 py-6 dark:border-gray-800">
             <SectionHeading icon={<ListChecks className="h-4 w-4" />} title="Agenda" count={detail.agenda.length} description="Topics planned for the session." />
             <div className="space-y-2">
               {detail.agenda.map((item: any, index: number) => (
@@ -427,10 +427,22 @@ function MeetingWorkspace({ projectId, detail, options, onRefresh, onStatus }: {
               </div>
             </div>
           </section>
-          <section className="rounded-2xl border bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-950/70 sm:p-5"><SectionHeading icon={<MessageSquare className="h-4 w-4" />} title="Discussion & decisions" count={detail.discussions.length + detail.decisions.length} description="Capture what was discussed and what was agreed." /><div className="grid gap-3 lg:grid-cols-2"><div className="space-y-2">{detail.discussions.map((item: any) => <div key={item.id} className="rounded-xl border bg-gray-50/70 p-3 dark:border-gray-800 dark:bg-gray-900/50"><p className="font-medium">{item.topic}</p><p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-gray-600 dark:text-gray-300">{item.discussion || "No notes recorded."}</p>{item.decision && <p className="mt-2 text-sm font-medium text-indigo-700 dark:text-indigo-300">Decision: {item.decision}</p>}</div>)}<div className="flex gap-2"><Input value={discussionTopic} onChange={(e) => setDiscussionTopic(e.target.value)} placeholder="Capture a discussion topic..." /><Button variant="outline" onClick={() => { if (discussionTopic.trim()) { add.mutate({ endpoint: "discussions", data: { topic: discussionTopic } }); setDiscussionTopic(""); } }}><Plus className="h-4 w-4" /></Button></div></div><div className="space-y-2">{detail.decisions.map((item: any) => <div key={item.id} className="rounded-xl border bg-gray-50/70 p-3 dark:border-gray-800 dark:bg-gray-900/50"><div className="flex items-start justify-between gap-2"><p className="font-medium">{item.title}</p><Badge variant="outline">{item.status}</Badge></div>{item.description && <p className="mt-1 text-sm text-gray-600">{item.description}</p>}</div>)}<div className="flex gap-2"><Input value={decisionTitle} onChange={(e) => setDecisionTitle(e.target.value)} placeholder="Record a decision..." /><Button variant="outline" onClick={() => { if (decisionTitle.trim()) { add.mutate({ endpoint: "decisions", data: { title: decisionTitle, status: "approved" } }); setDecisionTitle(""); } }}><Plus className="h-4 w-4" /></Button></div></div></div></section>
-          <section className="rounded-2xl border bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-950/70 sm:p-5"><SectionHeading icon={<Check className="h-4 w-4" />} title="Action items" count={detail.actions.length} description="Turn meeting outcomes into clear ownership and follow-through." /><div className="space-y-2">{detail.actions.map((action: any) => { const overdue = action.due_date && new Date(action.due_date) < new Date() && !["completed", "cancelled"].includes(action.status); return <div key={action.id} className={`flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3 ${overdue ? "border-red-200 bg-red-50/60 dark:border-red-900/50 dark:bg-red-950/20" : "bg-gray-50/70 dark:border-gray-800 dark:bg-gray-900/50"}`}><div className="min-w-0"><p className="font-medium">{action.title}</p><p className={`mt-1 text-xs ${overdue ? "font-semibold text-red-600" : "text-gray-500"}`}>{action.due_date ? `Due ${new Date(action.due_date).toLocaleDateString()}` : "No due date"} · {action.priority} priority{action.linked_task_id ? " · Task linked" : ""}</p></div><div className="flex items-center gap-2"><Select value={action.status} onValueChange={(value) => updateAction.mutate({ actionId: action.id, data: { status: value } })}><SelectTrigger className="h-8 w-[125px] text-xs"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="open">Open</SelectItem><SelectItem value="in_progress">In progress</SelectItem><SelectItem value="completed">Completed</SelectItem><SelectItem value="cancelled">Cancelled</SelectItem></SelectContent></Select>{!action.linked_task_id && <Button size="sm" variant="outline" onClick={() => apiClient.post(`/projects/${projectId}/meetings/${meeting.id}/actions/${action.id}/create-task`).then(onRefresh)}><Link2 className="mr-1 h-3.5 w-3.5" />Task</Button>}</div></div>; })}</div><div className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_180px_auto]"><Input value={actionTitle} onChange={(e) => setActionTitle(e.target.value)} placeholder="Add an action item (project owner required)" onKeyDown={(event) => { if (event.key === "Enter") addActionItem(); }} /><Input type="date" value={actionDueDate} onChange={(e) => setActionDueDate(e.target.value)} aria-label="Action due date" title="Optional action due date" /><Button variant="outline" onClick={addActionItem}><Plus className="mr-1.5 h-4 w-4" />Add</Button></div></section>
-          <section className="rounded-2xl border bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-950/70 sm:p-5"><div className="flex items-center justify-between"><SectionHeading icon={<FileText className="h-4 w-4" />} title="Minutes" count={meeting.minutes_status === "published" ? 1 : 0} description="Save a working draft or publish the client-ready record." /><Button variant="ghost" size="sm" onClick={() => setShowMinutes(!showMinutes)}>{showMinutes ? "Collapse" : "Open"}</Button></div>{showMinutes && <div className="space-y-3 rounded-xl border bg-gray-50/60 p-4 dark:border-gray-800 dark:bg-gray-900/30"><Textarea value={summary} onChange={(e) => setSummary(e.target.value)} placeholder="Meeting summary..." className="min-h-[100px] bg-white dark:bg-gray-950" /><Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Additional notes..." className="min-h-[80px] bg-white dark:bg-gray-950" /><div className="flex flex-wrap gap-2"><Button onClick={() => save.mutate({ summary, additionalNotes: notes })} disabled={save.isPending}><FileText className="mr-1.5 h-4 w-4" />Save draft</Button><Button variant="outline" onClick={() => apiClient.post(`/projects/${projectId}/meetings/${meeting.id}/publish-minutes`).then(onRefresh)}><Send className="mr-1.5 h-4 w-4" />Publish minutes</Button><Button variant="outline" onClick={() => downloadMeetingFile(projectId, meeting.id, "pdf")}><Download className="mr-1.5 h-4 w-4" />Export PDF</Button></div></div>}</section>
-          <section className="rounded-2xl border bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-950/70 sm:p-5"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-sm font-semibold">Resources & links</p><p className="mt-1 text-xs text-gray-500">Files and meeting access points connected to this record.</p></div><div className="flex flex-wrap items-center gap-4 text-xs text-gray-500"><span><Paperclip className="mr-1 inline h-3.5 w-3.5" />Workspace attachments</span>{meeting.meeting_link && <a className="text-indigo-600 hover:underline" href={meeting.meeting_link} target="_blank" rel="noreferrer"><Link2 className="mr-1 inline h-3.5 w-3.5" />Open meeting link</a>}</div></div></section>
+          <section className="border-b border-gray-200/80 py-6 dark:border-gray-800"><SectionHeading icon={<MessageSquare className="h-4 w-4" />} title="Discussion & decisions" count={detail.discussions.length + detail.decisions.length} description="Capture what was discussed and what was agreed." /><div className="grid gap-5 lg:grid-cols-2"><div className="space-y-2">{detail.discussions.map((item: any) => <div key={item.id} className="border-l-2 border-indigo-200 bg-indigo-50/30 px-4 py-3 dark:border-indigo-900/70 dark:bg-indigo-950/15"><p className="font-medium">{item.topic}</p><p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-gray-600 dark:text-gray-300">{item.discussion || "No notes recorded."}</p>{item.decision && <p className="mt-2 text-sm font-medium text-indigo-700 dark:text-indigo-300">Decision: {item.decision}</p>}</div>)}<div className="flex gap-2"><Input value={discussionTopic} onChange={(e) => setDiscussionTopic(e.target.value)} placeholder="Capture a discussion topic..." /><Button variant="outline" onClick={() => { if (discussionTopic.trim()) { add.mutate({ endpoint: "discussions", data: { topic: discussionTopic } }); setDiscussionTopic(""); } }}><Plus className="h-4 w-4" /></Button></div></div><div className="space-y-2">{detail.decisions.map((item: any) => <div key={item.id} className="bg-gray-50/80 px-4 py-3 dark:bg-gray-900/50"><div className="flex items-start justify-between gap-2"><p className="font-medium">{item.title}</p><Badge variant="outline">{item.status}</Badge></div>{item.description && <p className="mt-1 text-sm text-gray-600">{item.description}</p>}</div>)}<div className="flex gap-2"><Input value={decisionTitle} onChange={(e) => setDecisionTitle(e.target.value)} placeholder="Record a decision..." /><Button variant="outline" onClick={() => { if (decisionTitle.trim()) { add.mutate({ endpoint: "decisions", data: { title: decisionTitle, status: "approved" } }); setDecisionTitle(""); } }}><Plus className="h-4 w-4" /></Button></div></div></div></section>
+          <section className="border-b border-gray-200/80 py-6 dark:border-gray-800"><SectionHeading icon={<Check className="h-4 w-4" />} title="Action items" count={detail.actions.length} description="Turn meeting outcomes into clear ownership and follow-through." /><div className="space-y-2">{detail.actions.map((action: any) => { const overdue = action.due_date && new Date(action.due_date) < new Date() && !["completed", "cancelled"].includes(action.status); return <div key={action.id} className={`flex flex-wrap items-center justify-between gap-3 px-4 py-3 ${overdue ? "border-l-2 border-red-400 bg-red-50/60 dark:bg-red-950/20" : "bg-gray-50/70 dark:bg-gray-900/50"}`}><div className="min-w-0"><p className="font-medium">{action.title}</p><p className={`mt-1 text-xs ${overdue ? "font-semibold text-red-600" : "text-gray-500"}`}>{action.due_date ? `Due ${new Date(action.due_date).toLocaleDateString()}` : "No due date"} · {action.priority} priority{action.linked_task_id ? " · Task linked" : ""}</p></div><div className="flex items-center gap-2"><Select value={action.status} onValueChange={(value) => updateAction.mutate({ actionId: action.id, data: { status: value } })}><SelectTrigger className="h-8 w-[125px] text-xs"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="open">Open</SelectItem><SelectItem value="in_progress">In progress</SelectItem><SelectItem value="completed">Completed</SelectItem><SelectItem value="cancelled">Cancelled</SelectItem></SelectContent></Select>{!action.linked_task_id && <Button size="sm" variant="outline" onClick={() => apiClient.post(`/projects/${projectId}/meetings/${meeting.id}/actions/${action.id}/create-task`).then(onRefresh)}><Link2 className="mr-1 h-3.5 w-3.5" />Task</Button>}</div></div>; })}</div><div className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_180px_auto]"><Input value={actionTitle} onChange={(e) => setActionTitle(e.target.value)} placeholder="Add an action item (project owner required)" onKeyDown={(event) => { if (event.key === "Enter") addActionItem(); }} /><Input type="date" value={actionDueDate} onChange={(e) => setActionDueDate(e.target.value)} aria-label="Action due date" title="Optional action due date" /><Button variant="outline" onClick={addActionItem}><Plus className="mr-1.5 h-4 w-4" />Add</Button></div></section>
+          <MinutesSection
+            showMinutes={showMinutes}
+            setShowMinutes={setShowMinutes}
+            summary={summary}
+            notes={notes}
+            setSummary={setSummary}
+            setNotes={setNotes}
+            meeting={meeting}
+            save={save}
+            projectId={projectId}
+            onRefresh={onRefresh}
+            downloadPdf={() => downloadMeetingFile(projectId, meeting.id, "pdf")}
+          />
+          <section className="py-5"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-sm font-semibold">Resources & links</p><p className="mt-1 text-xs text-gray-500">Files and meeting access points connected to this record.</p></div><div className="flex flex-wrap items-center gap-4 text-xs text-gray-500"><span><Paperclip className="mr-1 inline h-3.5 w-3.5" />Workspace attachments</span>{meeting.meeting_link && <a className="text-indigo-600 hover:underline" href={meeting.meeting_link} target="_blank" rel="noreferrer"><Link2 className="mr-1 inline h-3.5 w-3.5" />Open meeting link</a>}</div></div></section>
         </CardContent>
       </Card>
     </div>
