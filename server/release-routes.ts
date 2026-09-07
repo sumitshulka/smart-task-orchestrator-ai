@@ -290,21 +290,45 @@ export function registerReleaseRoutes(app: Express) {
       return res.status(403).json({ error: "Only the project manager or a system admin can create releases" });
     }
     const { name, comment, milestoneIds = [], items = [], documents = [] } = req.body ?? {};
+    const requestedMilestoneIds = Array.from(new Set(
+      (Array.isArray(milestoneIds) ? milestoneIds : []).map((id: unknown) => String(id)),
+    ));
     const savedSettings = await storage.getProjectSettings(req.params.projectId);
     const repositoryStartingVersion = mergeProjectSettings(savedSettings?.settings).releaseManagement.repository.startingVersion;
     const version = String(req.body?.version ?? "").trim() || repositoryStartingVersion;
     if (!String(name ?? "").trim() || !String(comment ?? "").trim()) {
       return res.status(400).json({ error: "Release name, version, and comment are required" });
     }
-    if (!Array.isArray(milestoneIds) || milestoneIds.length === 0) {
+    if (requestedMilestoneIds.length === 0) {
       return res.status(400).json({ error: "Attach at least one milestone to a release" });
     }
     const milestones = await db.select().from(projectMilestones).where(and(
       eq(projectMilestones.project_id, req.params.projectId),
-      inArray(projectMilestones.id, milestoneIds),
+      inArray(projectMilestones.id, requestedMilestoneIds),
     ));
-    if (milestones.length !== milestoneIds.length) return res.status(400).json({ error: "Every milestone must belong to this project" });
+    if (milestones.length !== requestedMilestoneIds.length) return res.status(400).json({ error: "Every milestone must belong to this project" });
 
+    const allowedTypes = new Set(["feature", "user_story", "task"]);
+    const availableScope = await availableReleaseScope(req.params.projectId);
+    const availableMilestoneIds = new Set(availableScope.milestones.map((milestone) => milestone.id));
+    const unavailableMilestones = requestedMilestoneIds.filter((id) => !availableMilestoneIds.has(id));
+    if (unavailableMilestones.length) {
+      return res.status(400).json({ error: "One or more milestones have no open, unassigned release scope" });
+    }
+    const availableItemKeys = new Set<string>();
+    availableScope.features.forEach((feature) => availableItemKeys.add(releaseItemKey("feature", feature.id)));
+    availableScope.stories.forEach((story) => availableItemKeys.add(releaseItemKey("user_story", story.id)));
+    availableScope.tasks.forEach((task) => availableItemKeys.add(releaseItemKey("task", task.id)));
+    const normalizedItems = Array.isArray(items) ? items
+      .filter((item: any) => allowedTypes.has(item.itemType) && requestedMilestoneIds.includes(String(item.milestoneId)) && item.itemId)
+      .map((item: any) => ({ ...item, milestoneId: String(item.milestoneId), itemId: String(item.itemId) })) : [];
+    const invalidItems = normalizedItems.filter((item: any) => !availableItemKeys.has(releaseItemKey(item.itemType, item.itemId)));
+    if (invalidItems.length) {
+      return res.status(400).json({ error: "One or more selected features, user stories, or tasks are closed or already attached to another release" });
+    }
+    const validScopeItems = Array.from(
+      new Map(normalizedItems.map((item: any) => [releaseItemKey(item.itemType, item.itemId), item])).values(),
+    );
     const release = (await db.insert(projectReleases).values({
       project_id: req.params.projectId,
       name: String(name).trim(),
@@ -312,34 +336,7 @@ export function registerReleaseRoutes(app: Express) {
       comment: String(comment).trim(),
       created_by: userId,
     }).returning()).at(0)!;
-    await db.insert(releaseMilestones).values(milestoneIds.map((milestoneId: string) => ({ release_id: release.id, milestone_id: milestoneId })));
-
-    const allowedTypes = new Set(["feature", "user_story", "task"]);
-    const normalizedItems = Array.isArray(items) ? items.filter((item: any) =>
-      allowedTypes.has(item.itemType) && milestoneIds.includes(item.milestoneId) && item.itemId,
-    ) : [];
-    const selectedFeatureGroups = await db.select().from(projectFeatureGroups)
-      .where(eq(projectFeatureGroups.project_id, req.params.projectId));
-    const featureMilestoneById = new Map(selectedFeatureGroups.map((group) => [group.id, group.milestone_id]));
-    const projectFeatureRows = await db.select().from(projectFeatures).where(eq(projectFeatures.project_id, req.params.projectId));
-    const featureById = new Map(projectFeatureRows.map((feature) => [feature.id, feature]));
-    const projectStoryRows = await db.select().from(userStories).where(eq(userStories.project_id, req.params.projectId));
-    const storyById = new Map(projectStoryRows.map((story) => [story.id, story]));
-    const projectTaskRows = await db.select().from(tasks).where(eq(tasks.project_id, req.params.projectId));
-    const taskById = new Map(projectTaskRows.map((task) => [task.id, task]));
-    const validScopeItems = normalizedItems.filter((item: any) => {
-      if (item.itemType === "feature") {
-        const feature = featureById.get(item.itemId);
-        return Boolean(feature?.feature_group_id && featureMilestoneById.get(feature.feature_group_id) === item.milestoneId);
-      }
-      if (item.itemType === "user_story") {
-        const story = storyById.get(item.itemId);
-        const feature = story?.feature_id ? featureById.get(story.feature_id) : null;
-        return Boolean(story && feature?.feature_group_id && featureMilestoneById.get(feature.feature_group_id) === item.milestoneId);
-      }
-      const task = taskById.get(item.itemId);
-      return Boolean(task && task.milestone_id === item.milestoneId);
-    });
+    await db.insert(releaseMilestones).values(requestedMilestoneIds.map((milestoneId: string) => ({ release_id: release.id, milestone_id: milestoneId })));
     const optionRows = await Promise.all(validScopeItems.map(async (item: any) => {
       const source = item.itemType === "feature"
         ? await db.select().from(projectFeatures).where(eq(projectFeatures.id, item.itemId))
