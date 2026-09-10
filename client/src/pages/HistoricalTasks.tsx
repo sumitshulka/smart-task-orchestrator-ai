@@ -2,6 +2,7 @@
 import React, { useState, useMemo } from "react";
 import { fetchTasksPaginated, FetchTasksInput, Task } from "@/integrations/supabase/tasks";
 import TaskCard from "@/components/TaskCard";
+import TaskDetailsSheet from "@/components/TaskDetailsSheet";
 import { useUsersAndTeams } from "@/hooks/useUsersAndTeams";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -50,6 +51,13 @@ export default function HistoricalTasksPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showFilters, setShowFilters] = useState(false);
   const [preset, setPreset] = useState<string>("Last Month");
+  const [detailsTask, setDetailsTask] = useState<Task | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+
+  function openDetailsForTask(task: Task) {
+    setDetailsTask(task);
+    setDetailsOpen(true);
+  }
 
   function handlePresetChange(range: { from: Date | null; to: Date | null }, p: string) {
     setPreset(p);
@@ -213,9 +221,10 @@ export default function HistoricalTasksPage() {
                   <TaskCard 
                     key={task.id} 
                     task={task} 
-                    onTaskUpdated={() => {}} 
+                      onTaskUpdated={handleSearch}
                     canDelete={() => false} 
                     statusColor={statusObj?.color}
+                      onOpenDetails={openDetailsForTask}
                     compact
                   />
                 );
@@ -232,6 +241,13 @@ export default function HistoricalTasksPage() {
           </>
         )}
       </div>
+      <TaskDetailsSheet
+        task={detailsTask}
+        open={detailsOpen}
+        onOpenChange={setDetailsOpen}
+        currentUser={user}
+        onUpdated={handleSearch}
+      />
     </div>
   );
 }
