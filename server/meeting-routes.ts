@@ -203,6 +203,120 @@ function icsDate(date: Date): string {
   return date.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
 }
 
+const PDF_NAVY = "#0b2a50";
+const PDF_BLUE = "#2f78c4";
+const PDF_PALE_BLUE = "#e7f0f8";
+const PDF_GRID = "#d6dee8";
+const PDF_TEXT = "#233044";
+const PDF_MUTED = "#64748b";
+const PDF_GREEN = "#dff3e8";
+const PDF_RED = "#fbe2e2";
+const PDF_AMBER = "#fff0c7";
+
+function pdfDate(value: unknown, withDay = true) {
+  if (!value) return "—";
+  return new Date(String(value)).toLocaleDateString("en-GB", withDay
+    ? { day: "2-digit", month: "long", year: "numeric", weekday: "long" }
+    : { day: "2-digit", month: "short", year: "numeric" });
+}
+
+function pdfTime(value: unknown) {
+  if (!value) return "—";
+  return new Date(String(value)).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+function pdfShort(value: unknown, fallback = "—") {
+  const text = String(value ?? "").trim();
+  return text || fallback;
+}
+
+function drawPdfHeader(doc: any, projectName: string) {
+  const width = doc.page.width;
+  doc.save();
+  doc.font("Helvetica-Bold").fontSize(20).fillColor(PDF_NAVY).text("TAZQ", 42, 16);
+  doc.font("Helvetica").fontSize(5.5).fillColor(PDF_MUTED).text("Plan | Execute | Deliver Together", 43, 37);
+  doc.font("Helvetica-Bold").fontSize(9).fillColor(PDF_NAVY).text("Project Meeting Record", width - 215, 18, { width: 173, align: "right" });
+  doc.font("Helvetica").fontSize(7).fillColor(PDF_MUTED).text(pdfShort(projectName, "Project"), width - 215, 33, { width: 173, align: "right" });
+  doc.strokeColor(PDF_GRID).lineWidth(0.8).moveTo(42, 51).lineTo(width - 42, 51).stroke();
+  doc.restore();
+}
+
+function drawPdfFooter(doc: any, pageNumber: number, pageCount: number) {
+  const width = doc.page.width;
+  const height = doc.page.height;
+  doc.save();
+  doc.strokeColor(PDF_GRID).lineWidth(0.6).moveTo(42, height - 35).lineTo(width - 42, height - 35).stroke();
+  doc.font("Helvetica-Bold").fontSize(7).fillColor(PDF_NAVY).text("TAZQ", 42, height - 25);
+  doc.font("Helvetica").fontSize(6.5).fillColor(PDF_MUTED).text("Project Governance & Work Execution", 67, height - 25);
+  doc.text(`Page ${pageNumber} of ${pageCount}`, width - 130, height - 25, { width: 88, align: "right" });
+  doc.restore();
+}
+
+function drawPdfSection(doc: any, number: number, title: string, y: number) {
+  const x = 42;
+  const width = doc.page.width - 84;
+  doc.save();
+  doc.fillColor(PDF_PALE_BLUE).rect(x, y, width, 23).fill();
+  doc.fillColor(PDF_NAVY).roundedRect(x, y, 23, 23, 3).fill();
+  doc.font("Helvetica-Bold").fontSize(10).fillColor("#ffffff").text(String(number), x + 7, y + 6);
+  doc.font("Helvetica-Bold").fontSize(9).fillColor(PDF_NAVY).text(title.toUpperCase(), x + 35, y + 7);
+  doc.restore();
+  return y + 31;
+}
+
+function drawPdfTable(
+  doc: any,
+  y: number,
+  columns: Array<{ label: string; width: number }>,
+  rows: string[][],
+  options: { rowHeight?: number; fontSize?: number } = {},
+) {
+  const x = 42;
+  const width = doc.page.width - 84;
+  const headerHeight = 22;
+  const rowHeight = options.rowHeight ?? 22;
+  const fontSize = options.fontSize ?? 7.5;
+  let cursor = x;
+  doc.save();
+  doc.fillColor(PDF_PALE_BLUE).rect(x, y, width, headerHeight).fill();
+  doc.font("Helvetica-Bold").fontSize(fontSize).fillColor(PDF_NAVY);
+  columns.forEach((column) => {
+    doc.text(column.label, cursor + 5, y + 7, { width: column.width - 10, height: headerHeight - 6, ellipsis: true });
+    cursor += column.width;
+  });
+  doc.strokeColor(PDF_GRID).lineWidth(0.6).rect(x, y, width, headerHeight).stroke();
+  cursor = x;
+  columns.forEach((column) => {
+    doc.moveTo(cursor, y).lineTo(cursor, y + headerHeight).stroke();
+    cursor += column.width;
+  });
+  doc.moveTo(x + width, y).lineTo(x + width, y + headerHeight).stroke();
+  rows.forEach((row, rowIndex) => {
+    const rowY = y + headerHeight + rowIndex * rowHeight;
+    doc.fillColor(rowIndex % 2 === 0 ? "#ffffff" : "#f8fafc").rect(x, rowY, width, rowHeight).fill();
+    cursor = x;
+    doc.font("Helvetica").fontSize(fontSize).fillColor(PDF_TEXT);
+    columns.forEach((column, columnIndex) => {
+      const value = pdfShort(row[columnIndex]);
+      doc.text(value, cursor + 5, rowY + 6, { width: column.width - 10, height: rowHeight - 8, ellipsis: true });
+      doc.moveTo(cursor, rowY).lineTo(cursor, rowY + rowHeight).stroke();
+      cursor += column.width;
+    });
+    doc.moveTo(cursor, rowY).lineTo(cursor, rowY + rowHeight).stroke();
+    doc.strokeColor(PDF_GRID).rect(x, rowY, width, rowHeight).stroke();
+  });
+  doc.restore();
+  return y + headerHeight + rows.length * rowHeight;
+}
+
+function drawPdfParagraph(doc: any, text: string, y: number, options: { fontSize?: number; color?: string; width?: number; lineGap?: number } = {}) {
+  const width = options.width ?? doc.page.width - 84;
+  const fontSize = options.fontSize ?? 8.5;
+  doc.font("Helvetica").fontSize(fontSize).fillColor(options.color ?? PDF_TEXT);
+  doc.text(pdfShort(text, "No notes recorded."), 42, y, { width, lineGap: options.lineGap ?? 2 });
+  return y + doc.heightOfString(pdfShort(text, "No notes recorded."), { width, lineGap: options.lineGap ?? 2 });
+}
+
 export function registerMeetingRoutes(app: Express) {
   const access = requireProjectModule("meetings", "projectId");
 
@@ -738,35 +852,148 @@ export function registerMeetingRoutes(app: Express) {
     const detail = await meetingDetail(req.params.projectId, req.params.meetingId);
     if (!detail) return res.status(404).json({ error: "Meeting not found" });
     const project = await storage.getProject(req.params.projectId);
+    const [organizer, participantData] = await Promise.all([
+      db.select().from(users).where(eq(users.id, detail.meeting.organizer_id)).then((rows) => rows.at(0)),
+      participantOptions(req.params.projectId),
+    ]);
     const PDFDocument = (await import("pdfkit")).default;
-    const doc = new PDFDocument({ margin: 48, size: "A4", bufferPages: true });
+    const doc = new PDFDocument({ margin: 0, size: "A4", bufferPages: true, autoFirstPage: true });
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `attachment; filename="${detail.meeting.title.replace(/[^a-z0-9]+/gi, "-").toLowerCase() || "meeting-minutes"}.pdf"`);
     doc.pipe(res);
-    doc.fontSize(20).fillColor("#111827").text("PROJECT MEETING MINUTES");
-    doc.moveDown(0.4).fontSize(10).fillColor("#4b5563").text(project?.name || "Project");
-    doc.moveDown().fontSize(16).fillColor("#111827").text(detail.meeting.title);
-    doc.fontSize(10).fillColor("#4b5563").text(`${new Date(detail.meeting.starts_at).toLocaleString()} – ${new Date(detail.meeting.ends_at).toLocaleTimeString()}`);
-    doc.text(`Category: ${detail.meeting.category}   Status: ${detail.meeting.status}`);
-    doc.moveDown().fillColor("#111827").fontSize(13).text("ATTENDEES");
-    detail.attendees.forEach((attendee) => {
-      const label = attendee.attendee_type === "external"
-        ? `External · ${attendee.external_name || "Participant"}${attendee.external_role ? ` · ${attendee.external_role}` : ""}`
-        : attendee.attendee_type === "client" ? "Client" : "Project";
-      doc.fontSize(10).text(`${label} · ${attendee.attendance_status}${attendee.required ? " · Required" : " · Optional"}`);
-    });
-    doc.moveDown().fontSize(13).text("AGENDA");
-    detail.agenda.forEach((item, index) => doc.fontSize(10).text(`${index + 1}. ${item.title}${item.description ? ` — ${item.description}` : ""}`));
-    doc.moveDown().fontSize(13).text("DISCUSSION");
-    detail.discussions.forEach((item) => doc.fontSize(10).text(`${item.topic}\n${item.discussion || "No discussion notes recorded."}${item.decision ? `\nDecision: ${item.decision}` : ""}`).moveDown(0.3));
-    doc.moveDown().fontSize(13).text("DECISIONS");
-    detail.decisions.forEach((item) => doc.fontSize(10).text(`${item.title} — ${item.description || "No description recorded."} (${item.status})`));
-    doc.moveDown().fontSize(13).text("ACTION ITEMS");
-    detail.actions.forEach((item) => doc.fontSize(10).text(`${item.title} · ${item.status} · Due ${item.due_date ? new Date(item.due_date).toLocaleDateString() : "Not set"}`));
-    doc.moveDown().fontSize(13).text("ADDITIONAL NOTES");
-    doc.fontSize(10).text(detail.meeting.minutes_summary || "No summary recorded.");
-    doc.text(detail.meeting.additional_notes || "");
-    doc.fontSize(8).fillColor("#6b7280").text(`Generated from Tazq · ${new Date().toLocaleString()}`, 48, 760, { align: "center" });
+    const projectName = project?.name || "Project";
+    const attendeePeople = [...participantData.projectMembers, ...participantData.clientMembers];
+    const attendeeRows = detail.attendees.length
+      ? detail.attendees.map((attendee, index) => {
+        const person = attendee.attendee_type === "external"
+          ? null
+          : attendeePeople.find((candidate) => candidate.id === (attendee.user_id || attendee.contact_id));
+        return [
+          String(index + 1),
+          attendee.attendee_type === "external" ? pdfShort(attendee.external_name, "External participant") : pdfShort(person?.name, "Participant"),
+          attendee.attendee_type === "external" ? "External" : attendee.attendee_type === "client" ? "Client" : "Project team",
+          attendee.attendee_type === "external" ? pdfShort(attendee.external_role, "Participant") : pdfShort(person?.role, "Participant"),
+          pdfShort(attendee.attendance_status, "No response").replace("_", " "),
+        ];
+      })
+      : [["—", "No attendees recorded", "—", "—", "—"]];
+
+    drawPdfHeader(doc, projectName);
+    doc.save();
+    doc.fillColor(PDF_NAVY).roundedRect(42, 63, doc.page.width - 84, 171, 4).fill();
+    doc.fillColor("#ffffff").font("Helvetica-Bold").fontSize(24).text("MEETING MINUTES", 60, 87);
+    doc.font("Helvetica").fontSize(11).text(pdfShort(projectName), 60, 119, { width: 320 });
+    doc.strokeColor("#7eb3e4").lineWidth(1).moveTo(60, 143).lineTo(112, 143).stroke();
+    doc.font("Helvetica-Bold").fontSize(16).text(pdfShort(detail.meeting.title), 60, 157, { width: 320, height: 42, ellipsis: true });
+    doc.font("Helvetica").fontSize(8.5).fillColor("#d8e8f7").text("Project Meeting Record", 60, 206);
+    doc.font("Helvetica-Oblique").fontSize(9).fillColor("#d8e8f7").text("Turning conversations into progress", doc.page.width - 205, 201, { width: 145, align: "right" });
+    doc.restore();
+
+    let y = 256;
+    y = drawPdfSection(doc, 1, "Meeting information", y);
+    y = drawPdfTable(doc, y, [
+      { label: "Field", width: 145 }, { label: "Details", width: doc.page.width - 84 - 145 },
+    ], [
+      ["Date", pdfDate(detail.meeting.starts_at)],
+      ["Time", `${pdfTime(detail.meeting.starts_at)} – ${pdfTime(detail.meeting.ends_at)} (${pdfShort(detail.meeting.timezone, "UTC")})`],
+      ["Duration", `${Math.max(1, Math.round((new Date(detail.meeting.ends_at).getTime() - new Date(detail.meeting.starts_at).getTime()) / 60000))} minutes`],
+      ["Organizer", pdfShort(organizer?.user_name || organizer?.email, "Project team")],
+      ["Meeting type", pdfShort(detail.type?.name, "Project meeting")],
+      ["Location / link", pdfShort(detail.meeting.location || detail.meeting.meeting_link, "Not specified")],
+    ], { rowHeight: 20, fontSize: 8 });
+
+    y += 18;
+    y = drawPdfSection(doc, 2, "Attendees", y);
+    y = drawPdfTable(doc, y, [
+      { label: "#", width: 28 }, { label: "Name", width: 145 }, { label: "Organization", width: 105 },
+      { label: "Role", width: 145 }, { label: "Attendance", width: 88 },
+    ], attendeeRows, { rowHeight: 20, fontSize: 7.5 });
+
+    y += 18;
+    y = drawPdfSection(doc, 3, "Meeting summary", y);
+    doc.save().fillColor("#f4f8fc").roundedRect(42, y, doc.page.width - 84, 74, 3).fill();
+    drawPdfParagraph(doc, detail.meeting.minutes_summary || detail.meeting.description || "No meeting summary recorded.", y + 13, { width: doc.page.width - 110, fontSize: 8.5, lineGap: 2 });
+    doc.restore();
+
+    doc.addPage();
+    drawPdfHeader(doc, projectName);
+    y = 67;
+    y = drawPdfSection(doc, 4, "Meeting agenda", y);
+    const agendaRows = detail.agenda.length
+      ? detail.agenda.map((item, index) => [String(index + 1), pdfShort(item.title), "—", item.expected_duration ? `${item.expected_duration} min` : "—"])
+      : [["—", "No agenda items recorded", "—", "—"]];
+    y = drawPdfTable(doc, y, [
+      { label: "#", width: 28 }, { label: "Agenda item", width: 266 }, { label: "Presenter", width: 130 }, { label: "Time", width: 87 },
+    ], agendaRows, { rowHeight: 24, fontSize: 7.5 });
+
+    y += 18;
+    y = drawPdfSection(doc, 5, "Discussions", y);
+    const discussionRows = detail.discussions.length
+      ? detail.discussions.slice(0, 7).map((item, index) => [String(index + 1), pdfShort(item.topic), pdfShort(item.discussion || item.decision, "No outcome recorded.")])
+      : [["—", "No discussions recorded", "No outcome recorded."]];
+    y = drawPdfTable(doc, y, [
+      { label: "#", width: 28 }, { label: "Topic", width: 145 }, { label: "Discussion / outcome", width: 338 },
+    ], discussionRows, { rowHeight: 34, fontSize: 7.2 });
+
+    y += 18;
+    y = drawPdfSection(doc, 6, "Key decisions", y);
+    const decisionRows = detail.decisions.length
+      ? detail.decisions.slice(0, 5).map((item, index) => [String(index + 1), pdfShort(item.title), pdfShort(item.description, "No details recorded."), pdfShort(item.status)])
+      : [["—", "No decisions recorded", "No details recorded.", "—"]];
+    y = drawPdfTable(doc, y, [
+      { label: "#", width: 28 }, { label: "Decision", width: 150 }, { label: "Details", width: 250 }, { label: "Status", width: 83 },
+    ], decisionRows, { rowHeight: 34, fontSize: 7.2 });
+    doc.save().fillColor("#eef6fd").roundedRect(42, 735, doc.page.width - 84, 42, 3).fill();
+    doc.font("Helvetica-Oblique").fontSize(8).fillColor(PDF_BLUE).text(`“${pdfShort(detail.meeting.minutes_summary, "Good collaboration today. We are aligned on the next steps.")}”`, 58, 749, { width: doc.page.width - 116, height: 22, ellipsis: true });
+    doc.restore();
+
+    doc.addPage();
+    drawPdfHeader(doc, projectName);
+    y = 67;
+    y = drawPdfSection(doc, 7, "Action items", y);
+    const actionRows = detail.actions.length
+      ? detail.actions.slice(0, 9).map((item, index) => {
+        const owners = [
+          ...((Array.isArray(item.responsible_user_ids) ? item.responsible_user_ids : []).map((id: string) => participantData.projectMembers.find((person) => person.id === id)?.name).filter(Boolean)),
+          ...((Array.isArray(item.responsible_contact_ids) ? item.responsible_contact_ids : []).map((id: string) => participantData.clientMembers.find((person) => person.id === id)?.name).filter(Boolean)),
+        ];
+        const responsibility = item.responsibility_level === "client" ? "Client" : item.responsibility_level === "both" ? "Both" : "Project team";
+        return [`A${index + 1}`, pdfShort(item.title), responsibility, owners.join(" / ") || "Unassigned", item.due_date ? pdfDate(item.due_date, false) : "Not set", pdfShort(item.status).replace("_", " ")];
+      })
+      : [["—", "No action items recorded", "—", "—", "—", "—"]];
+    y = drawPdfTable(doc, y, [
+      { label: "#", width: 30 }, { label: "Action item", width: 150 }, { label: "Responsibility", width: 88 },
+      { label: "Responsible person(s)", width: 115 }, { label: "Due date", width: 70 }, { label: "Status", width: 58 },
+    ], actionRows, { rowHeight: 34, fontSize: 6.8 });
+
+    y += 18;
+    y = drawPdfSection(doc, 8, "Additional notes", y);
+    const noteLines = [detail.meeting.additional_notes, detail.meeting.description].filter(Boolean).join("\n\n");
+    doc.save().fillColor("#f8fafc").roundedRect(42, y, doc.page.width - 84, 95, 3).fill();
+    drawPdfParagraph(doc, noteLines || "No additional notes recorded.", y + 13, { width: doc.page.width - 110, fontSize: 8.2, lineGap: 3 });
+    doc.restore();
+
+    y += 113;
+    y = drawPdfSection(doc, 9, "Next meeting", y);
+    y = drawPdfTable(doc, y, [
+      { label: "Date", width: 125 }, { label: "Time", width: 120 }, { label: "Type", width: 120 }, { label: "Location", width: 138 },
+    ], [[
+      "Not scheduled", "—", "Follow-up", pdfShort(detail.meeting.location || detail.meeting.meeting_link, "To be confirmed"),
+    ]], { rowHeight: 27, fontSize: 7.5 });
+    const openActions = detail.actions.filter((item) => !["completed", "cancelled"].includes(item.status)).slice(0, 4);
+    const nextAgenda = openActions.length ? openActions.map((item) => `• ${item.title}`).join("\n") : "• Review progress and confirm next steps";
+    drawPdfParagraph(doc, `Tentative agenda\n${nextAgenda}`, y + 12, { width: doc.page.width - 110, fontSize: 8, lineGap: 3 });
+
+    doc.save().fillColor("#e9f4ff").roundedRect(42, 707, doc.page.width - 84, 58, 4).fill();
+    doc.font("Helvetica-Bold").fontSize(10).fillColor(PDF_BLUE).text("Thank you for your time and valuable contributions.", 42, 722, { width: doc.page.width - 84, align: "center" });
+    doc.font("Helvetica").fontSize(8).fillColor(PDF_MUTED).text("Together, we make progress.", 42, 740, { width: doc.page.width - 84, align: "center" });
+    doc.restore();
+
+    const pageRange = doc.bufferedPageRange();
+    for (let page = 0; page < pageRange.count; page += 1) {
+      doc.switchToPage(page);
+      drawPdfFooter(doc, page + 1, pageRange.count);
+    }
     doc.end();
   });
 
