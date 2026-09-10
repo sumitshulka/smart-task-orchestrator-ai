@@ -1,7 +1,7 @@
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
-  ArrowLeft, Calendar, CalendarDays, Check, ChevronRight, Clock3, Download, FileText, Link2, ListChecks, MapPin,
+  ArrowLeft, Calendar, CalendarDays, Check, ChevronRight, Clock3, Download, File, FileText, Link2, ListChecks, MapPin,
   MessageSquare, Paperclip, Plus, RefreshCw, Send, UserPlus, Users, Video, X,
 } from "lucide-react";
 import { apiClient } from "@/integrations/supabase/client";
@@ -263,6 +263,9 @@ function MeetingWorkspace({ projectId, detail, options, onRefresh, onStatus }: {
   const [selectedAttendeeIds, setSelectedAttendeeIds] = useState<string[]>([]);
   const [externalName, setExternalName] = useState("");
   const [externalRole, setExternalRole] = useState("");
+  const [addToProjectWorkspace, setAddToProjectWorkspace] = useState(true);
+  const [uploadingAttachment, setUploadingAttachment] = useState(false);
+  const attachmentInputRef = useRef<HTMLInputElement>(null);
   const save = useMutation({
     mutationFn: (data: any) => apiClient.patch(`/projects/${projectId}/meetings/${meeting.id}/minutes`, data),
     onSuccess: () => { onRefresh(); toast({ title: "Minutes saved" }); },
@@ -291,6 +294,45 @@ function MeetingWorkspace({ projectId, detail, options, onRefresh, onStatus }: {
     },
     onError: (error: Error) => toast({ title: "Could not attach attendee", description: error.message, variant: "destructive" }),
   });
+  const deleteAttachment = useMutation({
+    mutationFn: (attachmentId: string) => apiClient.delete(`/projects/${projectId}/meetings/${meeting.id}/attachments/${attachmentId}`),
+    onSuccess: () => {
+      onRefresh();
+      toast({ title: "Attachment removed" });
+    },
+    onError: (error: Error) => toast({ title: "Could not remove attachment", description: error.message, variant: "destructive" }),
+  });
+
+  const uploadAttachment = (file: File) => {
+    if (file.size > 5 * 1024 * 1024) {
+      toast({ title: "File is too large", description: "Meeting attachments must be 5 MB or smaller.", variant: "destructive" });
+      return;
+    }
+    setUploadingAttachment(true);
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        await apiClient.post(`/projects/${projectId}/meetings/${meeting.id}/attachments`, {
+          fileName: file.name,
+          fileType: file.type || "application/octet-stream",
+          fileSize: file.size,
+          fileUrl: String(reader.result),
+          addToProjectWorkspace,
+        });
+        onRefresh();
+        toast({ title: "File attached", description: addToProjectWorkspace ? "The file is available in this meeting and the project Workspace." : "The file is available in this meeting." });
+      } catch (error: any) {
+        toast({ title: "Could not attach file", description: error?.message || "Please try again.", variant: "destructive" });
+      } finally {
+        setUploadingAttachment(false);
+      }
+    };
+    reader.onerror = () => {
+      setUploadingAttachment(false);
+      toast({ title: "Could not read file", description: "Please choose the file again.", variant: "destructive" });
+    };
+    reader.readAsDataURL(file);
+  };
 
   const headlineAction = meeting.status === "draft" ? "scheduled" : meeting.status === "scheduled" ? "in_progress" : meeting.status === "in_progress" ? "completed" : null;
   const headlineLabel = headlineAction === "scheduled" ? "Schedule" : headlineAction === "in_progress" ? "Start meeting" : "Complete";
@@ -491,7 +533,18 @@ function MeetingWorkspace({ projectId, detail, options, onRefresh, onStatus }: {
             onRefresh={onRefresh}
             downloadPdf={() => downloadMeetingFile(projectId, meeting.id, "pdf")}
           />
-          <section className="py-5"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-sm font-semibold">Resources & links</p><p className="mt-1 text-xs text-gray-500">Files and meeting access points connected to this record.</p></div><div className="flex flex-wrap items-center gap-4 text-xs text-gray-500"><span><Paperclip className="mr-1 inline h-3.5 w-3.5" />Workspace attachments</span>{meeting.meeting_link && <a className="text-indigo-600 hover:underline" href={meeting.meeting_link} target="_blank" rel="noreferrer"><Link2 className="mr-1 inline h-3.5 w-3.5" />Open meeting link</a>}</div></div></section>
+          <section className="py-5">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div><p className="text-sm font-semibold">Resources & links</p><p className="mt-1 text-xs text-gray-500">Files and meeting access points connected to this record.</p></div>
+              <div className="flex flex-wrap items-center gap-3">
+                {meeting.meeting_link && <a className="text-xs text-indigo-600 hover:underline" href={meeting.meeting_link} target="_blank" rel="noreferrer"><Link2 className="mr-1 inline h-3.5 w-3.5" />Open meeting link</a>}
+                {options.canManage && <><input ref={attachmentInputRef} type="file" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ""; if (file) uploadAttachment(file); }} /><Button size="sm" variant="outline" disabled={uploadingAttachment} onClick={() => attachmentInputRef.current?.click()}><Paperclip className="mr-1.5 h-4 w-4" />{uploadingAttachment ? "Attaching..." : "Attach file"}</Button></>}
+              </div>
+            </div>
+            {options.canManage && <label className="mt-3 flex items-center gap-2 text-xs text-gray-500"><input type="checkbox" checked={addToProjectWorkspace} onChange={(event) => setAddToProjectWorkspace(event.target.checked)} /><span>Add a copy to the project Workspace</span></label>}
+            {!!detail.attachments?.length && <div className="mt-4 grid gap-2 sm:grid-cols-2">{detail.attachments.map((attachment: any) => <div key={attachment.id} className="flex min-w-0 items-center gap-3 rounded-xl bg-gray-50/80 p-3 dark:bg-gray-900/50"><File className="h-4 w-4 shrink-0 text-indigo-500" /><div className="min-w-0 flex-1"><a href={attachment.file_url} target="_blank" rel="noreferrer" className="block truncate text-sm font-medium text-indigo-700 hover:underline dark:text-indigo-300">{attachment.file_name}</a><p className="mt-1 text-[11px] text-gray-500">{attachment.file_type}{attachment.file_size ? ` · ${Math.round(attachment.file_size / 1024)} KB` : ""}</p></div>{options.canManage && <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0 text-gray-400 hover:text-red-600" aria-label={`Remove ${attachment.file_name}`} onClick={() => deleteAttachment.mutate(attachment.id)}><X className="h-4 w-4" /></Button>}</div>)}</div>}
+            {!detail.attachments?.length && <p className="mt-4 text-sm text-gray-500">No files attached yet.</p>}
+          </section>
         </CardContent>
       </Card>
     </div>

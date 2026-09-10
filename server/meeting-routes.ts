@@ -143,7 +143,7 @@ async function ensureOverdueMeetingNotifications(userIdValue: string) {
 async function meetingDetail(projectId: string, meetingId: string) {
   const meeting = (await db.select().from(meetings).where(and(eq(meetings.id, meetingId), eq(meetings.project_id, projectId)))).at(0);
   if (!meeting) return null;
-  const [type, attendees, agenda, discussions, decisions, actions, calendar, activity] = await Promise.all([
+  const [type, attendees, agenda, discussions, decisions, actions, calendar, activity, attachments] = await Promise.all([
     db.select().from(meetingTypes).where(eq(meetingTypes.id, meeting.meeting_type_id)).then((rows) => rows.at(0)),
     db.select().from(meetingAttendees).where(eq(meetingAttendees.meeting_id, meetingId)),
     db.select().from(meetingAgendaItems).where(eq(meetingAgendaItems.meeting_id, meetingId)).orderBy(asc(meetingAgendaItems.sequence)),
@@ -152,6 +152,10 @@ async function meetingDetail(projectId: string, meetingId: string) {
     db.select().from(meetingActionItems).where(eq(meetingActionItems.meeting_id, meetingId)).orderBy(asc(meetingActionItems.due_date)),
     db.select().from(meetingCalendarIntegrations).where(eq(meetingCalendarIntegrations.meeting_id, meetingId)),
     db.select().from(meetingActivity).where(eq(meetingActivity.meeting_id, meetingId)).orderBy(desc(meetingActivity.created_at)),
+    db.select().from(workspaceAttachments).where(and(
+      eq(workspaceAttachments.entity_type, "meeting"),
+      eq(workspaceAttachments.entity_id, meetingId),
+    )).orderBy(desc(workspaceAttachments.created_at)),
   ]);
   return {
     meeting,
@@ -165,6 +169,7 @@ async function meetingDetail(projectId: string, meetingId: string) {
     actions,
     calendar,
     activity,
+    attachments,
   };
 }
 
@@ -392,14 +397,26 @@ export function registerMeetingRoutes(app: Express) {
     const currentUserId = userId(req)!;
     const detail = await meetingDetail(req.params.projectId, req.params.meetingId);
     if (!detail) return res.status(404).json({ error: "Meeting not found" });
-    const { fileName, fileType, fileSize, fileUrl } = req.body ?? {};
+    if (!(await canManageMeeting(req.params.projectId, currentUserId))) return res.status(403).json({ error: "Only project managers or administrators can add meeting attachments" });
+    const { fileName, fileType, fileSize, fileUrl, addToProjectWorkspace } = req.body ?? {};
     if (!fileName || !fileType || !fileUrl) return res.status(400).json({ error: "fileName, fileType and fileUrl are required" });
+    const normalizedSize = fileSize === undefined || fileSize === null || fileSize === "" ? null : Number(fileSize);
+    if (normalizedSize !== null && (!Number.isFinite(normalizedSize) || normalizedSize < 0 || normalizedSize > 5 * 1024 * 1024)) {
+      return res.status(400).json({ error: "Attachments must be 5 MB or smaller" });
+    }
     const [attachment] = await db.insert(workspaceAttachments).values({
       entity_type: "meeting", entity_id: req.params.meetingId, uploaded_by: currentUserId,
-      file_name: String(fileName), file_type: String(fileType), file_size: fileSize ? Number(fileSize) : null, file_url: String(fileUrl),
+      file_name: String(fileName), file_type: String(fileType), file_size: normalizedSize, file_url: String(fileUrl),
     }).returning();
+    let projectAttachment = null;
+    if (addToProjectWorkspace !== false) {
+      [projectAttachment] = await db.insert(workspaceAttachments).values({
+        entity_type: "project", entity_id: req.params.projectId, uploaded_by: currentUserId,
+        file_name: String(fileName), file_type: String(fileType), file_size: normalizedSize, file_url: String(fileUrl),
+      }).returning();
+    }
     await recordActivity(req.params.meetingId, "attachment_added", currentUserId, { attachmentId: attachment.id });
-    res.status(201).json(attachment);
+    res.status(201).json({ attachment, projectAttachment });
   });
 
   app.delete("/api/projects/:projectId/meetings/:meetingId/attachments/:attachmentId", access, async (req: any, res) => {
