@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   Bell, BookOpen, Calendar, ChevronRight, CircleDollarSign, ClipboardCheck, PackageCheck,
   Cog, FileText, FolderKanban, History, Lock, MessageSquare, Network, Plus,
-  RotateCcw, Save, Settings2, Shield, SlidersHorizontal, Trash2, Users, X,
+  RotateCcw, Save, Settings2, Shield, SlidersHorizontal, Trash2, Upload, Users, X,
 } from "lucide-react";
 import type { Project, ProjectMember, User } from "@shared/schema";
 import { apiClient } from "@/integrations/supabase/client";
@@ -85,6 +85,7 @@ const DEFAULT_SETTINGS: Settings = {
   },
   meetings: {
     enabled: true,
+    pdfLogoUrl: "",
   },
   collaboration: {
     workspaceEnabled: true,
@@ -601,6 +602,7 @@ export default function ProjectSettingsPanel({ project, users, clients, members,
   });
   const [managerId, setManagerId] = useState("");
   const [pendingDisable, setPendingDisable] = useState<{ path: string; label: string; description: string } | null>(null);
+  const pdfLogoInputRef = useRef<HTMLInputElement>(null);
 
   const { data, isLoading } = useQuery<any>({
     queryKey: ["/api/projects", project.id, "settings"],
@@ -729,6 +731,22 @@ export default function ProjectSettingsPanel({ project, users, clients, members,
     } else {
       updateSetting(path, value);
     }
+  };
+
+  const handlePdfLogo = (file: File | undefined) => {
+    if (!file) return;
+    if (!["image/png", "image/jpeg"].includes(file.type)) {
+      toast({ title: "Unsupported logo", description: "Choose a PNG or JPG image.", variant: "destructive" });
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast({ title: "Logo is too large", description: "Project logos must be 2 MB or smaller.", variant: "destructive" });
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => updateSetting("meetings.pdfLogoUrl", String(reader.result));
+    reader.onerror = () => toast({ title: "Could not read logo", description: "Please choose the image again.", variant: "destructive" });
+    reader.readAsDataURL(file);
   };
 
   const displayUser = (userId: string | null) => {
@@ -1056,6 +1074,25 @@ export default function ProjectSettingsPanel({ project, users, clients, members,
                     checked={settings.meetings.enabled !== false}
                     onChange={(value) => toggleSetting("meetings.enabled", value, "Disable Project Meetings?", "Existing meeting records will be retained but the Meetings workspace will be hidden until enabled again.")}
                   />
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Meeting PDF branding</CardTitle>
+                  <CardDescription>Use a project logo on downloaded meeting minutes. If no project logo is configured, the organization logo is used automatically.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex flex-wrap items-center gap-4">
+                    <div className="flex h-16 w-40 items-center justify-center rounded-lg border bg-gray-50 p-2 dark:border-gray-800 dark:bg-gray-900">
+                      {settings.meetings.pdfLogoUrl ? <img src={settings.meetings.pdfLogoUrl} alt="Project meeting PDF logo preview" className="max-h-12 max-w-full object-contain" /> : <span className="text-xs text-gray-400">Organization logo fallback</span>}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input ref={pdfLogoInputRef} type="file" accept="image/png,image/jpeg" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ""; handlePdfLogo(file); }} />
+                      <Button type="button" variant="outline" onClick={() => pdfLogoInputRef.current?.click()}><Upload className="mr-1.5 h-4 w-4" />Upload project logo</Button>
+                      {settings.meetings.pdfLogoUrl && <Button type="button" variant="ghost" className="text-red-600 hover:text-red-700" onClick={() => updateSetting("meetings.pdfLogoUrl", "")}>Remove</Button>}
+                    </div>
+                  </div>
+                  <p className="mt-3 text-xs text-gray-500">PNG or JPG up to 2 MB. Save Project Settings after choosing a logo.</p>
                 </CardContent>
               </Card>
             </>

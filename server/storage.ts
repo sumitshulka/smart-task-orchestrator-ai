@@ -1300,8 +1300,18 @@ export class DatabaseStorage implements IStorage {
 
   // Organization settings operations
   async getOrganizationSettings(): Promise<OrganizationSettings | undefined> {
-    const result = await db.select().from(organizationSettings).limit(1);
-    return result[0] || undefined;
+    try {
+      const result = await db.select().from(organizationSettings).limit(1);
+      return result[0] || undefined;
+    } catch (error: any) {
+      // A rolling deploy may briefly read from a database before the
+      // idempotent startup migration has added newly introduced columns.
+      // Keep reads working during that window, but do not mask unrelated
+      // database failures.
+      if (error?.code !== "42703") throw error;
+      const result = await db.execute(sql`SELECT * FROM organization_settings LIMIT 1`);
+      return (result as any).rows?.[0] as OrganizationSettings | undefined;
+    }
   }
 
   async createOrganizationSettings(settings: InsertOrganizationSettings): Promise<OrganizationSettings> {

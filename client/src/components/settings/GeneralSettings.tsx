@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,6 +13,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 type OrganizationSettings = {
   id: string;
   organization_name: string;
+  logo_url: string | null;
   currency: string;
   date_format: string;
   time_zone: string;
@@ -64,6 +65,7 @@ const GeneralSettings: React.FC = () => {
 
   const [formData, setFormData] = useState({
     organization_name: "",
+    logo_url: "",
     currency: "USD",
     date_format: "MM/dd/yyyy",
     time_zone: "UTC",
@@ -86,6 +88,7 @@ const GeneralSettings: React.FC = () => {
     if (settings) {
       setFormData({
         organization_name: settings.organization_name || "",
+        logo_url: settings.logo_url || "",
         currency: settings.currency || "USD",
         date_format: settings.date_format || "MM/dd/yyyy",
         time_zone: settings.time_zone || "UTC",
@@ -143,6 +146,23 @@ const GeneralSettings: React.FC = () => {
     saveSettingsMutation.mutate(formData);
   };
 
+  const organizationLogoInputRef = useRef<HTMLInputElement>(null);
+  const handleOrganizationLogo = (file: File | undefined) => {
+    if (!file) return;
+    if (!["image/png", "image/jpeg"].includes(file.type)) {
+      toast({ title: "Unsupported logo", description: "Choose a PNG or JPG image.", variant: "destructive" });
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast({ title: "Logo is too large", description: "Organization logos must be 2 MB or smaller.", variant: "destructive" });
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => setFormData((current) => ({ ...current, logo_url: String(reader.result) }));
+    reader.onerror = () => toast({ title: "Could not read logo", description: "Please choose the image again.", variant: "destructive" });
+    reader.readAsDataURL(file);
+  };
+
   const formatPreview = (format: string) => {
     const now = new Date();
     try {
@@ -196,6 +216,19 @@ const GeneralSettings: React.FC = () => {
               onChange={(e) => handleFormChange('organization_name', e.target.value)}
               placeholder="Enter organization name"
             />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Organization Logo</Label>
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex h-16 w-40 items-center justify-center rounded-lg border bg-muted/30 p-2">
+                {formData.logo_url ? <img src={formData.logo_url} alt="Organization logo preview" className="max-h-12 max-w-full object-contain" /> : <span className="text-xs text-muted-foreground">No logo uploaded</span>}
+              </div>
+              <input ref={organizationLogoInputRef} type="file" accept="image/png,image/jpeg" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ""; handleOrganizationLogo(file); }} />
+              <Button type="button" variant="outline" onClick={() => organizationLogoInputRef.current?.click()}>Upload organization logo</Button>
+              {formData.logo_url && <Button type="button" variant="ghost" className="text-red-600 hover:text-red-700" onClick={() => setFormData((current) => ({ ...current, logo_url: "" }))}>Remove</Button>}
+            </div>
+            <p className="text-sm text-muted-foreground">Used as the default logo on project meeting minutes when a project-specific logo is not configured. PNG or JPG up to 2 MB.</p>
           </div>
 
           <div className="space-y-2">

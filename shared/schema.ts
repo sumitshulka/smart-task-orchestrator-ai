@@ -7,6 +7,7 @@ import { relations } from "drizzle-orm";
 export const organizationSettings = pgTable("organization_settings", {
   id: uuid("id").primaryKey().defaultRandom(),
   organization_name: text("organization_name").notNull().default("My Organization"),
+  logo_url: text("logo_url"),
   currency: text("currency").notNull().default("USD"),
   date_format: text("date_format").notNull().default("MM/dd/yyyy"),
   time_zone: text("time_zone").notNull().default("UTC"),

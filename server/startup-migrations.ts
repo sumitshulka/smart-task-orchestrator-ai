@@ -26,6 +26,10 @@ export async function runStartupMigrations(): Promise<void> {
         ADD COLUMN IF NOT EXISTS currency text NOT NULL DEFAULT 'USD'
     `);
     await client.query(`
+      ALTER TABLE organization_settings
+        ADD COLUMN IF NOT EXISTS logo_url text
+    `);
+    await client.query(`
       CREATE UNIQUE INDEX IF NOT EXISTS projects_project_code_unique
         ON projects(project_code)
         WHERE project_code IS NOT NULL

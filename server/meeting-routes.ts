@@ -230,10 +230,21 @@ function pdfShort(value: unknown, fallback = "—") {
   return text || fallback;
 }
 
-function drawPdfHeader(doc: any, projectName: string) {
+function drawPdfHeader(doc: any, projectName: string, logoUrl?: string | null) {
   const width = doc.page.width;
   doc.save();
-  doc.font("Helvetica-Bold").fontSize(20).fillColor(PDF_NAVY).text("TAZQ", 42, 16);
+  let hasLogo = false;
+  if (logoUrl) {
+    try {
+      doc.image(logoUrl, 42, 12, { fit: [82, 32], align: "left", valign: "center" });
+      hasLogo = true;
+    } catch {
+      hasLogo = false;
+    }
+  }
+  if (!hasLogo) {
+    doc.font("Helvetica-Bold").fontSize(20).fillColor(PDF_NAVY).text("TAZQ", 42, 16);
+  }
   doc.font("Helvetica").fontSize(5.5).fillColor(PDF_MUTED).text("Plan | Execute | Deliver Together", 43, 37);
   doc.font("Helvetica-Bold").fontSize(9).fillColor(PDF_NAVY).text("Project Meeting Record", width - 215, 18, { width: 173, align: "right" });
   doc.font("Helvetica").fontSize(7).fillColor(PDF_MUTED).text(pdfShort(projectName, "Project"), width - 215, 33, { width: 173, align: "right" });
@@ -852,9 +863,11 @@ export function registerMeetingRoutes(app: Express) {
     const detail = await meetingDetail(req.params.projectId, req.params.meetingId);
     if (!detail) return res.status(404).json({ error: "Meeting not found" });
     const project = await storage.getProject(req.params.projectId);
-    const [organizer, participantData] = await Promise.all([
+    const [organizer, participantData, organizationSettings, projectSettings] = await Promise.all([
       db.select().from(users).where(eq(users.id, detail.meeting.organizer_id)).then((rows) => rows.at(0)),
       participantOptions(req.params.projectId),
+      storage.getOrganizationSettings(),
+      storage.getProjectSettings(req.params.projectId),
     ]);
     const PDFDocument = (await import("pdfkit")).default;
     const doc = new PDFDocument({ margin: 0, size: "A4", bufferPages: true, autoFirstPage: true });
@@ -862,6 +875,8 @@ export function registerMeetingRoutes(app: Express) {
     res.setHeader("Content-Disposition", `attachment; filename="${detail.meeting.title.replace(/[^a-z0-9]+/gi, "-").toLowerCase() || "meeting-minutes"}.pdf"`);
     doc.pipe(res);
     const projectName = project?.name || "Project";
+    const projectLogo = mergeProjectSettings(projectSettings?.settings).meetings?.pdfLogoUrl;
+    const pdfLogo = projectLogo || organizationSettings?.logo_url || null;
     const attendeePeople = [...participantData.projectMembers, ...participantData.clientMembers];
     const attendeeRows = detail.attendees.length
       ? detail.attendees.map((attendee, index) => {
@@ -878,7 +893,7 @@ export function registerMeetingRoutes(app: Express) {
       })
       : [["—", "No attendees recorded", "—", "—", "—"]];
 
-    drawPdfHeader(doc, projectName);
+    drawPdfHeader(doc, projectName, pdfLogo);
     doc.save();
     doc.fillColor(PDF_NAVY).roundedRect(42, 63, doc.page.width - 84, 171, 4).fill();
     doc.fillColor("#ffffff").font("Helvetica-Bold").fontSize(24).text("MEETING MINUTES", 60, 87);
@@ -916,7 +931,7 @@ export function registerMeetingRoutes(app: Express) {
     doc.restore();
 
     doc.addPage();
-    drawPdfHeader(doc, projectName);
+    drawPdfHeader(doc, projectName, pdfLogo);
     y = 67;
     y = drawPdfSection(doc, 4, "Meeting agenda", y);
     const agendaRows = detail.agenda.length
@@ -948,7 +963,7 @@ export function registerMeetingRoutes(app: Express) {
     doc.restore();
 
     doc.addPage();
-    drawPdfHeader(doc, projectName);
+    drawPdfHeader(doc, projectName, pdfLogo);
     y = 67;
     y = drawPdfSection(doc, 7, "Action items", y);
     const actionRows = detail.actions.length

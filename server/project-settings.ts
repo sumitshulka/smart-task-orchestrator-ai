@@ -48,6 +48,7 @@ export const DEFAULT_PROJECT_SETTINGS = {
   },
   meetings: {
     enabled: true,
+    pdfLogoUrl: "",
   },
   collaboration: {
     workspaceEnabled: true,
