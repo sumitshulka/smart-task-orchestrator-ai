@@ -1,12 +1,11 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
-import { AlertTriangle, BriefcaseBusiness, Search, Users, UserRoundCheck } from "lucide-react";
+import { AlertTriangle, BriefcaseBusiness, ChevronRight, Search, Users, UserRoundCheck } from "lucide-react";
 import { apiClient } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Table,
@@ -63,6 +62,7 @@ function initials(name: string) {
 export default function AllocationsReport() {
   const [search, setSearch] = useState("");
   const [allocationFilter, setAllocationFilter] = useState("all");
+  const [expandedUsers, setExpandedUsers] = useState<Set<string>>(() => new Set());
   const { data, isLoading, isError, refetch } = useQuery<AllocationsReportData>({
     queryKey: ["/api/reports/allocations"],
     queryFn: () => apiClient.get("/reports/allocations"),
@@ -92,6 +92,15 @@ export default function AllocationsReport() {
       overallocatedUsers: users.filter((user) => user.totalAllocationPercentage > 100).length,
     };
   }, [data?.users]);
+
+  const toggleUser = (userId: string) => {
+    setExpandedUsers((current) => {
+      const next = new Set(current);
+      if (next.has(userId)) next.delete(userId);
+      else next.add(userId);
+      return next;
+    });
+  };
 
   return (
     <main className="mx-auto w-full max-w-[1440px] space-y-6 p-4 md:p-6">
@@ -180,7 +189,7 @@ export default function AllocationsReport() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Project</TableHead>
+                      <TableHead>Assigned project</TableHead>
                       <TableHead>Start date</TableHead>
                       <TableHead>End date</TableHead>
                       <TableHead className="text-right">Allocation</TableHead>
@@ -195,6 +204,8 @@ export default function AllocationsReport() {
                           key={user.id}
                           user={user}
                           isOverallocated={isOverallocated}
+                          isExpanded={expandedUsers.has(user.id)}
+                          onToggle={() => toggleUser(user.id)}
                         />
                       );
                     })}
@@ -269,19 +280,35 @@ function SummaryCard({
 function UserAllocationRows({
   user,
   isOverallocated,
+  isExpanded,
+  onToggle,
 }: {
   user: AllocationUser;
   isOverallocated: boolean;
+  isExpanded: boolean;
+  onToggle: () => void;
 }) {
-  const assignments = user.assignments.length > 0 ? user.assignments : [null];
-  const allocatedBar = Math.min(Math.max(user.totalAllocationPercentage, 0), 100);
+  const hasAssignments = user.assignments.length > 0;
 
   return (
     <>
       <TableRow className="bg-muted/40 hover:bg-muted/40">
-        <TableCell colSpan={5} className="py-3">
-          <div className="flex flex-col justify-between gap-3 md:flex-row md:items-center">
+        <TableCell colSpan={5} className="p-0">
+          <button
+            type="button"
+            onClick={onToggle}
+            disabled={!hasAssignments}
+            aria-expanded={hasAssignments ? isExpanded : undefined}
+            aria-label={`${isExpanded ? "Collapse" : "Expand"} ${user.name} project allocations`}
+            className="flex w-full flex-col gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/70 disabled:cursor-default md:flex-row md:items-center md:justify-between"
+          >
             <div className="flex min-w-0 items-center gap-3">
+              {hasAssignments ? (
+                <ChevronRight
+                  className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${isExpanded ? "rotate-90" : ""}`}
+                  aria-hidden="true"
+                />
+              ) : <span className="h-4 w-4 shrink-0" aria-hidden="true" />}
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-xs font-semibold text-indigo-700 dark:bg-indigo-950 dark:text-indigo-200">
                 {initials(user.name)}
               </div>
@@ -289,25 +316,21 @@ function UserAllocationRows({
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="truncate font-medium">{user.name}</span>
                   {!user.isActive && <Badge variant="outline" className="text-[10px]">Inactive user</Badge>}
+                  <Badge variant="outline" className="whitespace-nowrap text-[10px]">
+                    Projects ({user.assignments.length})
+                  </Badge>
                 </div>
                 <p className="truncate text-xs text-muted-foreground">{user.email}</p>
               </div>
             </div>
-            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 md:justify-end">
-              <div className="min-w-32">
-                <div className="flex justify-between text-xs">
-                  <span className="text-muted-foreground">Total allocation</span>
-                  <span className={`font-semibold ${isOverallocated ? "text-red-600 dark:text-red-400" : ""}`}>
-                    {user.totalAllocationPercentage}%
-                  </span>
-                </div>
-                <Progress
-                  value={allocatedBar}
-                  className={`mt-1 h-1.5 ${isOverallocated ? "[&>div]:bg-red-500" : "[&>div]:bg-indigo-500"}`}
-                  aria-label={`Total allocation ${user.totalAllocationPercentage}%`}
-                />
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-2 pl-7 md:justify-end">
+              <div>
+                <p className="text-[11px] text-muted-foreground">Total allocation</p>
+                <p className={`text-sm font-semibold ${isOverallocated ? "text-red-600 dark:text-red-400" : ""}`}>
+                  {user.totalAllocationPercentage}%
+                </p>
               </div>
-              <div className="min-w-28 text-right">
+              <div className="min-w-24 text-left md:text-right">
                 <p className="text-[11px] text-muted-foreground">Available load</p>
                 <p className={`text-sm font-semibold ${isOverallocated ? "text-red-600 dark:text-red-400" : "text-emerald-700 dark:text-emerald-400"}`}>
                   {user.availableLoadPercentage}%
@@ -315,16 +338,16 @@ function UserAllocationRows({
                 </p>
               </div>
             </div>
-          </div>
+          </button>
         </TableCell>
       </TableRow>
-      {assignments.map((assignment, index) => assignment ? (
+      {isExpanded && user.assignments.map((assignment, index) => (
         <TableRow key={`${user.id}-${assignment.projectId}-${index}`}>
-          <TableCell className="min-w-48 pl-8">
-            <div className="font-medium">{assignment.projectName}</div>
-            <div className="mt-0.5 text-xs text-muted-foreground">
-              {assignment.projectCode ? `${assignment.projectCode} · ` : ""}
-              {assignment.projectStatus.replace(/_/g, " ")}
+          <TableCell className="min-w-48 pl-10">
+            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+              <span className="font-medium">{assignment.projectName}</span>
+              {assignment.projectCode && <span className="text-xs text-muted-foreground">{assignment.projectCode}</span>}
+              <span className="text-xs capitalize text-muted-foreground">{assignment.projectStatus.replace(/_/g, " ")}</span>
             </div>
           </TableCell>
           <TableCell className="whitespace-nowrap text-sm">{displayDate(assignment.startDate)}</TableCell>
@@ -334,12 +357,6 @@ function UserAllocationRows({
             <Badge variant={assignment.allocationState === "Active" ? "secondary" : "outline"} className="capitalize">
               {assignment.allocationState}
             </Badge>
-          </TableCell>
-        </TableRow>
-      ) : (
-        <TableRow key={`${user.id}-no-allocation`}>
-          <TableCell colSpan={5} className="py-3 pl-8 text-sm text-muted-foreground">
-            No project allocations recorded.
           </TableCell>
         </TableRow>
       ))}
