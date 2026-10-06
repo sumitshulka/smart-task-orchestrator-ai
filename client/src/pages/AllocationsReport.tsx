@@ -129,11 +129,11 @@ export default function AllocationsReport() {
         </Card>
       ) : (
         <>
-          <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <SummaryCard icon={Users} label="Organization users" value={summary.totalUsers} loading={isLoading} />
-            <SummaryCard icon={UserRoundCheck} label="Allocated today" value={summary.allocatedUsers} detail="users with an active project assignment" loading={isLoading} />
-            <SummaryCard icon={BriefcaseBusiness} label="Active assignments" value={summary.activeAssignments} detail="project allocations in effect today" loading={isLoading} />
-            <SummaryCard icon={AlertTriangle} label="Overallocated users" value={summary.overallocatedUsers} detail="total allocation above 100%" tone={summary.overallocatedUsers > 0 ? "warning" : undefined} loading={isLoading} />
+          <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <SummaryCard icon={Users} label="All users" value={summary.totalUsers} detail="Organization roster" tone="blue" loading={isLoading} />
+            <SummaryCard icon={UserRoundCheck} label="Assigned today" value={summary.allocatedUsers} detail="People with active work" tone="green" loading={isLoading} />
+            <SummaryCard icon={BriefcaseBusiness} label="Active assignments" value={summary.activeAssignments} detail="In effect today" tone="violet" loading={isLoading} />
+            <SummaryCard icon={AlertTriangle} label="Overallocated" value={summary.overallocatedUsers} detail="Above 100% allocation" tone="amber" loading={isLoading} />
           </section>
 
           <Card>
@@ -226,13 +226,32 @@ function SummaryCard({
   label: string;
   value: number;
   detail?: string;
-  tone?: "warning";
+  tone: "blue" | "green" | "violet" | "amber";
   loading: boolean;
 }) {
+  const tones = {
+    blue: {
+      card: "border-sky-200 bg-sky-50 dark:border-sky-900 dark:bg-sky-950/35",
+      icon: "bg-sky-100 text-sky-700 dark:bg-sky-900/70 dark:text-sky-300",
+    },
+    green: {
+      card: "border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/35",
+      icon: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/70 dark:text-emerald-300",
+    },
+    violet: {
+      card: "border-violet-200 bg-violet-50 dark:border-violet-900 dark:bg-violet-950/35",
+      icon: "bg-violet-100 text-violet-700 dark:bg-violet-900/70 dark:text-violet-300",
+    },
+    amber: {
+      card: "border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/35",
+      icon: "bg-amber-100 text-amber-700 dark:bg-amber-900/70 dark:text-amber-300",
+    },
+  }[tone];
+
   return (
-    <Card>
-      <CardContent className="flex items-start gap-3 p-4">
-        <div className={`rounded-lg p-2 ${tone === "warning" ? "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300" : "bg-indigo-50 text-indigo-600 dark:bg-indigo-950/50 dark:text-indigo-300"}`}>
+    <Card className={tones.card}>
+      <CardContent className="flex items-center gap-3 p-3 sm:p-4">
+        <div className={`shrink-0 rounded-lg p-2 ${tones.icon}`}>
           <Icon className="h-4 w-4" />
         </div>
         <div className="min-w-0">
