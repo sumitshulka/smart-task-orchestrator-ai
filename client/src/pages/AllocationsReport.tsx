@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
-import { AlertTriangle, BriefcaseBusiness, ChevronRight, Search, Users, UserRoundCheck } from "lucide-react";
+import { AlertTriangle, BriefcaseBusiness, ChevronRight, Download, Search, Users, UserRoundCheck } from "lucide-react";
 import { apiClient } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -63,6 +63,8 @@ export default function AllocationsReport() {
   const [search, setSearch] = useState("");
   const [allocationFilter, setAllocationFilter] = useState("all");
   const [expandedUsers, setExpandedUsers] = useState<Set<string>>(() => new Set());
+  const [downloading, setDownloading] = useState<"pdf" | "xlsx" | null>(null);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
   const { data, isLoading, isError, refetch } = useQuery<AllocationsReportData>({
     queryKey: ["/api/reports/allocations"],
     queryFn: () => apiClient.get("/reports/allocations"),
@@ -102,6 +104,23 @@ export default function AllocationsReport() {
     });
   };
 
+  const downloadReport = async (format: "pdf" | "xlsx") => {
+    if (!data) return;
+    setDownloading(format);
+    setDownloadError(null);
+    try {
+      const asOf = encodeURIComponent(data.reportDate);
+      await apiClient.download(
+        `/reports/allocations.${format}?asOf=${asOf}`,
+        `allocations-report-${data.reportDate}.${format}`,
+      );
+    } catch (error) {
+      setDownloadError(error instanceof Error ? error.message : "Could not download the report.");
+    } finally {
+      setDownloading(null);
+    }
+  };
+
   return (
     <main className="mx-auto w-full max-w-[1440px] space-y-6 p-4 md:p-6">
       <header className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
@@ -117,13 +136,37 @@ export default function AllocationsReport() {
           </p>
         </div>
         {data && (
-          <div className="rounded-lg border bg-card px-3 py-2 text-sm">
-            <span className="text-muted-foreground">As of </span>
-            <span className="font-medium">{format(parseISO(data.reportDate), "d MMM yyyy")}</span>
-            <span className="ml-2 text-xs text-muted-foreground">{data.timeZone}</span>
+          <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+            <div className="rounded-lg border bg-card px-3 py-2 text-sm">
+              <span className="text-muted-foreground">As of </span>
+              <span className="font-medium">{format(parseISO(data.reportDate), "d MMM yyyy")}</span>
+              <span className="ml-2 text-xs text-muted-foreground">{data.timeZone}</span>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={downloading !== null}
+              onClick={() => void downloadReport("pdf")}
+            >
+              <Download className="mr-2 h-4 w-4" />
+              {downloading === "pdf" ? "Preparing PDF…" : "Download PDF"}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={downloading !== null}
+              onClick={() => void downloadReport("xlsx")}
+            >
+              <Download className="mr-2 h-4 w-4" />
+              {downloading === "xlsx" ? "Preparing Excel…" : "Download Excel"}
+            </Button>
           </div>
         )}
       </header>
+
+      {downloadError && <p role="alert" className="text-sm text-destructive">{downloadError}</p>}
 
       {isError ? (
         <Card>

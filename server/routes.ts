@@ -14,6 +14,7 @@ import { registerPlanningRoutes } from "./planning-routes";
 import { registerReleaseRoutes } from "./release-routes";
 import { registerMeetingRoutes } from "./meeting-routes";
 import { buildAllocationsReport } from "./allocation-report";
+import { createAllocationsPdf, createAllocationsWorkbook } from "./allocation-report-exports";
  import { insertUserSchema, insertTaskSchema, insertTeamSchema, insertTaskGroupSchema, insertRoleSchema, insertOfficeLocationSchema, userRoles, insertDefectSchema, insertClientSchema, insertClientContactSchema, insertClientProjectAccessSchema, insertCustomFieldGroupSchema, insertCustomFieldDefinitionSchema, insertCustomFieldValueSchema, tasks as tasksTable, projects as projectsTable, defects as defectsTable, users as usersTable, teams as teamsTable, workspaceDecisions, projectTemplateRoles, meetings as meetingsTable } from "@shared/schema";
 import { callAiProvider, encryptApiKey, decryptApiKey, DEFAULT_SYSTEM_PROMPT_HEADER, AI_PROVIDER_MODELS, DEFAULT_AI_MODEL } from "./ai-provider";
 import { db } from "./db";
@@ -374,7 +375,39 @@ async function getUserVisibilityScope(userId: string): Promise<{ scope: TaskVisi
   }
 }
 
+function isValidAllocationsReportDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = new Date(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
+  const getAllocationsReportSnapshot = async (requestedDate?: string) => {
+    const [users, allocations, organizationSettings] = await Promise.all([
+      storage.getAllUsers(),
+      storage.getProjectAllocationRows(),
+      storage.getOrganizationSettings(),
+    ]);
+    const timeZone = organizationSettings?.time_zone || "UTC";
+    const dateParts = new Intl.DateTimeFormat("en-CA", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(new Date());
+    const todayInTimeZone = `${dateParts.find((part) => part.type === "year")?.value}-${dateParts.find((part) => part.type === "month")?.value}-${dateParts.find((part) => part.type === "day")?.value}`;
+    const reportDate = requestedDate || todayInTimeZone;
+    if (!isValidAllocationsReportDate(reportDate)) {
+      throw new Error("Invalid report date");
+    }
+
+    return {
+      reportDate,
+      timeZone,
+      users: buildAllocationsReport(users, allocations, reportDate),
+    };
+  };
+
   // Authentication routes
   // Check if system has any users (for initial setup)
   app.get("/api/auth/system-status", async (req, res) => {
@@ -2843,28 +2876,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Organization-wide project allocation and available-capacity report.
   app.get("/api/reports/allocations", requireManagerOrAdmin, async (_req, res) => {
     try {
-      const [users, allocations, organizationSettings] = await Promise.all([
-        storage.getAllUsers(),
-        storage.getProjectAllocationRows(),
-        storage.getOrganizationSettings(),
-      ]);
-      const timeZone = organizationSettings?.time_zone || "UTC";
-      const parts = new Intl.DateTimeFormat("en-CA", {
-        timeZone,
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-      }).formatToParts(new Date());
-      const reportDate = `${parts.find((part) => part.type === "year")?.value}-${parts.find((part) => part.type === "month")?.value}-${parts.find((part) => part.type === "day")?.value}`;
-
-      res.json({
-        reportDate,
-        timeZone,
-        users: buildAllocationsReport(users, allocations, reportDate),
-      });
+      res.json(await getAllocationsReportSnapshot());
     } catch (error) {
       console.error("Failed to fetch allocations report:", error);
       res.status(500).json({ error: "Failed to fetch allocations report" });
+    }
+  });
+
+  app.get("/api/reports/allocations.pdf", requireManagerOrAdmin, async (req, res) => {
+    const asOfDate = typeof req.query.asOf === "string" ? req.query.asOf : undefined;
+    if (req.query.asOf !== undefined && (!asOfDate || !isValidAllocationsReportDate(asOfDate))) {
+      return res.status(400).json({ error: "Invalid report date" });
+    }
+    try {
+      const report = await getAllocationsReportSnapshot(asOfDate);
+      const pdf = await createAllocationsPdf(report);
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `attachment; filename="allocations-report-${report.reportDate}.pdf"`);
+      res.setHeader("Cache-Control", "no-store");
+      res.send(pdf);
+    } catch (error) {
+      console.error("Failed to export allocations report PDF:", error);
+      res.status(500).json({ error: "Failed to export allocations report PDF" });
+    }
+  });
+
+  app.get("/api/reports/allocations.xlsx", requireManagerOrAdmin, async (req, res) => {
+    const asOfDate = typeof req.query.asOf === "string" ? req.query.asOf : undefined;
+    if (req.query.asOf !== undefined && (!asOfDate || !isValidAllocationsReportDate(asOfDate))) {
+      return res.status(400).json({ error: "Invalid report date" });
+    }
+    try {
+      const report = await getAllocationsReportSnapshot(asOfDate);
+      const workbook = createAllocationsWorkbook(report);
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      res.setHeader("Content-Disposition", `attachment; filename="allocations-report-${report.reportDate}.xlsx"`);
+      res.setHeader("Cache-Control", "no-store");
+      res.send(workbook);
+    } catch (error) {
+      console.error("Failed to export allocations report Excel:", error);
+      res.status(500).json({ error: "Failed to export allocations report Excel" });
     }
   });
 

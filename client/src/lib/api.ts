@@ -47,6 +47,32 @@ class ApiClient {
     }
   }
 
+  async download(endpoint: string, fallbackFilename: string): Promise<void> {
+    const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+    const url = `${API_BASE}/api${cleanEndpoint}`;
+    const userStr = localStorage.getItem('user');
+    const user = userStr ? JSON.parse(userStr) : null;
+    const headers = new Headers();
+    if (user?.id) headers.set('x-user-id', user.id);
+
+    const response = await fetch(url, { headers });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Download failed' }));
+      throw new Error(error.error || `HTTP ${response.status}`);
+    }
+
+    const disposition = response.headers.get('content-disposition');
+    const filename = disposition?.match(/filename="?([^";]+)"?/i)?.[1] || fallbackFilename;
+    const objectUrl = URL.createObjectURL(await response.blob());
+    const link = document.createElement('a');
+    link.href = objectUrl;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+  }
+
   // User management
   async getUsers() {
     return this.request('/users');

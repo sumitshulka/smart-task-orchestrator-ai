@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test, { after, before } from "node:test";
 import express from "express";
 import type { Server } from "node:http";
+import * as XLSX from "xlsx";
 import { registerRoutes } from "./routes";
 import { storage } from "./storage";
 
@@ -171,4 +172,42 @@ test("organization admins can retrieve all users and current allocation totals",
   assert.equal(body.users.find((user: any) => user.id === "allocation-user-1").totalAllocationPercentage, 60);
   assert.equal(body.users.find((user: any) => user.id === "allocation-user-1").availableLoadPercentage, 40);
   assert.equal(body.users.find((user: any) => user.id === "allocation-user-2").availableLoadPercentage, 100);
+});
+
+test("allocation report downloads preserve the as-of date and include every project row", async () => {
+  const asOfDate = "2026-10-06";
+  const headers = { "x-user-id": adminUserId };
+
+  const anonymousPdf = await fetch(`${baseUrl}/api/reports/allocations.pdf?asOf=${asOfDate}`);
+  assert.equal(anonymousPdf.status, 401);
+  const regularExcel = await fetch(`${baseUrl}/api/reports/allocations.xlsx?asOf=${asOfDate}`, {
+    headers: { "x-user-id": regularUserId },
+  });
+  assert.equal(regularExcel.status, 403);
+
+  const pdfResponse = await fetch(`${baseUrl}/api/reports/allocations.pdf?asOf=${asOfDate}`, { headers });
+  const pdf = Buffer.from(await pdfResponse.arrayBuffer());
+  assert.equal(pdfResponse.status, 200);
+  assert.equal(pdfResponse.headers.get("content-type"), "application/pdf");
+  assert.match(pdfResponse.headers.get("content-disposition") ?? "", new RegExp(asOfDate));
+  assert.equal(pdf.toString("ascii", 0, 5), "%PDF-");
+
+  const excelResponse = await fetch(`${baseUrl}/api/reports/allocations.xlsx?asOf=${asOfDate}`, { headers });
+  const excel = Buffer.from(await excelResponse.arrayBuffer());
+  assert.equal(excelResponse.status, 200);
+  assert.match(excelResponse.headers.get("content-type") ?? "", /spreadsheetml\.sheet/);
+  assert.match(excelResponse.headers.get("content-disposition") ?? "", new RegExp(asOfDate));
+  assert.equal(excel.toString("ascii", 0, 2), "PK");
+
+  const workbook = XLSX.read(excel, { type: "buffer" });
+  const summaryRows = XLSX.utils.sheet_to_json(workbook.Sheets["User Summary"], { header: 1 }) as any[][];
+  const allocationRows = XLSX.utils.sheet_to_json(workbook.Sheets["Project Allocations"], { header: 1 }) as any[][];
+  assert.deepEqual(summaryRows[1], ["As of", asOfDate, "Time zone", "UTC"]);
+  assert.ok(allocationRows.some((row) =>
+    row[0] === "Alex" &&
+    row[2] === "Allocation Fixture" &&
+    row[9] === 60 &&
+    row[10] === 40
+  ));
+  assert.ok(allocationRows.some((row) => row[0] === "Sam" && row[2] === "No project allocations"));
 });
