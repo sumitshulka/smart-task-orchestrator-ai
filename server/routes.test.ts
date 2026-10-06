@@ -26,6 +26,9 @@ const originalStorageMethods = {
   getTaskForUser: storage.getTaskForUser,
   getUserRoles: storage.getUserRoles,
   getAllRoles: storage.getAllRoles,
+  getAllUsers: storage.getAllUsers,
+  getProjectAllocationRows: storage.getProjectAllocationRows,
+  getOrganizationSettings: storage.getOrganizationSettings,
 };
 
 before(async () => {
@@ -64,6 +67,25 @@ before(async () => {
       updated_at: new Date(),
     },
   ];
+  storage.getAllUsers = async () => [
+    { id: "allocation-user-1", email: "alex@example.com", user_name: "Alex", is_active: true } as any,
+    { id: "allocation-user-2", email: "sam@example.com", user_name: "Sam", is_active: true } as any,
+  ];
+  storage.getProjectAllocationRows = async () => [{
+    project_id: "allocation-project-1",
+    project_name: "Allocation Fixture",
+    project_code: "ALLOC-1",
+    project_status: "active",
+    project_start_date: new Date("2026-01-01T00:00:00.000Z"),
+    project_end_date: null,
+    project_actual_end_date: null,
+    user_id: "allocation-user-1",
+    member_user_type: "internal",
+    allocation_percentage: 60,
+    joined_at: new Date("2026-01-01T00:00:00.000Z"),
+    left_at: null,
+  }];
+  storage.getOrganizationSettings = async () => ({ time_zone: "UTC" } as any);
 
   const app = express();
   server = await registerRoutes(app);
@@ -80,6 +102,9 @@ after(async () => {
   storage.getTaskForUser = originalStorageMethods.getTaskForUser;
   storage.getUserRoles = originalStorageMethods.getUserRoles;
   storage.getAllRoles = originalStorageMethods.getAllRoles;
+  storage.getAllUsers = originalStorageMethods.getAllUsers;
+  storage.getProjectAllocationRows = originalStorageMethods.getProjectAllocationRows;
+  storage.getOrganizationSettings = originalStorageMethods.getOrganizationSettings;
 
   await new Promise<void>((resolve, reject) => {
     server.close((error) => error ? reject(error) : resolve());
@@ -122,4 +147,28 @@ test("organization admins can retrieve any task", async () => {
 
   assert.equal(response.status, 200);
   assert.deepEqual(response.body, privateTask);
+});
+
+test("allocations report requires manager or admin access", async () => {
+  const anonymous = await fetch(`${baseUrl}/api/reports/allocations`);
+  assert.equal(anonymous.status, 401);
+
+  const regular = await fetch(`${baseUrl}/api/reports/allocations`, {
+    headers: { "x-user-id": regularUserId },
+  });
+  assert.equal(regular.status, 403);
+});
+
+test("organization admins can retrieve all users and current allocation totals", async () => {
+  const response = await fetch(`${baseUrl}/api/reports/allocations`, {
+    headers: { "x-user-id": adminUserId },
+  });
+  const body = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.match(body.reportDate, /^\d{4}-\d{2}-\d{2}$/);
+  assert.equal(body.users.length, 2);
+  assert.equal(body.users.find((user: any) => user.id === "allocation-user-1").totalAllocationPercentage, 60);
+  assert.equal(body.users.find((user: any) => user.id === "allocation-user-1").availableLoadPercentage, 40);
+  assert.equal(body.users.find((user: any) => user.id === "allocation-user-2").availableLoadPercentage, 100);
 });

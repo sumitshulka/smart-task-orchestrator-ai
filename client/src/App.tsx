@@ -33,6 +33,7 @@ import Projects from "@/pages/Projects";
 import ProjectDetail from "@/pages/ProjectDetail";
 import CreateProject from "@/pages/CreateProject";
 import ProjectReports from "@/pages/ProjectReports";
+import AllocationsReport from "@/pages/AllocationsReport";
 import Clients from "@/pages/Clients";
 import ClientDetail from "@/pages/ClientDetail";
 import PortalLogin from "@/pages/PortalLogin";
@@ -244,6 +245,14 @@ const App = () => (
               element={
                 <AdminLayout>
                   <CreateProject />
+                </AdminLayout>
+              }
+            />
+            <Route
+              path="/projects/allocations"
+              element={
+                <AdminLayout>
+                  <AllocationsReport />
                 </AdminLayout>
               }
             />

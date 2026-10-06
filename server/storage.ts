@@ -281,6 +281,20 @@ export interface IStorage {
 
   // Project member operations
   getProjectMembers(projectId: string): Promise<ProjectMember[]>;
+  getProjectAllocationRows(): Promise<Array<{
+    project_id: string;
+    project_name: string;
+    project_code: string | null;
+    project_status: string;
+    project_start_date: Date | null;
+    project_end_date: Date | null;
+    project_actual_end_date: Date | null;
+    user_id: string | null;
+    member_user_type: string;
+    allocation_percentage: number | null;
+    joined_at: Date | null;
+    left_at: Date | null;
+  }>>;
   getActiveProjectManager(projectId: string): Promise<ProjectMember | undefined>;
   addProjectMember(member: InsertProjectMember): Promise<ProjectMember>;
   updateProjectMember(id: string, updates: Partial<ProjectMember>): Promise<ProjectMember>;
@@ -1589,6 +1603,25 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(projectMembers)
       .where(and(eq(projectMembers.project_id, projectId), eq(projectMembers.is_active, true)))
       .orderBy(desc(projectMembers.joined_at));
+  }
+
+  async getProjectAllocationRows() {
+    return db.select({
+      project_id: projectMembers.project_id,
+      project_name: projects.name,
+      project_code: projects.project_code,
+      project_status: projects.status,
+      project_start_date: projects.start_date,
+      project_end_date: projects.projected_end_date,
+      project_actual_end_date: projects.actual_end_date,
+      user_id: projectMembers.user_id,
+      member_user_type: projectMembers.member_user_type,
+      allocation_percentage: projectMembers.allocation_percentage,
+      joined_at: projectMembers.joined_at,
+      left_at: projectMembers.left_at,
+    }).from(projectMembers)
+      .innerJoin(projects, eq(projectMembers.project_id, projects.id))
+      .where(eq(projectMembers.is_active, true));
   }
 
   async getActiveProjectManager(projectId: string): Promise<ProjectMember | undefined> {

@@ -78,7 +78,7 @@ export default function AppSidebar({
       >
         <DashboardMenu isUserOnly={isUserOnly} collapsed={collapsed} />
         <TaskManagementMenu isAdmin={isAdmin} isManager={isManager} collapsed={collapsed} />
-        {projectManagementEnabled && <ProjectManagementMenu collapsed={collapsed} />}
+        {projectManagementEnabled && <ProjectManagementMenu collapsed={collapsed} canViewAllocationReport={isAdmin || isManager} />}
         {defectManagementEnabled && <DefectManagementMenu collapsed={collapsed} />}
         <ManagementMenu isAdmin={isAdmin} isManager={isManager} collapsed={collapsed} />
         <WarningNoTeams isOnTeams={isOnTeams} loading={loading} isUserOnly={isUserOnly} hasTeams={hasTeams} />

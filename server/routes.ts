@@ -13,6 +13,7 @@ import { licenseManager, APP_ID } from "./license-manager";
 import { registerPlanningRoutes } from "./planning-routes";
 import { registerReleaseRoutes } from "./release-routes";
 import { registerMeetingRoutes } from "./meeting-routes";
+import { buildAllocationsReport } from "./allocation-report";
  import { insertUserSchema, insertTaskSchema, insertTeamSchema, insertTaskGroupSchema, insertRoleSchema, insertOfficeLocationSchema, userRoles, insertDefectSchema, insertClientSchema, insertClientContactSchema, insertClientProjectAccessSchema, insertCustomFieldGroupSchema, insertCustomFieldDefinitionSchema, insertCustomFieldValueSchema, tasks as tasksTable, projects as projectsTable, defects as defectsTable, users as usersTable, teams as teamsTable, workspaceDecisions, projectTemplateRoles, meetings as meetingsTable } from "@shared/schema";
 import { callAiProvider, encryptApiKey, decryptApiKey, DEFAULT_SYSTEM_PROMPT_HEADER, AI_PROVIDER_MODELS, DEFAULT_AI_MODEL } from "./ai-provider";
 import { db } from "./db";
@@ -2838,6 +2839,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ============================================================
   //  REPORTING ENDPOINTS
   // ============================================================
+
+  // Organization-wide project allocation and available-capacity report.
+  app.get("/api/reports/allocations", requireManagerOrAdmin, async (_req, res) => {
+    try {
+      const [users, allocations, organizationSettings] = await Promise.all([
+        storage.getAllUsers(),
+        storage.getProjectAllocationRows(),
+        storage.getOrganizationSettings(),
+      ]);
+      const timeZone = organizationSettings?.time_zone || "UTC";
+      const parts = new Intl.DateTimeFormat("en-CA", {
+        timeZone,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).formatToParts(new Date());
+      const reportDate = `${parts.find((part) => part.type === "year")?.value}-${parts.find((part) => part.type === "month")?.value}-${parts.find((part) => part.type === "day")?.value}`;
+
+      res.json({
+        reportDate,
+        timeZone,
+        users: buildAllocationsReport(users, allocations, reportDate),
+      });
+    } catch (error) {
+      console.error("Failed to fetch allocations report:", error);
+      res.status(500).json({ error: "Failed to fetch allocations report" });
+    }
+  });
 
   // All project members across all projects (for listing page PM display)
   app.get("/api/projects-members-all", requireAnyAuthenticated, async (req, res) => {
