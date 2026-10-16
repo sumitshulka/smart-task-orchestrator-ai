@@ -9,6 +9,10 @@ All finance amounts and allocated salary costs use the organization currency so 
 
 Keep Finance visually split into Revenue above Expenses. Entry forms open in dialogs. Salary-cost rows are computed from Project Settings and read-only here; user-entered accruals stay editable/deletable while pending, then lock after approval. Approval is limited to a different authorized project finance user.
 
+The profitability matrix belongs in the project Finance view: revenue columns follow monthly or milestone recognition, while expense heads and salary costs stay monthly unless expense-to-milestone allocation is explicitly captured. Authorized resource-cost viewers can inspect each salary calculation.
+
+Finance entry rows use icon-only edit/delete actions revealed on hover (and keyboard focus); pending and approved states use accessible icons rather than inline status text.
+
 **Why:** The user described Finance as an accrual profitability workflow, not accounting/payments, and selected project-role titles as the access model so PM, Project Director, Finance Incharge, and custom titles can be authorized per project.
 
 **How to apply:** Keep organization-wide expense heads separate from project expense entries, preserve the effective-month salary history, record revenue with its monthly or milestone basis, enforce configured project-role access server-side, and report line-level accruals rather than only totals.

@@ -26,7 +26,7 @@ import {
  import { insertUserSchema, insertTaskSchema, insertTeamSchema, insertTaskGroupSchema, insertRoleSchema, insertOfficeLocationSchema, userRoles, insertDefectSchema, insertClientSchema, insertClientContactSchema, insertClientProjectAccessSchema, insertCustomFieldGroupSchema, insertCustomFieldDefinitionSchema, insertCustomFieldValueSchema, tasks as tasksTable, projects as projectsTable, defects as defectsTable, users as usersTable, teams as teamsTable, workspaceDecisions, projectTemplateRoles, meetings as meetingsTable } from "@shared/schema";
 import { callAiProvider, encryptApiKey, decryptApiKey, DEFAULT_SYSTEM_PROMPT_HEADER, AI_PROVIDER_MODELS, DEFAULT_AI_MODEL } from "./ai-provider";
 import { db } from "./db";
-import { and, asc, desc, eq, ilike, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
 import bcrypt from "bcrypt";
 import {
   financeVisibilityAllows,
@@ -2667,6 +2667,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const startMonth = startValue ?? firstSalaryMonth;
       const todayMonth = new Date().toISOString().slice(0, 7);
       const monthlyResourceCosts: Array<{ month: string; amount: number; currency: string }> = [];
+      const monthlyResourceCostBreakdown: Array<{
+        month: string;
+        currency: string;
+        resources: Array<{ userId: string; name: string; grossSalary: number | null; allocationPercentage: number; effectiveMonth: string | null; allocatedCost: number }>;
+      }> = [];
+      const allocatedUserIds = members
+        .filter((member) => member.is_active !== false && member.member_user_type !== "client_contact" && member.user_id)
+        .map((member) => member.user_id as string);
+      const userRows = canSeeCosts && allocatedUserIds.length
+        ? await db.select({ id: usersTable.id, user_name: usersTable.user_name })
+          .from(usersTable).where(inArray(usersTable.id, allocatedUserIds))
+        : [];
+      const userNames = new Map(userRows.map((user) => [user.id, user.user_name || "Unnamed resource"]));
       const missingSalaryCount = members.filter((member) => member.is_active !== false &&
         member.member_user_type !== "client_contact" && member.user_id &&
         !salaryHistory.some((record) => record.user_id === member.user_id && record.effective_month <= `${todayMonth}-01`),
@@ -2676,16 +2689,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const end = new Date(`${todayMonth}-01T00:00:00.000Z`);
         while (cursor <= end && monthlyResourceCosts.length < 240) {
           const month = cursor.toISOString().slice(0, 7);
-          const amount = members
+          const resources = members
             .filter((member) => member.is_active !== false && member.member_user_type !== "client_contact" && member.user_id)
-            .reduce((total, member) => {
+            .map((member) => {
               const salary = salaryHistory
                 .filter((record) => record.user_id === member.user_id && record.effective_month <= `${month}-01`)
                 .sort((a, b) => b.effective_month.localeCompare(a.effective_month))[0];
-              const monthlySalary = Number(salary?.gross_salary ?? 0);
-              return total + monthlySalary * Number(member.allocation_percentage ?? 100) / 100;
-            }, 0);
+              const monthlySalary = salary ? Number(salary.gross_salary) : null;
+              const allocationPercentage = Number(member.allocation_percentage ?? 100);
+              return {
+                userId: member.user_id as string,
+                name: userNames.get(member.user_id as string) ?? "Unnamed resource",
+                grossSalary: monthlySalary,
+                allocationPercentage,
+                effectiveMonth: salary?.effective_month.slice(0, 7) ?? null,
+                allocatedCost: monthlySalary === null ? 0 : monthlySalary * allocationPercentage / 100,
+              };
+            });
+          const amount = resources.reduce((total, resource) => total + resource.allocatedCost, 0);
           monthlyResourceCosts.push({ month, amount, currency: organization?.currency ?? "USD" });
+          monthlyResourceCostBreakdown.push({
+            month,
+            currency: organization?.currency ?? "USD",
+            resources: canSeeCosts ? resources : [],
+          });
           cursor.setUTCMonth(cursor.getUTCMonth() + 1);
         }
       }
@@ -2708,6 +2735,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           canApprove: canManageRevenue && entry.approval_status !== "approved" && entry.created_by !== viewerId,
         })),
         monthlyResourceCosts: canSeeCosts ? monthlyResourceCosts : [],
+        monthlyResourceCostBreakdown: canSeeCosts ? monthlyResourceCostBreakdown : [],
         summary: canSeeProfitability ? {
           revenue: entries.filter((entry) => entry.entry_type === "revenue")
             .reduce((sum, entry) => sum + Number(entry.amount), 0),
