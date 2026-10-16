@@ -588,6 +588,46 @@ function FinanceHeadRow({ head, resetKey, canEdit, onSave, onDelete, isSaving, i
   );
 }
 
+function ProjectDocumentTypesSettings({ projectId }: { projectId: string }) {
+  const { toast } = useToast();
+  const [types, setTypes] = useState<string[]>([]);
+  const [newType, setNewType] = useState("");
+  const queryKey = ["/api/projects", projectId, "documents"];
+  const documents = useQuery<{ documentTypes: string[] }>({
+    queryKey,
+    queryFn: () => apiClient.get(`/projects/${projectId}/documents`),
+  });
+  useEffect(() => {
+    if (documents.data) setTypes(documents.data.documentTypes ?? []);
+  }, [documents.data]);
+  const saveTypes = useMutation({
+    mutationFn: () => apiClient.put(`/projects/${projectId}/settings/document-types`, { types }),
+    onSuccess: (result: { types: string[] }) => {
+      setTypes(result.types);
+      queryClient.invalidateQueries({ queryKey });
+      toast({ title: "Project document types saved" });
+    },
+    onError: (error: Error) => toast({ title: "Could not save document types", description: error.message, variant: "destructive" }),
+  });
+  const addType = () => {
+    const value = newType.trim();
+    if (value && !types.some((type) => type.toLowerCase() === value.toLowerCase())) setTypes((current) => [...current, value]);
+    setNewType("");
+  };
+  return <Card>
+    <CardHeader><CardTitle className="text-base">Document types</CardTitle><CardDescription>Project Managers can add the categories used when uploading project files.</CardDescription></CardHeader>
+    <CardContent className="space-y-4">
+      <div className="flex flex-wrap gap-2">
+        <Input className="max-w-sm" value={newType} maxLength={80} placeholder="e.g. Requirements, Design, Minutes" onChange={(event) => setNewType(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addType(); } }} />
+        <Button type="button" variant="outline" onClick={addType} disabled={!newType.trim()}><Plus className="mr-1.5 h-4 w-4" />Add type</Button>
+      </div>
+      <div className="flex flex-wrap gap-2">{types.map((type) => <Badge key={type} variant="secondary" className="gap-2 py-1">{type}<button type="button" aria-label={`Remove ${type}`} onClick={() => setTypes((current) => current.filter((item) => item !== type))}><X className="h-3 w-3" /></button></Badge>)}</div>
+      {!types.length && <p className="text-sm text-muted-foreground">No document types configured yet.</p>}
+      <div><Button onClick={() => saveTypes.mutate()} disabled={saveTypes.isPending || documents.isLoading}>{saveTypes.isPending ? "Saving…" : "Save document types"}</Button></div>
+    </CardContent>
+  </Card>;
+}
+
 export default function ProjectSettingsPanel({ project, users, clients, members, onNavigate }: Props) {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("general");
@@ -605,7 +645,6 @@ export default function ProjectSettingsPanel({ project, users, clients, members,
     client_id: (project as any).client_id ?? "",
   });
   const [managerId, setManagerId] = useState("");
-  const [newDocumentType, setNewDocumentType] = useState("");
   const [pendingDisable, setPendingDisable] = useState<{ path: string; label: string; description: string } | null>(null);
   const pdfLogoInputRef = useRef<HTMLInputElement>(null);
 
@@ -1094,28 +1133,7 @@ export default function ProjectSettingsPanel({ project, users, clients, members,
           {activeTab === "documents" && (
             <>
               <SectionHeader eyebrow="Project configuration" title="Project Documents" description="Define the document types Project Managers can use when uploading files to the organization repository." />
-              <Card>
-                <CardHeader><CardTitle className="text-base">Document types</CardTitle><CardDescription>Types are project-specific. Save changes to make them available in the Documents menu.</CardDescription></CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex flex-wrap gap-2">
-                    <Input className="max-w-sm" value={newDocumentType} maxLength={80} placeholder="e.g. Requirements, Design, Minutes" onChange={(event) => setNewDocumentType(event.target.value)} onKeyDown={(event) => {
-                      if (event.key === "Enter") {
-                        event.preventDefault();
-                        const value = newDocumentType.trim();
-                        if (value && !settings.documents.types.some((type) => type.toLowerCase() === value.toLowerCase())) updateSetting("documents.types", [...settings.documents.types, value]);
-                        setNewDocumentType("");
-                      }
-                    }} />
-                    <Button type="button" variant="outline" onClick={() => {
-                      const value = newDocumentType.trim();
-                      if (value && !settings.documents.types.some((type) => type.toLowerCase() === value.toLowerCase())) updateSetting("documents.types", [...settings.documents.types, value]);
-                      setNewDocumentType("");
-                    }} disabled={!newDocumentType.trim()}><Plus className="mr-1.5 h-4 w-4" />Add type</Button>
-                  </div>
-                  <div className="flex flex-wrap gap-2">{settings.documents.types.map((type) => <Badge key={type} variant="secondary" className="gap-2 py-1">{type}<button type="button" aria-label={`Remove ${type}`} onClick={() => updateSetting("documents.types", settings.documents.types.filter((item) => item !== type))}><X className="h-3 w-3" /></button></Badge>)}</div>
-                  {!settings.documents.types.length && <p className="text-sm text-muted-foreground">No document types configured yet.</p>}
-                </CardContent>
-              </Card>
+              <ProjectDocumentTypesSettings projectId={project.id} />
             </>
           )}
 

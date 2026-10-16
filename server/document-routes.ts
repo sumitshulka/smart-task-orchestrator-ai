@@ -63,15 +63,22 @@ async function connection() {
   const result = await pool.query("SELECT * FROM organization_document_repositories WHERE provider='google_drive' LIMIT 1");
   return result.rows[0] as any;
 }
+async function oauthConfig() {
+  const result = await pool.query("SELECT encrypted_client_id,encrypted_client_secret FROM organization_document_repository_config WHERE provider='google_drive' LIMIT 1");
+  const row = result.rows[0] as any;
+  return row ? { clientId: decrypt(row.encrypted_client_id), clientSecret: decrypt(row.encrypted_client_secret) } : null;
+}
 async function googleAccessToken() {
   const saved = await connection();
   if (!saved) throw new Error("Connect Google Drive in Organization Settings first");
   if (saved.expires_at && new Date(saved.expires_at).getTime() > Date.now() + 60_000) return decrypt(saved.encrypted_access_token);
+  const config = await oauthConfig();
+  if (!config) throw new Error("Save Google OAuth credentials in Organization Settings first");
   const response = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
-      client_id: process.env.GOOGLE_DRIVE_CLIENT_ID ?? "",
-      client_secret: process.env.GOOGLE_DRIVE_CLIENT_SECRET ?? "",
+      client_id: config.clientId,
+      client_secret: config.clientSecret,
       refresh_token: decrypt(saved.encrypted_refresh_token),
       grant_type: "refresh_token",
     }),
@@ -99,6 +106,21 @@ async function createDriveFolder(name: string, parentId: string) {
     body: JSON.stringify({ name, mimeType: "application/vnd.google-apps.folder", parents: [parentId] }),
   });
 }
+async function shareWithProjectMembers(projectId: string, driveItemId: string) {
+  const members = await storage.getProjectMembers(projectId);
+  const userIds = Array.from(new Set(members
+    .filter((member) => member.user_id && member.member_user_type !== "client_contact")
+    .map((member) => member.user_id!)));
+  const users = await Promise.all(userIds.map((id) => storage.getUser(id)));
+  const emails = Array.from(new Set(users.map((user) => user?.email?.trim().toLowerCase()).filter(Boolean)));
+  for (const email of emails) {
+    await driveRequest(`/files/${encodeURIComponent(driveItemId)}/permissions?supportsAllDrives=true&sendNotificationEmail=false`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "user", role: "reader", emailAddress: email }),
+    });
+  }
+}
 async function canManageProject(projectId: string, userId: string) {
   const roles = await roleNames(userId);
   if (roles.some((role) => ["admin", "manager", "team_manager"].includes(String(role)))) return true;
@@ -110,12 +132,13 @@ export function registerDocumentRoutes(app: Express) {
   app.get("/api/organization-settings/document-repository", requireOrganizationAdmin, async (_req, res) => {
     try {
       const saved = await connection();
+      const config = await oauthConfig();
       res.json({
         connected: Boolean(saved),
         provider: "google_drive",
         email: saved?.connected_email ?? null,
         rootFolderUrl: saved?.root_folder_url ?? null,
-        oauthConfigured: Boolean(process.env.GOOGLE_DRIVE_CLIENT_ID && process.env.GOOGLE_DRIVE_CLIENT_SECRET),
+        oauthConfigured: Boolean(config),
         redirectUri: redirectUri(_req),
       });
     } catch (error) {
@@ -123,15 +146,39 @@ export function registerDocumentRoutes(app: Express) {
       res.status(500).json({ error: "Could not load document repository status" });
     }
   });
-  app.post("/api/organization-settings/document-repository/google/start", requireOrganizationAdmin, (req, res) => {
-    if (!process.env.GOOGLE_DRIVE_CLIENT_ID || !process.env.GOOGLE_DRIVE_CLIENT_SECRET) {
+  app.post("/api/organization-settings/document-repository/google/credentials", requireOrganizationAdmin, async (req, res) => {
+    const clientId = typeof req.body?.clientId === "string" ? req.body.clientId.trim() : "";
+    const clientSecret = typeof req.body?.clientSecret === "string" ? req.body.clientSecret.trim() : "";
+    if (clientId.length < 10 || clientId.length > 500 || clientSecret.length < 10 || clientSecret.length > 500) {
+      return res.status(400).json({ error: "Enter a valid Google OAuth client ID and client secret." });
+    }
+    try {
+      const userId = String(req.headers["x-user-id"]);
+      await pool.query(
+        `INSERT INTO organization_document_repository_config(provider,encrypted_client_id,encrypted_client_secret,updated_by)
+         VALUES('google_drive',$1,$2,$3)
+         ON CONFLICT(provider) DO UPDATE SET encrypted_client_id=EXCLUDED.encrypted_client_id,
+         encrypted_client_secret=EXCLUDED.encrypted_client_secret,updated_by=EXCLUDED.updated_by,updated_at=now()`,
+        [encrypt(clientId), encrypt(clientSecret), userId],
+      );
+      // A changed OAuth client may invalidate stored refresh tokens. Require a fresh authorization.
+      await pool.query("DELETE FROM organization_document_repositories WHERE provider='google_drive'");
+      res.json({ configured: true });
+    } catch (error) {
+      console.error("Could not save document repository OAuth credentials", error);
+      res.status(500).json({ error: "Could not securely save Google OAuth credentials." });
+    }
+  });
+  app.post("/api/organization-settings/document-repository/google/start", requireOrganizationAdmin, async (req, res) => {
+    const config = await oauthConfig();
+    if (!config) {
       return res.status(503).json({ error: "Google Drive OAuth credentials are not configured." });
     }
     const payload = Buffer.from(JSON.stringify({ userId: String(req.headers["x-user-id"]), at: Date.now(), nonce: randomBytes(16).toString("hex") })).toString("base64url");
     const state = `${payload}.${signState(payload)}`;
     const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
     url.search = new URLSearchParams({
-      client_id: process.env.GOOGLE_DRIVE_CLIENT_ID,
+      client_id: config.clientId,
       redirect_uri: redirectUri(req),
       response_type: "code",
       access_type: "offline",
@@ -145,13 +192,15 @@ export function registerDocumentRoutes(app: Express) {
     const state = isValidState(String(req.query.state ?? ""));
     if (!state || !req.query.code) return res.status(400).send("Google Drive authorization state is invalid or expired.");
     try {
+      const config = await oauthConfig();
+      if (!config) throw new Error("Google OAuth credentials are not configured.");
       if (!(await roleNames(state.userId)).includes("admin")) return res.status(403).send("Organization administrator access is required.");
       const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
         method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: new URLSearchParams({
           code: String(req.query.code),
-          client_id: process.env.GOOGLE_DRIVE_CLIENT_ID ?? "",
-          client_secret: process.env.GOOGLE_DRIVE_CLIENT_SECRET ?? "",
+          client_id: config.clientId,
+          client_secret: config.clientSecret,
           redirect_uri: redirectUri(req),
           grant_type: "authorization_code",
         }),
@@ -237,6 +286,7 @@ export function registerDocumentRoutes(app: Express) {
     const project = await storage.getProject(req.params.id);
     if (!project) return res.status(404).json({ error: "Project not found" });
     const folder = await createDriveFolder(project.name, repository.root_folder_id);
+    await shareWithProjectMembers(req.params.id, folder.id);
     await pool.query("INSERT INTO project_document_folders(project_id,drive_folder_id,drive_folder_url,created_by) VALUES($1,$2,$3,$4)", [req.params.id, folder.id, folder.webViewLink ?? null, userId]);
     res.status(201).json({ drive_folder_id: folder.id, drive_folder_url: folder.webViewLink ?? null });
   });
@@ -267,6 +317,7 @@ export function registerDocumentRoutes(app: Express) {
       });
       const file = await response.json() as any;
       if (!response.ok) throw new Error(file.error?.message ?? "Google Drive upload failed.");
+      await shareWithProjectMembers(req.params.id, file.id);
       const docKey = name.trim().toLocaleLowerCase();
       const client = await pool.connect();
       let doc: any;

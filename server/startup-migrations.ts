@@ -485,6 +485,16 @@ export async function runStartupMigrations(): Promise<void> {
       )
     `);
     await client.query(`
+      CREATE TABLE IF NOT EXISTS organization_document_repository_config (
+        provider text PRIMARY KEY,
+        encrypted_client_id text NOT NULL,
+        encrypted_client_secret text NOT NULL,
+        updated_by uuid REFERENCES users(id) ON DELETE SET NULL,
+        created_at timestamptz DEFAULT now(),
+        updated_at timestamptz DEFAULT now()
+      )
+    `);
+    await client.query(`
       CREATE TABLE IF NOT EXISTS organization_document_repositories (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
         provider text NOT NULL UNIQUE DEFAULT 'google_drive',
