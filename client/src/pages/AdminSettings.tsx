@@ -1,11 +1,6 @@
 
 import React, { useState } from "react";
-import {
-  Tabs,
-  TabsList,
-  TabsTrigger,
-  TabsContent,
-} from "@/components/ui/tabs";
+import { Bot, CircleDollarSign, Cog, FolderKanban, HardDrive, KeyRound, ListTodo, MapPin, Users } from "lucide-react";
 import DepartmentsManager from "@/components/settings/DepartmentsManager";
 import OfficeLocationsManager from "@/components/settings/OfficeLocationsManager";
 import StatusManager from "@/components/settings/StatusManager";
@@ -27,94 +22,64 @@ const AdminSettings: React.FC = () => {
   });
 
   const projectManagementEnabled = settings?.project_management_enabled ?? false;
+  const navItems = [
+    { id: "general", label: "General", icon: Cog },
+    { id: "departments", label: "Departments", icon: Users },
+    { id: "office-locations", label: "Office Locations", icon: MapPin },
+    { id: "statuses", label: "Task Statuses", icon: ListTodo },
+    ...(projectManagementEnabled ? [
+      { id: "project-templates", label: "Project Templates", icon: FolderKanban },
+      { id: "project-finance", label: "Project Finance", icon: CircleDollarSign },
+    ] : []),
+    { id: "document-repository", label: "Document Repository", icon: HardDrive },
+    { id: "ai-integration", label: "AI Integration", icon: Bot },
+    { id: "license", label: "License Manager", icon: KeyRound },
+  ];
+  const activeTab = navItems.some((item) => item.id === tab) ? tab : "general";
 
   return (
     <div className="w-full min-h-screen bg-background">
       <div className="w-full max-w-none px-6 py-6">
         <h2 className="text-2xl font-semibold mb-6 text-left">Settings</h2>
-        <Tabs value={tab} onValueChange={setTab} className="w-full">
-          <TabsList className="mb-6 grid h-auto w-full max-w-none grid-cols-2 items-stretch justify-start gap-2 rounded-md border bg-background p-2 sm:grid-cols-3 lg:grid-cols-5">
-            <TabsTrigger
-              value="general"
-              className="h-auto min-h-11 w-full min-w-0 whitespace-normal break-words px-2 py-2 text-center leading-tight sm:px-3"
-            >
-              General
-            </TabsTrigger>
-            <TabsTrigger
-              value="departments"
-              className="h-auto min-h-11 w-full min-w-0 whitespace-normal break-words px-2 py-2 text-center leading-tight sm:px-3"
-            >
-              Departments
-            </TabsTrigger>
-            <TabsTrigger
-              value="office-locations"
-              className="h-auto min-h-11 w-full min-w-0 whitespace-normal break-words px-2 py-2 text-center leading-tight sm:px-3"
-            >
-              Office Locations
-            </TabsTrigger>
-            <TabsTrigger
-              value="statuses"
-              className="h-auto min-h-11 w-full min-w-0 whitespace-normal break-words px-2 py-2 text-center leading-tight sm:px-3"
-            >
-              Task Statuses
-            </TabsTrigger>
-            {projectManagementEnabled && (
-              <TabsTrigger
-                value="project-templates"
-                className="h-auto min-h-11 w-full min-w-0 whitespace-normal break-words px-2 py-2 text-center leading-tight sm:px-3"
+        <div className="grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
+          <nav aria-label="Organization settings" className="flex gap-1 overflow-x-auto pb-1 lg:block lg:space-y-1 lg:overflow-visible">
+            {navItems.map((item) => {
+              const Icon = item.icon;
+              const selected = activeTab === item.id;
+              return <button
+                key={item.id}
+                type="button"
+                aria-current={selected ? "page" : undefined}
+                onClick={() => {
+                  setTab(item.id);
+                  const url = new URL(window.location.href);
+                  url.searchParams.set("tab", item.id);
+                  window.history.replaceState({}, "", url.toString());
+                }}
+                className={`flex min-h-10 shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors lg:w-full ${
+                  selected
+                    ? "bg-indigo-50 font-medium text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300"
+                    : "text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
+                }`}
               >
-                Project Templates
-              </TabsTrigger>
-            )}
-            {projectManagementEnabled && (
-              <TabsTrigger value="project-finance" className="h-auto min-h-11 w-full min-w-0 whitespace-normal break-words px-2 py-2 text-center leading-tight sm:px-3">
-                Project Finance
-              </TabsTrigger>
-            )}
-            <TabsTrigger value="document-repository" className="h-auto min-h-11 w-full min-w-0 whitespace-normal break-words px-2 py-2 text-center leading-tight sm:px-3">Document Repository</TabsTrigger>
-            <TabsTrigger
-              value="ai-integration"
-              className="h-auto min-h-11 w-full min-w-0 whitespace-normal break-words px-2 py-2 text-center leading-tight sm:px-3"
-            >
-              AI Integration
-            </TabsTrigger>
-            <TabsTrigger
-              value="license"
-              className="h-auto min-h-11 w-full min-w-0 whitespace-normal break-words px-2 py-2 text-center leading-tight sm:px-3"
-            >
-              License Manager
-            </TabsTrigger>
-          </TabsList>
-          <TabsContent value="general" className="w-full">
-            <GeneralSettings />
-          </TabsContent>
-          <TabsContent value="departments" className="w-full">
-            <DepartmentsManager />
-          </TabsContent>
-          <TabsContent value="office-locations" className="w-full">
-            <OfficeLocationsManager />
-          </TabsContent>
-          <TabsContent value="statuses" className="w-full">
-            <StatusManager />
-          </TabsContent>
-          {projectManagementEnabled && (
-            <TabsContent value="project-templates" className="w-full">
-              <ProjectTemplates />
-            </TabsContent>
-          )}
-          {projectManagementEnabled && (
-            <TabsContent value="project-finance" className="w-full">
-              <OrganizationFinanceSettings />
-            </TabsContent>
-          )}
-          <TabsContent value="document-repository" className="w-full"><OrganizationDocumentRepository /></TabsContent>
-          <TabsContent value="ai-integration" className="w-full">
-            <AiSettings />
-          </TabsContent>
-          <TabsContent value="license" className="w-full">
-            <LicenseManager />
-          </TabsContent>
-        </Tabs>
+                <Icon className="h-4 w-4 shrink-0" />
+                <span>{item.label}</span>
+              </button>;
+            })}
+          </nav>
+
+          <div className="min-w-0">
+            {activeTab === "general" && <GeneralSettings />}
+            {activeTab === "departments" && <DepartmentsManager />}
+            {activeTab === "office-locations" && <OfficeLocationsManager />}
+            {activeTab === "statuses" && <StatusManager />}
+            {activeTab === "project-templates" && projectManagementEnabled && <ProjectTemplates />}
+            {activeTab === "project-finance" && projectManagementEnabled && <OrganizationFinanceSettings />}
+            {activeTab === "document-repository" && <OrganizationDocumentRepository />}
+            {activeTab === "ai-integration" && <AiSettings />}
+            {activeTab === "license" && <LicenseManager />}
+          </div>
+        </div>
       </div>
     </div>
   );
