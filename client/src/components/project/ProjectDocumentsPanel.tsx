@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 type Version = { version: number; author: string; url: string; uploadedAt: string; sizeBytes: number | null };
 type DocumentRow = { id: string; name: string; document_type: string; version_number: number; author: string; drive_file_url: string; uploaded_at: string; versions: Version[] };
-type DocumentData = { documents: DocumentRow[]; folderUrl: string | null; documentTypes: string[] };
+type DocumentData = { documents: DocumentRow[]; folderUrl: string | null; folderProvider: string | null; availableProviders: string[]; documentTypes: string[] };
 
 export default function ProjectDocumentsPanel({ projectId }: { projectId: string }) {
   const { toast } = useToast();
@@ -21,13 +21,14 @@ export default function ProjectDocumentsPanel({ projectId }: { projectId: string
   const [documentType, setDocumentType] = useState("");
   const [author, setAuthor] = useState("");
   const [file, setFile] = useState<File | null>(null);
+  const [storageProvider, setStorageProvider] = useState("");
   const queryKey = ["/api/projects", projectId, "documents"];
   const { data, isLoading, isError } = useQuery<DocumentData>({
     queryKey,
     queryFn: () => apiClient.get(`/projects/${projectId}/documents`),
   });
   const createFolder = useMutation({
-    mutationFn: () => apiClient.post(`/projects/${projectId}/documents/folder`, {}),
+    mutationFn: (provider: string) => apiClient.post(`/projects/${projectId}/documents/folder`, { provider }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey }),
     onError: (error: Error) => toast({ title: "Could not create project folder", description: error.message, variant: "destructive" }),
   });
@@ -51,14 +52,20 @@ export default function ProjectDocumentsPanel({ projectId }: { projectId: string
 
   if (isLoading) return <div className="animate-pulse rounded-xl bg-muted p-10" />;
   if (isError || !data) return <Card><CardContent className="py-10 text-center text-sm text-muted-foreground">Project Documents could not be loaded.</CardContent></Card>;
+  const selectedProvider = storageProvider || data.availableProviders[0] || "";
+  const providerName = (provider: string) => provider === "onedrive" ? "OneDrive" : "Google Drive";
 
   return <div className="space-y-5">
-    <header><p className="text-xs font-semibold uppercase tracking-[0.16em] text-indigo-600">Repository</p><h2 className="mt-1 text-2xl font-semibold">Project Documents</h2><p className="mt-1 text-sm text-muted-foreground">Files are stored in the organization’s connected OneDrive. New uploads to an existing document create a numbered version.</p></header>
+    <header><p className="text-xs font-semibold uppercase tracking-[0.16em] text-indigo-600">Repository</p><h2 className="mt-1 text-2xl font-semibold">Project Documents</h2><p className="mt-1 text-sm text-muted-foreground">Files are stored in the project’s selected {data.folderProvider ? providerName(data.folderProvider) : "repository"}. New uploads to an existing document create a numbered version.</p></header>
     <Card>
       <CardHeader><CardTitle className="text-base">Project folder</CardTitle><CardDescription>The folder is created inside the organization repository connected in Settings.</CardDescription></CardHeader>
       <CardContent className="flex flex-wrap items-center justify-between gap-3">
-        {data.folderUrl ? <a href={data.folderUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-sm text-primary underline">Open project folder <ExternalLink className="h-4 w-4" /></a> : <p className="text-sm text-muted-foreground">No project folder has been created yet.</p>}
-        {!data.folderUrl && <Button onClick={() => createFolder.mutate()} disabled={createFolder.isPending}><FolderPlus className="mr-2 h-4 w-4" />{createFolder.isPending ? "Creating…" : "Create project folder"}</Button>}
+        {data.folderUrl ? <a href={data.folderUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-sm text-primary underline">Open project folder <ExternalLink className="h-4 w-4" /></a> : data.folderProvider ? <p className="text-sm text-muted-foreground">Project folder created in {providerName(data.folderProvider)}.</p> : <p className="text-sm text-muted-foreground">No project folder has been created yet.</p>}
+        {!data.folderProvider && data.availableProviders.length > 0 && <div className="flex flex-wrap items-center gap-2">
+          <Select value={selectedProvider} onValueChange={setStorageProvider}><SelectTrigger className="w-44"><SelectValue placeholder="Choose repository" /></SelectTrigger><SelectContent>{data.availableProviders.map((provider) => <SelectItem key={provider} value={provider}>{providerName(provider)}</SelectItem>)}</SelectContent></Select>
+          <Button onClick={() => createFolder.mutate(selectedProvider)} disabled={createFolder.isPending || !selectedProvider}><FolderPlus className="mr-2 h-4 w-4" />{createFolder.isPending ? "Creating…" : "Create project folder"}</Button>
+        </div>}
+        {!data.folderProvider && data.availableProviders.length === 0 && <p className="w-full text-sm text-amber-700">Connect Google Drive or OneDrive in Organization Settings before creating a project folder.</p>}
       </CardContent>
     </Card>
     <Card>

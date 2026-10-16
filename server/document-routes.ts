@@ -153,16 +153,15 @@ async function createDriveFolder(name: string, parentId: string) {
     body: JSON.stringify({ name, mimeType: "application/vnd.google-apps.folder", parents: [parentId] }),
   });
 }
-async function shareWithProjectMembers(projectId: string, driveItemId: string) {
+async function shareWithProjectMembers(projectId: string, driveItemId: string, provider: string) {
   const members = await storage.getProjectMembers(projectId);
   const userIds = Array.from(new Set(members
     .filter((member) => member.user_id && member.member_user_type !== "client_contact")
     .map((member) => member.user_id!)));
   const users = await Promise.all(userIds.map((id) => storage.getUser(id)));
   const emails = Array.from(new Set(users.map((user) => user?.email?.trim().toLowerCase()).filter(Boolean)));
-  const repository = await activeConnection();
   for (const email of emails) {
-    if (repository?.provider === "onedrive") {
+    if (provider === "onedrive") {
       await oneDriveRequest(`/me/drive/items/${encodeURIComponent(driveItemId)}/invite`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ recipients: [{ email }], roles: ["read"], requireSignIn: true, sendInvitation: false }),
@@ -185,16 +184,13 @@ async function canManageProject(projectId: string, userId: string) {
 export function registerDocumentRoutes(app: Express) {
   app.get("/api/organization-settings/document-repository", requireOrganizationAdmin, async (_req, res) => {
     try {
-      const saved = await activeConnection();
-      const config = await oneDriveConfig();
-      res.json({
-        connected: saved?.provider === "onedrive",
-        provider: "onedrive",
-        email: saved?.connected_email ?? null,
-        rootFolderUrl: saved?.root_folder_url ?? null,
-        oauthConfigured: Boolean(config),
-        redirectUri: oneDriveRedirectUri(_req),
-      });
+      const [google, onedrive, googleConfig, microsoftConfig] = await Promise.all([
+        connection(), oneDriveConnection(), oauthConfig(), oneDriveConfig(),
+      ]);
+      res.json({ providers: [
+        { id: "google_drive", label: "Google Drive", connected: Boolean(google), email: google?.connected_email ?? null, rootFolderUrl: google?.root_folder_url ?? null, oauthConfigured: Boolean(googleConfig), redirectUri: redirectUri(_req) },
+        { id: "onedrive", label: "OneDrive", connected: Boolean(onedrive), email: onedrive?.connected_email ?? null, rootFolderUrl: onedrive?.root_folder_url ?? null, oauthConfigured: Boolean(microsoftConfig), redirectUri: oneDriveRedirectUri(_req) },
+      ] });
     } catch (error) {
       console.error("Document repository status failed", error);
       res.status(500).json({ error: "Could not load document repository status" });
@@ -215,7 +211,7 @@ export function registerDocumentRoutes(app: Express) {
          encrypted_client_secret=EXCLUDED.encrypted_client_secret,updated_by=EXCLUDED.updated_by,updated_at=now()`,
         [encrypt(clientId), encrypt(clientSecret), userId],
       );
-      await pool.query("DELETE FROM organization_document_repositories");
+      await pool.query("DELETE FROM organization_document_repositories WHERE provider='onedrive'");
       res.json({ configured: true });
     } catch (error) {
       console.error("Could not save OneDrive OAuth credentials", error);
@@ -268,10 +264,12 @@ export function registerDocumentRoutes(app: Express) {
         folder = await createResponse.json();
         if (!createResponse.ok) throw new Error(folder.error?.message ?? "Could not create the Project Documents root folder.");
       }
-      await pool.query("DELETE FROM organization_document_repositories");
       await pool.query(
         `INSERT INTO organization_document_repositories(provider,connected_email,encrypted_access_token,encrypted_refresh_token,expires_at,root_folder_id,root_folder_url,connected_by)
-         VALUES('onedrive',$1,$2,$3,now()+($4::text || ' seconds')::interval,$5,$6,$7)`,
+         VALUES('onedrive',$1,$2,$3,now()+($4::text || ' seconds')::interval,$5,$6,$7)
+         ON CONFLICT(provider) DO UPDATE SET connected_email=EXCLUDED.connected_email,encrypted_access_token=EXCLUDED.encrypted_access_token,
+         encrypted_refresh_token=EXCLUDED.encrypted_refresh_token,expires_at=EXCLUDED.expires_at,root_folder_id=EXCLUDED.root_folder_id,
+         root_folder_url=EXCLUDED.root_folder_url,connected_by=EXCLUDED.connected_by,updated_at=now()`,
         [user.mail ?? user.userPrincipalName ?? null, encrypt(tokens.access_token), encrypt(tokens.refresh_token), String(tokens.expires_in ?? 3600), folder.id, folder.webUrl ?? null, state.userId],
       );
       res.redirect("/admin/settings?tab=document-repository&connected=1");
@@ -370,9 +368,10 @@ export function registerDocumentRoutes(app: Express) {
       res.status(502).send(error.message ?? "Could not connect Google Drive.");
     }
   });
-  app.delete("/api/organization-settings/document-repository", requireOrganizationAdmin, async (_req, res) => {
-    await pool.query("DELETE FROM organization_document_repositories");
-    res.json({ ok: true });
+  app.delete("/api/organization-settings/document-repository/:provider", requireOrganizationAdmin, async (req, res) => {
+    if (!["google_drive", "onedrive"].includes(req.params.provider)) return res.status(400).json({ error: "Unsupported repository provider." });
+    await pool.query("DELETE FROM organization_document_repositories WHERE provider=$1", [req.params.provider]);
+    res.json({ ok: true, provider: req.params.provider });
   });
 
   app.get("/api/projects/:id/documents", requireProjectAccess(), async (req: any, res) => {
@@ -387,10 +386,13 @@ export function registerDocumentRoutes(app: Express) {
           FROM project_documents d LEFT JOIN LATERAL
           (SELECT * FROM project_document_versions WHERE document_id=d.id ORDER BY version_number DESC LIMIT 1) v ON true
           WHERE d.project_id=$1 ORDER BY d.updated_at DESC`, [req.params.id]),
-        pool.query("SELECT drive_folder_url FROM project_document_folders WHERE project_id=$1", [req.params.id]),
+        pool.query("SELECT provider,drive_folder_url FROM project_document_folders WHERE project_id=$1", [req.params.id]),
         pool.query("SELECT settings FROM project_settings WHERE project_id=$1", [req.params.id]),
       ]);
-      res.json({ documents: docs.rows, folderUrl: folder.rows[0]?.drive_folder_url ?? null, documentTypes: settings.rows[0]?.settings?.documents?.types ?? [] });
+      const [google, onedrive] = await Promise.all([connection(), oneDriveConnection()]);
+      res.json({ documents: docs.rows, folderUrl: folder.rows[0]?.drive_folder_url ?? null, folderProvider: folder.rows[0]?.provider ?? null,
+        availableProviders: [google && "google_drive", onedrive && "onedrive"].filter(Boolean),
+        documentTypes: settings.rows[0]?.settings?.documents?.types ?? [] });
     } catch (error) {
       console.error("Project documents load failed", error);
       res.status(500).json({ error: "Could not load project documents" });
@@ -413,21 +415,23 @@ export function registerDocumentRoutes(app: Express) {
   app.post("/api/projects/:id/documents/folder", requireProjectAccess(), async (req: any, res) => {
     const userId = String(req.headers["x-user-id"] ?? "");
     if (!(await canManageProject(req.params.id, userId))) return res.status(403).json({ error: "Project Manager access required" });
-    const existing = await pool.query("SELECT drive_folder_id,drive_folder_url FROM project_document_folders WHERE project_id=$1", [req.params.id]);
+    const existing = await pool.query("SELECT provider,drive_folder_id,drive_folder_url FROM project_document_folders WHERE project_id=$1", [req.params.id]);
     if (existing.rows[0]) return res.json(existing.rows[0]);
-    const repository = await activeConnection();
-    if (!repository) return res.status(409).json({ error: "Organization admin must connect a document repository in Organization Settings first." });
+    const provider = req.body?.provider;
+    if (!["google_drive", "onedrive"].includes(provider)) return res.status(400).json({ error: "Choose a connected document repository." });
+    const repository = provider === "onedrive" ? await oneDriveConnection() : await connection();
+    if (!repository) return res.status(409).json({ error: "Connect this repository in Organization Settings first." });
     const project = await storage.getProject(req.params.id);
     if (!project) return res.status(404).json({ error: "Project not found" });
-    const folder = repository.provider === "onedrive"
+    const folder = provider === "onedrive"
       ? await oneDriveRequest(`/me/drive/items/${encodeURIComponent(repository.root_folder_id)}/children`, {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ name: project.name, folder: {}, "@microsoft.graph.conflictBehavior": "rename" }),
         })
       : await createDriveFolder(project.name, repository.root_folder_id);
-    await shareWithProjectMembers(req.params.id, folder.id);
-    await pool.query("INSERT INTO project_document_folders(project_id,drive_folder_id,drive_folder_url,created_by) VALUES($1,$2,$3,$4)", [req.params.id, folder.id, folder.webViewLink ?? null, userId]);
-    res.status(201).json({ drive_folder_id: folder.id, drive_folder_url: folder.webViewLink ?? null });
+    await shareWithProjectMembers(req.params.id, folder.id, provider);
+    await pool.query("INSERT INTO project_document_folders(project_id,provider,drive_folder_id,drive_folder_url,created_by) VALUES($1,$2,$3,$4,$5)", [req.params.id, provider, folder.id, folder.webViewLink ?? folder.webUrl ?? null, userId]);
+    res.status(201).json({ provider, drive_folder_id: folder.id, drive_folder_url: folder.webViewLink ?? folder.webUrl ?? null });
   });
   app.post("/api/projects/:id/documents", requireProjectAccess(), upload.single("file"), async (req: any, res) => {
     try {
@@ -439,12 +443,13 @@ export function registerDocumentRoutes(app: Express) {
       const settings = await pool.query("SELECT settings FROM project_settings WHERE project_id=$1", [req.params.id]);
       const validTypes = settings.rows[0]?.settings?.documents?.types ?? [];
       if (!validTypes.includes(documentType.trim())) return res.status(400).json({ error: "Choose a document type configured in Project Settings." });
-      const folder = await pool.query("SELECT drive_folder_id FROM project_document_folders WHERE project_id=$1", [req.params.id]);
+      const folder = await pool.query("SELECT provider,drive_folder_id FROM project_document_folders WHERE project_id=$1", [req.params.id]);
       if (!folder.rows[0]) return res.status(409).json({ error: "Create the project folder before uploading documents." });
-      const repository = await activeConnection();
-      if (!repository) return res.status(409).json({ error: "Connect OneDrive in Organization Settings first." });
+      const provider = folder.rows[0].provider ?? "google_drive";
+      const repository = provider === "onedrive" ? await oneDriveConnection() : await connection();
+      if (!repository) return res.status(409).json({ error: `Reconnect ${provider === "onedrive" ? "OneDrive" : "Google Drive"} in Organization Settings.` });
       let file: any;
-      if (repository.provider === "onedrive") {
+      if (provider === "onedrive") {
         const safeName = `${Date.now()}-${randomBytes(6).toString("hex")}-${String(req.file.originalname).replace(/[\\/]/g, "_")}`;
         const response = await fetch(`${GRAPH_API}/me/drive/items/${encodeURIComponent(folder.rows[0].drive_folder_id)}:/${encodeURIComponent(safeName)}:/content`, {
           method: "PUT",
@@ -472,7 +477,7 @@ export function registerDocumentRoutes(app: Express) {
         file = await response.json() as any;
         if (!response.ok) throw new Error(file.error?.message ?? "Google Drive upload failed.");
       }
-      await shareWithProjectMembers(req.params.id, file.id);
+      await shareWithProjectMembers(req.params.id, file.id, provider);
       const docKey = name.trim().toLocaleLowerCase();
       const client = await pool.connect();
       let doc: any;

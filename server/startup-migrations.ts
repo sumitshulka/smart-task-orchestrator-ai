@@ -512,12 +512,14 @@ export async function runStartupMigrations(): Promise<void> {
     await client.query(`
       CREATE TABLE IF NOT EXISTS project_document_folders (
         project_id uuid PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE,
+        provider text NOT NULL DEFAULT 'google_drive',
         drive_folder_id text NOT NULL,
         drive_folder_url text,
         created_by uuid REFERENCES users(id) ON DELETE SET NULL,
         created_at timestamptz DEFAULT now()
       )
     `);
+    await client.query("ALTER TABLE project_document_folders ADD COLUMN IF NOT EXISTS provider text NOT NULL DEFAULT 'google_drive'");
     await client.query(`
       CREATE TABLE IF NOT EXISTS project_documents (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
