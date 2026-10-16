@@ -33,6 +33,7 @@ import ReleaseManagementPanel from "@/components/project/ReleaseManagementPanel"
 import TestCaseManagementPanel from "@/components/project/TestCaseManagementPanel";
 import ProjectMeetingsPanel from "@/components/project/ProjectMeetingsPanel";
 import ProjectFinancePanel from "@/components/project/ProjectFinancePanel";
+import ProjectDocumentsPanel from "@/components/project/ProjectDocumentsPanel";
 import { filterProjectNavigation } from "./projectNavigation";
 import { format, differenceInDays } from "date-fns";
 import type {
@@ -972,11 +973,7 @@ export default function ProjectDetail() {
               <ProjectMeetingsPanel projectId={id!} />
             )}
             {activeSection === "documents" && (
-              <LaunchingSoonSection
-                icon={FileText}
-                title="Project Documents"
-                description="This module will store project-related documents and act as the project document repository."
-              />
+              <ProjectDocumentsPanel projectId={id!} />
             )}
             {activeSection === "settings" && (
               <ProjectSettingsPanel

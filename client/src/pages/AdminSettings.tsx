@@ -14,11 +14,12 @@ import { LicenseManager } from "@/components/settings/LicenseManager";
 import ProjectTemplates from "@/components/settings/ProjectTemplates";
 import AiSettings from "@/components/settings/AiSettings";
 import OrganizationFinanceSettings from "@/components/settings/OrganizationFinanceSettings";
+import OrganizationDocumentRepository from "@/components/settings/OrganizationDocumentRepository";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api";
 
 const AdminSettings: React.FC = () => {
-  const [tab, setTab] = useState("general");
+  const [tab, setTab] = useState(() => new URLSearchParams(window.location.search).get("tab") ?? "general");
 
   const { data: settings } = useQuery({
     queryKey: ["/api/organization-settings"],
@@ -70,6 +71,7 @@ const AdminSettings: React.FC = () => {
                 Project Finance
               </TabsTrigger>
             )}
+            <TabsTrigger value="document-repository" className="px-6 py-3 text-left justify-start">Document Repository</TabsTrigger>
             <TabsTrigger
               value="ai-integration"
               className="px-6 py-3 text-left justify-start"
@@ -105,6 +107,7 @@ const AdminSettings: React.FC = () => {
               <OrganizationFinanceSettings />
             </TabsContent>
           )}
+          <TabsContent value="document-repository" className="w-full"><OrganizationDocumentRepository /></TabsContent>
           <TabsContent value="ai-integration" className="w-full">
             <AiSettings />
           </TabsContent>

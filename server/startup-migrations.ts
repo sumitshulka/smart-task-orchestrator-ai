@@ -484,6 +484,58 @@ export async function runStartupMigrations(): Promise<void> {
         created_at timestamp DEFAULT now()
       )
     `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS organization_document_repositories (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        provider text NOT NULL UNIQUE DEFAULT 'google_drive',
+        connected_email text,
+        encrypted_access_token text NOT NULL,
+        encrypted_refresh_token text NOT NULL,
+        expires_at timestamptz,
+        root_folder_id text NOT NULL,
+        root_folder_url text,
+        connected_by uuid REFERENCES users(id) ON DELETE SET NULL,
+        created_at timestamptz DEFAULT now(),
+        updated_at timestamptz DEFAULT now()
+      )
+    `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS project_document_folders (
+        project_id uuid PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE,
+        drive_folder_id text NOT NULL,
+        drive_folder_url text,
+        created_by uuid REFERENCES users(id) ON DELETE SET NULL,
+        created_at timestamptz DEFAULT now()
+      )
+    `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS project_documents (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        project_id uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        document_key text NOT NULL,
+        name text NOT NULL,
+        document_type text NOT NULL,
+        created_by uuid REFERENCES users(id) ON DELETE SET NULL,
+        created_at timestamptz DEFAULT now(),
+        updated_at timestamptz DEFAULT now(),
+        UNIQUE(project_id, document_key)
+      )
+    `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS project_document_versions (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        document_id uuid NOT NULL REFERENCES project_documents(id) ON DELETE CASCADE,
+        version_number integer NOT NULL,
+        author text NOT NULL,
+        drive_file_id text NOT NULL,
+        drive_file_url text,
+        mime_type text,
+        size_bytes bigint,
+        uploaded_by uuid REFERENCES users(id) ON DELETE SET NULL,
+        uploaded_at timestamptz DEFAULT now(),
+        UNIQUE(document_id, version_number)
+      )
+    `);
   } finally {
     client.release();
   }

@@ -26,6 +26,7 @@ type Settings = {
   quality: Record<string, any>;
   releaseManagement: Record<string, any>;
   meetings: Record<string, any>;
+  documents: { types: string[] };
   collaboration: Record<string, any>;
   notifications: Record<string, { enabled: boolean; channels: string[] }>;
 };
@@ -87,6 +88,7 @@ const DEFAULT_SETTINGS: Settings = {
     enabled: true,
     pdfLogoUrl: "",
   },
+  documents: { types: [] },
   collaboration: {
     workspaceEnabled: true,
     internalCollaboration: true,
@@ -141,6 +143,7 @@ const navItems = [
   { id: "quality", label: "Quality & Delivery", icon: ClipboardCheck },
   { id: "release-management", label: "Release Management", icon: PackageCheck },
   { id: "meetings", label: "Meetings", icon: Calendar },
+  { id: "documents", label: "Documents", icon: FileText },
   { id: "collaboration", label: "Collaboration", icon: MessageSquare },
   { id: "access", label: "Access", icon: Shield },
   { id: "notifications", label: "Notifications", icon: Bell },
@@ -203,6 +206,7 @@ function mergeSettings(saved: any): Settings {
       },
     },
     collaboration: { ...DEFAULT_SETTINGS.collaboration, ...(source.collaboration ?? {}) },
+    documents: { ...DEFAULT_SETTINGS.documents, ...(source.documents ?? {}), types: Array.isArray(source.documents?.types) ? source.documents.types : [] },
     notifications: Object.fromEntries(
       NOTIFICATION_EVENTS.map(([key]) => [key, { ...NOTIFICATION_DEFAULT, ...(source.notifications?.[key] ?? {}) }]),
     ),
@@ -601,6 +605,7 @@ export default function ProjectSettingsPanel({ project, users, clients, members,
     client_id: (project as any).client_id ?? "",
   });
   const [managerId, setManagerId] = useState("");
+  const [newDocumentType, setNewDocumentType] = useState("");
   const [pendingDisable, setPendingDisable] = useState<{ path: string; label: string; description: string } | null>(null);
   const pdfLogoInputRef = useRef<HTMLInputElement>(null);
 
@@ -1082,6 +1087,33 @@ export default function ProjectSettingsPanel({ project, users, clients, members,
                     </div>
                   </div>
                   <p className="mt-3 text-xs text-gray-500">PNG or JPG up to 2 MB. Save Project Settings after choosing a logo.</p>
+                </CardContent>
+              </Card>
+            </>
+          )}
+          {activeTab === "documents" && (
+            <>
+              <SectionHeader eyebrow="Project configuration" title="Project Documents" description="Define the document types Project Managers can use when uploading files to the organization repository." />
+              <Card>
+                <CardHeader><CardTitle className="text-base">Document types</CardTitle><CardDescription>Types are project-specific. Save changes to make them available in the Documents menu.</CardDescription></CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex flex-wrap gap-2">
+                    <Input className="max-w-sm" value={newDocumentType} maxLength={80} placeholder="e.g. Requirements, Design, Minutes" onChange={(event) => setNewDocumentType(event.target.value)} onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        const value = newDocumentType.trim();
+                        if (value && !settings.documents.types.some((type) => type.toLowerCase() === value.toLowerCase())) updateSetting("documents.types", [...settings.documents.types, value]);
+                        setNewDocumentType("");
+                      }
+                    }} />
+                    <Button type="button" variant="outline" onClick={() => {
+                      const value = newDocumentType.trim();
+                      if (value && !settings.documents.types.some((type) => type.toLowerCase() === value.toLowerCase())) updateSetting("documents.types", [...settings.documents.types, value]);
+                      setNewDocumentType("");
+                    }} disabled={!newDocumentType.trim()}><Plus className="mr-1.5 h-4 w-4" />Add type</Button>
+                  </div>
+                  <div className="flex flex-wrap gap-2">{settings.documents.types.map((type) => <Badge key={type} variant="secondary" className="gap-2 py-1">{type}<button type="button" aria-label={`Remove ${type}`} onClick={() => updateSetting("documents.types", settings.documents.types.filter((item) => item !== type))}><X className="h-3 w-3" /></button></Badge>)}</div>
+                  {!settings.documents.types.length && <p className="text-sm text-muted-foreground">No document types configured yet.</p>}
                 </CardContent>
               </Card>
             </>

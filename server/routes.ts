@@ -13,6 +13,7 @@ import { licenseManager, APP_ID } from "./license-manager";
 import { registerPlanningRoutes } from "./planning-routes";
 import { registerReleaseRoutes } from "./release-routes";
 import { registerMeetingRoutes } from "./meeting-routes";
+import { registerDocumentRoutes } from "./document-routes";
 import { buildAllocationsReport } from "./allocation-report";
 import { createAllocationsPdf, createAllocationsWorkbook } from "./allocation-report-exports";
 import { createFinanceProfitabilityPdf, type FinanceProfitabilityExport } from "./finance-report-exports";
@@ -197,6 +198,7 @@ const DEFAULT_PROJECT_SETTINGS = {
     meetingMinutesPublished: { enabled: true, channels: ["in_app"] },
     meetingActionDue: { enabled: true, channels: ["in_app"] },
   },
+  documents: { types: [] as string[] },
 };
 
 const PROJECT_SETTING_ENUMS = {
@@ -235,6 +237,11 @@ function mergeProjectSettings(saved: any): Record<string, any> {
     },
     collaboration: { ...DEFAULT_PROJECT_SETTINGS.collaboration, ...(isRecord(source.collaboration) ? source.collaboration : {}) },
     notifications: { ...DEFAULT_PROJECT_SETTINGS.notifications, ...(isRecord(source.notifications) ? source.notifications : {}) },
+    documents: {
+      ...DEFAULT_PROJECT_SETTINGS.documents,
+      ...(isRecord(source.documents) ? source.documents : {}),
+      types: Array.isArray(source.documents?.types) ? source.documents.types : [],
+    },
   };
 }
 
@@ -254,6 +261,10 @@ function validateProjectSettings(input: unknown): { settings?: Record<string, an
   if (typeof settings.releaseManagement.repository.startingVersion !== "string" ||
       !settings.releaseManagement.repository.startingVersion.trim()) {
     return { error: "Starting version is required" };
+  }
+  if (!Array.isArray(settings.documents.types) || settings.documents.types.length > 100 ||
+      settings.documents.types.some((type: unknown) => typeof type !== "string" || !type.trim() || type.length > 80)) {
+    return { error: "Project document types must be a list of up to 100 names (80 characters max)" };
   }
 
   const booleanGroups = ["planning", "finance", "quality", "releaseManagement", "collaboration"] as const;
@@ -5162,6 +5173,7 @@ Output EXACTLY this JSON (no text outside it):
   registerPlanningRoutes(app);
   registerReleaseRoutes(app);
   registerMeetingRoutes(app);
+  registerDocumentRoutes(app);
 
   const httpServer = createServer(app);
   return httpServer;
