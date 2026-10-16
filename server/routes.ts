@@ -15,6 +15,7 @@ import { registerReleaseRoutes } from "./release-routes";
 import { registerMeetingRoutes } from "./meeting-routes";
 import { buildAllocationsReport } from "./allocation-report";
 import { createAllocationsPdf, createAllocationsWorkbook } from "./allocation-report-exports";
+import { createFinanceProfitabilityPdf, type FinanceProfitabilityExport } from "./finance-report-exports";
 import {
   organizationFinanceHeads,
   organizationSettings as organizationSettingsTable,
@@ -2687,7 +2688,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (startMonth && startMonth <= todayMonth) {
         let cursor = new Date(`${startMonth}-01T00:00:00.000Z`);
         const end = new Date(`${todayMonth}-01T00:00:00.000Z`);
-        while (cursor <= end && monthlyResourceCosts.length < 240) {
+        while (cursor <= end && monthlyResourceCosts.length < 1200) {
           const month = cursor.toISOString().slice(0, 7);
           const resources = members
             .filter((member) => member.is_active !== false && member.member_user_type !== "client_contact" && member.user_id)
@@ -2747,6 +2748,64 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Failed to fetch project finance:", error);
       res.status(500).json({ error: "Failed to fetch project finance" });
+    }
+  });
+
+  app.post("/api/projects/:id/finance/profitability.pdf", requireProjectModule("finance"), async (req, res) => {
+    try {
+      const context = (req as any).projectContext;
+      if (!financeVisibilityAllows(context, "profitability")) {
+        return res.status(403).json({ error: "You cannot export this profitability report" });
+      }
+      const input = req.body as Partial<FinanceProfitabilityExport>;
+      const months = Array.isArray(input.months) ? input.months.slice(0, 1200).map(String) : [];
+      const arrays = [input.revenue, input.salaryAmounts, input.expenseTotals, input.profitability];
+      if (months.length > 1200 || arrays.some((values) => !Array.isArray(values) || values.length !== months.length)) {
+        return res.status(400).json({ error: "Invalid report columns" });
+      }
+      const isAmountArray = (values: unknown): values is number[] =>
+        Array.isArray(values) && values.length === months.length && values.every((value) => Number.isFinite(Number(value)));
+      if (!isAmountArray(input.revenue) || !isAmountArray(input.salaryAmounts) ||
+          !isAmountArray(input.expenseTotals) || !isAmountArray(input.profitability) ||
+          !Array.isArray(input.expenses) || input.expenses.length > 500 ||
+          input.expenses.some((row) => !row || typeof row.label !== "string" || !isAmountArray(row.amounts))) {
+        return res.status(400).json({ error: "Invalid report values" });
+      }
+      const safeReport: FinanceProfitabilityExport = {
+        projectName: String(context.project.name ?? "Project").slice(0, 160),
+        rangeLabel: String(input.rangeLabel ?? "Selected period").slice(0, 100),
+        currency: String(input.currency ?? "USD").slice(0, 8),
+        months,
+        revenue: input.revenue.map(Number),
+        revenueTotal: Number(input.revenueTotal) || 0,
+        expenses: input.expenses.map((row) => ({
+          label: String(row.label).slice(0, 160),
+          amounts: row.amounts.map(Number),
+          total: Number(row.total) || 0,
+        })),
+        includeSalary: input.includeSalary === true &&
+          financeVisibilityAllows(context, "peopleCost") && financeVisibilityAllows(context, "resourceCost"),
+        salaryAmounts: input.salaryAmounts.map(Number),
+        expenseTotals: input.expenseTotals.map(Number),
+        expenseTotal: Number(input.expenseTotal) || 0,
+        profitability: input.profitability.map(Number),
+        profitabilityTotal: Number(input.profitabilityTotal) || 0,
+        revenueDetails: Array.isArray(input.revenueDetails) ? input.revenueDetails.slice(0, 2000).map((detail) => ({
+          date: String(detail.date ?? "").slice(0, 20),
+          milestone: String(detail.milestone ?? "").slice(0, 160),
+          description: String(detail.description ?? "").slice(0, 400),
+          amount: Number(detail.amount) || 0,
+          status: String(detail.status ?? "").slice(0, 30),
+        })) : [],
+      };
+      const pdf = await createFinanceProfitabilityPdf(safeReport);
+      const filename = `${String(context.project.name ?? "project").toLowerCase().replace(/[^a-z0-9]+/g, "-")}-profitability.pdf`;
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+      res.send(pdf);
+    } catch (error) {
+      console.error("Failed to export profitability PDF:", error);
+      res.status(500).json({ error: "Failed to export profitability PDF" });
     }
   });
 
