@@ -7,6 +7,8 @@ Project Finance measures project profitability over its lifetime using accrued r
 
 All finance amounts and allocated salary costs use the organization currency so project totals are comparable. Treat revenue recognition basis as a monthly/milestone enum, not a boolean option, wherever project settings are validated.
 
+Keep Finance visually split into Revenue above Expenses. Entry forms open in dialogs. Salary-cost rows are computed from Project Settings and read-only here; user-entered accruals stay editable/deletable while pending, then lock after approval. Approval is limited to a different authorized project finance user.
+
 **Why:** The user described Finance as an accrual profitability workflow, not accounting/payments, and selected project-role titles as the access model so PM, Project Director, Finance Incharge, and custom titles can be authorized per project.
 
 **How to apply:** Keep organization-wide expense heads separate from project expense entries, preserve the effective-month salary history, record revenue with its monthly or milestone basis, enforce configured project-role access server-side, and report line-level accruals rather than only totals.

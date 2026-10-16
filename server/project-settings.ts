@@ -18,7 +18,7 @@ export const DEFAULT_PROJECT_SETTINGS = {
   },
   finance: {
     trackFinance: true,
-    trackPeopleCost: false,
+    trackPeopleCost: true,
     revenueRecognitionBasis: "milestone",
     peopleCostVisibility: ["organization_admin", "finance", "project_manager"],
     visibility: {

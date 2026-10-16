@@ -199,6 +199,9 @@ export const projectFinanceEntries = pgTable("project_finance_entries", {
   currency: text("currency").notNull(),
   description: text("description").notNull(),
   created_by: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+  approval_status: text("approval_status").notNull().default("pending"),
+  approved_by: uuid("approved_by").references(() => users.id, { onDelete: "set null" }),
+  approved_at: timestamp("approved_at"),
   created_at: timestamp("created_at").defaultNow(),
 });
 

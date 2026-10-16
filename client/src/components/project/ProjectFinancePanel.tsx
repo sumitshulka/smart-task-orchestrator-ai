@@ -5,11 +5,26 @@ import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 
+type Entry = {
+  id: string;
+  entry_type: "expense" | "revenue";
+  expense_head_id: string | null;
+  milestone_id: string | null;
+  recognition_basis: string;
+  period_month: string | null;
+  achieved_on: string | null;
+  amount: string;
+  currency: string;
+  description: string;
+  approval_status: "pending" | "approved";
+  canApprove: boolean;
+};
 type FinanceData = {
   currency: string;
   revenueRecognitionBasis: "monthly" | "milestone";
@@ -17,199 +32,173 @@ type FinanceData = {
   canSeeExpenses: boolean;
   canSeeCosts: boolean;
   canSeeProfitability: boolean;
+  missingSalaryCount: number;
   expenseHeads: Array<{ id: string; name: string; code: string }>;
   milestones: Array<{ id: string; name: string; status: string }>;
-  entries: Array<{
-    id: string;
-    entry_type: "expense" | "revenue";
-    expense_head_id: string | null;
-    milestone_id: string | null;
-    recognition_basis: string;
-    period_month: string | null;
-    achieved_on: string | null;
-    amount: string;
-    currency: string;
-    description: string;
-  }>;
+  entries: Entry[];
   summary: { revenue: number; expenses: number; resourceCosts: number } | null;
   monthlyResourceCosts: Array<{ month: string; amount: number; currency: string }>;
 };
 
 const monthNow = new Date().toISOString().slice(0, 7);
+const dateNow = new Date().toISOString().slice(0, 10);
 
 export default function ProjectFinancePanel({ projectId }: { projectId: string }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [expenseOpen, setExpenseOpen] = useState(false);
+  const [revenueOpen, setRevenueOpen] = useState(false);
+  const [editingEntry, setEditingEntry] = useState<Entry | null>(null);
   const [headId, setHeadId] = useState("");
-  const [expenseMonth, setExpenseMonth] = useState(monthNow);
-  const [expenseAmount, setExpenseAmount] = useState("");
-  const [expenseDescription, setExpenseDescription] = useState("");
-  const [revenueMonth, setRevenueMonth] = useState(monthNow);
+  const [periodMonth, setPeriodMonth] = useState(monthNow);
+  const [amount, setAmount] = useState("");
+  const [description, setDescription] = useState("");
   const [milestoneId, setMilestoneId] = useState("");
-  const [achievedOn, setAchievedOn] = useState(new Date().toISOString().slice(0, 10));
-  const [revenueAmount, setRevenueAmount] = useState("");
-  const [revenueDescription, setRevenueDescription] = useState("");
-
+  const [achievedOn, setAchievedOn] = useState(dateNow);
   const { data, isLoading, isError } = useQuery<FinanceData>({
     queryKey: ["/api/projects", projectId, "finance"],
     queryFn: () => apiClient.get(`/projects/${projectId}/finance`),
   });
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "finance"] });
-
+  const resetForm = () => {
+    setEditingEntry(null);
+    setHeadId("");
+    setPeriodMonth(monthNow);
+    setAmount("");
+    setDescription("");
+    setMilestoneId("");
+    setAchievedOn(dateNow);
+  };
   const expenseMutation = useMutation({
-    mutationFn: () => apiClient.post(`/projects/${projectId}/finance/expenses`, {
-      expenseHeadId: headId,
-      periodMonth: expenseMonth,
-      amount: expenseAmount,
-      description: expenseDescription,
-    }),
-    onSuccess: () => {
-      setExpenseAmount("");
-      setExpenseDescription("");
-      toast({ title: "Expense recorded" });
-      refresh();
-    },
-    onError: (error: Error) => toast({ title: "Could not record expense", description: error.message, variant: "destructive" }),
+    mutationFn: () => editingEntry
+      ? apiClient.patch(`/projects/${projectId}/finance/entries/${editingEntry.id}`, { expenseHeadId: headId, periodMonth, amount, description })
+      : apiClient.post(`/projects/${projectId}/finance/expenses`, { expenseHeadId: headId, periodMonth, amount, description }),
+    onSuccess: () => { resetForm(); setExpenseOpen(false); toast({ title: editingEntry ? "Expense updated" : "Expense recorded" }); refresh(); },
+    onError: (error: Error) => toast({ title: "Could not save expense", description: error.message, variant: "destructive" }),
   });
   const revenueMutation = useMutation({
-    mutationFn: () => apiClient.post(`/projects/${projectId}/finance/revenue`, {
-      periodMonth: revenueMonth,
-      milestoneId,
-      achievedOn,
-      amount: revenueAmount,
-      description: revenueDescription,
-    }),
-    onSuccess: () => {
-      setRevenueAmount("");
-      setRevenueDescription("");
-      toast({ title: "Revenue accrual recorded" });
-      refresh();
-    },
-    onError: (error: Error) => toast({ title: "Could not record revenue", description: error.message, variant: "destructive" }),
+    mutationFn: () => editingEntry
+      ? apiClient.patch(`/projects/${projectId}/finance/entries/${editingEntry.id}`, { periodMonth, milestoneId, achievedOn, amount, description })
+      : apiClient.post(`/projects/${projectId}/finance/revenue`, { periodMonth, milestoneId, achievedOn, amount, description }),
+    onSuccess: () => { resetForm(); setRevenueOpen(false); toast({ title: editingEntry ? "Revenue updated" : "Revenue recorded" }); refresh(); },
+    onError: (error: Error) => toast({ title: "Could not save revenue", description: error.message, variant: "destructive" }),
   });
-  const settingsMutation = useMutation({
-    mutationFn: (basis: "monthly" | "milestone") =>
-      apiClient.patch(`/projects/${projectId}/finance-settings`, { revenueRecognitionBasis: basis }),
-    onSuccess: () => refresh(),
-    onError: (error: Error) => toast({ title: "Could not update revenue basis", description: error.message, variant: "destructive" }),
+  const deleteEntry = useMutation({
+    mutationFn: (entryId: string) => apiClient.delete(`/projects/${projectId}/finance/entries/${entryId}`),
+    onSuccess: refresh,
+    onError: (error: Error) => toast({ title: "Could not delete entry", description: error.message, variant: "destructive" }),
   });
-
-  const expenseTotal = useMemo(() =>
-    data?.summary?.expenses ?? (data?.entries ?? []).filter((entry) => entry.entry_type === "expense").reduce((sum, entry) => sum + Number(entry.amount), 0),
-  [data?.entries, data?.summary]);
-  const revenueTotal = useMemo(() =>
-    data?.summary?.revenue ?? (data?.entries ?? []).filter((entry) => entry.entry_type === "revenue").reduce((sum, entry) => sum + Number(entry.amount), 0),
-  [data?.entries, data?.summary]);
-  const resourceCostTotal = useMemo(() =>
-    data?.summary?.resourceCosts ?? (data?.monthlyResourceCosts ?? []).reduce((sum, month) => sum + month.amount, 0),
-  [data?.monthlyResourceCosts, data?.summary]);
-  const money = (amount: number, currency = data?.currency ?? "USD") =>
-    new Intl.NumberFormat(undefined, { style: "currency", currency, maximumFractionDigits: 2 }).format(amount);
-  const entryMonth = (entry: FinanceData["entries"][number]) =>
-    entry.period_month?.slice(0, 7) ?? entry.achieved_on?.slice(0, 7) ?? "—";
-  const milestoneName = (id: string | null) => data?.milestones.find((milestone) => milestone.id === id)?.name ?? "Milestone";
-
+  const approveEntry = useMutation({
+    mutationFn: (entryId: string) => apiClient.post(`/projects/${projectId}/finance/entries/${entryId}/approve`, {}),
+    onSuccess: () => { toast({ title: "Finance entry approved" }); refresh(); },
+    onError: (error: Error) => toast({ title: "Could not approve entry", description: error.message, variant: "destructive" }),
+  });
+  const revenueEntries = useMemo(() => (data?.entries ?? []).filter((entry) => entry.entry_type === "revenue"), [data?.entries]);
+  const expenseEntries = useMemo(() => (data?.entries ?? []).filter((entry) => entry.entry_type === "expense"), [data?.entries]);
+  const resourceCostTotal = data?.summary?.resourceCosts ?? (data?.monthlyResourceCosts ?? []).reduce((sum, row) => sum + row.amount, 0);
+  const expenseTotal = data?.summary?.expenses ?? expenseEntries.reduce((sum, entry) => sum + Number(entry.amount), 0);
+  const revenueTotal = data?.summary?.revenue ?? revenueEntries.reduce((sum, entry) => sum + Number(entry.amount), 0);
+  const money = (value: number, currency = data?.currency ?? "USD") =>
+    new Intl.NumberFormat(undefined, { style: "currency", currency, maximumFractionDigits: 2 }).format(value);
+  const openEditor = (entry: Entry) => {
+    setEditingEntry(entry);
+    setPeriodMonth(entry.period_month?.slice(0, 7) ?? monthNow);
+    setAmount(entry.amount);
+    setDescription(entry.description);
+    setHeadId(entry.expense_head_id ?? "");
+    setMilestoneId(entry.milestone_id ?? "");
+    setAchievedOn(entry.achieved_on ?? dateNow);
+    if (entry.entry_type === "expense") setExpenseOpen(true);
+    else setRevenueOpen(true);
+  };
+  const confirmDelete = (entry: Entry) => {
+    if (window.confirm(`Delete this ${entry.entry_type} entry? This cannot be undone.`)) deleteEntry.mutate(entry.id);
+  };
   if (isLoading) return <div className="animate-pulse rounded-xl bg-muted p-10" />;
   if (isError || !data) return <Card><CardContent className="py-10 text-center text-sm text-muted-foreground">Project finance could not be loaded. Check your finance access and try again.</CardContent></Card>;
 
+  const entryActions = (entry: Entry, canEdit: boolean) => entry.approval_status === "approved"
+    ? <Badge>Approved · locked</Badge>
+    : <div className="flex flex-wrap justify-end gap-2">
+        {entry.canApprove && <Button size="sm" variant="secondary" onClick={() => approveEntry.mutate(entry.id)} disabled={approveEntry.isPending}>Approve</Button>}
+        {canEdit && <Button size="sm" variant="outline" onClick={() => openEditor(entry)}>Edit</Button>}
+        {canEdit && <Button size="sm" variant="destructive" onClick={() => confirmDelete(entry)}>Delete</Button>}
+        <Badge variant="outline">Pending approval</Badge>
+      </div>;
+
   return (
     <div className="space-y-5">
-      <div>
+      <header>
         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-indigo-600">Accrual accounting</p>
         <h2 className="mt-1 text-2xl font-semibold">Project Finance</h2>
-        <p className="mt-1 text-sm text-muted-foreground">Track accrued revenue and expenses. Payments are not tracked here. Amounts are recorded in {data.currency}.</p>
-      </div>
+        <p className="mt-1 text-sm text-muted-foreground">Revenue is recognized {data.revenueRecognitionBasis === "monthly" ? "by month" : "by completed milestone"}. Amounts use {data.currency}; payments are not tracked.</p>
+      </header>
+      {data.canSeeProfitability && <div className="grid gap-3 sm:grid-cols-3">
+        <Summary title="Accrued revenue" amount={revenueTotal} currency={data.currency} />
+        <Summary title="Total expenses" amount={expenseTotal + resourceCostTotal} currency={data.currency} />
+        <Summary title="Accrued margin" amount={revenueTotal - expenseTotal - resourceCostTotal} currency={data.currency} />
+      </div>}
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {data.canSeeProfitability && <Summary title="Accrued revenue" amount={revenueTotal} currency={data.currency} />}
-        {data.canSeeExpenses && <Summary title="Other expenses" amount={expenseTotal} currency={data.currency} />}
-        {data.canSeeCosts && <Summary title="Allocated resource costs" amount={resourceCostTotal} currency={data.currency} />}
-        {data.canSeeProfitability && (
-          <Summary title="Accrued margin" amount={revenueTotal - expenseTotal - resourceCostTotal} currency={data.currency} />
-        )}
-      </div>
+      {(data.canSeeProfitability || data.canManageRevenue) && <Card>
+        <CardHeader className="flex flex-row items-center justify-between gap-3">
+          <div><CardTitle className="text-base">Revenue</CardTitle><p className="mt-1 text-sm text-muted-foreground">{data.revenueRecognitionBasis === "monthly" ? "Reported by month" : "Reported by completed milestone"}</p></div>
+          {data.canManageRevenue && <Button onClick={() => { resetForm(); setRevenueOpen(true); }}>Record new revenue</Button>}
+        </CardHeader>
+        <CardContent><div className="overflow-x-auto"><table className="w-full min-w-[760px] text-sm">
+          <thead><tr className="border-b text-left text-xs text-muted-foreground"><th className="py-2 pr-3">{data.revenueRecognitionBasis === "monthly" ? "Month" : "Milestone"}</th><th className="py-2 pr-3">Description</th><th className="py-2 pr-3">Status</th><th className="py-2 pr-3 text-right">Amount</th><th className="py-2 text-right">Actions</th></tr></thead>
+          <tbody>{revenueEntries.map((entry) => <tr key={entry.id} className="border-b last:border-0">
+            <td className="py-3 pr-3">{data.revenueRecognitionBasis === "monthly" ? entry.period_month?.slice(0, 7) : data.milestones.find((m) => m.id === entry.milestone_id)?.name ?? entry.achieved_on}</td>
+            <td className="py-3 pr-3">{entry.description}</td><td className="py-3 pr-3">{entry.approval_status}</td><td className="py-3 pr-3 text-right">{money(Number(entry.amount), entry.currency)}</td><td className="py-3 text-right">{entryActions(entry, data.canManageRevenue)}</td>
+          </tr>)}
+          {!revenueEntries.length && <tr><td colSpan={5} className="py-8 text-center text-muted-foreground">No revenue accruals recorded.</td></tr>}</tbody>
+        </table></div></CardContent>
+      </Card>}
 
-      {(data.canSeeExpenses || data.canManageRevenue) && (
-        <div className="grid gap-4 xl:grid-cols-2">
-          {data.canSeeExpenses && (
-            <Card>
-              <CardHeader><CardTitle className="text-base">Record an expense</CardTitle></CardHeader>
-              <CardContent className="grid gap-3 sm:grid-cols-2">
-                <div className="space-y-1.5 sm:col-span-2">
-                  <Label>Organization expense head</Label>
-                  <Select value={headId} onValueChange={setHeadId}>
-                    <SelectTrigger><SelectValue placeholder="Choose an expense head" /></SelectTrigger>
-                    <SelectContent>{data.expenseHeads.map((head) => <SelectItem key={head.id} value={head.id}>{head.name} ({head.code})</SelectItem>)}</SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1.5"><Label>Accrual month</Label><Input type="month" value={expenseMonth} onChange={(event) => setExpenseMonth(event.target.value)} /></div>
-                <div className="space-y-1.5"><Label>Amount ({data.currency})</Label><Input type="number" min="0.01" step="0.01" value={expenseAmount} onChange={(event) => setExpenseAmount(event.target.value)} /></div>
-                <div className="space-y-1.5 sm:col-span-2"><Label>Description</Label><Textarea value={expenseDescription} onChange={(event) => setExpenseDescription(event.target.value)} rows={2} /></div>
-                <Button className="sm:col-span-2" disabled={!headId || !expenseAmount || !expenseDescription.trim() || expenseMutation.isPending} onClick={() => expenseMutation.mutate()}>
-                  Record expense
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {data.canManageRevenue && (
-            <Card>
-              <CardHeader><CardTitle className="text-base">Record accrued revenue</CardTitle></CardHeader>
-              <CardContent className="grid gap-3 sm:grid-cols-2">
-                <div className="space-y-1.5 sm:col-span-2">
-                  <Label>Recognition basis</Label>
-                  <Select value={data.revenueRecognitionBasis} onValueChange={(value) => settingsMutation.mutate(value as "monthly" | "milestone")}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent><SelectItem value="monthly">By month</SelectItem><SelectItem value="milestone">By completed milestone</SelectItem></SelectContent>
-                  </Select>
-                </div>
-                {data.revenueRecognitionBasis === "monthly" ? (
-                  <div className="space-y-1.5"><Label>Revenue month</Label><Input type="month" value={revenueMonth} onChange={(event) => setRevenueMonth(event.target.value)} /></div>
-                ) : (
-                  <>
-                    <div className="space-y-1.5"><Label>Completed milestone</Label>
-                      <Select value={milestoneId} onValueChange={setMilestoneId}><SelectTrigger><SelectValue placeholder="Choose a completed milestone" /></SelectTrigger><SelectContent>{data.milestones.filter((milestone) => milestone.status === "completed").map((milestone) => <SelectItem key={milestone.id} value={milestone.id}>{milestone.name}</SelectItem>)}</SelectContent></Select>
-                    </div>
-                    <div className="space-y-1.5"><Label>Achieved on</Label><Input type="date" value={achievedOn} onChange={(event) => setAchievedOn(event.target.value)} /></div>
-                  </>
-                )}
-                <div className="space-y-1.5"><Label>Accrued amount ({data.currency})</Label><Input type="number" min="0.01" step="0.01" value={revenueAmount} onChange={(event) => setRevenueAmount(event.target.value)} /></div>
-                <div className="space-y-1.5 sm:col-span-2"><Label>Details</Label><Textarea value={revenueDescription} onChange={(event) => setRevenueDescription(event.target.value)} rows={2} /></div>
-                <Button className="sm:col-span-2" disabled={!revenueAmount || !revenueDescription.trim() || (data.revenueRecognitionBasis === "milestone" && !milestoneId) || revenueMutation.isPending} onClick={() => revenueMutation.mutate()}>
-                  Record revenue accrual
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-        </div>
-      )}
-
-      <Card>
-        <CardHeader><CardTitle className="text-base">Accrual report</CardTitle></CardHeader>
+      {(data.canSeeExpenses || data.canSeeCosts) && <Card>
+        <CardHeader className="flex flex-row items-center justify-between gap-3">
+          <div><CardTitle className="text-base">Expenses</CardTitle><p className="mt-1 text-sm text-muted-foreground">Includes automatically calculated resource salary costs.</p></div>
+          {data.canSeeExpenses && <Button onClick={() => { resetForm(); setExpenseOpen(true); }}>Record new expense</Button>}
+        </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[760px] text-sm">
-              <thead><tr className="border-b text-left text-xs text-muted-foreground"><th className="py-2 pr-3">Month / milestone</th><th className="py-2 pr-3">Type</th><th className="py-2 pr-3">Details</th><th className="py-2 text-right">Amount</th></tr></thead>
-              <tbody>
-                {data.entries.map((entry) => (
-                  <tr key={entry.id} className="border-b last:border-0">
-                    <td className="py-3 pr-3">{entry.recognition_basis === "milestone" ? milestoneName(entry.milestone_id) : entryMonth(entry)}</td>
-                    <td className="py-3 pr-3"><Badge variant={entry.entry_type === "revenue" ? "secondary" : "outline"}>{entry.entry_type}</Badge></td>
-                    <td className="py-3 pr-3">{entry.description}</td>
-                    <td className="py-3 text-right font-medium">{money(Number(entry.amount), entry.currency)}</td>
-                  </tr>
-                ))}
-                {data.monthlyResourceCosts.map((month) => (
-                  <tr key={`resource-${month.month}`} className="border-b last:border-0">
-                    <td className="py-3 pr-3">{month.month}</td><td className="py-3 pr-3"><Badge variant="outline">resource cost</Badge></td><td className="py-3 pr-3">Allocated resource salary cost</td><td className="py-3 text-right font-medium">{money(month.amount, month.currency)}</td>
-                  </tr>
-                ))}
-                {data.entries.length === 0 && data.monthlyResourceCosts.length === 0 && <tr><td colSpan={4} className="py-8 text-center text-muted-foreground">No accruals recorded yet.</td></tr>}
-              </tbody>
-            </table>
-          </div>
+          {data.canSeeCosts && data.missingSalaryCount > 0 && <p role="alert" className="mb-4 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">{data.missingSalaryCount} allocated resource(s) have no effective salary set. Add their salary in Project Settings to calculate the full monthly cost.</p>}
+          <div className="overflow-x-auto"><table className="w-full min-w-[820px] text-sm">
+            <thead><tr className="border-b text-left text-xs text-muted-foreground"><th className="py-2 pr-3">Month</th><th className="py-2 pr-3">Expense head</th><th className="py-2 pr-3">Description</th><th className="py-2 pr-3">Status</th><th className="py-2 pr-3 text-right">Amount</th><th className="py-2 text-right">Actions</th></tr></thead>
+            <tbody>
+              {expenseEntries.map((entry) => <tr key={entry.id} className="border-b last:border-0">
+                <td className="py-3 pr-3">{entry.period_month?.slice(0, 7)}</td><td className="py-3 pr-3">{data.expenseHeads.find((h) => h.id === entry.expense_head_id)?.name ?? "Retired category"}</td><td className="py-3 pr-3">{entry.description}</td><td className="py-3 pr-3">{entry.approval_status}</td><td className="py-3 pr-3 text-right">{money(Number(entry.amount), entry.currency)}</td><td className="py-3 text-right">{entryActions(entry, data.canSeeExpenses)}</td>
+              </tr>)}
+              {data.canSeeCosts && data.monthlyResourceCosts.map((row) => <tr key={`salary-${row.month}`} className="border-b last:border-0 bg-muted/30">
+                <td className="py-3 pr-3">{row.month}</td><td className="py-3 pr-3">Resource salary</td><td className="py-3 pr-3">Allocated gross salary cost · managed in Project Settings</td><td className="py-3 pr-3"><Badge variant="outline">Automatic</Badge></td><td className="py-3 pr-3 text-right">{money(row.amount, row.currency)}</td><td className="py-3 text-right text-muted-foreground">Not editable here</td>
+              </tr>)}
+              {!expenseEntries.length && (!data.canSeeCosts || !data.monthlyResourceCosts.length) && <tr><td colSpan={6} className="py-8 text-center text-muted-foreground">No expense accruals recorded.</td></tr>}
+            </tbody>
+          </table></div>
         </CardContent>
-      </Card>
+      </Card>}
+
+      <Dialog open={expenseOpen} onOpenChange={(open) => { setExpenseOpen(open); if (!open) resetForm(); }}>
+        <DialogContent><DialogHeader><DialogTitle>{editingEntry ? "Edit expense" : "Record new expense"}</DialogTitle><DialogDescription>Resource salary costs are calculated automatically and cannot be edited here.</DialogDescription></DialogHeader>
+          <div className="grid gap-3">
+            <div className="space-y-1.5"><Label>Organization expense head</Label><Select value={headId} onValueChange={setHeadId}><SelectTrigger><SelectValue placeholder="Choose a head" /></SelectTrigger><SelectContent>{data.expenseHeads.map((head) => <SelectItem key={head.id} value={head.id}>{head.name} ({head.code})</SelectItem>)}</SelectContent></Select></div>
+            <div className="space-y-1.5"><Label>Accrual month</Label><Input type="month" value={periodMonth} onChange={(event) => setPeriodMonth(event.target.value)} /></div>
+            <div className="space-y-1.5"><Label>Amount ({data.currency})</Label><Input type="number" min="0.01" step="0.01" value={amount} onChange={(event) => setAmount(event.target.value)} /></div>
+            <div className="space-y-1.5"><Label>Description</Label><Textarea value={description} onChange={(event) => setDescription(event.target.value)} /></div>
+          </div>
+          <DialogFooter><Button variant="outline" onClick={() => setExpenseOpen(false)}>Cancel</Button><Button disabled={!headId || !amount || !description.trim() || expenseMutation.isPending} onClick={() => expenseMutation.mutate()}>{editingEntry ? "Save expense" : "Record expense"}</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={revenueOpen} onOpenChange={(open) => { setRevenueOpen(open); if (!open) resetForm(); }}>
+        <DialogContent><DialogHeader><DialogTitle>{editingEntry ? "Edit revenue" : "Record new revenue"}</DialogTitle><DialogDescription>Revenue recognition is configured in Project Settings → Finance.</DialogDescription></DialogHeader>
+          <div className="grid gap-3">
+            {data.revenueRecognitionBasis === "monthly"
+              ? <div className="space-y-1.5"><Label>Revenue month</Label><Input type="month" value={periodMonth} onChange={(event) => setPeriodMonth(event.target.value)} /></div>
+              : <><div className="space-y-1.5"><Label>Completed milestone</Label><Select value={milestoneId} onValueChange={setMilestoneId}><SelectTrigger><SelectValue placeholder="Choose a completed milestone" /></SelectTrigger><SelectContent>{data.milestones.filter((m) => m.status === "completed").map((m) => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}</SelectContent></Select></div><div className="space-y-1.5"><Label>Achieved on</Label><Input type="date" value={achievedOn} onChange={(event) => setAchievedOn(event.target.value)} /></div></>}
+            <div className="space-y-1.5"><Label>Amount ({data.currency})</Label><Input type="number" min="0.01" step="0.01" value={amount} onChange={(event) => setAmount(event.target.value)} /></div>
+            <div className="space-y-1.5"><Label>Description</Label><Textarea value={description} onChange={(event) => setDescription(event.target.value)} /></div>
+          </div>
+          <DialogFooter><Button variant="outline" onClick={() => setRevenueOpen(false)}>Cancel</Button><Button disabled={!amount || !description.trim() || (data.revenueRecognitionBasis === "milestone" && !milestoneId) || revenueMutation.isPending} onClick={() => revenueMutation.mutate()}>{editingEntry ? "Save revenue" : "Record revenue"}</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

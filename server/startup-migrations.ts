@@ -128,6 +128,12 @@ export async function runStartupMigrations(): Promise<void> {
       )
     `);
     await client.query(`
+      ALTER TABLE project_finance_entries
+        ADD COLUMN IF NOT EXISTS approval_status text NOT NULL DEFAULT 'pending',
+        ADD COLUMN IF NOT EXISTS approved_by uuid REFERENCES users(id) ON DELETE SET NULL,
+        ADD COLUMN IF NOT EXISTS approved_at timestamp
+    `);
+    await client.query(`
       CREATE INDEX IF NOT EXISTS project_finance_entries_project_created_idx
         ON project_finance_entries(project_id, created_at)
     `);

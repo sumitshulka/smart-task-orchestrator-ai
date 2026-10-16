@@ -56,7 +56,7 @@ const DEFAULT_SETTINGS: Settings = {
   },
   finance: {
     trackFinance: true,
-    trackPeopleCost: false,
+    trackPeopleCost: true,
     peopleCostVisibility: ["organization_admin", "finance", "project_manager"],
     visibility: {
       budget: ["organization_admin", "finance", "project_manager"],
@@ -615,6 +615,11 @@ export default function ProjectSettingsPanel({ project, users, clients, members,
     queryFn: () => apiClient.get("/organization-settings"),
     refetchOnMount: "always",
   });
+  const { data: financeAccess } = useQuery<any>({
+    queryKey: ["/api/projects", project.id, "finance"],
+    queryFn: () => apiClient.get(`/projects/${project.id}/finance`),
+    enabled: Boolean(data?.settings?.finance?.trackFinance),
+  });
 
   const financeHeads = data?.financeHeads ?? [];
   const resourceCosts = data?.resourceCosts ?? [];
@@ -680,6 +685,16 @@ export default function ProjectSettingsPanel({ project, users, clients, members,
     },
     onError: (error: any) => toast({ title: "Unable to save settings", description: error.message, variant: "destructive" }),
   });
+  const revenueBasisMutation = useMutation({
+    mutationFn: (basis: "monthly" | "milestone") =>
+      apiClient.patch(`/projects/${project.id}/finance-settings`, { revenueRecognitionBasis: basis }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", project.id, "settings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", project.id, "finance"] });
+      toast({ title: "Revenue recognition setting saved" });
+    },
+    onError: (error: any) => toast({ title: "Unable to update revenue recognition", description: error.message, variant: "destructive" }),
+  });
 
   const financeHeadMutation = useMutation({
     mutationFn: (payload: { id?: string; name: string; code: string; description: string; is_active: boolean; budget_allowed: boolean; actual_expense_allowed: boolean }) => payload.id
@@ -710,6 +725,7 @@ export default function ProjectSettingsPanel({ project, users, clients, members,
       : apiClient.post(`/projects/${project.id}/settings/resource-costs`, payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects", project.id, "settings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", project.id, "finance"] });
       toast({ title: "Resource salary saved" });
     },
     onError: (error: any) => toast({ title: "Unable to save resource salary", description: error.message, variant: "destructive" }),
@@ -719,6 +735,7 @@ export default function ProjectSettingsPanel({ project, users, clients, members,
     mutationFn: (costId: string) => apiClient.delete(`/projects/${project.id}/settings/resource-costs/${costId}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects", project.id, "settings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", project.id, "finance"] });
       toast({ title: "Resource salary record deleted" });
     },
     onError: (error: any) => toast({ title: "Unable to delete resource salary", description: error.message, variant: "destructive" }),
@@ -763,7 +780,7 @@ export default function ProjectSettingsPanel({ project, users, clients, members,
   const workspaceEnabled = settings.collaboration.workspaceEnabled;
   const clientCollaborationEnabled = settings.collaboration.clientCollaboration;
   const defectsEnabled = settings.quality.defectManagement;
-  const resourceCostManagementEnabled = financeEnabled && settings.finance.trackPeopleCost;
+  const resourceCostManagementEnabled = financeEnabled;
   const resourceCostEditingEnabled = resourceCostManagementEnabled && !isDirty;
 
   return (
@@ -883,9 +900,22 @@ export default function ProjectSettingsPanel({ project, users, clients, members,
               <SectionHeader eyebrow="Financial intelligence" title="Finance" description="Control project financial visibility and categories without turning Tazq into an accounting system. Disabling Finance never deletes existing data." />
               <Card><CardHeader><CardTitle className="text-base">Finance tracking</CardTitle></CardHeader><CardContent className="space-y-3">
                 <ToggleRow label="Track Finance" description="Show Finance for this project and enable project financial workflows." checked={financeEnabled} onChange={(value) => toggleSetting("finance.trackFinance", value, "Disable Finance?", "Finance will be hidden and related workflows will stop. Existing finance data is retained and will return when Finance is enabled again.")} />
-                <ToggleRow label="Track People Cost" description="Calculate monthly resource cost from effective salary and project allocation percentage." checked={settings.finance.trackPeopleCost} disabled={!financeEnabled} disabledReason="Enable Finance to change people cost tracking." onChange={(value) => updateSetting("finance.trackPeopleCost", value)} />
               </CardContent></Card>
-              <Card className={!financeEnabled ? "opacity-60" : ""}><CardHeader><CardTitle className="text-base">People cost visibility</CardTitle><CardDescription>Do not expose internal cost information to project members or clients by default.</CardDescription></CardHeader><CardContent><RolePicker value={settings.finance.peopleCostVisibility} disabled={!financeEnabled || !settings.finance.trackPeopleCost} onChange={(value) => updateSetting("finance.peopleCostVisibility", value)} /></CardContent></Card>
+              <Card className={!financeEnabled ? "opacity-60" : ""}>
+                <CardHeader><CardTitle className="text-base">Revenue recognition basis</CardTitle><CardDescription>Choose whether this project recognizes revenue by month or by completed milestone.</CardDescription></CardHeader>
+                <CardContent>
+                  <Select
+                    value={financeAccess?.revenueRecognitionBasis ?? settings.finance.revenueRecognitionBasis ?? "milestone"}
+                    disabled={!financeEnabled || !financeAccess?.canManageRevenue || revenueBasisMutation.isPending}
+                    onValueChange={(value) => revenueBasisMutation.mutate(value as "monthly" | "milestone")}
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent><SelectItem value="monthly">Monthly</SelectItem><SelectItem value="milestone">Completed milestone</SelectItem></SelectContent>
+                  </Select>
+                  {!financeAccess?.canManageRevenue && <p className="mt-2 text-xs text-muted-foreground">An organization administrator or an authorized project role can change this setting.</p>}
+                </CardContent>
+              </Card>
+              <Card className={!financeEnabled ? "opacity-60" : ""}><CardHeader><CardTitle className="text-base">People cost visibility</CardTitle><CardDescription>Do not expose internal cost information to project members or clients by default.</CardDescription></CardHeader><CardContent><RolePicker value={settings.finance.peopleCostVisibility} disabled={!financeEnabled} onChange={(value) => updateSetting("finance.peopleCostVisibility", value)} /></CardContent></Card>
                <Card className={!resourceCostManagementEnabled ? "opacity-75" : ""}>
                  <CardHeader>
                    <CardTitle className="text-base">Resource gross salary</CardTitle>
@@ -894,8 +924,8 @@ export default function ProjectSettingsPanel({ project, users, clients, members,
                    </CardDescription>
                  </CardHeader>
                  <CardContent>
-                   {!resourceCostManagementEnabled ? (
-                     <p className="rounded-lg border border-dashed p-4 text-sm text-gray-500">Enable Finance and Track People Cost to open the resource table.</p>
+                     {!resourceCostManagementEnabled ? (
+                     <p className="rounded-lg border border-dashed p-4 text-sm text-gray-500">Enable Finance to open the resource table.</p>
                    ) : internalMembers.length === 0 ? (
                      <p className="rounded-lg border border-dashed p-4 text-sm text-gray-500">Add an internal project member to enter resource salary details.</p>
                    ) : (

@@ -135,7 +135,7 @@ const DEFAULT_PROJECT_SETTINGS = {
   },
   finance: {
     trackFinance: true,
-    trackPeopleCost: false,
+    trackPeopleCost: true,
     revenueRecognitionBasis: "milestone",
     peopleCostVisibility: ["organization_admin", "finance", "project_manager"],
     visibility: {
@@ -2420,7 +2420,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({
         resourceCosts: await storage.getProjectResourceCostHistory(req.params.id),
         organizationCurrency: context.organizationCurrency,
-        trackingEnabled: context.settings.finance.trackFinance && context.settings.finance.trackPeopleCost,
+        trackingEnabled: context.settings.finance.trackFinance,
       });
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch resource costs" });
@@ -2447,7 +2447,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.headers["x-user-id"] as string;
       const { settings, organizationCurrency } = await getResourceCostContext(req.params.id);
-      if (!settings.finance.trackFinance || !settings.finance.trackPeopleCost) {
+      if (!settings.finance.trackFinance) {
         return res.status(409).json({ error: "Enable Finance and Track People Cost before adding resource costs" });
       }
       const memberUserId = String(req.body?.user_id ?? "");
@@ -2485,7 +2485,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.headers["x-user-id"] as string;
       const { settings, organizationCurrency } = await getResourceCostContext(req.params.id);
-      if (!settings.finance.trackFinance || !settings.finance.trackPeopleCost) {
+      if (!settings.finance.trackFinance) {
         return res.status(409).json({ error: "Enable Finance and Track People Cost before editing resource costs" });
       }
       const existing = (await storage.getProjectResourceCostHistory(req.params.id))
@@ -2657,17 +2657,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         storage.getOrganizationSettings(),
       ]);
       const canSeeExpenses = financeVisibilityAllows(context, "expenses");
-      const canSeeCosts = context.settings.finance.trackPeopleCost !== false &&
-        financeVisibilityAllows(context, "peopleCost") &&
+      const canSeeCosts = financeVisibilityAllows(context, "peopleCost") &&
         financeVisibilityAllows(context, "resourceCost");
       const canSeeProfitability = financeVisibilityAllows(context, "profitability");
       const canManageRevenue = await canManageProjectRevenue(project.id, String(req.headers["x-user-id"] ?? ""), context);
+      const viewerId = String(req.headers["x-user-id"] ?? "");
       const startValue = project.start_date ? new Date(project.start_date).toISOString().slice(0, 7) : null;
       const firstSalaryMonth = salaryHistory.map((record) => record.effective_month.slice(0, 7)).sort()[0] ?? null;
       const startMonth = startValue ?? firstSalaryMonth;
       const todayMonth = new Date().toISOString().slice(0, 7);
       const monthlyResourceCosts: Array<{ month: string; amount: number; currency: string }> = [];
-      if (context.settings.finance.trackPeopleCost !== false && startMonth && startMonth <= todayMonth) {
+      const missingSalaryCount = members.filter((member) => member.is_active !== false &&
+        member.member_user_type !== "client_contact" && member.user_id &&
+        !salaryHistory.some((record) => record.user_id === member.user_id && record.effective_month <= `${todayMonth}-01`),
+      ).length;
+      if (startMonth && startMonth <= todayMonth) {
         let cursor = new Date(`${startMonth}-01T00:00:00.000Z`);
         const end = new Date(`${todayMonth}-01T00:00:00.000Z`);
         while (cursor <= end && monthlyResourceCosts.length < 240) {
@@ -2693,12 +2697,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         canSeeExpenses,
         canSeeCosts,
         canSeeProfitability,
+        missingSalaryCount: canSeeCosts ? missingSalaryCount : 0,
         expenseHeads: canSeeExpenses ? heads : [],
         milestones: canSeeProfitability || canManageRevenue ? milestones : [],
         entries: entries.filter((entry) =>
           (entry.entry_type !== "expense" || canSeeExpenses) &&
-          (entry.entry_type !== "revenue" || canSeeProfitability),
-        ),
+          (entry.entry_type !== "revenue" || canSeeProfitability || canManageRevenue),
+        ).map((entry) => ({
+          ...entry,
+          canApprove: canManageRevenue && entry.approval_status !== "approved" && entry.created_by !== viewerId,
+        })),
         monthlyResourceCosts: canSeeCosts ? monthlyResourceCosts : [],
         summary: canSeeProfitability ? {
           revenue: entries.filter((entry) => entry.entry_type === "revenue")
@@ -2816,6 +2824,103 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Failed to add project revenue:", error);
       res.status(500).json({ error: "Failed to add project revenue" });
+    }
+  });
+
+  app.patch("/api/projects/:id/finance/entries/:entryId", requireProjectModule("finance"), async (req, res) => {
+    try {
+      const context = (req as any).projectContext;
+      const userId = String(req.headers["x-user-id"] ?? "");
+      const [current] = await db.select().from(projectFinanceEntries)
+        .where(and(eq(projectFinanceEntries.id, req.params.entryId), eq(projectFinanceEntries.project_id, req.params.id)));
+      if (!current) return res.status(404).json({ error: "Finance entry not found" });
+      if (current.approval_status === "approved") return res.status(409).json({ error: "Approved finance entries cannot be edited" });
+      if (current.entry_type === "expense" ? !financeVisibilityAllows(context, "expenses") :
+          !await canManageProjectRevenue(req.params.id, userId, context)) {
+        return res.status(403).json({ error: "You cannot edit this finance entry" });
+      }
+      const amount = Number(req.body?.amount);
+      const description = String(req.body?.description ?? "").trim();
+      if (!Number.isFinite(amount) || amount <= 0 || !description) {
+        return res.status(400).json({ error: "A valid amount and description are required" });
+      }
+      const updates: any = { amount: amount.toFixed(2), description };
+      if (current.entry_type === "expense") {
+        const headId = String(req.body?.expenseHeadId ?? "");
+        const month = String(req.body?.periodMonth ?? "");
+        const [head] = await db.select().from(organizationFinanceHeads)
+          .where(and(eq(organizationFinanceHeads.id, headId), eq(organizationFinanceHeads.is_active, true)));
+        if (!head || !/^\d{4}-\d{2}$/.test(month) || !isValidAllocationsReportDate(`${month}-01`)) {
+          return res.status(400).json({ error: "Choose an active expense head and valid month" });
+        }
+        updates.expense_head_id = headId;
+        updates.period_month = `${month}-01`;
+      } else if ((context.settings.finance.revenueRecognitionBasis ?? "milestone") === "monthly") {
+        const month = String(req.body?.periodMonth ?? "");
+        if (!/^\d{4}-\d{2}$/.test(month) || !isValidAllocationsReportDate(`${month}-01`)) {
+          return res.status(400).json({ error: "Choose a valid revenue month" });
+        }
+        updates.recognition_basis = "monthly";
+        updates.period_month = `${month}-01`;
+        updates.milestone_id = null;
+        updates.achieved_on = null;
+      } else {
+        const milestoneId = String(req.body?.milestoneId ?? "");
+        const achievedOn = String(req.body?.achievedOn ?? "");
+        const [milestone] = await db.select().from(projectMilestones)
+          .where(and(eq(projectMilestones.id, milestoneId), eq(projectMilestones.project_id, req.params.id)));
+        if (!milestone || milestone.status !== "completed" || !isValidAllocationsReportDate(achievedOn)) {
+          return res.status(400).json({ error: "Choose a completed milestone and valid achievement date" });
+        }
+        updates.recognition_basis = "milestone";
+        updates.period_month = null;
+        updates.milestone_id = milestoneId;
+        updates.achieved_on = achievedOn;
+      }
+      const [updated] = await db.update(projectFinanceEntries).set(updates)
+        .where(eq(projectFinanceEntries.id, current.id)).returning();
+      res.json(updated);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update finance entry" });
+    }
+  });
+
+  app.delete("/api/projects/:id/finance/entries/:entryId", requireProjectModule("finance"), async (req, res) => {
+    try {
+      const context = (req as any).projectContext;
+      const userId = String(req.headers["x-user-id"] ?? "");
+      const [current] = await db.select().from(projectFinanceEntries)
+        .where(and(eq(projectFinanceEntries.id, req.params.entryId), eq(projectFinanceEntries.project_id, req.params.id)));
+      if (!current) return res.status(404).json({ error: "Finance entry not found" });
+      if (current.approval_status === "approved") return res.status(409).json({ error: "Approved finance entries cannot be deleted" });
+      if (current.entry_type === "expense" ? !financeVisibilityAllows(context, "expenses") :
+          !await canManageProjectRevenue(req.params.id, userId, context)) {
+        return res.status(403).json({ error: "You cannot delete this finance entry" });
+      }
+      await db.delete(projectFinanceEntries).where(eq(projectFinanceEntries.id, current.id));
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete finance entry" });
+    }
+  });
+
+  app.post("/api/projects/:id/finance/entries/:entryId/approve", requireProjectModule("finance"), async (req, res) => {
+    try {
+      const userId = String(req.headers["x-user-id"] ?? "");
+      const context = (req as any).projectContext;
+      const [current] = await db.select().from(projectFinanceEntries)
+        .where(and(eq(projectFinanceEntries.id, req.params.entryId), eq(projectFinanceEntries.project_id, req.params.id)));
+      if (!current) return res.status(404).json({ error: "Finance entry not found" });
+      if (current.approval_status === "approved") return res.status(409).json({ error: "Finance entry is already approved" });
+      if (current.created_by === userId || !await canManageProjectRevenue(req.params.id, userId, context)) {
+        return res.status(403).json({ error: "A different authorized project finance user must approve this entry" });
+      }
+      const [approved] = await db.update(projectFinanceEntries)
+        .set({ approval_status: "approved", approved_by: userId, approved_at: new Date() })
+        .where(eq(projectFinanceEntries.id, current.id)).returning();
+      res.json(approved);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to approve finance entry" });
     }
   });
 
