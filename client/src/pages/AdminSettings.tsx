@@ -33,54 +33,54 @@ const AdminSettings: React.FC = () => {
       <div className="w-full max-w-none px-6 py-6">
         <h2 className="text-2xl font-semibold mb-6 text-left">Settings</h2>
         <Tabs value={tab} onValueChange={setTab} className="w-full">
-          <TabsList className="w-full max-w-none flex flex-row bg-background border rounded-md mb-6 p-0 gap-2 justify-start flex-wrap">
+          <TabsList className="mb-6 grid h-auto w-full max-w-none grid-cols-2 items-stretch justify-start gap-2 rounded-md border bg-background p-2 sm:grid-cols-3 lg:grid-cols-5">
             <TabsTrigger
               value="general"
-              className="px-6 py-3 text-left justify-start"
+              className="h-auto min-h-11 w-full min-w-0 whitespace-normal break-words px-2 py-2 text-center leading-tight sm:px-3"
             >
               General
             </TabsTrigger>
             <TabsTrigger
               value="departments"
-              className="px-6 py-3 text-left justify-start"
+              className="h-auto min-h-11 w-full min-w-0 whitespace-normal break-words px-2 py-2 text-center leading-tight sm:px-3"
             >
               Departments
             </TabsTrigger>
             <TabsTrigger
               value="office-locations"
-              className="px-6 py-3 text-left justify-start"
+              className="h-auto min-h-11 w-full min-w-0 whitespace-normal break-words px-2 py-2 text-center leading-tight sm:px-3"
             >
               Office Locations
             </TabsTrigger>
             <TabsTrigger
               value="statuses"
-              className="px-6 py-3 text-left justify-start"
+              className="h-auto min-h-11 w-full min-w-0 whitespace-normal break-words px-2 py-2 text-center leading-tight sm:px-3"
             >
               Task Statuses
             </TabsTrigger>
             {projectManagementEnabled && (
               <TabsTrigger
                 value="project-templates"
-                className="px-6 py-3 text-left justify-start"
+                className="h-auto min-h-11 w-full min-w-0 whitespace-normal break-words px-2 py-2 text-center leading-tight sm:px-3"
               >
                 Project Templates
               </TabsTrigger>
             )}
             {projectManagementEnabled && (
-              <TabsTrigger value="project-finance" className="px-6 py-3 text-left justify-start">
+              <TabsTrigger value="project-finance" className="h-auto min-h-11 w-full min-w-0 whitespace-normal break-words px-2 py-2 text-center leading-tight sm:px-3">
                 Project Finance
               </TabsTrigger>
             )}
-            <TabsTrigger value="document-repository" className="px-6 py-3 text-left justify-start">Document Repository</TabsTrigger>
+            <TabsTrigger value="document-repository" className="h-auto min-h-11 w-full min-w-0 whitespace-normal break-words px-2 py-2 text-center leading-tight sm:px-3">Document Repository</TabsTrigger>
             <TabsTrigger
               value="ai-integration"
-              className="px-6 py-3 text-left justify-start"
+              className="h-auto min-h-11 w-full min-w-0 whitespace-normal break-words px-2 py-2 text-center leading-tight sm:px-3"
             >
               AI Integration
             </TabsTrigger>
             <TabsTrigger
               value="license"
-              className="px-6 py-3 text-left justify-start"
+              className="h-auto min-h-11 w-full min-w-0 whitespace-normal break-words px-2 py-2 text-center leading-tight sm:px-3"
             >
               License Manager
             </TabsTrigger>
