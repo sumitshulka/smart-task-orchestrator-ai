@@ -5,3 +5,4 @@
 - [Test Case Module](test-case-module.md) — requirement-linked cases preserve every audited execution and optionally create defects from failed QA runs.
 - [Project Meetings Module](meetings-module.md) — meeting records remain authoritative; calendars and file storage are integration layers with explicit visibility controls.
 - [Project Finance Requirements](project-finance.md) — finance is accrual-based profitability; global expense heads, monthly or milestone revenue, role-based entry, no payments.
+- [Document Repository Provider](document-repository-provider.md) — use OneDrive for testing because the organization admin account is not eligible for Google OAuth test-user access.

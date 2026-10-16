@@ -9,6 +9,7 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 
 const DRIVE_API = "https://www.googleapis.com/drive/v3";
 const DRIVE_UPLOAD = "https://www.googleapis.com/upload/drive/v3/files";
 const USERINFO = "https://www.googleapis.com/oauth2/v2/userinfo";
+const GRAPH_API = "https://graph.microsoft.com/v1.0";
 
 function encryptionKey() {
   if (!process.env.SESSION_SECRET) throw new Error("Session secret is not configured");
@@ -30,6 +31,11 @@ function redirectUri(req: Request) {
   const proto = String(req.headers["x-forwarded-proto"] ?? req.protocol).split(",")[0].trim();
   const host = String(req.headers["x-forwarded-host"] ?? req.headers.host ?? "").split(",")[0].trim();
   return `${proto}://${host}/api/organization-settings/document-repository/google/callback`;
+}
+function oneDriveRedirectUri(req: Request) {
+  const proto = String(req.headers["x-forwarded-proto"] ?? req.protocol).split(",")[0].trim();
+  const host = String(req.headers["x-forwarded-host"] ?? req.headers.host ?? "").split(",")[0].trim();
+  return `${proto}://${host}/api/organization-settings/document-repository/onedrive/callback`;
 }
 function signState(payload: string) {
   return createHmac("sha256", process.env.SESSION_SECRET ?? "").update(payload).digest("hex");
@@ -63,8 +69,21 @@ async function connection() {
   const result = await pool.query("SELECT * FROM organization_document_repositories WHERE provider='google_drive' LIMIT 1");
   return result.rows[0] as any;
 }
+async function activeConnection() {
+  const result = await pool.query("SELECT * FROM organization_document_repositories ORDER BY updated_at DESC LIMIT 1");
+  return result.rows[0] as any;
+}
+async function oneDriveConnection() {
+  const result = await pool.query("SELECT * FROM organization_document_repositories WHERE provider='onedrive' LIMIT 1");
+  return result.rows[0] as any;
+}
 async function oauthConfig() {
   const result = await pool.query("SELECT encrypted_client_id,encrypted_client_secret FROM organization_document_repository_config WHERE provider='google_drive' LIMIT 1");
+  const row = result.rows[0] as any;
+  return row ? { clientId: decrypt(row.encrypted_client_id), clientSecret: decrypt(row.encrypted_client_secret) } : null;
+}
+async function oneDriveConfig() {
+  const result = await pool.query("SELECT encrypted_client_id,encrypted_client_secret FROM organization_document_repository_config WHERE provider='onedrive' LIMIT 1");
   const row = result.rows[0] as any;
   return row ? { clientId: decrypt(row.encrypted_client_id), clientSecret: decrypt(row.encrypted_client_secret) } : null;
 }
@@ -100,6 +119,34 @@ async function driveRequest(path: string, init: RequestInit = {}) {
   if (!response.ok) throw new Error(body.error?.message ?? "Google Drive request failed");
   return body;
 }
+async function oneDriveAccessToken() {
+  const saved = await oneDriveConnection();
+  if (!saved) throw new Error("Connect OneDrive in Organization Settings first");
+  if (saved.expires_at && new Date(saved.expires_at).getTime() > Date.now() + 60_000) return decrypt(saved.encrypted_access_token);
+  const config = await oneDriveConfig();
+  if (!config) throw new Error("Save Microsoft OAuth credentials in Organization Settings first");
+  const response = await fetch("https://login.microsoftonline.com/common/oauth2/v2.0/token", {
+    method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      client_id: config.clientId, client_secret: config.clientSecret,
+      refresh_token: decrypt(saved.encrypted_refresh_token), grant_type: "refresh_token",
+      scope: "offline_access User.Read Files.ReadWrite",
+    }),
+  });
+  const data = await response.json() as any;
+  if (!response.ok || !data.access_token) throw new Error("OneDrive authorization expired. Reconnect it in Organization Settings.");
+  await pool.query("UPDATE organization_document_repositories SET encrypted_access_token=$1,encrypted_refresh_token=$2,expires_at=now()+($3::text || ' seconds')::interval,updated_at=now() WHERE id=$4",
+    [encrypt(data.access_token), encrypt(data.refresh_token ?? decrypt(saved.encrypted_refresh_token)), String(data.expires_in ?? 3600), saved.id]);
+  return data.access_token as string;
+}
+async function oneDriveRequest(path: string, init: RequestInit = {}) {
+  const response = await fetch(`${GRAPH_API}${path}`, {
+    ...init, headers: { Authorization: `Bearer ${await oneDriveAccessToken()}`, ...(init.headers ?? {}) },
+  });
+  const body = await response.json().catch(() => ({})) as any;
+  if (!response.ok) throw new Error(body.error?.message ?? "OneDrive request failed");
+  return body;
+}
 async function createDriveFolder(name: string, parentId: string) {
   return driveRequest("/files?fields=id,name,webViewLink", {
     method: "POST", headers: { "Content-Type": "application/json" },
@@ -113,12 +160,19 @@ async function shareWithProjectMembers(projectId: string, driveItemId: string) {
     .map((member) => member.user_id!)));
   const users = await Promise.all(userIds.map((id) => storage.getUser(id)));
   const emails = Array.from(new Set(users.map((user) => user?.email?.trim().toLowerCase()).filter(Boolean)));
+  const repository = await activeConnection();
   for (const email of emails) {
-    await driveRequest(`/files/${encodeURIComponent(driveItemId)}/permissions?supportsAllDrives=true&sendNotificationEmail=false`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type: "user", role: "reader", emailAddress: email }),
-    });
+    if (repository?.provider === "onedrive") {
+      await oneDriveRequest(`/me/drive/items/${encodeURIComponent(driveItemId)}/invite`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ recipients: [{ email }], roles: ["read"], requireSignIn: true, sendInvitation: false }),
+      });
+    } else {
+      await driveRequest(`/files/${encodeURIComponent(driveItemId)}/permissions?supportsAllDrives=true&sendNotificationEmail=false`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "user", role: "reader", emailAddress: email }),
+      });
+    }
   }
 }
 async function canManageProject(projectId: string, userId: string) {
@@ -131,19 +185,99 @@ async function canManageProject(projectId: string, userId: string) {
 export function registerDocumentRoutes(app: Express) {
   app.get("/api/organization-settings/document-repository", requireOrganizationAdmin, async (_req, res) => {
     try {
-      const saved = await connection();
-      const config = await oauthConfig();
+      const saved = await activeConnection();
+      const config = await oneDriveConfig();
       res.json({
-        connected: Boolean(saved),
-        provider: "google_drive",
+        connected: saved?.provider === "onedrive",
+        provider: "onedrive",
         email: saved?.connected_email ?? null,
         rootFolderUrl: saved?.root_folder_url ?? null,
         oauthConfigured: Boolean(config),
-        redirectUri: redirectUri(_req),
+        redirectUri: oneDriveRedirectUri(_req),
       });
     } catch (error) {
       console.error("Document repository status failed", error);
       res.status(500).json({ error: "Could not load document repository status" });
+    }
+  });
+  app.post("/api/organization-settings/document-repository/onedrive/credentials", requireOrganizationAdmin, async (req, res) => {
+    const clientId = typeof req.body?.clientId === "string" ? req.body.clientId.trim() : "";
+    const clientSecret = typeof req.body?.clientSecret === "string" ? req.body.clientSecret.trim() : "";
+    if (clientId.length < 10 || clientId.length > 500 || clientSecret.length < 10 || clientSecret.length > 500) {
+      return res.status(400).json({ error: "Enter a valid Microsoft application client ID and client secret." });
+    }
+    try {
+      const userId = String(req.headers["x-user-id"]);
+      await pool.query(
+        `INSERT INTO organization_document_repository_config(provider,encrypted_client_id,encrypted_client_secret,updated_by)
+         VALUES('onedrive',$1,$2,$3)
+         ON CONFLICT(provider) DO UPDATE SET encrypted_client_id=EXCLUDED.encrypted_client_id,
+         encrypted_client_secret=EXCLUDED.encrypted_client_secret,updated_by=EXCLUDED.updated_by,updated_at=now()`,
+        [encrypt(clientId), encrypt(clientSecret), userId],
+      );
+      await pool.query("DELETE FROM organization_document_repositories");
+      res.json({ configured: true });
+    } catch (error) {
+      console.error("Could not save OneDrive OAuth credentials", error);
+      res.status(500).json({ error: "Could not securely save Microsoft OAuth credentials." });
+    }
+  });
+  app.post("/api/organization-settings/document-repository/onedrive/start", requireOrganizationAdmin, async (req, res) => {
+    const config = await oneDriveConfig();
+    if (!config) return res.status(503).json({ error: "Microsoft OAuth credentials are not configured." });
+    const payload = Buffer.from(JSON.stringify({ userId: String(req.headers["x-user-id"]), at: Date.now(), nonce: randomBytes(16).toString("hex") })).toString("base64url");
+    const state = `${payload}.${signState(payload)}`;
+    const url = new URL("https://login.microsoftonline.com/common/oauth2/v2.0/authorize");
+    url.search = new URLSearchParams({
+      client_id: config.clientId, redirect_uri: oneDriveRedirectUri(req), response_type: "code",
+      response_mode: "query", scope: "offline_access User.Read Files.ReadWrite",
+      prompt: "select_account", state,
+    }).toString();
+    res.json({ authorizationUrl: url.toString() });
+  });
+  app.get("/api/organization-settings/document-repository/onedrive/callback", async (req, res) => {
+    const state = isValidState(String(req.query.state ?? ""));
+    if (!state || !req.query.code) return res.status(400).send("OneDrive authorization state is invalid or expired.");
+    try {
+      const config = await oneDriveConfig();
+      if (!config) throw new Error("Microsoft OAuth credentials are not configured.");
+      if (!(await roleNames(state.userId)).includes("admin")) return res.status(403).send("Organization administrator access is required.");
+      const tokenResponse = await fetch("https://login.microsoftonline.com/common/oauth2/v2.0/token", {
+        method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          code: String(req.query.code), client_id: config.clientId, client_secret: config.clientSecret,
+          redirect_uri: oneDriveRedirectUri(req), grant_type: "authorization_code",
+          scope: "offline_access User.Read Files.ReadWrite",
+        }),
+      });
+      const tokens = await tokenResponse.json() as any;
+      if (!tokenResponse.ok || !tokens.access_token || !tokens.refresh_token) throw new Error(tokens.error_description ?? "Microsoft did not return a refresh token.");
+      const graphHeaders = { Authorization: `Bearer ${tokens.access_token}` };
+      const userResponse = await fetch(`${GRAPH_API}/me?$select=displayName,mail,userPrincipalName`, { headers: graphHeaders });
+      const user = await userResponse.json() as any;
+      if (!userResponse.ok) throw new Error(user.error?.message ?? "Could not read the connected Microsoft account.");
+      const rootResponse = await fetch(`${GRAPH_API}/me/drive/root/children?$select=id,name,webUrl,folder&$top=200`, { headers: graphHeaders });
+      const rootData = await rootResponse.json() as any;
+      if (!rootResponse.ok) throw new Error(rootData.error?.message ?? "Could not access the connected OneDrive.");
+      let folder = (rootData.value ?? []).find((item: any) => item.name === "Project Documents" && item.folder);
+      if (!folder) {
+        const createResponse = await fetch(`${GRAPH_API}/me/drive/root/children`, {
+          method: "POST", headers: { ...graphHeaders, "Content-Type": "application/json" },
+          body: JSON.stringify({ name: "Project Documents", folder: {}, "@microsoft.graph.conflictBehavior": "fail" }),
+        });
+        folder = await createResponse.json();
+        if (!createResponse.ok) throw new Error(folder.error?.message ?? "Could not create the Project Documents root folder.");
+      }
+      await pool.query("DELETE FROM organization_document_repositories");
+      await pool.query(
+        `INSERT INTO organization_document_repositories(provider,connected_email,encrypted_access_token,encrypted_refresh_token,expires_at,root_folder_id,root_folder_url,connected_by)
+         VALUES('onedrive',$1,$2,$3,now()+($4::text || ' seconds')::interval,$5,$6,$7)`,
+        [user.mail ?? user.userPrincipalName ?? null, encrypt(tokens.access_token), encrypt(tokens.refresh_token), String(tokens.expires_in ?? 3600), folder.id, folder.webUrl ?? null, state.userId],
+      );
+      res.redirect("/admin/settings?tab=document-repository&connected=1");
+    } catch (error: any) {
+      console.error("OneDrive connection failed", error);
+      res.status(502).send(error.message ?? "Could not connect OneDrive.");
     }
   });
   app.post("/api/organization-settings/document-repository/google/credentials", requireOrganizationAdmin, async (req, res) => {
@@ -237,7 +371,7 @@ export function registerDocumentRoutes(app: Express) {
     }
   });
   app.delete("/api/organization-settings/document-repository", requireOrganizationAdmin, async (_req, res) => {
-    await pool.query("DELETE FROM organization_document_repositories WHERE provider='google_drive'");
+    await pool.query("DELETE FROM organization_document_repositories");
     res.json({ ok: true });
   });
 
@@ -281,11 +415,16 @@ export function registerDocumentRoutes(app: Express) {
     if (!(await canManageProject(req.params.id, userId))) return res.status(403).json({ error: "Project Manager access required" });
     const existing = await pool.query("SELECT drive_folder_id,drive_folder_url FROM project_document_folders WHERE project_id=$1", [req.params.id]);
     if (existing.rows[0]) return res.json(existing.rows[0]);
-    const repository = await connection();
-    if (!repository) return res.status(409).json({ error: "Organization admin must connect Google Drive in Organization Settings first." });
+    const repository = await activeConnection();
+    if (!repository) return res.status(409).json({ error: "Organization admin must connect a document repository in Organization Settings first." });
     const project = await storage.getProject(req.params.id);
     if (!project) return res.status(404).json({ error: "Project not found" });
-    const folder = await createDriveFolder(project.name, repository.root_folder_id);
+    const folder = repository.provider === "onedrive"
+      ? await oneDriveRequest(`/me/drive/items/${encodeURIComponent(repository.root_folder_id)}/children`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: project.name, folder: {}, "@microsoft.graph.conflictBehavior": "rename" }),
+        })
+      : await createDriveFolder(project.name, repository.root_folder_id);
     await shareWithProjectMembers(req.params.id, folder.id);
     await pool.query("INSERT INTO project_document_folders(project_id,drive_folder_id,drive_folder_url,created_by) VALUES($1,$2,$3,$4)", [req.params.id, folder.id, folder.webViewLink ?? null, userId]);
     res.status(201).json({ drive_folder_id: folder.id, drive_folder_url: folder.webViewLink ?? null });
@@ -302,21 +441,37 @@ export function registerDocumentRoutes(app: Express) {
       if (!validTypes.includes(documentType.trim())) return res.status(400).json({ error: "Choose a document type configured in Project Settings." });
       const folder = await pool.query("SELECT drive_folder_id FROM project_document_folders WHERE project_id=$1", [req.params.id]);
       if (!folder.rows[0]) return res.status(409).json({ error: "Create the project folder before uploading documents." });
-      const boundary = `replit_${randomBytes(12).toString("hex")}`;
-      const metadata = JSON.stringify({ name: req.file.originalname, parents: [folder.rows[0].drive_folder_id] });
-      const body = Buffer.concat([
-        Buffer.from(`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadata}\r\n--${boundary}\r\nContent-Type: ${req.file.mimetype || "application/octet-stream"}\r\n\r\n`),
-        req.file.buffer,
-        Buffer.from(`\r\n--${boundary}--`),
-      ]);
-      const driveToken = await googleAccessToken();
-      const response = await fetch(`${DRIVE_UPLOAD}?uploadType=multipart&fields=id,name,webViewLink,mimeType,size`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${driveToken}`, "Content-Type": `multipart/related; boundary=${boundary}`, "Content-Length": String(body.length) },
-        body,
-      });
-      const file = await response.json() as any;
-      if (!response.ok) throw new Error(file.error?.message ?? "Google Drive upload failed.");
+      const repository = await activeConnection();
+      if (!repository) return res.status(409).json({ error: "Connect OneDrive in Organization Settings first." });
+      let file: any;
+      if (repository.provider === "onedrive") {
+        const safeName = `${Date.now()}-${randomBytes(6).toString("hex")}-${String(req.file.originalname).replace(/[\\/]/g, "_")}`;
+        const response = await fetch(`${GRAPH_API}/me/drive/items/${encodeURIComponent(folder.rows[0].drive_folder_id)}:/${encodeURIComponent(safeName)}:/content`, {
+          method: "PUT",
+          headers: { Authorization: `Bearer ${await oneDriveAccessToken()}`, "Content-Type": req.file.mimetype || "application/octet-stream" },
+          body: req.file.buffer,
+        });
+        file = await response.json() as any;
+        if (!response.ok) throw new Error(file.error?.message ?? "OneDrive upload failed.");
+        file.webViewLink = file.webUrl;
+        file.mimeType = file.file?.mimeType ?? req.file.mimetype;
+      } else {
+        const boundary = `replit_${randomBytes(12).toString("hex")}`;
+        const metadata = JSON.stringify({ name: req.file.originalname, parents: [folder.rows[0].drive_folder_id] });
+        const body = Buffer.concat([
+          Buffer.from(`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadata}\r\n--${boundary}\r\nContent-Type: ${req.file.mimetype || "application/octet-stream"}\r\n\r\n`),
+          req.file.buffer,
+          Buffer.from(`\r\n--${boundary}--`),
+        ]);
+        const driveToken = await googleAccessToken();
+        const response = await fetch(`${DRIVE_UPLOAD}?uploadType=multipart&fields=id,name,webViewLink,mimeType,size`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${driveToken}`, "Content-Type": `multipart/related; boundary=${boundary}`, "Content-Length": String(body.length) },
+          body,
+        });
+        file = await response.json() as any;
+        if (!response.ok) throw new Error(file.error?.message ?? "Google Drive upload failed.");
+      }
       await shareWithProjectMembers(req.params.id, file.id);
       const docKey = name.trim().toLocaleLowerCase();
       const client = await pool.connect();

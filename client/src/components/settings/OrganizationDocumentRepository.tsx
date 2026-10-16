@@ -20,57 +20,58 @@ export default function OrganizationDocumentRepository() {
     queryFn: () => apiClient.get("/organization-settings/document-repository"),
   });
   const connect = useMutation({
-    mutationFn: () => apiClient.post("/organization-settings/document-repository/google/start", {}),
+    mutationFn: () => apiClient.post("/organization-settings/document-repository/onedrive/start", {}),
     onSuccess: (result: { authorizationUrl: string }) => window.location.assign(result.authorizationUrl),
-    onError: (error: Error) => toast({ title: "Could not start Google Drive connection", description: error.message, variant: "destructive" }),
+    onError: (error: Error) => toast({ title: "Could not start OneDrive connection", description: error.message, variant: "destructive" }),
   });
   const saveCredentials = useMutation({
-    mutationFn: () => apiClient.post("/organization-settings/document-repository/google/credentials", { clientId, clientSecret }),
+    mutationFn: () => apiClient.post("/organization-settings/document-repository/onedrive/credentials", { clientId, clientSecret }),
     onSuccess: () => {
       setClientId("");
       setClientSecret("");
       queryClient.invalidateQueries({ queryKey: ["/api/organization-settings/document-repository"] });
-      toast({ title: "Google OAuth credentials saved", description: "Reconnect Google Drive to authorize this OAuth client." });
+      toast({ title: "Microsoft credentials saved", description: "Connect OneDrive to authorize this Microsoft application." });
     },
-    onError: (error: Error) => toast({ title: "Could not save OAuth credentials", description: error.message, variant: "destructive" }),
+    onError: (error: Error) => toast({ title: "Could not save Microsoft credentials", description: error.message, variant: "destructive" }),
   });
   const disconnect = useMutation({
     mutationFn: () => apiClient.delete("/organization-settings/document-repository"),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/organization-settings/document-repository"] });
-      toast({ title: "Google Drive disconnected" });
+      toast({ title: "OneDrive disconnected" });
     },
-    onError: (error: Error) => toast({ title: "Could not disconnect Google Drive", description: error.message, variant: "destructive" }),
+    onError: (error: Error) => toast({ title: "Could not disconnect OneDrive", description: error.message, variant: "destructive" }),
   });
 
   return <Card>
     <CardHeader>
       <CardTitle className="flex items-center gap-2"><HardDrive className="h-5 w-5" /> Document repository</CardTitle>
-      <CardDescription>Connect the organization’s Google Drive once. Project Managers can then create project folders and upload versioned files.</CardDescription>
+      <CardDescription>Connect the organization’s OneDrive once. Project Managers can then create project folders and upload versioned files.</CardDescription>
     </CardHeader>
     <CardContent className="space-y-4">
       {status.isLoading ? <p className="text-sm text-muted-foreground">Checking connection…</p> :
         status.data?.connected ? <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-4">
-          <div><p className="font-medium">Google Drive connected</p><p className="text-sm text-muted-foreground">{status.data.email}</p>
+          <div><p className="font-medium">OneDrive connected</p><p className="text-sm text-muted-foreground">{status.data.email}</p>
             {status.data.rootFolderUrl && <a className="mt-2 inline-flex items-center gap-1 text-sm text-primary underline" href={status.data.rootFolderUrl} target="_blank" rel="noreferrer">Open repository folder <ExternalLink className="h-3.5 w-3.5" /></a>}
           </div>
-          <Button variant="outline" onClick={() => disconnect.mutate()} disabled={disconnect.isPending}><Link2Off className="mr-2 h-4 w-4" />Disconnect</Button>
+          <Button variant="outline" onClick={() => disconnect.mutate()} disabled={disconnect.isPending}><Link2Off className="mr-2 h-4 w-4" />Disconnect OneDrive</Button>
         </div> : <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-4">
-          <div><p className="font-medium">No repository connected</p><p className="text-sm text-muted-foreground">Only an organization administrator can authorize the organization’s Google Drive.</p></div>
-          <Button onClick={() => connect.mutate()} disabled={connect.isPending || !status.data?.oauthConfigured}>{connect.isPending ? "Connecting…" : "Connect Google Drive"}</Button>
+          <div><p className="font-medium">No repository connected</p><p className="text-sm text-muted-foreground">Only an organization administrator can authorize the organization’s OneDrive.</p></div>
+          <Button onClick={() => connect.mutate()} disabled={connect.isPending || !status.data?.oauthConfigured}>{connect.isPending ? "Connecting…" : "Connect OneDrive"}</Button>
         </div>}
       {status.isError && <p role="alert" className="text-sm text-destructive">Repository status could not be loaded.</p>}
       <div className="space-y-4 rounded-lg border p-4">
-        <div><p className="font-medium">Google OAuth application</p><p className="text-sm text-muted-foreground">Credentials are encrypted before storage and are never returned by the server. The app’s SESSION_SECRET protects stored credentials and Drive tokens.</p></div>
-        {status.data?.oauthConfigured && <p className="text-sm text-emerald-700">OAuth credentials are saved. Enter both fields again to replace them.</p>}
+        <div><p className="font-medium">Microsoft application</p><p className="text-sm text-muted-foreground">Credentials are encrypted before storage and are never returned by the server. The app’s SESSION_SECRET protects stored credentials and OneDrive tokens.</p></div>
+        <p className="text-sm text-muted-foreground">Register a web app in Microsoft Entra that supports organizational accounts and personal Microsoft accounts. Add the redirect URI below and grant delegated User.Read and Files.ReadWrite permissions.</p>
+        {status.data?.oauthConfigured && <p className="text-sm text-emerald-700">Microsoft credentials are saved. Enter both fields again to replace them.</p>}
         <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-1.5"><Label htmlFor="google-oauth-client-id">OAuth client ID</Label><Input id="google-oauth-client-id" autoComplete="off" value={clientId} onChange={(event) => setClientId(event.target.value)} placeholder="Google OAuth Web client ID" /></div>
-          <div className="space-y-1.5"><Label htmlFor="google-oauth-client-secret">OAuth client secret</Label><Input id="google-oauth-client-secret" type="password" autoComplete="new-password" value={clientSecret} onChange={(event) => setClientSecret(event.target.value)} placeholder="Google OAuth client secret" /></div>
+          <div className="space-y-1.5"><Label htmlFor="microsoft-client-id">Application (client) ID</Label><Input id="microsoft-client-id" autoComplete="off" value={clientId} onChange={(event) => setClientId(event.target.value)} placeholder="Microsoft application client ID" /></div>
+          <div className="space-y-1.5"><Label htmlFor="microsoft-client-secret">Client secret value</Label><Input id="microsoft-client-secret" type="password" autoComplete="new-password" value={clientSecret} onChange={(event) => setClientSecret(event.target.value)} placeholder="Microsoft client secret value" /></div>
         </div>
-        <Button className="min-h-10 px-5 font-semibold shadow-sm" onClick={() => saveCredentials.mutate()} disabled={saveCredentials.isPending || !clientId.trim() || !clientSecret.trim()}>{saveCredentials.isPending ? "Saving…" : "Save OAuth credentials"}</Button>
+        <Button className="min-h-10 px-5 font-semibold shadow-sm" onClick={() => saveCredentials.mutate()} disabled={saveCredentials.isPending || !clientId.trim() || !clientSecret.trim()}>{saveCredentials.isPending ? "Saving…" : "Save Microsoft credentials"}</Button>
         <div className="rounded-md bg-muted p-3 text-sm">
           <p className="font-medium">Authorized redirect URI</p>
-          <p className="mt-1 text-muted-foreground">Add this exact URI to the OAuth client in Google Cloud Console.</p>
+          <p className="mt-1 text-muted-foreground">Add this exact URI to the app registration’s Web redirect URIs.</p>
           <code className="mt-2 block break-all text-xs">{status.data?.redirectUri ?? "Loading callback URL…"}</code>
         </div>
       </div>

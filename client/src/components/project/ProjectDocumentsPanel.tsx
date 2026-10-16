@@ -53,7 +53,7 @@ export default function ProjectDocumentsPanel({ projectId }: { projectId: string
   if (isError || !data) return <Card><CardContent className="py-10 text-center text-sm text-muted-foreground">Project Documents could not be loaded.</CardContent></Card>;
 
   return <div className="space-y-5">
-    <header><p className="text-xs font-semibold uppercase tracking-[0.16em] text-indigo-600">Repository</p><h2 className="mt-1 text-2xl font-semibold">Project Documents</h2><p className="mt-1 text-sm text-muted-foreground">Files are stored in the organization’s Google Drive. New uploads to an existing document create a numbered version.</p></header>
+    <header><p className="text-xs font-semibold uppercase tracking-[0.16em] text-indigo-600">Repository</p><h2 className="mt-1 text-2xl font-semibold">Project Documents</h2><p className="mt-1 text-sm text-muted-foreground">Files are stored in the organization’s connected OneDrive. New uploads to an existing document create a numbered version.</p></header>
     <Card>
       <CardHeader><CardTitle className="text-base">Project folder</CardTitle><CardDescription>The folder is created inside the organization repository connected in Settings.</CardDescription></CardHeader>
       <CardContent className="flex flex-wrap items-center justify-between gap-3">
