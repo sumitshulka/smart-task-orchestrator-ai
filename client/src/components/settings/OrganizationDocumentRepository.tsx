@@ -67,7 +67,7 @@ export default function OrganizationDocumentRepository() {
           <div className="space-y-1.5"><Label htmlFor="google-oauth-client-id">OAuth client ID</Label><Input id="google-oauth-client-id" autoComplete="off" value={clientId} onChange={(event) => setClientId(event.target.value)} placeholder="Google OAuth Web client ID" /></div>
           <div className="space-y-1.5"><Label htmlFor="google-oauth-client-secret">OAuth client secret</Label><Input id="google-oauth-client-secret" type="password" autoComplete="new-password" value={clientSecret} onChange={(event) => setClientSecret(event.target.value)} placeholder="Google OAuth client secret" /></div>
         </div>
-        <Button variant="outline" onClick={() => saveCredentials.mutate()} disabled={saveCredentials.isPending || !clientId.trim() || !clientSecret.trim()}>{saveCredentials.isPending ? "Saving…" : "Save OAuth credentials"}</Button>
+        <Button className="min-h-10 px-5 font-semibold shadow-sm" onClick={() => saveCredentials.mutate()} disabled={saveCredentials.isPending || !clientId.trim() || !clientSecret.trim()}>{saveCredentials.isPending ? "Saving…" : "Save OAuth credentials"}</Button>
         <div className="rounded-md bg-muted p-3 text-sm">
           <p className="font-medium">Authorized redirect URI</p>
           <p className="mt-1 text-muted-foreground">Add this exact URI to the OAuth client in Google Cloud Console.</p>
