@@ -32,6 +32,7 @@ import ProjectSettingsPanel from "@/components/project/ProjectSettingsPanel";
 import ReleaseManagementPanel from "@/components/project/ReleaseManagementPanel";
 import TestCaseManagementPanel from "@/components/project/TestCaseManagementPanel";
 import ProjectMeetingsPanel from "@/components/project/ProjectMeetingsPanel";
+import ProjectFinancePanel from "@/components/project/ProjectFinancePanel";
 import { filterProjectNavigation } from "./projectNavigation";
 import { format, differenceInDays } from "date-fns";
 import type {
@@ -959,11 +960,7 @@ export default function ProjectDetail() {
 
             {/* ══════════════════ COMING SOON MODULES ══════════════════ */}
             {activeSection === "finance" && (
-              <LaunchingSoonSection
-                icon={DollarSign}
-                title="Project Finance"
-                description="This module will contain project-related finance items and will ultimately help determine project profitability."
-              />
+              <ProjectFinancePanel projectId={id!} />
             )}
             {activeSection === "test-cases" && (
               <TestCaseManagementPanel projectId={id!} />

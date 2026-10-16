@@ -13,6 +13,7 @@ import GeneralSettings from "@/components/settings/GeneralSettings";
 import { LicenseManager } from "@/components/settings/LicenseManager";
 import ProjectTemplates from "@/components/settings/ProjectTemplates";
 import AiSettings from "@/components/settings/AiSettings";
+import OrganizationFinanceSettings from "@/components/settings/OrganizationFinanceSettings";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api";
 
@@ -64,6 +65,11 @@ const AdminSettings: React.FC = () => {
                 Project Templates
               </TabsTrigger>
             )}
+            {projectManagementEnabled && (
+              <TabsTrigger value="project-finance" className="px-6 py-3 text-left justify-start">
+                Project Finance
+              </TabsTrigger>
+            )}
             <TabsTrigger
               value="ai-integration"
               className="px-6 py-3 text-left justify-start"
@@ -92,6 +98,11 @@ const AdminSettings: React.FC = () => {
           {projectManagementEnabled && (
             <TabsContent value="project-templates" className="w-full">
               <ProjectTemplates />
+            </TabsContent>
+          )}
+          {projectManagementEnabled && (
+            <TabsContent value="project-finance" className="w-full">
+              <OrganizationFinanceSettings />
             </TabsContent>
           )}
           <TabsContent value="ai-integration" className="w-full">

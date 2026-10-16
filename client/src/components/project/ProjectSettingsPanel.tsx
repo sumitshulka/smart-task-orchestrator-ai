@@ -883,7 +883,7 @@ export default function ProjectSettingsPanel({ project, users, clients, members,
               <SectionHeader eyebrow="Financial intelligence" title="Finance" description="Control project financial visibility and categories without turning Tazq into an accounting system. Disabling Finance never deletes existing data." />
               <Card><CardHeader><CardTitle className="text-base">Finance tracking</CardTitle></CardHeader><CardContent className="space-y-3">
                 <ToggleRow label="Track Finance" description="Show Finance for this project and enable project financial workflows." checked={financeEnabled} onChange={(value) => toggleSetting("finance.trackFinance", value, "Disable Finance?", "Finance will be hidden and related workflows will stop. Existing finance data is retained and will return when Finance is enabled again.")} />
-                <ToggleRow label="Track People Cost" description="Calculate resource cost from hours worked multiplied by internal cost rate." checked={settings.finance.trackPeopleCost} disabled={!financeEnabled} disabledReason="Enable Finance to change people cost tracking." onChange={(value) => updateSetting("finance.trackPeopleCost", value)} />
+                <ToggleRow label="Track People Cost" description="Calculate monthly resource cost from effective salary and project allocation percentage." checked={settings.finance.trackPeopleCost} disabled={!financeEnabled} disabledReason="Enable Finance to change people cost tracking." onChange={(value) => updateSetting("finance.trackPeopleCost", value)} />
               </CardContent></Card>
               <Card className={!financeEnabled ? "opacity-60" : ""}><CardHeader><CardTitle className="text-base">People cost visibility</CardTitle><CardDescription>Do not expose internal cost information to project members or clients by default.</CardDescription></CardHeader><CardContent><RolePicker value={settings.finance.peopleCostVisibility} disabled={!financeEnabled || !settings.finance.trackPeopleCost} onChange={(value) => updateSetting("finance.peopleCostVisibility", value)} /></CardContent></Card>
                <Card className={!resourceCostManagementEnabled ? "opacity-75" : ""}>
@@ -933,56 +933,15 @@ export default function ProjectSettingsPanel({ project, users, clients, members,
                  </CardContent>
                </Card>
               <Card className={!financeEnabled ? "opacity-60" : ""}><CardHeader><CardTitle className="text-base">Finance visibility</CardTitle><CardDescription>Finance being enabled does not automatically make every financial measure visible.</CardDescription></CardHeader><CardContent className="space-y-4">{([["budget", "Project Budget"], ["expenses", "Project Expenses"], ["resourceCost", "Resource Cost"], ["profitability", "Profitability / Margin"]] as const).map(([key, label]) => <div key={key}><Label className="mb-2 block text-sm">{label}</Label><RolePicker value={settings.finance.visibility[key]} disabled={!financeEnabled} onChange={(value) => updateSetting(`finance.visibility.${key}`, value)} /></div>)}</CardContent></Card>
-              <Card className={!financeEnabled ? "opacity-60" : ""}>
-                <CardHeader>
-                  <CardTitle className="text-base">Finance Heads</CardTitle>
-                  <CardDescription>Project-level categories used by future budgets and expense records. Add and edit them directly in the table.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {!financeEnabled ? (
-                    <p className="rounded-lg border border-dashed p-5 text-center text-sm text-gray-500">Enable Finance to manage finance heads.</p>
-                  ) : (
-                    <div className="overflow-x-auto rounded-lg border">
-                      <table className="w-full min-w-[1050px] text-left text-sm">
-                        <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500 dark:bg-gray-900/60 dark:text-gray-400">
-                          <tr>
-                            <th className="px-3 py-3 font-medium">Code</th>
-                            <th className="px-3 py-3 font-medium">Name</th>
-                            <th className="px-3 py-3 font-medium">Description</th>
-                            <th className="px-3 py-3 text-center font-medium">Active</th>
-                            <th className="px-3 py-3 text-center font-medium">Budget</th>
-                            <th className="px-3 py-3 text-center font-medium">Expenses</th>
-                            <th className="px-3 py-3 text-right font-medium">Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {financeHeads.map((head: any) => (
-                            <FinanceHeadRow
-                              key={head.id}
-                              head={head}
-                              canEdit={financeEnabled}
-                              onSave={(payload) => financeHeadMutation.mutate(payload)}
-                              onDelete={(headId) => deleteFinanceHeadMutation.mutate(headId)}
-                              isSaving={financeHeadMutation.isPending}
-                              isDeleting={deleteFinanceHeadMutation.isPending}
-                            />
-                          ))}
-                          <FinanceHeadRow
-                            key="new-finance-head"
-                            resetKey={financeHeads.length}
-                            canEdit={financeEnabled}
-                            onSave={(payload) => financeHeadMutation.mutate(payload)}
-                            onDelete={() => undefined}
-                            isSaving={financeHeadMutation.isPending}
-                            isDeleting={deleteFinanceHeadMutation.isPending}
-                          />
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                  <p className="mt-3 text-xs text-gray-500">Use the blank row to add a finance head. Code and name are required; descriptions and checkbox values can be changed inline.</p>
-                </CardContent>
-              </Card>
+               <Card>
+                 <CardHeader>
+                   <CardTitle className="text-base">Expense heads</CardTitle>
+                   <CardDescription>Expense heads are shared across the organization so every project uses the same categories.</CardDescription>
+                 </CardHeader>
+                 <CardContent className="text-sm text-muted-foreground">
+                   Organization administrators manage expense heads and revenue-entry project roles in Settings → Project Finance.
+                 </CardContent>
+               </Card>
             </>
           )}
 

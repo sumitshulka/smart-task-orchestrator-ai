@@ -27,6 +27,7 @@ export const organizationSettings = pgTable("organization_settings", {
   project_management_enabled: boolean("project_management_enabled").default(false),
   // Defect Management feature toggle
   defect_management_enabled: boolean("defect_management_enabled").default(false),
+  finance_revenue_project_roles: jsonb("finance_revenue_project_roles").notNull().default(["Project Manager", "Finance Manager"]),
   created_at: timestamp("created_at").defaultNow(),
   updated_at: timestamp("updated_at").defaultNow(),
 });
@@ -86,6 +87,19 @@ export const projectFinanceHeads = pgTable("project_finance_heads", {
   updated_at: timestamp("updated_at").defaultNow(),
 }, (table) => ({
   projectCodeUnique: unique("project_finance_heads_project_code_unique").on(table.project_id, table.code),
+}));
+
+export const organizationFinanceHeads = pgTable("organization_finance_heads", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull(),
+  code: text("code").notNull(),
+  description: text("description"),
+  is_active: boolean("is_active").notNull().default(true),
+  created_by: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+  created_at: timestamp("created_at").defaultNow(),
+  updated_at: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  codeUnique: unique("organization_finance_heads_code_unique").on(table.code),
 }));
 
 export const projectSettingAudit = pgTable("project_setting_audit", {
@@ -170,6 +184,22 @@ export const projectMilestones = pgTable("project_milestones", {
   date_mode: text("date_mode").default("manual"), // manual | calculated
   created_at: timestamp("created_at").defaultNow(),
   updated_at: timestamp("updated_at").defaultNow(),
+});
+
+export const projectFinanceEntries = pgTable("project_finance_entries", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  project_id: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  entry_type: text("entry_type").notNull(), // expense | revenue
+  expense_head_id: uuid("expense_head_id").references(() => organizationFinanceHeads.id, { onDelete: "set null" }),
+  milestone_id: uuid("milestone_id").references(() => projectMilestones.id, { onDelete: "set null" }),
+  recognition_basis: text("recognition_basis").notNull(), // monthly | milestone | expense
+  period_month: date("period_month"),
+  achieved_on: date("achieved_on"),
+  amount: text("amount").notNull(),
+  currency: text("currency").notNull(),
+  description: text("description").notNull(),
+  created_by: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+  created_at: timestamp("created_at").defaultNow(),
 });
 
 // Milestone Stages table (inherits from template or custom)
@@ -890,6 +920,8 @@ export type InsertProject = z.infer<typeof insertProjectSchema>;
 export type Project = typeof projects.$inferSelect;
 export type ProjectSettings = typeof projectSettings.$inferSelect;
 export type ProjectFinanceHead = typeof projectFinanceHeads.$inferSelect;
+export type OrganizationFinanceHead = typeof organizationFinanceHeads.$inferSelect;
+export type ProjectFinanceEntry = typeof projectFinanceEntries.$inferSelect;
 export type ProjectSettingAudit = typeof projectSettingAudit.$inferSelect;
 export type ProjectResourceCostHistory = typeof projectResourceCostHistory.$inferSelect;
 export type InsertProjectMember = z.infer<typeof insertProjectMemberSchema>;

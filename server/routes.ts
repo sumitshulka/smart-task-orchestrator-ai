@@ -15,10 +15,18 @@ import { registerReleaseRoutes } from "./release-routes";
 import { registerMeetingRoutes } from "./meeting-routes";
 import { buildAllocationsReport } from "./allocation-report";
 import { createAllocationsPdf, createAllocationsWorkbook } from "./allocation-report-exports";
+import {
+  organizationFinanceHeads,
+  organizationSettings as organizationSettingsTable,
+  projectFinanceEntries,
+  projectMembers,
+  projectMilestones,
+  projectResourceCostHistory,
+} from "@shared/schema";
  import { insertUserSchema, insertTaskSchema, insertTeamSchema, insertTaskGroupSchema, insertRoleSchema, insertOfficeLocationSchema, userRoles, insertDefectSchema, insertClientSchema, insertClientContactSchema, insertClientProjectAccessSchema, insertCustomFieldGroupSchema, insertCustomFieldDefinitionSchema, insertCustomFieldValueSchema, tasks as tasksTable, projects as projectsTable, defects as defectsTable, users as usersTable, teams as teamsTable, workspaceDecisions, projectTemplateRoles, meetings as meetingsTable } from "@shared/schema";
 import { callAiProvider, encryptApiKey, decryptApiKey, DEFAULT_SYSTEM_PROMPT_HEADER, AI_PROVIDER_MODELS, DEFAULT_AI_MODEL } from "./ai-provider";
 import { db } from "./db";
-import { ilike, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, or, sql } from "drizzle-orm";
 import bcrypt from "bcrypt";
 import {
   financeVisibilityAllows,
@@ -128,6 +136,7 @@ const DEFAULT_PROJECT_SETTINGS = {
   finance: {
     trackFinance: true,
     trackPeopleCost: false,
+    revenueRecognitionBasis: "milestone",
     peopleCostVisibility: ["organization_admin", "finance", "project_manager"],
     visibility: {
       budget: ["organization_admin", "finance", "project_manager"],
@@ -249,13 +258,16 @@ function validateProjectSettings(input: unknown): { settings?: Record<string, an
   const booleanGroups = ["planning", "finance", "quality", "releaseManagement", "collaboration"] as const;
   for (const group of booleanGroups) {
     for (const [key, value] of Object.entries(settings[group])) {
-      if (key === "peopleCostVisibility" || key === "visibility" || key === "methodology" || key === "granularity" || key === "repository") continue;
+      if (key === "peopleCostVisibility" || key === "visibility" || key === "methodology" || key === "granularity" || key === "repository" || key === "revenueRecognitionBasis") continue;
       if (typeof value !== "boolean") return { error: `${group}.${key} must be boolean` };
     }
   }
   if (!Array.isArray(settings.finance.peopleCostVisibility) ||
       settings.finance.peopleCostVisibility.some((role: unknown) => !PROJECT_SETTING_ENUMS.peopleCostVisibility.includes(role as string))) {
     return { error: "Invalid people cost visibility role" };
+  }
+  if (!["monthly", "milestone"].includes(settings.finance.revenueRecognitionBasis)) {
+    return { error: "Revenue recognition basis must be monthly or milestone" };
   }
   for (const key of ["budget", "expenses", "resourceCost", "profitability"]) {
     const roles = settings.finance.visibility[key];
@@ -2220,7 +2232,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const project = await storage.getProject(req.params.id);
       if (!project) return res.status(404).json({ error: "Project not found" });
       const saved = await storage.getProjectSettings(req.params.id);
-      const financeHeads = await storage.getProjectFinanceHeads(req.params.id);
+      const financeHeads: any[] = [];
       const audit = await storage.getProjectSettingAudit(req.params.id);
       const canSeeResourceCost = financeVisibilityAllows((req as any).projectContext, "peopleCost") &&
         financeVisibilityAllows((req as any).projectContext, "resourceCost");
@@ -2370,77 +2382,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/projects/:id/settings/finance-heads", requireProjectModule("finance"), async (req, res) => {
     try {
-      res.json(await storage.getProjectFinanceHeads(req.params.id));
+      res.json(await db.select().from(organizationFinanceHeads)
+        .where(eq(organizationFinanceHeads.is_active, true))
+        .orderBy(asc(organizationFinanceHeads.name)));
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch finance heads" });
     }
   });
 
   app.post("/api/projects/:id/settings/finance-heads", requireManagerOrAdmin, async (req, res) => {
-    try {
-      const userId = req.headers["x-user-id"] as string;
-      const name = String(req.body?.name ?? "").trim();
-      const code = String(req.body?.code ?? "").trim().toUpperCase();
-      if (!name || !code) return res.status(400).json({ error: "Finance head name and code are required" });
-      const existing = await storage.getProjectFinanceHeads(req.params.id);
-      if (existing.some((head) => head.name.toLowerCase() === name.toLowerCase() || head.code.toUpperCase() === code)) {
-        return res.status(409).json({ error: "Finance head name and code must be unique within this project" });
-      }
-      const head = await storage.createProjectFinanceHead({
-        project_id: req.params.id,
-        name,
-        code,
-        description: req.body.description ? String(req.body.description).trim() : null,
-        is_active: req.body.is_active !== false,
-        budget_allowed: req.body.budget_allowed !== false,
-        actual_expense_allowed: req.body.actual_expense_allowed !== false,
-        created_by: userId,
-      });
-      res.status(201).json(head);
-    } catch (error: any) {
-      res.status(400).json({ error: error?.message || "Failed to create finance head" });
-    }
+    res.status(410).json({ error: "Expense heads are now managed at organization level" });
   });
 
   app.put("/api/projects/:id/settings/finance-heads/:headId", requireManagerOrAdmin, async (req, res) => {
-    try {
-      const current = (await storage.getProjectFinanceHeads(req.params.id))
-        .find((head) => head.id === req.params.headId);
-      if (!current) return res.status(404).json({ error: "Finance head not found" });
-      const name = req.body?.name !== undefined ? String(req.body.name).trim() : current.name;
-      const code = req.body?.code !== undefined ? String(req.body.code).trim().toUpperCase() : current.code;
-      if (!name || !code) return res.status(400).json({ error: "Finance head name and code are required" });
-      const existing = await storage.getProjectFinanceHeads(req.params.id);
-      if (existing.some((head) => head.id !== current.id &&
-          (head.name.toLowerCase() === name.toLowerCase() || head.code.toUpperCase() === code))) {
-        return res.status(409).json({ error: "Finance head name and code must be unique within this project" });
-      }
-      const head = await storage.updateProjectFinanceHead(req.params.headId, {
-        name,
-        code,
-        description: req.body.description !== undefined ? (req.body.description ? String(req.body.description).trim() : null) : current.description,
-        is_active: req.body.is_active ?? current.is_active,
-        budget_allowed: req.body.budget_allowed ?? current.budget_allowed,
-        actual_expense_allowed: req.body.actual_expense_allowed ?? current.actual_expense_allowed,
-      });
-      res.json(head);
-    } catch (error: any) {
-      res.status(400).json({ error: error?.message || "Failed to update finance head" });
-    }
+    res.status(410).json({ error: "Expense heads are now managed at organization level" });
   });
 
   app.delete("/api/projects/:id/settings/finance-heads/:headId", requireManagerOrAdmin, async (req, res) => {
-    try {
-      const current = (await storage.getProjectFinanceHeads(req.params.id))
-        .find((head) => head.id === req.params.headId);
-      if (!current) return res.status(404).json({ error: "Finance head not found" });
-      // No finance transaction entity exists yet. When one is introduced, this
-      // endpoint should return a conflict for used heads and offer deactivation.
-      await storage.deleteProjectFinanceHead(req.params.headId);
-      res.status(204).send();
-    } catch (error) {
-      res.status(400).json({ error: "Failed to delete finance head" });
-    }
+    res.status(410).json({ error: "Expense heads are now managed at organization level" });
   });
 
   const getResourceCostContext = async (projectId: string) => {
@@ -2574,6 +2533,289 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(204).send();
     } catch (error) {
       res.status(400).json({ error: "Failed to delete resource cost" });
+    }
+  });
+
+  const canManageProjectRevenue = async (projectId: string, userId: string, context: any) => {
+    if (context?.roleNames?.includes("admin")) return true;
+    const [organization, members] = await Promise.all([
+      storage.getOrganizationSettings(),
+      storage.getProjectMembers(projectId),
+    ]);
+    const allowedRoles = Array.isArray(organization?.finance_revenue_project_roles)
+      ? organization.finance_revenue_project_roles.map((role: unknown) => String(role).trim().toLowerCase())
+      : ["project manager", "finance manager"];
+    const member = members.find((candidate) => candidate.user_id === userId && candidate.is_active !== false);
+    if (!member) return false;
+    const title = String(member.project_role ?? "").trim().toLowerCase();
+    const systemRole = String(member.member_type ?? "").replace(/_/g, " ").trim().toLowerCase();
+    return allowedRoles.includes(title) || allowedRoles.includes(systemRole);
+  };
+
+  app.get("/api/organization-finance-settings", requireAdmin, async (_req, res) => {
+    try {
+      const [organization, heads] = await Promise.all([
+        storage.getOrganizationSettings(),
+        db.select().from(organizationFinanceHeads).orderBy(asc(organizationFinanceHeads.name)),
+      ]);
+      res.json({
+        currency: organization?.currency ?? "USD",
+        revenueEntryRoles: Array.isArray(organization?.finance_revenue_project_roles)
+          ? organization.finance_revenue_project_roles
+          : ["Project Manager", "Finance Manager"],
+        expenseHeads: heads,
+      });
+    } catch (error) {
+      console.error("Failed to fetch organization finance settings:", error);
+      res.status(500).json({ error: "Failed to fetch organization finance settings" });
+    }
+  });
+
+  app.patch("/api/organization-finance-settings", requireAdmin, async (req, res) => {
+    try {
+      const roles = Array.isArray(req.body?.revenueEntryRoles)
+        ? [...new Set(req.body.revenueEntryRoles.map((role: unknown) => String(role).trim()).filter(Boolean))]
+        : null;
+      if (!roles) return res.status(400).json({ error: "Revenue-entry project roles must be a list" });
+      const [existing] = await db.select().from(organizationSettingsTable).limit(1);
+      if (existing) {
+        await db.update(organizationSettingsTable)
+          .set({ finance_revenue_project_roles: roles, updated_at: new Date() })
+          .where(eq(organizationSettingsTable.id, existing.id));
+      } else {
+        await db.insert(organizationSettingsTable).values({ finance_revenue_project_roles: roles });
+      }
+      res.json({ revenueEntryRoles: roles });
+    } catch (error) {
+      console.error("Failed to save organization finance settings:", error);
+      res.status(500).json({ error: "Failed to save organization finance settings" });
+    }
+  });
+
+  app.post("/api/organization-finance-heads", requireAdmin, async (req, res) => {
+    try {
+      const name = String(req.body?.name ?? "").trim();
+      const code = String(req.body?.code ?? "").trim().toUpperCase();
+      if (!name || !code) return res.status(400).json({ error: "Expense head name and code are required" });
+      const [head] = await db.insert(organizationFinanceHeads).values({
+        name,
+        code,
+        description: String(req.body?.description ?? "").trim() || null,
+        created_by: String(req.headers["x-user-id"] ?? "") || null,
+      }).returning();
+      res.status(201).json(head);
+    } catch (error) {
+      res.status(409).json({ error: "Expense head code must be unique" });
+    }
+  });
+
+  app.put("/api/organization-finance-heads/:headId", requireAdmin, async (req, res) => {
+    try {
+      const name = String(req.body?.name ?? "").trim();
+      const code = String(req.body?.code ?? "").trim().toUpperCase();
+      if (!name || !code) return res.status(400).json({ error: "Expense head name and code are required" });
+      const existingHeads = await db.select().from(organizationFinanceHeads);
+      if (existingHeads.some((head) => head.id !== req.params.headId &&
+          (head.name.toLowerCase() === name.toLowerCase() || head.code.toUpperCase() === code))) {
+        return res.status(409).json({ error: "Expense head name and code must be unique" });
+      }
+      const [head] = await db.update(organizationFinanceHeads)
+        .set({ name, code, description: String(req.body?.description ?? "").trim() || null, updated_at: new Date() })
+        .where(eq(organizationFinanceHeads.id, req.params.headId))
+        .returning();
+      if (!head) return res.status(404).json({ error: "Expense head not found" });
+      res.json(head);
+    } catch (error) {
+      res.status(409).json({ error: "Expense head name and code must be unique" });
+    }
+  });
+
+  app.delete("/api/organization-finance-heads/:headId", requireAdmin, async (req, res) => {
+    try {
+      await db.update(organizationFinanceHeads)
+        .set({ is_active: false, updated_at: new Date() })
+        .where(eq(organizationFinanceHeads.id, req.params.headId));
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ error: "Failed to retire expense head" });
+    }
+  });
+
+  app.get("/api/projects/:id/finance", requireProjectModule("finance"), async (req, res) => {
+    try {
+      const context = (req as any).projectContext;
+      const project = context.project;
+      const [entries, heads, milestones, members, salaryHistory, organization] = await Promise.all([
+        db.select().from(projectFinanceEntries).where(eq(projectFinanceEntries.project_id, project.id))
+          .orderBy(desc(projectFinanceEntries.created_at)),
+        db.select().from(organizationFinanceHeads).where(eq(organizationFinanceHeads.is_active, true))
+          .orderBy(asc(organizationFinanceHeads.name)),
+        db.select().from(projectMilestones).where(eq(projectMilestones.project_id, project.id))
+          .orderBy(asc(projectMilestones.milestone_order)),
+        storage.getProjectMembers(project.id),
+        storage.getProjectResourceCostHistory(project.id),
+        storage.getOrganizationSettings(),
+      ]);
+      const canSeeExpenses = financeVisibilityAllows(context, "expenses");
+      const canSeeCosts = context.settings.finance.trackPeopleCost !== false &&
+        financeVisibilityAllows(context, "peopleCost") &&
+        financeVisibilityAllows(context, "resourceCost");
+      const canSeeProfitability = financeVisibilityAllows(context, "profitability");
+      const canManageRevenue = await canManageProjectRevenue(project.id, String(req.headers["x-user-id"] ?? ""), context);
+      const startValue = project.start_date ? new Date(project.start_date).toISOString().slice(0, 7) : null;
+      const firstSalaryMonth = salaryHistory.map((record) => record.effective_month.slice(0, 7)).sort()[0] ?? null;
+      const startMonth = startValue ?? firstSalaryMonth;
+      const todayMonth = new Date().toISOString().slice(0, 7);
+      const monthlyResourceCosts: Array<{ month: string; amount: number; currency: string }> = [];
+      if (context.settings.finance.trackPeopleCost !== false && startMonth && startMonth <= todayMonth) {
+        let cursor = new Date(`${startMonth}-01T00:00:00.000Z`);
+        const end = new Date(`${todayMonth}-01T00:00:00.000Z`);
+        while (cursor <= end && monthlyResourceCosts.length < 240) {
+          const month = cursor.toISOString().slice(0, 7);
+          const amount = members
+            .filter((member) => member.is_active !== false && member.member_user_type !== "client_contact" && member.user_id)
+            .reduce((total, member) => {
+              const salary = salaryHistory
+                .filter((record) => record.user_id === member.user_id && record.effective_month <= `${month}-01`)
+                .sort((a, b) => b.effective_month.localeCompare(a.effective_month))[0];
+              const monthlySalary = Number(salary?.gross_salary ?? 0);
+              return total + monthlySalary * Number(member.allocation_percentage ?? 100) / 100;
+            }, 0);
+          monthlyResourceCosts.push({ month, amount, currency: organization?.currency ?? "USD" });
+          cursor.setUTCMonth(cursor.getUTCMonth() + 1);
+        }
+      }
+      res.json({
+        project,
+        currency: organization?.currency ?? "USD",
+        revenueRecognitionBasis: context.settings.finance.revenueRecognitionBasis ?? "milestone",
+        canManageRevenue,
+        canSeeExpenses,
+        canSeeCosts,
+        canSeeProfitability,
+        expenseHeads: canSeeExpenses ? heads : [],
+        milestones: canSeeProfitability || canManageRevenue ? milestones : [],
+        entries: entries.filter((entry) =>
+          (entry.entry_type !== "expense" || canSeeExpenses) &&
+          (entry.entry_type !== "revenue" || canSeeProfitability),
+        ),
+        monthlyResourceCosts: canSeeCosts ? monthlyResourceCosts : [],
+        summary: canSeeProfitability ? {
+          revenue: entries.filter((entry) => entry.entry_type === "revenue")
+            .reduce((sum, entry) => sum + Number(entry.amount), 0),
+          expenses: entries.filter((entry) => entry.entry_type === "expense")
+            .reduce((sum, entry) => sum + Number(entry.amount), 0),
+          resourceCosts: monthlyResourceCosts.reduce((sum, month) => sum + month.amount, 0),
+        } : null,
+      });
+    } catch (error) {
+      console.error("Failed to fetch project finance:", error);
+      res.status(500).json({ error: "Failed to fetch project finance" });
+    }
+  });
+
+  app.patch("/api/projects/:id/finance-settings", requireProjectModule("finance"), async (req, res) => {
+    try {
+      const context = (req as any).projectContext;
+      const userId = String(req.headers["x-user-id"] ?? "");
+      if (!await canManageProjectRevenue(req.params.id, userId, context)) {
+        return res.status(403).json({ error: "You cannot change revenue recognition for this project" });
+      }
+      const basis = req.body?.revenueRecognitionBasis;
+      if (!["monthly", "milestone"].includes(basis)) {
+        return res.status(400).json({ error: "Revenue recognition must be monthly or milestone based" });
+      }
+      const saved = await storage.getProjectSettings(req.params.id);
+      const settings = mergeProjectSettings(saved?.settings);
+      settings.finance.revenueRecognitionBasis = basis;
+      await storage.saveProjectSettings(req.params.id, settings, userId);
+      res.json({ revenueRecognitionBasis: basis });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update project finance settings" });
+    }
+  });
+
+  app.post("/api/projects/:id/finance/expenses", requireProjectModule("finance"), requireFinanceVisibility("expenses"), async (req, res) => {
+    try {
+      const amount = Number(req.body?.amount);
+      const periodMonth = String(req.body?.periodMonth ?? "");
+      const description = String(req.body?.description ?? "").trim();
+      const headId = String(req.body?.expenseHeadId ?? "");
+      if (!Number.isFinite(amount) || amount <= 0 || !/^\d{4}-\d{2}$/.test(periodMonth) ||
+          !isValidAllocationsReportDate(`${periodMonth}-01`) || !description || !headId) {
+        return res.status(400).json({ error: "A valid amount, month, expense head, and description are required" });
+      }
+      const [head] = await db.select().from(organizationFinanceHeads)
+        .where(and(eq(organizationFinanceHeads.id, headId), eq(organizationFinanceHeads.is_active, true)));
+      if (!head) return res.status(400).json({ error: "Select an active organization expense head" });
+      const [organization] = await db.select().from(organizationSettingsTable).limit(1);
+      const [entry] = await db.insert(projectFinanceEntries).values({
+        project_id: req.params.id,
+        entry_type: "expense",
+        expense_head_id: headId,
+        recognition_basis: "expense",
+        period_month: `${periodMonth}-01`,
+        amount: amount.toFixed(2),
+        currency: organization?.currency ?? "USD",
+        description,
+        created_by: String(req.headers["x-user-id"] ?? "") || null,
+      }).returning();
+      res.status(201).json(entry);
+    } catch (error) {
+      console.error("Failed to add project expense:", error);
+      res.status(500).json({ error: "Failed to add project expense" });
+    }
+  });
+
+  app.post("/api/projects/:id/finance/revenue", requireProjectModule("finance"), async (req, res) => {
+    try {
+      const context = (req as any).projectContext;
+      const userId = String(req.headers["x-user-id"] ?? "");
+      if (!await canManageProjectRevenue(req.params.id, userId, context)) {
+        return res.status(403).json({ error: "Your project role is not authorized to enter revenue" });
+      }
+      const amount = Number(req.body?.amount);
+      const basis = context.settings.finance.revenueRecognitionBasis ?? "milestone";
+      const description = String(req.body?.description ?? "").trim();
+      if (!Number.isFinite(amount) || amount <= 0 || !description) {
+        return res.status(400).json({ error: "A valid revenue amount and description are required" });
+      }
+      let milestoneId: string | null = null;
+      let periodMonth: string | null = null;
+      let achievedOn: string | null = null;
+      if (basis === "monthly") {
+        const month = String(req.body?.periodMonth ?? "");
+        if (!/^\d{4}-\d{2}$/.test(month) || !isValidAllocationsReportDate(`${month}-01`)) {
+          return res.status(400).json({ error: "Choose a valid revenue month" });
+        }
+        periodMonth = `${month}-01`;
+      } else {
+        milestoneId = String(req.body?.milestoneId ?? "");
+        achievedOn = String(req.body?.achievedOn ?? "");
+        const [milestone] = await db.select().from(projectMilestones)
+          .where(and(eq(projectMilestones.id, milestoneId), eq(projectMilestones.project_id, req.params.id)));
+        if (!milestone || milestone.status !== "completed") {
+          return res.status(400).json({ error: "Revenue can only be recorded against a completed project milestone" });
+        }
+        if (!isValidAllocationsReportDate(achievedOn)) return res.status(400).json({ error: "Choose a valid achievement date" });
+      }
+      const [organization] = await db.select().from(organizationSettingsTable).limit(1);
+      const [entry] = await db.insert(projectFinanceEntries).values({
+        project_id: req.params.id,
+        entry_type: "revenue",
+        recognition_basis: basis,
+        milestone_id: milestoneId,
+        period_month: periodMonth,
+        achieved_on: achievedOn,
+        amount: amount.toFixed(2),
+        currency: organization?.currency ?? "USD",
+        description,
+        created_by: userId || null,
+      }).returning();
+      res.status(201).json(entry);
+    } catch (error) {
+      console.error("Failed to add project revenue:", error);
+      res.status(500).json({ error: "Failed to add project revenue" });
     }
   });
 

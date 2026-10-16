@@ -30,6 +30,11 @@ export async function runStartupMigrations(): Promise<void> {
         ADD COLUMN IF NOT EXISTS logo_url text
     `);
     await client.query(`
+      ALTER TABLE organization_settings
+        ADD COLUMN IF NOT EXISTS finance_revenue_project_roles jsonb NOT NULL
+        DEFAULT '["Project Manager","Finance Manager"]'::jsonb
+    `);
+    await client.query(`
       CREATE UNIQUE INDEX IF NOT EXISTS projects_project_code_unique
         ON projects(project_code)
         WHERE project_code IS NOT NULL
@@ -84,6 +89,47 @@ export async function runStartupMigrations(): Promise<void> {
         CONSTRAINT project_resource_cost_project_user_month_unique
           UNIQUE (project_id, user_id, effective_month)
       )
+    `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS organization_finance_heads (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        name text NOT NULL,
+        code text NOT NULL UNIQUE,
+        description text,
+        is_active boolean NOT NULL DEFAULT true,
+        created_by uuid REFERENCES users(id) ON DELETE SET NULL,
+        created_at timestamp DEFAULT now(),
+        updated_at timestamp DEFAULT now()
+      )
+    `);
+    await client.query(`
+      INSERT INTO organization_finance_heads (name, code, description, is_active, created_by)
+      SELECT DISTINCT ON (upper(code)) name, upper(code), description, is_active, created_by
+      FROM project_finance_heads
+      WHERE code IS NOT NULL AND trim(code) <> ''
+      ORDER BY upper(code), created_at ASC
+      ON CONFLICT (code) DO NOTHING
+    `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS project_finance_entries (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        project_id uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        entry_type text NOT NULL CHECK (entry_type IN ('expense', 'revenue')),
+        expense_head_id uuid REFERENCES organization_finance_heads(id) ON DELETE SET NULL,
+        milestone_id uuid REFERENCES project_milestones(id) ON DELETE SET NULL,
+        recognition_basis text NOT NULL CHECK (recognition_basis IN ('expense', 'monthly', 'milestone')),
+        period_month date,
+        achieved_on date,
+        amount text NOT NULL,
+        currency text NOT NULL,
+        description text NOT NULL,
+        created_by uuid REFERENCES users(id) ON DELETE SET NULL,
+        created_at timestamp DEFAULT now()
+      )
+    `);
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS project_finance_entries_project_created_idx
+        ON project_finance_entries(project_id, created_at)
     `);
 
     // Release Management — explicit release scope, readiness evidence, and approvals.

@@ -19,6 +19,7 @@ export const DEFAULT_PROJECT_SETTINGS = {
   finance: {
     trackFinance: true,
     trackPeopleCost: false,
+    revenueRecognitionBasis: "milestone",
     peopleCostVisibility: ["organization_admin", "finance", "project_manager"],
     visibility: {
       budget: ["organization_admin", "finance", "project_manager"],
@@ -146,13 +147,16 @@ export function validateProjectSettings(input: unknown): { settings?: Record<str
   const booleanGroups = ["planning", "finance", "quality", "releaseManagement", "collaboration"] as const;
   for (const group of booleanGroups) {
     for (const [key, value] of Object.entries(settings[group])) {
-      if (key === "peopleCostVisibility" || key === "visibility" || key === "methodology" || key === "granularity" || key === "repository") continue;
+      if (key === "peopleCostVisibility" || key === "visibility" || key === "methodology" || key === "granularity" || key === "repository" || key === "revenueRecognitionBasis") continue;
       if (typeof value !== "boolean") return { error: `${group}.${key} must be boolean` };
     }
   }
   if (!Array.isArray(settings.finance.peopleCostVisibility) ||
       settings.finance.peopleCostVisibility.some((role: unknown) => !PROJECT_SETTING_ENUMS.peopleCostVisibility.includes(role as any))) {
     return { error: "Invalid people cost visibility role" };
+  }
+  if (!["monthly", "milestone"].includes(settings.finance.revenueRecognitionBasis)) {
+    return { error: "Revenue recognition basis must be monthly or milestone" };
   }
   for (const key of ["budget", "expenses", "resourceCost", "profitability"]) {
     const roles = settings.finance.visibility[key];

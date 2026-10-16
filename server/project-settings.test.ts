@@ -297,76 +297,32 @@ test("regular members cannot save project settings", async () => {
   assert.equal(response.body.error, "Insufficient permissions");
 });
 
-test("finance heads support create, edit, duplicate prevention, and delete", async () => {
+test("expense heads cannot be created or edited at project level", async () => {
   const created = await request("POST", `/api/projects/${projectId}/settings/finance-heads`, {
     name: "Engineering",
     code: "eng",
-    description: "Engineering spend",
   });
-  assert.equal(created.status, 201);
-  assert.equal(created.body.name, "Engineering");
-  assert.equal(created.body.code, "ENG");
-
-  const duplicateName = await request("POST", `/api/projects/${projectId}/settings/finance-heads`, {
-    name: " engineering ",
-    code: "ENG-2",
-  });
-  assert.equal(duplicateName.status, 409);
-
-  const duplicateCode = await request("POST", `/api/projects/${projectId}/settings/finance-heads`, {
-    name: "Another Head",
-    code: "eng",
-  });
-  assert.equal(duplicateCode.status, 409);
-
-  const secondHead = await request("POST", `/api/projects/${projectId}/settings/finance-heads`, {
-    name: "Operations",
-    code: "OPS",
-  });
-  assert.equal(secondHead.status, 201);
-
-  const duplicateEdit = await request("PUT", `/api/projects/${projectId}/settings/finance-heads/${created.body.id}`, {
-    name: "Operations",
-  });
-  assert.equal(duplicateEdit.status, 409);
-
-  const edited = await request("PUT", `/api/projects/${projectId}/settings/finance-heads/${created.body.id}`, {
-    name: "Platform",
-    code: "plat",
-    is_active: false,
-  });
-  assert.equal(edited.status, 200);
-  assert.equal(edited.body.name, "Platform");
-  assert.equal(edited.body.code, "PLAT");
-  assert.equal(edited.body.is_active, false);
-
-  const deleted = await request("DELETE", `/api/projects/${projectId}/settings/finance-heads/${created.body.id}`);
-  assert.equal(deleted.status, 204);
-  assert.equal(financeHeads.length, 1);
-  const deletedSecond = await request("DELETE", `/api/projects/${projectId}/settings/finance-heads/${secondHead.body.id}`);
-  assert.equal(deletedSecond.status, 204);
-  assert.equal(financeHeads.length, 0);
+  assert.equal(created.status, 410);
+  assert.match(created.body.error, /organization level/i);
 });
 
 test("disabling modules keeps project data available when settings are re-enabled", async () => {
-  const createResponse = await request("POST", `/api/projects/${projectId}/settings/finance-heads`, {
-    name: "Retained Finance Data",
-    code: "RETAINED",
-  });
-  assert.equal(createResponse.status, 201);
-
+  const disabledSettings = {
+    ...validSettings,
+    finance: { ...validSettings.finance, revenueRecognitionBasis: "monthly" },
+  };
   const disabled = await request("PUT", `/api/projects/${projectId}/settings`, {
-    settings: validSettings,
+    settings: disabledSettings,
   });
   assert.equal(disabled.status, 200);
   const disabledSnapshot = await request("GET", `/api/projects/${projectId}/settings`);
   assert.equal(disabledSnapshot.status, 200);
-  assert.equal(disabledSnapshot.body.financeHeads[0].name, "Retained Finance Data");
+  assert.equal(disabledSnapshot.body.settings.finance.revenueRecognitionBasis, "monthly");
 
   const reenabledSettings = {
     ...validSettings,
     planning: { ...validSettings.planning, enabled: true },
-    finance: { ...validSettings.finance, trackFinance: true },
+    finance: { ...validSettings.finance, trackFinance: true, revenueRecognitionBasis: "monthly" },
     quality: { ...validSettings.quality, defectManagement: true },
     collaboration: { ...validSettings.collaboration, workspaceEnabled: true },
   };
@@ -376,7 +332,7 @@ test("disabling modules keeps project data available when settings are re-enable
   assert.equal(reenabled.status, 200);
   const restored = await request("GET", `/api/projects/${projectId}/settings`);
   assert.equal(restored.status, 200);
-  assert.equal(restored.body.financeHeads[0].name, "Retained Finance Data");
+  assert.equal(restored.body.settings.finance.revenueRecognitionBasis, "monthly");
 });
 
 test("release management stores repository configuration without connecting to it", async () => {
