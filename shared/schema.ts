@@ -822,7 +822,7 @@ export const insertProjectMemberHistorySchema = createInsertSchema(projectMember
   id: true,
   created_at: true,
 }).extend({
-  action: z.enum(["added", "removed", "role_changed", "allocation_changed", "promoted_pm", "demoted_pm"]),
+  action: z.enum(["added", "removed", "deallocated", "role_changed", "allocation_changed", "promoted_pm", "demoted_pm"]),
   action_date: z.union([z.date(), z.string().transform((s) => s ? new Date(s) : null)]).nullable().optional(),
 });
 

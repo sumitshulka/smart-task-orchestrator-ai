@@ -38,6 +38,7 @@ import {
   requirePlanningCapability,
   requireFinanceVisibility,
   requireProjectAccess,
+  requireProjectManagerOrAdmin,
   requireProjectModule,
   requireWorkspaceAccess,
 } from "./project-settings";
@@ -2664,7 +2665,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .orderBy(asc(organizationFinanceHeads.name)),
         db.select().from(projectMilestones).where(eq(projectMilestones.project_id, project.id))
           .orderBy(asc(projectMilestones.milestone_order)),
-        storage.getProjectMembers(project.id),
+        db.select().from(projectMembers).where(eq(projectMembers.project_id, project.id)),
         storage.getProjectResourceCostHistory(project.id),
         storage.getOrganizationSettings(),
       ]);
@@ -2685,7 +2686,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         resources: Array<{ userId: string; name: string; grossSalary: number | null; allocationPercentage: number; effectiveMonth: string | null; allocatedCost: number }>;
       }> = [];
       const allocatedUserIds = members
-        .filter((member) => member.is_active !== false && member.member_user_type !== "client_contact" && member.user_id)
+        .filter((member) => member.member_user_type !== "client_contact" && member.user_id)
         .map((member) => member.user_id as string);
       const userRows = canSeeCosts && allocatedUserIds.length
         ? await db.select({ id: usersTable.id, user_name: usersTable.user_name })
@@ -2701,8 +2702,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const end = new Date(`${todayMonth}-01T00:00:00.000Z`);
         while (cursor <= end && monthlyResourceCosts.length < 1200) {
           const month = cursor.toISOString().slice(0, 7);
+          const monthStart = new Date(`${month}-01T00:00:00.000Z`).getTime();
+          const nextMonthStart = new Date(`${month}-01T00:00:00.000Z`);
+          nextMonthStart.setUTCMonth(nextMonthStart.getUTCMonth() + 1);
           const resources = members
-            .filter((member) => member.is_active !== false && member.member_user_type !== "client_contact" && member.user_id)
+            .filter((member) => {
+              if (member.member_user_type === "client_contact" || !member.user_id) return false;
+              const joinedAt = member.joined_at ? new Date(member.joined_at).getTime() : Number.NEGATIVE_INFINITY;
+              const leftAt = member.left_at ? new Date(member.left_at).getTime() : Number.POSITIVE_INFINITY;
+              return joinedAt < nextMonthStart.getTime() && leftAt >= monthStart;
+            })
             .map((member) => {
               const salary = salaryHistory
                 .filter((record) => record.user_id === member.user_id && record.effective_month <= `${month}-01`)
@@ -3084,7 +3093,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/projects/:id/members", requireProjectAccess(), async (req, res) => {
+  app.post("/api/projects/:id/members", requireProjectManagerOrAdmin(), async (req, res) => {
     try {
       const userId = (req as any).user?.id;
       const member = await storage.addProjectMember({
@@ -3098,7 +3107,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/projects/:projectId/members/:memberId", requireProjectAccess("projectId"), async (req, res) => {
+  app.put("/api/projects/:projectId/members/:memberId", requireProjectManagerOrAdmin("projectId"), async (req, res) => {
     try {
       const member = await storage.updateProjectMember(req.params.memberId, req.body);
       res.json(member);
@@ -3107,7 +3116,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/projects/:projectId/members/:memberId", requireProjectAccess("projectId"), async (req, res) => {
+  app.delete("/api/projects/:projectId/members/:memberId", requireProjectManagerOrAdmin("projectId"), async (req, res) => {
     try {
       const userId = (req as any).user?.id;
       const { notes } = req.body;
@@ -3115,6 +3124,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(204).send();
     } catch (error) {
       res.status(500).json({ error: "Failed to remove member" });
+    }
+  });
+
+  app.post("/api/projects/:projectId/members/:memberId/deallocate", requireProjectManagerOrAdmin("projectId"), async (req, res) => {
+    const notes = typeof req.body?.notes === "string" ? req.body.notes.trim() : "";
+    if (notes.length > 1000) return res.status(400).json({ error: "Deallocation notes must be 1000 characters or fewer." });
+    try {
+      const userId = String(req.headers["x-user-id"] ?? (req as any).user?.id ?? "");
+      await storage.deallocateProjectMember(req.params.memberId, userId, notes || undefined);
+      res.json({ ok: true });
+    } catch (error: any) {
+      const message = error?.message || "Failed to deallocate project member";
+      const status = message.includes("Assign another project manager") ? 409 : message === "Member not found" ? 404 : 400;
+      res.status(status).json({ error: message });
     }
   });
 

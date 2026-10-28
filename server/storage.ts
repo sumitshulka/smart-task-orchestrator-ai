@@ -299,6 +299,7 @@ export interface IStorage {
   addProjectMember(member: InsertProjectMember): Promise<ProjectMember>;
   updateProjectMember(id: string, updates: Partial<ProjectMember>): Promise<ProjectMember>;
   removeProjectMember(id: string, actedBy: string, notes?: string): Promise<void>;
+  deallocateProjectMember(id: string, actedBy: string, notes?: string): Promise<void>;
   getProjectMemberHistory(projectId: string): Promise<ProjectMemberHistory[]>;
 
   // Milestone operations
@@ -1686,6 +1687,38 @@ export class DatabaseStorage implements IStorage {
       action: "removed",
       acted_by: actedBy,
       notes: notes ?? "Member removed from project",
+    });
+  }
+
+  async deallocateProjectMember(id: string, actedBy: string, notes?: string): Promise<void> {
+    await db.transaction(async (tx) => {
+      const [member] = await tx.select().from(projectMembers).where(eq(projectMembers.id, id)).limit(1);
+      if (!member) throw new Error("Member not found");
+      if (member.is_active === false) throw new Error("This member is already deallocated");
+      if (member.member_type === "project_manager") {
+        const [otherManager] = await tx.select().from(projectMembers).where(and(
+          eq(projectMembers.project_id, member.project_id),
+          eq(projectMembers.member_type, "project_manager"),
+          eq(projectMembers.is_active, true),
+          ne(projectMembers.id, id),
+        )).limit(1);
+        if (!otherManager) throw new Error("Assign another project manager before deallocating the current one.");
+      }
+      const leftAt = new Date();
+      await tx.update(projectMembers).set({ is_active: false, left_at: leftAt, updated_at: leftAt }).where(eq(projectMembers.id, id));
+      await tx.insert(projectMemberHistory).values({
+        project_id: member.project_id,
+        user_id: member.user_id ?? null,
+        contact_id: (member as any).contact_id ?? null,
+        member_user_type: (member as any).member_user_type ?? "internal",
+        member_type: member.member_type,
+        project_role: member.project_role,
+        allocation_percentage: member.allocation_percentage,
+        action: "deallocated",
+        action_date: leftAt,
+        acted_by: actedBy,
+        notes: notes ?? "Resource deallocated from project; membership and allocation history retained.",
+      });
     });
   }
 

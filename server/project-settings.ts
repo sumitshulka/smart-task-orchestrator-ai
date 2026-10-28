@@ -203,7 +203,7 @@ async function getRoleNames(userId: string): Promise<string[]> {
 
 export async function getProjectAccess(projectId: string, userId: string) {
   const project = await storage.getProject(projectId);
-  if (!project) return { project: undefined, settings: mergeProjectSettings(null), allowed: false };
+  if (!project) return { project: undefined, settings: mergeProjectSettings(null), allowed: false, members: [], roleNames: [] };
 
   const saved = await storage.getProjectSettings(projectId);
   const settings = mergeProjectSettings(saved?.settings);
@@ -222,7 +222,7 @@ export async function getProjectAccess(projectId: string, userId: string) {
   const allowed = isAdmin || isCreator || activeMember ||
     settings.visibility === "organization";
 
-  return { project, settings, allowed, roleNames, activeMember };
+  return { project, settings, allowed, roleNames, activeMember, members };
 }
 
 export function requireProjectAccess(paramName = "id") {
@@ -240,6 +240,24 @@ export function requireProjectAccess(paramName = "id") {
       console.error("Project access check failed:", error);
       res.status(500).json({ error: "Failed to verify project access" });
     }
+  };
+}
+
+export function requireProjectManagerOrAdmin(paramName = "id") {
+  const requireAccess = requireProjectAccess(paramName);
+  return async (req: any, res: any, next: any) => {
+    await requireAccess(req, res, () => {
+      const context = req.projectContext;
+      const userId = getRequestUserId(req);
+      const isAdmin = context?.roleNames?.includes("admin");
+      const isProjectManager = context?.members?.some((member: any) =>
+        member.user_id === userId && member.member_type === "project_manager" && member.is_active !== false,
+      );
+      if (!isAdmin && !isProjectManager) {
+        return res.status(403).json({ error: "Project Manager or organization administrator access required" });
+      }
+      next();
+    });
   };
 }
 

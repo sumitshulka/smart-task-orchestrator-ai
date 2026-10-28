@@ -21,7 +21,7 @@ import DefectDetailsSheet from "@/components/DefectDetailsSheet";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import {
-  ArrowLeft, CheckCircle2, ClipboardCheck, Users, Milestone, Layers, Plus, Pencil, Trash2,
+  ArrowLeft, CheckCircle2, ClipboardCheck, Users, UserMinus, Milestone, Layers, Plus, Pencil, Trash2,
   Calendar, Clock, DollarSign, History, UserCircle, Tag, Grip, ChevronDown, ChevronUp,
   Search, ListTodo, ExternalLink, Flag, Bug, Building2, MessageSquare,
   LayoutDashboard, Menu, X, ChevronLeft, ChevronRight, TrendingUp,
@@ -369,6 +369,16 @@ export default function ProjectDetail() {
     queryFn: () => apiClient.get(`/projects/${id}/members/history`),
     enabled: !!id,
   });
+  const { data: assignedRoles = [] } = useQuery<any[]>({
+    queryKey: ["/api/users", user?.id, "roles"],
+    queryFn: () => apiClient.get(`/users/${user?.id}/roles`),
+    enabled: !!user?.id,
+  });
+  const { data: roleCatalog = [] } = useQuery<any[]>({
+    queryKey: ["/api/roles"],
+    queryFn: () => apiClient.get("/roles"),
+    enabled: !!user?.id,
+  });
 
   const { data: milestones = [] } = useQuery<ProjectMilestone[]>({
     queryKey: ["/api/projects", id, "milestones"],
@@ -437,6 +447,8 @@ export default function ProjectDetail() {
   const [confirmDialog, setConfirmDialog] = useState(false);
   const [deleteDialog, setDeleteDialog]   = useState(false);
   const [memberDialog, setMemberDialog]   = useState(false);
+  const [memberToDeallocate, setMemberToDeallocate] = useState<ProjectMember | null>(null);
+  const [deallocationNotes, setDeallocationNotes] = useState("");
   const [editMember, setEditMember]       = useState<ProjectMember | null>(null);
   const [memberForm, setMemberForm]       = useState({ user_id: "", contact_id: "", member_user_type: "internal", member_type: "member", project_role: "", allocation_percentage: 100 });
   const [milestoneDialog, setMilestoneDialog] = useState(false);
@@ -505,14 +517,20 @@ export default function ProjectDetail() {
     onError: () => toast({ title: "Failed to update member", variant: "destructive" }),
   });
 
-  const removeMemberMutation = useMutation({
-    mutationFn: (memberId: string) => apiClient.delete(`/projects/${id}/members/${memberId}`),
+  const deallocateMemberMutation = useMutation({
+    mutationFn: ({ memberId, notes }: { memberId: string; notes: string }) =>
+      apiClient.post(`/projects/${id}/members/${memberId}/deallocate`, { notes }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects", id, "members"] });
       queryClient.invalidateQueries({ queryKey: ["/api/projects", id, "members", "history"] });
       queryClient.invalidateQueries({ queryKey: ["/api/projects-members-all"] });
-      toast({ title: "Member removed" });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/reports/allocations"] });
+      toast({ title: "Resource deallocated", description: "The member is no longer active on this project; the audit history is retained." });
+      setMemberToDeallocate(null);
+      setDeallocationNotes("");
     },
+    onError: (error: Error) => toast({ title: "Could not deallocate resource", description: error.message, variant: "destructive" }),
   });
 
   const createMilestoneMutation = useMutation({
@@ -659,6 +677,13 @@ export default function ProjectDetail() {
 
   const pm = members.find(m => m.member_type === "project_manager");
   const teamMembers = members.filter(m => m.member_type === "member");
+  const isOrganizationAdmin = assignedRoles.some((assignment: any) =>
+    assignment.role?.name === "admin" ||
+    roleCatalog.some((role: any) => role.id === assignment.role_id && role.name === "admin"),
+  );
+  const canManageProjectMembers = isOrganizationAdmin || members.some((member) =>
+    member.user_id === user?.id && member.member_type === "project_manager",
+  );
 
   const openEditMember = (m: ProjectMember) => {
     setEditMember(m);
@@ -1252,9 +1277,9 @@ export default function ProjectDetail() {
                     <Button variant="outline" size="sm" onClick={() => setShowHistory(!showHistory)}>
                       <History className="h-3.5 w-3.5 mr-1" /> {showHistory ? "Hide" : "Show"} History
                     </Button>
-                    <Button size="sm" onClick={() => { setEditMember(null); setMemberForm({ user_id: "", contact_id: "", member_user_type: "internal", member_type: "member", project_role: "", allocation_percentage: 100 }); setMemberDialog(true); }}>
+                    {canManageProjectMembers && <Button size="sm" onClick={() => { setEditMember(null); setMemberForm({ user_id: "", contact_id: "", member_user_type: "internal", member_type: "member", project_role: "", allocation_percentage: 100 }); setMemberDialog(true); }}>
                       <Plus className="h-3.5 w-3.5 mr-1" /> Add Member
-                    </Button>
+                    </Button>}
                   </div>
                 </div>
 
@@ -1279,14 +1304,14 @@ export default function ProjectDetail() {
                             {pm.joined_at && <span className="text-xs text-gray-400">Since {format(new Date(pm.joined_at), "MMM d, yyyy")}</span>}
                           </div>
                         </div>
-                        <div className="flex gap-1">
+                        {canManageProjectMembers && <div className="flex gap-1">
                           <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => openEditMember(pm)}>
                             <Pencil className="h-3.5 w-3.5" />
                           </Button>
-                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-500 hover:text-red-700" onClick={() => removeMemberMutation.mutate(pm.id)}>
-                            <Trash2 className="h-3.5 w-3.5" />
+                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-amber-600 hover:text-amber-700" aria-label={`Deallocate ${getMemberDisplayName(pm)}`} title="Deallocate resource" onClick={() => { setDeallocationNotes(""); setMemberToDeallocate(pm); }}>
+                            <UserMinus className="h-3.5 w-3.5" />
                           </Button>
-                        </div>
+                        </div>}
                       </CardContent>
                     </Card>
                   </div>
@@ -1315,14 +1340,14 @@ export default function ProjectDetail() {
                                 {m.joined_at && <span className="text-xs text-gray-400">Since {format(new Date(m.joined_at), "MMM d, yyyy")}</span>}
                               </div>
                             </div>
-                            <div className="flex gap-1">
+                            {canManageProjectMembers && <div className="flex gap-1">
                               <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => openEditMember(m)}>
                                 <Pencil className="h-3.5 w-3.5" />
                               </Button>
-                              <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-500 hover:text-red-700" onClick={() => removeMemberMutation.mutate(m.id)}>
-                                <Trash2 className="h-3.5 w-3.5" />
+                              <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-amber-600 hover:text-amber-700" aria-label={`Deallocate ${getMemberDisplayName(m)}`} title="Deallocate resource" onClick={() => { setDeallocationNotes(""); setMemberToDeallocate(m); }}>
+                                <UserMinus className="h-3.5 w-3.5" />
                               </Button>
-                            </div>
+                            </div>}
                           </CardContent>
                         </Card>
                       ))}
@@ -1350,6 +1375,7 @@ export default function ProjectDetail() {
                             <th className="text-left p-3 text-gray-500">Allocation</th>
                             <th className="text-left p-3 text-gray-500">Date</th>
                             <th className="text-left p-3 text-gray-500">By</th>
+                            <th className="text-left p-3 text-gray-500">Notes</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -1367,11 +1393,12 @@ export default function ProjectDetail() {
                                     {isContact && <span className="text-[10px] px-1 py-0.5 rounded bg-orange-50 text-orange-600 border border-orange-200 dark:bg-orange-900/20 dark:text-orange-400">Client</span>}
                                   </div>
                                 </td>
-                                <td className="p-3"><Badge variant="outline" className="text-xs">{h.action.replace("_", " ")}</Badge></td>
+                                <td className="p-3"><Badge variant="outline" className="text-xs">{h.action.replace(/_/g, " ")}</Badge></td>
                                 <td className="p-3">{h.project_role ?? "-"}</td>
                                 <td className="p-3">{h.allocation_percentage != null ? `${h.allocation_percentage}%` : "-"}</td>
                                 <td className="p-3">{h.action_date ? format(new Date(h.action_date), "MMM d, yyyy") : "-"}</td>
                                 <td className="p-3">{h.acted_by ? getUserName(h.acted_by) : "-"}</td>
+                                <td className="p-3 max-w-xs whitespace-normal">{h.notes || "-"}</td>
                               </tr>
                             );
                           })}
@@ -1842,6 +1869,33 @@ export default function ProjectDetail() {
               onClick={(e) => { e.preventDefault(); deleteProjectMutation.mutate(); }}
             >
               {deleteProjectMutation.isPending ? "Deleting…" : "Yes, Delete Project"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!memberToDeallocate} onOpenChange={(open) => { if (!open) { setMemberToDeallocate(null); setDeallocationNotes(""); } }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Deallocate project resource?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {memberToDeallocate && `${getMemberDisplayName(memberToDeallocate)} will leave the active project team and stop contributing to future allocation costs. This does not delete the member or prior project/resource history.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="deallocation-notes">Audit note (optional)</Label>
+            <Textarea id="deallocation-notes" maxLength={1000} value={deallocationNotes} onChange={(event) => setDeallocationNotes(event.target.value)} placeholder="Reason or handover details" />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deallocateMemberMutation.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={!memberToDeallocate || deallocateMemberMutation.isPending}
+              onClick={(event) => {
+                event.preventDefault();
+                if (memberToDeallocate) deallocateMemberMutation.mutate({ memberId: memberToDeallocate.id, notes: deallocationNotes.trim() });
+              }}
+            >
+              {deallocateMemberMutation.isPending ? "Deallocating…" : "Deallocate resource"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
