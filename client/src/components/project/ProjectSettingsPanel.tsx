@@ -645,6 +645,16 @@ export default function ProjectSettingsPanel({ project, users, clients, members,
     client_id: (project as any).client_id ?? "",
   });
   const [managerId, setManagerId] = useState("");
+  const [projectBudget, setProjectBudget] = useState<string>(String(project.budget_amount ?? ""));
+  const [currencyChange, setCurrencyChange] = useState<{
+    from: string;
+    to: string;
+    amount: string;
+    rate: number | null;
+    loading: boolean;
+    error: string | null;
+  } | null>(null);
+  const [currencyChangeConfirmed, setCurrencyChangeConfirmed] = useState(false);
   const [pendingDisable, setPendingDisable] = useState<{ path: string; label: string; description: string } | null>(null);
   const pdfLogoInputRef = useRef<HTMLInputElement>(null);
 
@@ -677,7 +687,7 @@ export default function ProjectSettingsPanel({ project, users, clients, members,
     () => activeMembers.filter((member) => (member as any).member_user_type !== "client_contact" && member.user_id),
     [activeMembers],
   );
-  const isDirty = useMemo(() => JSON.stringify({ settings, general, managerId }) !== initialSnapshot, [settings, general, managerId, initialSnapshot]);
+  const isDirty = useMemo(() => JSON.stringify({ settings, general, managerId, projectBudget }) !== initialSnapshot, [settings, general, managerId, projectBudget, initialSnapshot]);
 
   useEffect(() => {
     if (!data) return;
@@ -697,14 +707,21 @@ export default function ProjectSettingsPanel({ project, users, clients, members,
     };
     setSettings(nextSettings);
     setGeneral(nextGeneral);
+    setProjectBudget(String(data.project?.budget_amount ?? project.budget_amount ?? ""));
     setManagerId(nextManagerId);
-    setInitialSnapshot(JSON.stringify({ settings: nextSettings, general: nextGeneral, managerId: nextManagerId }));
+    setInitialSnapshot(JSON.stringify({
+      settings: nextSettings,
+      general: nextGeneral,
+      managerId: nextManagerId,
+      projectBudget: String(data.project?.budget_amount ?? project.budget_amount ?? ""),
+    }));
   }, [data, project, activeMembers]);
 
   const saveMutation = useMutation({
     mutationFn: () => apiClient.put(`/projects/${project.id}/settings`, {
       settings,
       managerId,
+      currencyChangeConfirmed,
       projectUpdates: {
         name: general.name.trim(),
         project_code: general.project_code.trim() || null,
@@ -714,6 +731,7 @@ export default function ProjectSettingsPanel({ project, users, clients, members,
         start_date: general.start_date || null,
         projected_end_date: general.projected_end_date || null,
         currency: general.currency,
+        budget_amount: projectBudget || null,
         client_id: general.client_id || null,
         client_name: general.client_id ? clients.find((client) => client.id === general.client_id)?.name ?? null : null,
       },
@@ -724,11 +742,56 @@ export default function ProjectSettingsPanel({ project, users, clients, members,
       queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
       const nextGeneral = { ...general, name: result.project?.name ?? general.name };
       setGeneral(nextGeneral);
-      setInitialSnapshot(JSON.stringify({ settings, general: nextGeneral, managerId }));
+      setProjectBudget(String(result.project?.budget_amount ?? projectBudget));
+      setCurrencyChange(null);
+      setCurrencyChangeConfirmed(false);
+      setInitialSnapshot(JSON.stringify({ settings, general: nextGeneral, managerId, projectBudget: String(result.project?.budget_amount ?? projectBudget) }));
       toast({ title: "Settings saved successfully." });
     },
     onError: (error: any) => toast({ title: "Unable to save settings", description: error.message, variant: "destructive" }),
   });
+
+  useEffect(() => {
+    if (!currencyChange || currencyChange.from === currencyChange.to || !currencyChange.amount) return;
+    let cancelled = false;
+    setCurrencyChange((current) => current ? { ...current, loading: true, error: null } : current);
+    fetch(`https://api.frankfurter.app/latest?from=${encodeURIComponent(currencyChange.from)}&to=${encodeURIComponent(currencyChange.to)}`)
+      .then(async (response) => {
+        if (!response.ok) throw new Error("Live exchange rate is unavailable. Enter the converted amount manually.");
+        return response.json();
+      })
+      .then((result) => {
+        const rate = Number(result?.rates?.[currencyChange.to]);
+        if (!Number.isFinite(rate) || rate <= 0) throw new Error("Live exchange rate is unavailable. Enter the converted amount manually.");
+        if (!cancelled) setCurrencyChange((current) => current ? {
+          ...current, rate, amount: (Number(current.amount) * rate).toFixed(2), loading: false,
+        } : current);
+      })
+      .catch((error) => {
+        if (!cancelled) setCurrencyChange((current) => current ? { ...current, amount: "", loading: false, error: error.message } : current);
+      });
+    return () => { cancelled = true; };
+  }, [currencyChange?.from, currencyChange?.to]);
+
+  const requestCurrencyChange = (to: string) => {
+    if (to === general.currency) return;
+    const amount = projectBudget;
+    setCurrencyChange({
+      from: general.currency,
+      to,
+      amount,
+      rate: null,
+      loading: Boolean(amount),
+      error: null,
+    });
+  };
+  const confirmCurrencyChange = () => {
+    if (!currencyChange || (currencyChange.amount && (!Number.isFinite(Number(currencyChange.amount)) || Number(currencyChange.amount) < 0))) return;
+    setGeneral((current) => ({ ...current, currency: currencyChange.to }));
+    setProjectBudget(currencyChange.amount);
+    setCurrencyChangeConfirmed(true);
+    setCurrencyChange(null);
+  };
   const revenueBasisMutation = useMutation({
     mutationFn: (basis: "monthly" | "milestone") =>
       apiClient.patch(`/projects/${project.id}/finance-settings`, { revenueRecognitionBasis: basis }),
@@ -914,7 +977,18 @@ export default function ProjectSettingsPanel({ project, users, clients, members,
                   <div className="space-y-1.5"><Label><Calendar className="mr-1 inline h-3.5 w-3.5" />Target End</Label><Input type="date" value={general.projected_end_date} onChange={(e) => setGeneral((current) => ({ ...current, projected_end_date: e.target.value }))} /></div>
                   <div className="space-y-1.5"><Label>Visibility</Label><Select value={settings.visibility} onValueChange={(value) => updateSetting("visibility", value)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="private">Private</SelectItem><SelectItem value="organization">Organization</SelectItem><SelectItem value="client">Client</SelectItem></SelectContent></Select></div>
                   <div className="space-y-1.5"><Label>Time Zone</Label><Select value={settings.timeZone} onValueChange={(value) => updateSetting("timeZone", value)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{TIME_ZONES.map((zone) => <SelectItem key={zone} value={zone}>{zone}</SelectItem>)}</SelectContent></Select></div>
-                  <div className="space-y-1.5 sm:col-span-2 lg:col-span-1"><Label>Currency</Label><Select value={general.currency} onValueChange={(value) => setGeneral((current) => ({ ...current, currency: value }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{CURRENCIES.map((currency) => <SelectItem key={currency} value={currency}>{currency}</SelectItem>)}</SelectContent></Select></div>
+                  <div className="space-y-1.5 sm:col-span-2 lg:col-span-1">
+                    <Label>Currency</Label>
+                    <Select value={general.currency} disabled={Boolean(data?.currencyLocked || financeAccess?.entries?.some((entry: any) => entry.entry_type === "revenue"))} onValueChange={requestCurrencyChange}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>{CURRENCIES.map((currency) => <SelectItem key={currency} value={currency}>{currency}</SelectItem>)}</SelectContent>
+                    </Select>
+                    <p className="text-xs text-gray-500">
+                      {data?.currencyLocked || financeAccess?.entries?.some((entry: any) => entry.entry_type === "revenue")
+                        ? "Currency is locked because this project has recorded revenue."
+                        : `Project amount: ${projectBudget ? `${general.currency} ${Number(projectBudget).toLocaleString()}` : "Not set"}`}
+                    </p>
+                  </div>
                 </CardContent>
               </Card>
               {audit.length > 0 && <Card><CardHeader><CardTitle className="flex items-center gap-2 text-base"><History className="h-4 w-4 text-gray-400" />Recent configuration changes</CardTitle></CardHeader><CardContent className="space-y-3">{audit.slice(0, 5).map((entry: any) => <div key={entry.id} className="flex items-start justify-between gap-3 border-b pb-3 last:border-0 last:pb-0 dark:border-gray-800"><div><p className="text-sm font-medium">{settingLabel(entry.setting_key)}</p><p className="text-xs text-gray-500">{entry.previous_value == null ? "Not set" : JSON.stringify(entry.previous_value)} → {JSON.stringify(entry.new_value)}</p></div><span className="shrink-0 text-[11px] text-gray-400">{entry.created_at ? new Date(entry.created_at).toLocaleString() : ""}</span></div>)}</CardContent></Card>}
@@ -942,6 +1016,13 @@ export default function ProjectSettingsPanel({ project, users, clients, members,
           {activeTab === "finance" && (
             <>
               <SectionHeader eyebrow="Financial intelligence" title="Finance" description="Control project financial visibility and categories without turning Tazq into an accounting system. Disabling Finance never deletes existing data." />
+              <Card>
+                <CardHeader><CardTitle className="text-base">Total project amount</CardTitle><CardDescription>Project budget is maintained in the project currency.</CardDescription></CardHeader>
+                <CardContent>
+                  <p className="text-2xl font-semibold">{projectBudget ? `${general.currency} ${Number(projectBudget).toLocaleString()}` : "Not set"}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Organization reporting currency: {organizationCurrency}. Resource salaries and finance entries use the organization currency.</p>
+                </CardContent>
+              </Card>
               <Card><CardHeader><CardTitle className="text-base">Finance tracking</CardTitle></CardHeader><CardContent className="space-y-3">
                 <ToggleRow label="Track Finance" description="Show Finance for this project and enable project financial workflows." checked={financeEnabled} onChange={(value) => toggleSetting("finance.trackFinance", value, "Disable Finance?", "Finance will be hidden and related workflows will stop. Existing finance data is retained and will return when Finance is enabled again.")} />
               </CardContent></Card>
@@ -1171,6 +1252,34 @@ export default function ProjectSettingsPanel({ project, users, clients, members,
         </div>
       </div>
 
+      <Dialog open={!!currencyChange} onOpenChange={(open) => !open && setCurrencyChange(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm project currency change</DialogTitle>
+            <DialogDescription>
+              Review the current project amount and its conversion before changing the project currency.
+              The converted amount is an estimate; you can edit it before confirming.
+            </DialogDescription>
+          </DialogHeader>
+          {currencyChange && <div className="space-y-4">
+            <div className="rounded-md border bg-muted/30 p-3 text-sm">
+              <div className="flex justify-between gap-4"><span>Current amount</span><strong>{currencyChange.from} {projectBudget ? Number(projectBudget).toLocaleString() : "Not set"}</strong></div>
+              {currencyChange.rate !== null && <p className="mt-2 text-xs text-muted-foreground">Indicative rate: 1 {currencyChange.from} = {currencyChange.rate.toFixed(6)} {currencyChange.to}</p>}
+            </div>
+            {projectBudget && <div className="space-y-1.5">
+              <Label htmlFor="converted-project-amount">Converted amount ({currencyChange.to})</Label>
+              <Input id="converted-project-amount" type="number" min="0" step="0.01" value={currencyChange.amount}
+                onChange={(event) => setCurrencyChange((current) => current ? { ...current, amount: event.target.value } : current)} />
+              {currencyChange.loading && <p className="text-xs text-muted-foreground">Getting an indicative exchange rate…</p>}
+              {currencyChange.error && <p role="alert" className="text-xs text-amber-700">{currencyChange.error}</p>}
+            </div>}
+          </div>}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCurrencyChange(null)}>Cancel</Button>
+            <Button disabled={Boolean(currencyChange?.loading) || Boolean(projectBudget && !currencyChange?.amount)} onClick={confirmCurrencyChange}>Confirm currency and amount</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <Dialog open={!!pendingDisable} onOpenChange={(open) => !open && setPendingDisable(null)}>
         <DialogContent>
           <DialogHeader><DialogTitle>{pendingDisable?.label}</DialogTitle><DialogDescription>{pendingDisable?.description}</DialogDescription></DialogHeader>

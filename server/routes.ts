@@ -2247,6 +2247,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const saved = await storage.getProjectSettings(req.params.id);
       const financeHeads: any[] = [];
       const audit = await storage.getProjectSettingAudit(req.params.id);
+      const [recordedRevenue] = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(project.id)
+        ? await db.select({ id: projectFinanceEntries.id }).from(projectFinanceEntries)
+          .where(and(eq(projectFinanceEntries.project_id, project.id), eq(projectFinanceEntries.entry_type, "revenue")))
+          .limit(1)
+        : [];
       const canSeeResourceCost = financeVisibilityAllows((req as any).projectContext, "peopleCost") &&
         financeVisibilityAllows((req as any).projectContext, "resourceCost");
       const resourceCosts = canSeeResourceCost &&
@@ -2259,6 +2264,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         settings: mergeProjectSettings(saved?.settings),
         financeHeads,
         resourceCosts,
+        currencyLocked: Boolean(recordedRevenue),
         organizationCurrency: organizationSettings?.currency ?? "USD",
         audit,
       });
@@ -2282,12 +2288,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const projectUpdates: Record<string, any> = {};
       const allowedProjectFields = [
         "name", "project_code", "description", "project_type", "status",
-        "start_date", "projected_end_date", "currency", "client_id", "client_name",
+        "start_date", "projected_end_date", "currency", "budget_amount", "client_id", "client_name",
       ];
       for (const field of allowedProjectFields) {
         if (Object.prototype.hasOwnProperty.call(req.body?.projectUpdates ?? {}, field)) {
           projectUpdates[field] = req.body.projectUpdates[field];
         }
+      }
+      if (projectUpdates.currency !== undefined && projectUpdates.currency !== (project.currency ?? "USD")) {
+        const [recordedRevenue] = await db.select({ id: projectFinanceEntries.id }).from(projectFinanceEntries)
+          .where(and(eq(projectFinanceEntries.project_id, project.id), eq(projectFinanceEntries.entry_type, "revenue")))
+          .limit(1);
+        if (recordedRevenue) {
+          return res.status(409).json({ error: "Project currency cannot be changed after revenue has been recorded" });
+        }
+        if (req.body?.currencyChangeConfirmed !== true ||
+            !Object.prototype.hasOwnProperty.call(req.body?.projectUpdates ?? {}, "budget_amount")) {
+          return res.status(400).json({ error: "Confirm the converted project amount before changing currency" });
+        }
+      }
+      if (projectUpdates.budget_amount !== undefined && projectUpdates.budget_amount !== null) {
+        const budgetAmount = Number(projectUpdates.budget_amount);
+        if (!Number.isFinite(budgetAmount) || budgetAmount < 0) {
+          return res.status(400).json({ error: "Project amount must be a valid non-negative number" });
+        }
+        projectUpdates.budget_amount = budgetAmount.toFixed(2);
       }
       if (projectUpdates.name !== undefined && !String(projectUpdates.name).trim()) {
         return res.status(400).json({ error: "Project name is required" });
@@ -3046,6 +3071,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const existing = await storage.getProject(req.params.id);
       if (!existing) return res.status(404).json({ error: "Project not found" });
+      if (req.body.currency !== undefined && req.body.currency !== (existing.currency ?? "USD")) {
+        const [recordedRevenue] = await db.select({ id: projectFinanceEntries.id }).from(projectFinanceEntries)
+          .where(and(eq(projectFinanceEntries.project_id, existing.id), eq(projectFinanceEntries.entry_type, "revenue")))
+          .limit(1);
+        if (recordedRevenue) return res.status(409).json({ error: "Project currency cannot be changed after revenue has been recorded" });
+        if (req.body.currencyChangeConfirmed !== true || !Object.prototype.hasOwnProperty.call(req.body, "budget_amount")) {
+          return res.status(400).json({ error: "Confirm the converted project amount before changing currency" });
+        }
+      }
       if (existing.is_confirmed && req.body.template_id && req.body.template_id !== existing.template_id) {
         return res.status(400).json({ error: "Cannot change template after project is confirmed" });
       }

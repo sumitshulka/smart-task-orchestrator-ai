@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
@@ -28,7 +28,7 @@ type Entry = {
   canApprove: boolean;
 };
 type FinanceData = {
-  project: { name: string; start_date: string | null };
+  project: { name: string; start_date: string | null; budget_amount?: string | null; currency?: string | null };
   currency: string;
   revenueRecognitionBasis: "monthly" | "milestone";
   canManageRevenue: boolean;
@@ -59,6 +59,8 @@ export default function ProjectFinancePanel({ projectId }: { projectId: string }
   const [revenueOpen, setRevenueOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<Entry | null>(null);
   const [salaryDetailsMonth, setSalaryDetailsMonth] = useState<string | null>(null);
+  const [projectCurrencyRate, setProjectCurrencyRate] = useState<number | null>(null);
+  const [fxUnavailable, setFxUnavailable] = useState(false);
   const [reportRangeType, setReportRangeType] = useState<ReportRangeType>("itd");
   const [reportMonth, setReportMonth] = useState(monthNow);
   const [reportQuarter, setReportQuarter] = useState(`${new Date().getFullYear()}-Q${Math.floor(new Date().getMonth() / 3) + 1}`);
@@ -111,11 +113,42 @@ export default function ProjectFinancePanel({ projectId }: { projectId: string }
   });
   const revenueEntries = useMemo(() => (data?.entries ?? []).filter((entry) => entry.entry_type === "revenue"), [data?.entries]);
   const expenseEntries = useMemo(() => (data?.entries ?? []).filter((entry) => entry.entry_type === "expense"), [data?.entries]);
+  const projectCurrency = data?.project.currency ?? data?.currency ?? "USD";
+  useEffect(() => {
+    if (!data || data.currency === projectCurrency) {
+      setProjectCurrencyRate(data && data.currency === projectCurrency ? 1 : null);
+      setFxUnavailable(false);
+      return;
+    }
+    let cancelled = false;
+    setProjectCurrencyRate(null);
+    setFxUnavailable(false);
+    fetch(`https://api.frankfurter.app/latest?from=${encodeURIComponent(data.currency)}&to=${encodeURIComponent(projectCurrency)}`)
+      .then(async (response) => {
+        if (!response.ok) throw new Error("Exchange rate unavailable");
+        return response.json();
+      })
+      .then((result) => {
+        const rate = Number(result?.rates?.[projectCurrency]);
+        if (!Number.isFinite(rate) || rate <= 0) throw new Error("Exchange rate unavailable");
+        if (!cancelled) setProjectCurrencyRate(rate);
+      })
+      .catch(() => { if (!cancelled) setFxUnavailable(true); });
+    return () => { cancelled = true; };
+  }, [data?.currency, projectCurrency]);
   if (isLoading) return <div className="animate-pulse rounded-xl bg-muted p-10" />;
   if (isError || !data) return <Card><CardContent className="py-10 text-center text-sm text-muted-foreground">Project finance could not be loaded. Check your finance access and try again.</CardContent></Card>;
 
   const money = (value: number, currency = data?.currency ?? "USD") =>
     new Intl.NumberFormat(undefined, { style: "currency", currency, maximumFractionDigits: 2 }).format(value);
+  const moneyWithProjectEquivalent = (value: number) => (
+    <span className="whitespace-nowrap">
+      {money(value, data.currency)}
+      {projectCurrency !== data.currency && <span className="ml-1 text-xs text-muted-foreground">
+        {projectCurrencyRate !== null ? `(${money(value * projectCurrencyRate, projectCurrency)})` : fxUnavailable ? `(conversion unavailable: ${projectCurrency})` : "(converting…)"}
+      </span>}
+    </span>
+  );
   const today = new Date().toISOString().slice(0, 10);
   const earliestEntryDate = [...revenueEntries, ...expenseEntries]
     .map((entry) => entry.entry_type === "revenue" && entry.recognition_basis === "milestone" ? entry.achieved_on : entry.period_month)
@@ -303,12 +336,29 @@ export default function ProjectFinancePanel({ projectId }: { projectId: string }
       <header>
         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-indigo-600">Accrual accounting</p>
         <h2 className="mt-1 text-2xl font-semibold">Project Finance</h2>
-        <p className="mt-1 text-sm text-muted-foreground">Revenue is recognized {data.revenueRecognitionBasis === "monthly" ? "by month" : "by completed milestone"}. Amounts use {data.currency}; payments are not tracked.</p>
+        <p className="mt-1 text-sm text-muted-foreground">Revenue is recognized {data.revenueRecognitionBasis === "monthly" ? "by month" : "by completed milestone"}. Amounts use organization currency ({data.currency}); project-currency equivalents appear in brackets when available. Payments are not tracked.</p>
       </header>
+      <Card>
+        <CardContent className="flex flex-wrap items-center justify-between gap-2 py-4">
+          <div>
+            <p className="text-sm font-medium">Total project amount</p>
+            <p className="text-xs text-muted-foreground">Project budget</p>
+          </div>
+          <div className="text-right font-semibold">
+            {data.project.budget_amount
+              ? projectCurrency === data.currency
+                ? money(Number(data.project.budget_amount), data.currency)
+                : projectCurrencyRate !== null
+                  ? <>{money(Number(data.project.budget_amount) / projectCurrencyRate, data.currency)} <span className="text-xs font-normal text-muted-foreground">({money(Number(data.project.budget_amount), projectCurrency)})</span></>
+                  : <>{fxUnavailable ? "Conversion unavailable" : "Converting…"} <span className="text-xs font-normal text-muted-foreground">({money(Number(data.project.budget_amount), projectCurrency)})</span></>
+              : "Not set"}
+          </div>
+        </CardContent>
+      </Card>
       {data.canSeeProfitability && <div className="grid gap-3 sm:grid-cols-3">
-        <Summary title="Period revenue" amount={revenueTotal} currency={data.currency} />
-        <Summary title="Period expenses" amount={expenseTotal + resourceCostTotal} currency={data.currency} />
-        <Summary title="Period profitability" amount={revenueTotal - expenseTotal - resourceCostTotal} currency={data.currency} />
+        <Summary title="Period revenue" amount={revenueTotal} currency={data.currency} secondaryAmount={projectCurrencyRate === null ? undefined : revenueTotal * projectCurrencyRate} secondaryCurrency={projectCurrency} />
+        <Summary title="Period expenses" amount={expenseTotal + resourceCostTotal} currency={data.currency} secondaryAmount={projectCurrencyRate === null ? undefined : (expenseTotal + resourceCostTotal) * projectCurrencyRate} secondaryCurrency={projectCurrency} />
+        <Summary title="Period profitability" amount={revenueTotal - expenseTotal - resourceCostTotal} currency={data.currency} secondaryAmount={projectCurrencyRate === null ? undefined : (revenueTotal - expenseTotal - resourceCostTotal) * projectCurrencyRate} secondaryCurrency={projectCurrency} />
       </div>}
 
       {(data.canSeeProfitability || data.canManageRevenue) && <Card>
@@ -320,7 +370,7 @@ export default function ProjectFinancePanel({ projectId }: { projectId: string }
           <thead><tr className="border-b text-left text-xs text-muted-foreground"><th className="py-2 pr-3">{data.revenueRecognitionBasis === "monthly" ? "Month" : "Milestone"}</th><th className="py-2 pr-3">Description</th><th className="py-2 pr-3">Status</th><th className="py-2 pr-3 text-right">Amount</th><th className="py-2 text-right">Actions</th></tr></thead>
           <tbody>{revenueEntries.map((entry) => <tr key={entry.id} className="group border-b last:border-0">
             <td className="py-3 pr-3">{data.revenueRecognitionBasis === "monthly" ? entry.period_month?.slice(0, 7) : data.milestones.find((m) => m.id === entry.milestone_id)?.name ?? entry.achieved_on}</td>
-            <td className="py-3 pr-3">{entry.description}</td><td className="py-3 pr-3"><ApprovalStatusIcon status={entry.approval_status} /></td><td className="py-3 pr-3 text-right">{money(Number(entry.amount), entry.currency)}</td><td className="py-3 text-right">{entryActions(entry, data.canManageRevenue)}</td>
+            <td className="py-3 pr-3">{entry.description}</td><td className="py-3 pr-3"><ApprovalStatusIcon status={entry.approval_status} /></td><td className="py-3 pr-3 text-right">{moneyWithProjectEquivalent(Number(entry.amount))}</td><td className="py-3 text-right">{entryActions(entry, data.canManageRevenue)}</td>
           </tr>)}
           {!revenueEntries.length && <tr><td colSpan={5} className="py-8 text-center text-muted-foreground">No revenue accruals recorded.</td></tr>}</tbody>
         </table></div></CardContent>
@@ -337,10 +387,10 @@ export default function ProjectFinancePanel({ projectId }: { projectId: string }
             <thead><tr className="border-b text-left text-xs text-muted-foreground"><th className="py-2 pr-3">Month</th><th className="py-2 pr-3">Expense head</th><th className="py-2 pr-3">Description</th><th className="py-2 pr-3">Status</th><th className="py-2 pr-3 text-right">Amount</th><th className="py-2 text-right">Actions</th></tr></thead>
             <tbody>
               {expenseEntries.map((entry) => <tr key={entry.id} className="group border-b last:border-0">
-                <td className="py-3 pr-3">{entry.period_month?.slice(0, 7)}</td><td className="py-3 pr-3">{data.expenseHeads.find((h) => h.id === entry.expense_head_id)?.name ?? "Retired category"}</td><td className="py-3 pr-3">{entry.description}</td><td className="py-3 pr-3"><ApprovalStatusIcon status={entry.approval_status} /></td><td className="py-3 pr-3 text-right">{money(Number(entry.amount), entry.currency)}</td><td className="py-3 text-right">{entryActions(entry, data.canSeeExpenses)}</td>
+                <td className="py-3 pr-3">{entry.period_month?.slice(0, 7)}</td><td className="py-3 pr-3">{data.expenseHeads.find((h) => h.id === entry.expense_head_id)?.name ?? "Retired category"}</td><td className="py-3 pr-3">{entry.description}</td><td className="py-3 pr-3"><ApprovalStatusIcon status={entry.approval_status} /></td><td className="py-3 pr-3 text-right">{moneyWithProjectEquivalent(Number(entry.amount))}</td><td className="py-3 text-right">{entryActions(entry, data.canSeeExpenses)}</td>
               </tr>)}
               {data.canSeeCosts && data.monthlyResourceCosts.map((row) => <tr key={`salary-${row.month}`} className="border-b last:border-0 bg-muted/30">
-                <td className="py-3 pr-3">{row.month}</td><td className="py-3 pr-3">Resource salary</td><td className="py-3 pr-3">Allocated gross salary cost · managed in Project Settings</td><td className="py-3 pr-3"><Badge variant="outline">Automatic</Badge></td><td className="py-3 pr-3 text-right">{money(row.amount, row.currency)}</td><td className="py-3 text-right"><Button variant="ghost" size="icon" aria-label={`View salary calculation for ${row.month}`} title="View salary calculation" onClick={() => setSalaryDetailsMonth(row.month)}><Info className="h-4 w-4" /></Button></td>
+                <td className="py-3 pr-3">{row.month}</td><td className="py-3 pr-3">Resource salary</td><td className="py-3 pr-3">Allocated gross salary cost · organization currency · managed in Project Settings</td><td className="py-3 pr-3"><Badge variant="outline">Automatic</Badge></td><td className="py-3 pr-3 text-right">{moneyWithProjectEquivalent(row.amount)}</td><td className="py-3 text-right"><Button variant="ghost" size="icon" aria-label={`View salary calculation for ${row.month}`} title="View salary calculation" onClick={() => setSalaryDetailsMonth(row.month)}><Info className="h-4 w-4" /></Button></td>
               </tr>)}
               {!expenseEntries.length && (!data.canSeeCosts || !data.monthlyResourceCosts.length) && <tr><td colSpan={6} className="py-8 text-center text-muted-foreground">No expense accruals recorded.</td></tr>}
             </tbody>
@@ -401,11 +451,11 @@ export default function ProjectFinancePanel({ projectId }: { projectId: string }
                 <tbody>
                   <tr className="border-b">
                     <td className="py-3 pr-3">Recognized revenue</td>
-                    {reportMonths.map((month) => <td key={month} className="px-3 py-3 text-right">{money(revenueAmounts.get(month) ?? 0)}</td>)}
-                    <td className="py-3 pl-3 text-right font-medium">{money(revenueTotal)}</td>
+                    {reportMonths.map((month) => <td key={month} className="px-3 py-3 text-right">{moneyWithProjectEquivalent(revenueAmounts.get(month) ?? 0)}</td>)}
+                    <td className="py-3 pl-3 text-right font-medium">{moneyWithProjectEquivalent(revenueTotal)}</td>
                   </tr>
                   {!reportMonths.length && <tr><td colSpan={2} className="py-4 text-center text-muted-foreground">No months in this period.</td></tr>}
-                  <tr className="bg-muted/40 font-semibold"><td className="py-3 pr-3">Total revenue</td>{reportMonths.map((month) => <td key={month} className="px-3 py-3 text-right">{money(revenueAmounts.get(month) ?? 0)}</td>)}<td className="py-3 pl-3 text-right">{money(revenueTotal)}</td></tr>
+                  <tr className="bg-muted/40 font-semibold"><td className="py-3 pr-3">Total revenue</td>{reportMonths.map((month) => <td key={month} className="px-3 py-3 text-right">{moneyWithProjectEquivalent(revenueAmounts.get(month) ?? 0)}</td>)}<td className="py-3 pl-3 text-right">{moneyWithProjectEquivalent(revenueTotal)}</td></tr>
                 </tbody>
               </table>
             </div>
@@ -423,18 +473,18 @@ export default function ProjectFinancePanel({ projectId }: { projectId: string }
                 <tbody>
                   {data.canSeeExpenses && expenseRows.map((row) => <tr key={row.id} className="border-b">
                     <td className="py-3 pr-3">{row.label}</td>
-                    {reportMonths.map((month) => <td key={month} className="px-3 py-3 text-right">{money(row.amounts.get(month) ?? 0)}</td>)}
-                    <td className="py-3 pl-3 text-right">{money([...row.amounts.values()].reduce((sum, amount) => sum + amount, 0))}</td>
+                    {reportMonths.map((month) => <td key={month} className="px-3 py-3 text-right">{moneyWithProjectEquivalent(row.amounts.get(month) ?? 0)}</td>)}
+                    <td className="py-3 pl-3 text-right">{moneyWithProjectEquivalent([...row.amounts.values()].reduce((sum, amount) => sum + amount, 0))}</td>
                   </tr>)}
                   {data.canSeeCosts && <tr className="border-b bg-muted/30">
                     <td className="py-3 pr-3">Resource salary</td>
-                    {reportMonths.map((month) => <td key={month} className="px-3 py-3 text-right">{money(salaryAmounts.get(month) ?? 0)}</td>)}
-                    <td className="py-3 pl-3 text-right">{money(totalResourceCosts)}</td>
+                    {reportMonths.map((month) => <td key={month} className="px-3 py-3 text-right">{moneyWithProjectEquivalent(salaryAmounts.get(month) ?? 0)}</td>)}
+                    <td className="py-3 pl-3 text-right">{moneyWithProjectEquivalent(totalResourceCosts)}</td>
                   </tr>}
                   <tr className="bg-muted/40 font-semibold">
                     <td className="py-3 pr-3">{data.canSeeExpenses && data.canSeeCosts ? "Total expenses" : "Visible expense total"}</td>
-                    {reportMonths.map((month) => <td key={month} className="px-3 py-3 text-right">{money(periodExpenses.get(month) ?? 0)}</td>)}
-                    <td className="py-3 pl-3 text-right">{money(totalExpenseRows + (data.canSeeCosts ? totalResourceCosts : 0))}</td>
+                    {reportMonths.map((month) => <td key={month} className="px-3 py-3 text-right">{moneyWithProjectEquivalent(periodExpenses.get(month) ?? 0)}</td>)}
+                    <td className="py-3 pl-3 text-right">{moneyWithProjectEquivalent(totalExpenseRows + (data.canSeeCosts ? totalResourceCosts : 0))}</td>
                   </tr>
                   {!reportMonths.length && <tr><td colSpan={2} className="py-4 text-center text-muted-foreground">No months in this period.</td></tr>}
                 </tbody>
@@ -443,9 +493,9 @@ export default function ProjectFinancePanel({ projectId }: { projectId: string }
           </section>
 
           <div className="grid gap-3 sm:grid-cols-3">
-            <Summary title="Total revenue" amount={revenueTotal} currency={data.currency} />
-            <Summary title="Total expenses" amount={expenseTotal + resourceCostTotal} currency={data.currency} />
-            <Summary title="Project profitability" amount={revenueTotal - expenseTotal - resourceCostTotal} currency={data.currency} />
+            <Summary title="Total revenue" amount={revenueTotal} currency={data.currency} secondaryAmount={projectCurrencyRate === null ? undefined : revenueTotal * projectCurrencyRate} secondaryCurrency={projectCurrency} />
+            <Summary title="Total expenses" amount={expenseTotal + resourceCostTotal} currency={data.currency} secondaryAmount={projectCurrencyRate === null ? undefined : (expenseTotal + resourceCostTotal) * projectCurrencyRate} secondaryCurrency={projectCurrency} />
+            <Summary title="Project profitability" amount={revenueTotal - expenseTotal - resourceCostTotal} currency={data.currency} secondaryAmount={projectCurrencyRate === null ? undefined : (revenueTotal - expenseTotal - resourceCostTotal) * projectCurrencyRate} secondaryCurrency={projectCurrency} />
           </div>
         </CardContent>
       </Card>}
@@ -502,8 +552,8 @@ export default function ProjectFinancePanel({ projectId }: { projectId: string }
   );
 }
 
-function Summary({ title, amount, currency }: { title: string; amount: number; currency: string }) {
-  return <Card><CardContent className="p-4"><p className="text-sm text-muted-foreground">{title}</p><p className="mt-1 text-2xl font-semibold">{new Intl.NumberFormat(undefined, { style: "currency", currency, maximumFractionDigits: 2 }).format(amount)}</p></CardContent></Card>;
+function Summary({ title, amount, currency, secondaryAmount, secondaryCurrency }: { title: string; amount: number; currency: string; secondaryAmount?: number; secondaryCurrency?: string }) {
+  return <Card><CardContent className="p-4"><p className="text-sm text-muted-foreground">{title}</p><p className="mt-1 text-2xl font-semibold">{new Intl.NumberFormat(undefined, { style: "currency", currency, maximumFractionDigits: 2 }).format(amount)}</p>{secondaryAmount !== undefined && secondaryCurrency && secondaryCurrency !== currency && <p className="text-xs text-muted-foreground">({new Intl.NumberFormat(undefined, { style: "currency", currency: secondaryCurrency, maximumFractionDigits: 2 }).format(secondaryAmount)})</p>}</CardContent></Card>;
 }
 
 function ApprovalStatusIcon({ status }: { status: Entry["approval_status"] }) {
