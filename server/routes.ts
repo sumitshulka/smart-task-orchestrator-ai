@@ -26,7 +26,7 @@ import {
   projectMilestones,
   projectResourceCostHistory,
 } from "@shared/schema";
- import { insertUserSchema, insertTaskSchema, insertTeamSchema, insertTaskGroupSchema, insertRoleSchema, insertOfficeLocationSchema, userRoles, insertDefectSchema, insertClientSchema, insertClientContactSchema, insertClientProjectAccessSchema, insertCustomFieldGroupSchema, insertCustomFieldDefinitionSchema, insertCustomFieldValueSchema, tasks as tasksTable, projects as projectsTable, defects as defectsTable, users as usersTable, teams as teamsTable, workspaceDecisions, projectTemplateRoles, meetings as meetingsTable } from "@shared/schema";
+ import { insertUserSchema, insertTaskSchema, insertTeamSchema, insertTaskGroupSchema, insertRoleSchema, insertOfficeLocationSchema, userRoles, insertDefectSchema, insertClientSchema, insertClientContactSchema, insertClientProjectAccessSchema, insertCustomFieldGroupSchema, insertCustomFieldDefinitionSchema, insertCustomFieldValueSchema, insertProjectSchema, tasks as tasksTable, projects as projectsTable, defects as defectsTable, users as usersTable, teams as teamsTable, workspaceDecisions, projectTemplateRoles, meetings as meetingsTable } from "@shared/schema";
 import { callAiProvider, encryptApiKey, decryptApiKey, DEFAULT_SYSTEM_PROMPT_HEADER, AI_PROVIDER_MODELS, DEFAULT_AI_MODEL } from "./ai-provider";
 import { db } from "./db";
 import { and, asc, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
@@ -3169,7 +3169,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/projects", requireAnyAuthenticated, async (req, res) => {
     try {
       const userId = req.headers['x-user-id'] as string;
-      const project = await storage.createProject({ ...req.body, created_by: userId });
+      const parsed = insertProjectSchema.safeParse({ ...req.body, created_by: userId });
+      if (!parsed.success) {
+        return res.status(400).json({ error: "Invalid project details", details: parsed.error.flatten() });
+      }
+      for (const field of ["start_date", "projected_end_date", "actual_end_date"] as const) {
+        const value = parsed.data[field] as Date | null | undefined;
+        if (value && Number.isNaN(value.getTime())) {
+          return res.status(400).json({ error: `Invalid ${field.replaceAll("_", " ")}` });
+        }
+      }
+      const project = await storage.createProject(parsed.data);
       res.status(201).json(project);
     } catch (error: any) {
       console.error("[ERROR] Failed to create project:", error?.message, error?.stack);

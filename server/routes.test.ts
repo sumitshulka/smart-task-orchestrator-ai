@@ -8,6 +8,7 @@ import { storage } from "./storage";
 
 const regularUserId = "task-route-regular-user";
 const adminUserId = "task-route-admin-user";
+const projectCreatorId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const ownedTask = {
   id: "task-route-owned",
   title: "Owned task",
@@ -30,7 +31,9 @@ const originalStorageMethods = {
   getAllUsers: storage.getAllUsers,
   getProjectAllocationRows: storage.getProjectAllocationRows,
   getOrganizationSettings: storage.getOrganizationSettings,
+  createProject: storage.createProject,
 };
+let createdProjectInput: any;
 
 before(async () => {
   const tasks = new Map([
@@ -87,8 +90,13 @@ before(async () => {
     left_at: null,
   }];
   storage.getOrganizationSettings = async () => ({ time_zone: "UTC" } as any);
+  storage.createProject = async (project) => {
+    createdProjectInput = project;
+    return { ...project, id: "created-project" } as any;
+  };
 
   const app = express();
+  app.use(express.json());
   server = await registerRoutes(app);
   await new Promise<void>((resolve) => {
     server.listen(0, "127.0.0.1", resolve);
@@ -106,6 +114,7 @@ after(async () => {
   storage.getAllUsers = originalStorageMethods.getAllUsers;
   storage.getProjectAllocationRows = originalStorageMethods.getProjectAllocationRows;
   storage.getOrganizationSettings = originalStorageMethods.getOrganizationSettings;
+  storage.createProject = originalStorageMethods.createProject;
 
   await new Promise<void>((resolve, reject) => {
     server.close((error) => error ? reject(error) : resolve());
@@ -148,6 +157,38 @@ test("organization admins can retrieve any task", async () => {
 
   assert.equal(response.status, 200);
   assert.deepEqual(response.body, privateTask);
+});
+
+test("project creation converts date strings to database-compatible Date values", async () => {
+  const response = await fetch(`${baseUrl}/api/projects`, {
+    method: "POST",
+    headers: { "x-user-id": projectCreatorId, "content-type": "application/json" },
+    body: JSON.stringify({
+      name: "Date conversion test",
+      start_date: "2026-11-02",
+      projected_end_date: "2026-12-15",
+    }),
+  });
+  const body = await response.json();
+
+  assert.equal(response.status, 201);
+  assert.equal(body.id, "created-project");
+  assert.ok(createdProjectInput.start_date instanceof Date);
+  assert.equal(createdProjectInput.start_date.toISOString(), "2026-11-02T00:00:00.000Z");
+  assert.ok(createdProjectInput.projected_end_date instanceof Date);
+  assert.equal(createdProjectInput.created_by, projectCreatorId);
+});
+
+test("project creation rejects invalid dates without writing a project", async () => {
+  createdProjectInput = undefined;
+  const response = await fetch(`${baseUrl}/api/projects`, {
+    method: "POST",
+    headers: { "x-user-id": projectCreatorId, "content-type": "application/json" },
+    body: JSON.stringify({ name: "Invalid date test", start_date: "not-a-date" }),
+  });
+
+  assert.equal(response.status, 400);
+  assert.equal(createdProjectInput, undefined);
 });
 
 test("allocations report requires manager or admin access", async () => {
