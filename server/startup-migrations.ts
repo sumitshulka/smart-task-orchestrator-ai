@@ -137,6 +137,29 @@ export async function runStartupMigrations(): Promise<void> {
       CREATE INDEX IF NOT EXISTS project_finance_entries_project_created_idx
         ON project_finance_entries(project_id, created_at)
     `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS project_estimate_history (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        project_id uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        entry_type text NOT NULL CHECK (entry_type IN ('original', 'top_up', 'currency_conversion')),
+        amount text NOT NULL,
+        currency text NOT NULL,
+        previous_amount text,
+        previous_currency text,
+        change_request text,
+        description text NOT NULL,
+        created_by uuid REFERENCES users(id) ON DELETE SET NULL,
+        created_at timestamp DEFAULT now()
+      )
+    `);
+    await client.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS project_estimate_history_one_original_idx
+        ON project_estimate_history(project_id) WHERE entry_type = 'original'
+    `);
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS project_estimate_history_project_created_idx
+        ON project_estimate_history(project_id, created_at)
+    `);
 
     // Release Management — explicit release scope, readiness evidence, and approvals.
     await client.query(`

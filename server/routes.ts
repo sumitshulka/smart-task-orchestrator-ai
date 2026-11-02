@@ -20,6 +20,7 @@ import { createFinanceProfitabilityPdf, type FinanceProfitabilityExport } from "
 import {
   organizationFinanceHeads,
   organizationSettings as organizationSettingsTable,
+  projectEstimateHistory,
   projectFinanceEntries,
   projectMembers,
   projectMilestones,
@@ -2385,6 +2386,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (Object.keys(projectUpdates).length > 0) {
         const oldProject = project;
         const updatedProject = await storage.updateProject(req.params.id, projectUpdates);
+        if (projectUpdates.currency && projectUpdates.currency !== (oldProject.currency ?? "USD") &&
+            oldProject.budget_amount && projectUpdates.budget_amount) {
+          await db.insert(projectEstimateHistory).values({
+            project_id: project.id,
+            entry_type: "original",
+            amount: oldProject.budget_amount,
+            currency: oldProject.currency ?? "USD",
+            description: "Original estimate carried forward",
+            created_by: oldProject.created_by ?? null,
+          }).onConflictDoNothing();
+          await db.insert(projectEstimateHistory).values({
+            project_id: project.id,
+            entry_type: "currency_conversion",
+            amount: String(projectUpdates.budget_amount),
+            currency: String(projectUpdates.currency),
+            previous_amount: oldProject.budget_amount,
+            previous_currency: oldProject.currency ?? "USD",
+            description: "Project budget converted during currency change",
+            created_by: userId || null,
+          });
+        }
         for (const field of Object.keys(projectUpdates)) {
           const oldValue = (oldProject as any)[field] ?? null;
           const newValue = (updatedProject as any)[field] ?? null;
@@ -2698,7 +2720,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const canSeeCosts = financeVisibilityAllows(context, "peopleCost") &&
         financeVisibilityAllows(context, "resourceCost");
       const canSeeProfitability = financeVisibilityAllows(context, "profitability");
+      const canSeeBudget = financeVisibilityAllows(context, "budget");
       const canManageRevenue = await canManageProjectRevenue(project.id, String(req.headers["x-user-id"] ?? ""), context);
+      if (canSeeBudget && project.budget_amount) {
+        await db.insert(projectEstimateHistory).values({
+          project_id: project.id,
+          entry_type: "original",
+          amount: project.budget_amount,
+          currency: project.currency ?? "USD",
+          description: "Original estimate carried forward",
+          created_by: project.created_by ?? null,
+        }).onConflictDoNothing();
+      }
+      const estimates = canSeeBudget
+        ? await db.select({
+          id: projectEstimateHistory.id,
+          entry_type: projectEstimateHistory.entry_type,
+          amount: projectEstimateHistory.amount,
+          currency: projectEstimateHistory.currency,
+          previous_amount: projectEstimateHistory.previous_amount,
+          previous_currency: projectEstimateHistory.previous_currency,
+          change_request: projectEstimateHistory.change_request,
+          description: projectEstimateHistory.description,
+          created_at: projectEstimateHistory.created_at,
+          created_by: projectEstimateHistory.created_by,
+          actor_name: usersTable.user_name,
+        }).from(projectEstimateHistory)
+          .leftJoin(usersTable, eq(projectEstimateHistory.created_by, usersTable.id))
+          .where(eq(projectEstimateHistory.project_id, project.id))
+          .orderBy(asc(projectEstimateHistory.created_at))
+        : [];
       const viewerId = String(req.headers["x-user-id"] ?? "");
       const startValue = project.start_date ? new Date(project.start_date).toISOString().slice(0, 7) : null;
       const firstSalaryMonth = salaryHistory.map((record) => record.effective_month.slice(0, 7)).sort()[0] ?? null;
@@ -2769,6 +2820,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         canManageRevenue,
         canSeeExpenses,
         canSeeCosts,
+        canSeeBudget,
+        canManageEstimates: canManageRevenue,
+        estimates,
         canSeeProfitability,
         missingSalaryCount: canSeeCosts ? missingSalaryCount : 0,
         expenseHeads: canSeeExpenses ? heads : [],
@@ -2793,6 +2847,62 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Failed to fetch project finance:", error);
       res.status(500).json({ error: "Failed to fetch project finance" });
+    }
+  });
+
+  app.post("/api/projects/:id/finance/estimates", requireProjectModule("finance"), async (req, res) => {
+    try {
+      const context = (req as any).projectContext;
+      const userId = String(req.headers["x-user-id"] ?? "");
+      if (!await canManageProjectRevenue(req.params.id, userId, context)) {
+        return res.status(403).json({ error: "Your project role cannot manage project estimates" });
+      }
+      const amount = Number(req.body?.amount);
+      const entryType = String(req.body?.entryType ?? "");
+      const description = String(req.body?.description ?? "").trim();
+      const changeRequest = String(req.body?.changeRequest ?? "").trim();
+      if (!Number.isFinite(amount) || amount <= 0 || !description ||
+          !["original", "top_up"].includes(entryType)) {
+        return res.status(400).json({ error: "Enter a valid estimate amount and description" });
+      }
+      if (entryType === "top_up" && !changeRequest) {
+        return res.status(400).json({ error: "A change request reference is required for a top-up" });
+      }
+      const project = context.project;
+      if (entryType === "original" && Number(project.budget_amount || 0) > 0) {
+        return res.status(409).json({ error: "An original project estimate is already set; record an approved change request as a top-up" });
+      }
+      if (entryType === "top_up" && !(Number(project.budget_amount || 0) > 0)) {
+        return res.status(409).json({ error: "Set the original project estimate before adding a top-up" });
+      }
+      const inserted = await db.transaction(async (tx) => {
+        const [history] = await tx.insert(projectEstimateHistory).values({
+          project_id: project.id,
+          entry_type: entryType,
+          amount: amount.toFixed(2),
+          currency: project.currency ?? "USD",
+          change_request: entryType === "top_up" ? changeRequest : null,
+          description,
+          created_by: userId || null,
+        }).onConflictDoNothing().returning();
+        if (!history) throw new Error("An original estimate already exists");
+        const [updatedProject] = await tx.update(projectsTable)
+          .set({
+            budget_amount: entryType === "original"
+              ? amount.toFixed(2)
+              : sql`(COALESCE(NULLIF(${projectsTable.budget_amount}, '')::numeric, 0) + ${amount.toFixed(2)})::text`,
+          })
+          .where(eq(projectsTable.id, project.id))
+          .returning();
+        return { history, project: updatedProject };
+      });
+      res.status(201).json(inserted);
+    } catch (error: any) {
+      if (error?.message === "An original estimate already exists") {
+        return res.status(409).json({ error: error.message });
+      }
+      console.error("Failed to add project estimate:", error);
+      res.status(500).json({ error: "Failed to add project estimate" });
     }
   });
 

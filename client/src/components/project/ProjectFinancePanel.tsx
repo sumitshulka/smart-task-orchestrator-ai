@@ -30,6 +30,13 @@ type Entry = {
 type FinanceData = {
   project: { name: string; start_date: string | null; budget_amount?: string | null; currency?: string | null };
   currency: string;
+  canSeeBudget: boolean;
+  canManageEstimates: boolean;
+  estimates: Array<{
+    id: string; entry_type: "original" | "top_up" | "currency_conversion"; amount: string; currency: string;
+    previous_amount: string | null; previous_currency: string | null; change_request: string | null;
+    description: string; created_at: string | null; actor_name: string | null;
+  }>;
   revenueRecognitionBasis: "monthly" | "milestone";
   canManageRevenue: boolean;
   canSeeExpenses: boolean;
@@ -59,6 +66,11 @@ export default function ProjectFinancePanel({ projectId }: { projectId: string }
   const [revenueOpen, setRevenueOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<Entry | null>(null);
   const [salaryDetailsMonth, setSalaryDetailsMonth] = useState<string | null>(null);
+  const [estimateOpen, setEstimateOpen] = useState(false);
+  const [estimateType, setEstimateType] = useState<"original" | "top_up">("original");
+  const [estimateAmount, setEstimateAmount] = useState("");
+  const [estimateDescription, setEstimateDescription] = useState("");
+  const [changeRequest, setChangeRequest] = useState("");
   const [projectCurrencyRate, setProjectCurrencyRate] = useState<number | null>(null);
   const [fxUnavailable, setFxUnavailable] = useState(false);
   const [reportRangeType, setReportRangeType] = useState<ReportRangeType>("itd");
@@ -110,6 +122,21 @@ export default function ProjectFinancePanel({ projectId }: { projectId: string }
     mutationFn: (entryId: string) => apiClient.post(`/projects/${projectId}/finance/entries/${entryId}/approve`, {}),
     onSuccess: () => { toast({ title: "Finance entry approved" }); refresh(); },
     onError: (error: Error) => toast({ title: "Could not approve entry", description: error.message, variant: "destructive" }),
+  });
+  const estimateMutation = useMutation({
+    mutationFn: () => apiClient.post(`/projects/${projectId}/finance/estimates`, {
+      entryType: estimateType, amount: estimateAmount, description: estimateDescription, changeRequest,
+    }),
+    onSuccess: () => {
+      setEstimateOpen(false);
+      setEstimateAmount("");
+      setEstimateDescription("");
+      setChangeRequest("");
+      toast({ title: estimateType === "original" ? "Project estimate set" : "Project amount topped up" });
+      refresh();
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId] });
+    },
+    onError: (error: Error) => toast({ title: "Could not save project estimate", description: error.message, variant: "destructive" }),
   });
   const revenueEntries = useMemo(() => (data?.entries ?? []).filter((entry) => entry.entry_type === "revenue"), [data?.entries]);
   const expenseEntries = useMemo(() => (data?.entries ?? []).filter((entry) => entry.entry_type === "expense"), [data?.entries]);
@@ -355,6 +382,32 @@ export default function ProjectFinancePanel({ projectId }: { projectId: string }
           </div>
         </CardContent>
       </Card>
+      {data.canSeeBudget && <Card>
+        <CardHeader className="flex flex-row items-center justify-between gap-3">
+          <div><CardTitle className="text-base">Total Project Estimates</CardTitle><p className="mt-1 text-xs text-muted-foreground">Original estimate and change-request additions, with an audit trail.</p></div>
+          {data.canManageEstimates && <Button onClick={() => {
+            setEstimateType(Number(data.project.budget_amount || 0) > 0 ? "top_up" : "original");
+            setEstimateOpen(true);
+          }}>{Number(data.project.budget_amount || 0) > 0 ? "Add change-request top-up" : "Set project estimate"}</Button>}
+        </CardHeader>
+        <CardContent>
+          {!data.estimates.length ? <p className="py-4 text-sm text-muted-foreground">No project estimate has been set.</p> :
+            <div className="overflow-x-auto"><table className="w-full min-w-[680px] text-sm">
+              <thead><tr className="border-b text-left text-xs text-muted-foreground"><th className="py-2 pr-3">Date</th><th className="py-2 pr-3">Type</th><th className="py-2 pr-3">Change request / notes</th><th className="py-2 pr-3">Recorded by</th><th className="py-2 text-right">Amount</th></tr></thead>
+              <tbody>{data.estimates.map((item) => <tr key={item.id} className="border-b last:border-0">
+                <td className="py-3 pr-3">{item.created_at ? new Date(item.created_at).toLocaleDateString() : "—"}</td>
+                <td className="py-3 pr-3">{item.entry_type === "top_up" ? "Change-request top-up" : item.entry_type === "currency_conversion" ? "Currency conversion" : "Original estimate"}</td>
+                <td className="py-3 pr-3">{item.change_request ? `${item.change_request} · ` : ""}{item.description}{item.previous_amount && <span className="block text-xs text-muted-foreground">Previously {item.previous_currency} {Number(item.previous_amount).toLocaleString()}</span>}</td>
+                <td className="py-3 pr-3">{item.actor_name ?? "System"}</td>
+                <td className="py-3 text-right">{item.currency} {Number(item.amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+              </tr>)}</tbody>
+              <tfoot><tr className="border-t-2 font-semibold">
+                <td colSpan={4} className="py-3 pr-3 text-right">Current total project estimate</td>
+                <td className="py-3 text-right">{projectCurrency} {Number(data.project.budget_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+              </tr></tfoot>
+            </table></div>}
+        </CardContent>
+      </Card>}
       {data.canSeeProfitability && <div className="grid gap-3 sm:grid-cols-3">
         <Summary title="Period revenue" amount={revenueTotal} currency={data.currency} secondaryAmount={projectCurrencyRate === null ? undefined : revenueTotal * projectCurrencyRate} secondaryCurrency={projectCurrency} />
         <Summary title="Period expenses" amount={expenseTotal + resourceCostTotal} currency={data.currency} secondaryAmount={projectCurrencyRate === null ? undefined : (expenseTotal + resourceCostTotal) * projectCurrencyRate} secondaryCurrency={projectCurrency} />
@@ -525,6 +578,27 @@ export default function ProjectFinancePanel({ projectId }: { projectId: string }
         </DialogContent>
       </Dialog>
 
+      <Dialog open={estimateOpen} onOpenChange={setEstimateOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{estimateType === "original" ? "Set the project estimate" : "Add a change-request top-up"}</DialogTitle>
+            <DialogDescription>{estimateType === "original"
+              ? `This becomes the original project estimate in ${projectCurrency}.`
+              : `This top-up will be added to the current total in ${projectCurrency} and retained in the estimate history.`}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-1.5"><Label htmlFor="estimate-amount">Amount ({projectCurrency})</Label><Input id="estimate-amount" type="number" min="0.01" step="0.01" value={estimateAmount} onChange={(event) => setEstimateAmount(event.target.value)} /></div>
+            {estimateType === "top_up" && <div className="space-y-1.5"><Label htmlFor="estimate-change-request">Change request reference</Label><Input id="estimate-change-request" value={changeRequest} onChange={(event) => setChangeRequest(event.target.value)} placeholder="e.g. CR-104" /></div>}
+            <div className="space-y-1.5"><Label htmlFor="estimate-description">Reason / details</Label><Textarea id="estimate-description" value={estimateDescription} onChange={(event) => setEstimateDescription(event.target.value)} placeholder="Describe the estimate or scope change" /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEstimateOpen(false)}>Cancel</Button>
+            <Button disabled={!Number(estimateAmount) || Number(estimateAmount) <= 0 || !estimateDescription.trim() || (estimateType === "top_up" && !changeRequest.trim()) || estimateMutation.isPending} onClick={() => estimateMutation.mutate()}>
+              {estimateMutation.isPending ? "Saving…" : estimateType === "original" ? "Set original estimate" : "Add top-up"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <Dialog open={expenseOpen} onOpenChange={(open) => { setExpenseOpen(open); if (!open) resetForm(); }}>
         <DialogContent><DialogHeader><DialogTitle>{editingEntry ? "Edit expense" : "Record new expense"}</DialogTitle><DialogDescription>Resource salary costs are calculated automatically and cannot be edited here.</DialogDescription></DialogHeader>
           <div className="grid gap-3">

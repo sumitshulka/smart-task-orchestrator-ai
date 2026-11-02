@@ -9,6 +9,8 @@ Deallocation is distinct from deletion: close a member's active project allocati
 
 All finance amounts and allocated salary costs use the organization currency so project totals are comparable. Treat revenue recognition basis as a monthly/milestone enum, not a boolean option, wherever project settings are validated.
 
+Project estimates use project currency and need an auditable ledger: retain the original estimate, record each change-request top-up separately with reference, reason, actor, and date, and show the estimate history in Project Finance. Top-ups increase the current total; they do not replace the original estimate.
+
 Keep Finance visually split into Revenue above Expenses. Entry forms open in dialogs. Salary-cost rows are computed from Project Settings and read-only here; user-entered accruals stay editable/deletable while pending, then lock after approval. Approval is limited to a different authorized project finance user.
 
 The profitability matrix belongs in the project Finance view and both sections share calendar-month columns. Milestone-recognized revenue is grouped by achieved month while milestone details remain available; report filters support month, quarter, year, custom range, and inception-to-date. Authorized resource-cost viewers can inspect each salary calculation.

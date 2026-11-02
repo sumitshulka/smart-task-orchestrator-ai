@@ -205,6 +205,20 @@ export const projectFinanceEntries = pgTable("project_finance_entries", {
   created_at: timestamp("created_at").defaultNow(),
 });
 
+export const projectEstimateHistory = pgTable("project_estimate_history", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  project_id: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  entry_type: text("entry_type").notNull(), // original | top_up | currency_conversion
+  amount: text("amount").notNull(),
+  currency: text("currency").notNull(),
+  previous_amount: text("previous_amount"),
+  previous_currency: text("previous_currency"),
+  change_request: text("change_request"),
+  description: text("description").notNull(),
+  created_by: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+  created_at: timestamp("created_at").defaultNow(),
+});
+
 // Milestone Stages table (inherits from template or custom)
 export const milestoneStages = pgTable("milestone_stages", {
   id: uuid("id").primaryKey().defaultRandom(),
