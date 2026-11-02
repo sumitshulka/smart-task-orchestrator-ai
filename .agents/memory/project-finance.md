@@ -9,6 +9,8 @@ Deallocation is distinct from deletion: close a member's active project allocati
 
 All finance amounts and allocated salary costs use the organization currency so project totals are comparable. Treat revenue recognition basis as a monthly/milestone enum, not a boolean option, wherever project settings are validated.
 
+Use a free, keyless public exchange-rate API for automatic indicative currency conversions in project settings and finance equivalents. Keep manual converted-amount entry available if rate lookup fails.
+
 Project estimates use project currency and need an auditable ledger: retain the original estimate, record each change-request top-up separately with reference, reason, actor, and date, and show the estimate history in Project Finance. Top-ups increase the current total; they do not replace the original estimate.
 
 Keep Finance visually split into Revenue above Expenses. Entry forms open in dialogs. Salary-cost rows are computed from Project Settings and read-only here; user-entered accruals stay editable/deletable while pending, then lock after approval. Approval is limited to a different authorized project finance user.
@@ -19,4 +21,4 @@ Finance entry rows use icon-only edit/delete actions revealed on hover (and keyb
 
 **Why:** The user described Finance as an accrual profitability workflow, not accounting/payments, and explicitly requires resource deallocation to preserve project history for audit.
 
-**How to apply:** Keep organization-wide expense heads separate from project expense entries, preserve effective-month salaries and membership periods, record revenue with its monthly or milestone basis, enforce configured project-role access server-side, and report line-level accruals rather than only totals.
+**How to apply:** Keep organization-wide expense heads separate from project expense entries, preserve effective-month salaries and membership periods, record revenue with its monthly or milestone basis, enforce configured project-role access server-side, and report line-level accruals rather than only totals. Use a dated daily indicative quote for automatic conversions and preserve manual entry as a fallback.

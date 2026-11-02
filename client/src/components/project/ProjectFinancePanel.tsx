@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api";
+import { fetchIndicativeExchangeRate } from "@/lib/exchange-rates";
 import { useToast } from "@/hooks/use-toast";
 import { CheckCircle2, Clock3, FileSpreadsheet, FileText, Info, LockKeyhole, Pencil, Trash2 } from "lucide-react";
 import * as XLSX from "xlsx";
@@ -150,14 +151,8 @@ export default function ProjectFinancePanel({ projectId }: { projectId: string }
     let cancelled = false;
     setProjectCurrencyRate(null);
     setFxUnavailable(false);
-    fetch(`https://api.frankfurter.app/latest?from=${encodeURIComponent(data.currency)}&to=${encodeURIComponent(projectCurrency)}`)
-      .then(async (response) => {
-        if (!response.ok) throw new Error("Exchange rate unavailable");
-        return response.json();
-      })
-      .then((result) => {
-        const rate = Number(result?.rates?.[projectCurrency]);
-        if (!Number.isFinite(rate) || rate <= 0) throw new Error("Exchange rate unavailable");
+    fetchIndicativeExchangeRate(data.currency, projectCurrency)
+      .then(({ rate }) => {
         if (!cancelled) setProjectCurrencyRate(rate);
       })
       .catch(() => { if (!cancelled) setFxUnavailable(true); });

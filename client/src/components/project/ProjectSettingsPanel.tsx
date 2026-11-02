@@ -8,6 +8,7 @@ import {
 import type { Project, ProjectMember, User } from "@shared/schema";
 import { apiClient } from "@/integrations/supabase/client";
 import { queryClient } from "@/lib/queryClient";
+import { fetchIndicativeExchangeRate } from "@/lib/exchange-rates";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -651,6 +652,7 @@ export default function ProjectSettingsPanel({ project, users, clients, members,
     to: string;
     amount: string;
     rate: number | null;
+    rateDate: string | null;
     loading: boolean;
     error: string | null;
   } | null>(null);
@@ -755,20 +757,14 @@ export default function ProjectSettingsPanel({ project, users, clients, members,
     if (!currencyChange || currencyChange.from === currencyChange.to || !currencyChange.amount) return;
     let cancelled = false;
     setCurrencyChange((current) => current ? { ...current, loading: true, error: null } : current);
-    fetch(`https://api.frankfurter.app/latest?from=${encodeURIComponent(currencyChange.from)}&to=${encodeURIComponent(currencyChange.to)}`)
-      .then(async (response) => {
-        if (!response.ok) throw new Error("Live exchange rate is unavailable. Enter the converted amount manually.");
-        return response.json();
-      })
-      .then((result) => {
-        const rate = Number(result?.rates?.[currencyChange.to]);
-        if (!Number.isFinite(rate) || rate <= 0) throw new Error("Live exchange rate is unavailable. Enter the converted amount manually.");
+    fetchIndicativeExchangeRate(currencyChange.from, currencyChange.to)
+      .then(({ rate, date }) => {
         if (!cancelled) setCurrencyChange((current) => current ? {
-          ...current, rate, amount: (Number(current.amount) * rate).toFixed(2), loading: false,
+          ...current, rate, rateDate: date, amount: (Number(current.amount) * rate).toFixed(2), loading: false,
         } : current);
       })
       .catch((error) => {
-        if (!cancelled) setCurrencyChange((current) => current ? { ...current, amount: "", loading: false, error: error.message } : current);
+        if (!cancelled) setCurrencyChange((current) => current ? { ...current, amount: "", rate: null, rateDate: null, loading: false, error: error.message } : current);
       });
     return () => { cancelled = true; };
   }, [currencyChange?.from, currencyChange?.to]);
@@ -781,6 +777,7 @@ export default function ProjectSettingsPanel({ project, users, clients, members,
       to,
       amount,
       rate: null,
+      rateDate: null,
       loading: Boolean(amount),
       error: null,
     });
@@ -1264,7 +1261,7 @@ export default function ProjectSettingsPanel({ project, users, clients, members,
           {currencyChange && <div className="space-y-4">
             <div className="rounded-md border bg-muted/30 p-3 text-sm">
               <div className="flex justify-between gap-4"><span>Current amount</span><strong>{currencyChange.from} {projectBudget ? Number(projectBudget).toLocaleString() : "Not set"}</strong></div>
-              {currencyChange.rate !== null && <p className="mt-2 text-xs text-muted-foreground">Indicative rate: 1 {currencyChange.from} = {currencyChange.rate.toFixed(6)} {currencyChange.to}</p>}
+              {currencyChange.rate !== null && <p className="mt-2 text-xs text-muted-foreground">Frankfurter reference rate for {currencyChange.rateDate || "latest available"}: 1 {currencyChange.from} = {currencyChange.rate.toFixed(6)} {currencyChange.to}</p>}
             </div>
             {projectBudget && <div className="space-y-1.5">
               <Label htmlFor="converted-project-amount">Converted amount ({currencyChange.to})</Label>
